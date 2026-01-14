@@ -5,10 +5,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
-	"github.com/spf13/cobra"
 )
 
 var (

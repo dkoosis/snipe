@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-// Test codebase: ../orca (read-only operations)
-var testRepo = filepath.Join("..", "..", "..", "orca")
+// Test codebase: snipe itself.
+var testRepo = filepath.Join("..", "..")
 
 // snipeBin returns the path to the snipe binary
 func snipeBin(t *testing.T) string {
@@ -83,7 +83,29 @@ func TestBlackbox_Version(t *testing.T) {
 }
 
 func TestBlackbox_Search(t *testing.T) {
-	output := runSnipe(t, "search", "--limit", "5", "func")
+	snipeDir := filepath.Join("..", "..")
+	absSnipe, _ := filepath.Abs(snipeDir)
+
+	bin := snipeBin(t)
+
+	// Index first
+	indexCmd := exec.Command(bin, "index")
+	indexCmd.Dir = absSnipe
+	if _, err := indexCmd.Output(); err != nil {
+		t.Fatalf("index failed: %v", err)
+	}
+	defer os.RemoveAll(filepath.Join(absSnipe, ".snipe"))
+
+	// Now test search
+	cmd := exec.Command(bin, "search", "--limit", "5", "func")
+	cmd.Dir = absSnipe
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			t.Fatalf("search failed: %v\nstderr: %s", err, exitErr.Stderr)
+		}
+		t.Fatalf("search failed: %v", err)
+	}
 
 	var resp Response
 	if err := json.Unmarshal(output, &resp); err != nil {
@@ -94,7 +116,7 @@ func TestBlackbox_Search(t *testing.T) {
 		t.Errorf("Command = %q, want %q", resp.Meta.Command, "search")
 	}
 	if resp.Meta.Total == 0 {
-		t.Error("Should find at least one 'func' match in orca")
+		t.Error("Should find at least one 'func' match in snipe")
 	}
 	if resp.Error != nil {
 		t.Errorf("Unexpected error: %s", resp.Error.Message)
@@ -257,7 +279,29 @@ func TestBlackbox_MissingIndex(t *testing.T) {
 }
 
 func TestBlackbox_JSONFormat(t *testing.T) {
-	output := runSnipe(t, "search", "--limit", "1", "package")
+	snipeDir := filepath.Join("..", "..")
+	absSnipe, _ := filepath.Abs(snipeDir)
+
+	bin := snipeBin(t)
+
+	// Index first
+	indexCmd := exec.Command(bin, "index")
+	indexCmd.Dir = absSnipe
+	if _, err := indexCmd.Output(); err != nil {
+		t.Fatalf("index failed: %v", err)
+	}
+	defer os.RemoveAll(filepath.Join(absSnipe, ".snipe"))
+
+	// Now test search
+	cmd := exec.Command(bin, "search", "--limit", "1", "package")
+	cmd.Dir = absSnipe
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			t.Fatalf("search failed: %v\nstderr: %s", err, exitErr.Stderr)
+		}
+		t.Fatalf("search failed: %v", err)
+	}
 
 	var resp Response
 	if err := json.Unmarshal(output, &resp); err != nil {

@@ -9,9 +9,9 @@ import (
 
 // Writer handles output formatting
 type Writer struct {
-	out    io.Writer
-	human  bool
-	start  time.Time
+	out   io.Writer
+	human bool
+	start time.Time
 }
 
 // NewWriter creates a new output writer

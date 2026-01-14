@@ -2,7 +2,7 @@ package store
 
 import "fmt"
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 // initSchema creates the database schema if it doesn't exist
 func (s *Store) initSchema() error {
@@ -17,6 +17,8 @@ func (s *Store) initSchema() error {
 		col_start INT NOT NULL,
 		line_end INT NOT NULL,
 		col_end INT NOT NULL,
+		name_line INT NOT NULL DEFAULT 0,  -- Identifier position for call graph linkage
+		name_col INT NOT NULL DEFAULT 0,
 		signature TEXT,
 		doc TEXT,
 		receiver TEXT
@@ -72,6 +74,16 @@ func (s *Store) initSchema() error {
 
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("create schema: %w", err)
+	}
+
+	// Migrate existing databases: add name_line/name_col if missing
+	// SQLite doesn't support ADD COLUMN IF NOT EXISTS, so we check first
+	var colCount int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('symbols') WHERE name = 'name_line'`).Scan(&colCount)
+	if err == nil && colCount == 0 {
+		// Add columns to existing table
+		s.db.Exec(`ALTER TABLE symbols ADD COLUMN name_line INT NOT NULL DEFAULT 0`)
+		s.db.Exec(`ALTER TABLE symbols ADD COLUMN name_col INT NOT NULL DEFAULT 0`)
 	}
 
 	// Set schema version

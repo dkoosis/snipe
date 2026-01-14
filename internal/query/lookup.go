@@ -186,9 +186,9 @@ func (s *SymbolRow) ToResult() output.Result {
 			Start: output.Position{Line: s.LineStart, Col: s.ColStart},
 			End:   output.Position{Line: s.LineEnd, Col: s.ColEnd},
 		},
-		Kind:       s.Kind,
-		Name:       s.Name,
-		Match:      s.Signature.String,
+		Kind:  s.Kind,
+		Name:  s.Name,
+		Match: s.Signature.String,
 		EditTarget: output.FormatEditTarget(s.FilePath, output.Range{
 			Start: output.Position{Line: s.LineStart, Col: s.ColStart},
 			End:   output.Position{Line: s.LineEnd, Col: s.ColEnd},

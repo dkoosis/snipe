@@ -52,15 +52,15 @@ type Candidate struct {
 
 // Result represents a single navigation result
 type Result struct {
-	ID        string     `json:"id"`
-	File      string     `json:"file"`
-	Range     Range      `json:"range"`
-	Kind      string     `json:"kind"`
-	Name      string     `json:"name"`
-	Match     string     `json:"match"`
-	Enclosing *Enclosing `json:"enclosing,omitempty"`
-	Context   *Context   `json:"context,omitempty"`
-	EditTarget string    `json:"edit_target"`
+	ID         string     `json:"id"`
+	File       string     `json:"file"`
+	Range      Range      `json:"range"`
+	Kind       string     `json:"kind"`
+	Name       string     `json:"name"`
+	Match      string     `json:"match"`
+	Enclosing  *Enclosing `json:"enclosing,omitempty"`
+	Context    *Context   `json:"context,omitempty"`
+	EditTarget string     `json:"edit_target"`
 }
 
 // Range represents a source code range
@@ -92,12 +92,12 @@ type Context struct {
 
 // Error codes
 const (
-	ErrNotFound       = "NOT_FOUND"
+	ErrNotFound        = "NOT_FOUND"
 	ErrAmbiguousSymbol = "AMBIGUOUS_SYMBOL"
-	ErrMissingIndex   = "MISSING_INDEX"
-	ErrStaleIndex     = "STALE_INDEX"
-	ErrRgNotFound     = "RG_NOT_FOUND"
-	ErrInternal       = "INTERNAL_ERROR"
+	ErrMissingIndex    = "MISSING_INDEX"
+	ErrStaleIndex      = "STALE_INDEX"
+	ErrRgNotFound      = "RG_NOT_FOUND"
+	ErrInternal        = "INTERNAL_ERROR"
 )
 
 // NewNotFoundError creates a NOT_FOUND error

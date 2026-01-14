@@ -107,10 +107,10 @@ func extractFuncSymbol(_ *packages.Package, decl *ast.FuncDecl, filePath string,
 
 	return &Symbol{
 		// ID uses identifier position for posKey matching with call graph
-		ID:        generateID(filePath, namePos.Line, namePos.Column, string(kind)),
-		Name:      decl.Name.Name,
-		Kind:      kind,
-		FilePath:  filePath,
+		ID:       generateID(filePath, namePos.Line, namePos.Column, string(kind)),
+		Name:     decl.Name.Name,
+		Kind:     kind,
+		FilePath: filePath,
 		// Range uses declaration start for user display (includes 'func' keyword)
 		LineStart: declPos.Line,
 		ColStart:  declPos.Column,

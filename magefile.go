@@ -11,6 +11,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -169,6 +170,76 @@ func Clean() error {
 	fmt.Println("→ Cleaning...")
 	_ = sh.Rm("./bin")
 	_ = sh.Rm("./.snipe")
+	return nil
+}
+
+// Baseline captures performance/quality metrics.
+func Baseline() error {
+	fmt.Println("→ Capturing baseline metrics...")
+	return sh.RunV("go", "test", "-v", "-run", "TestCaptureBaseline", "./test/bench/")
+}
+
+// Bench runs Go benchmarks.
+func Bench() error {
+	fmt.Println("→ Running benchmarks...")
+	return sh.RunV("go", "test", "-bench=.", "-benchmem", "./test/bench/")
+}
+
+// Trend shows performance metrics over time.
+func Trend() error {
+	fmt.Println("→ Performance Trend (last 30 entries)")
+	fmt.Println()
+
+	data, err := os.ReadFile(".snipe/metrics.jsonl")
+	if err != nil {
+		return fmt.Errorf("no metrics history found - run 'mage baseline' first")
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+
+	// Show last 30 entries
+	start := 0
+	if len(lines) > 30 {
+		start = len(lines) - 30
+	}
+
+	fmt.Printf("%-12s %-8s %8s %8s %8s %8s %8s\n",
+		"Date", "Commit", "Symbols", "Refs", "IdxMs", "DefMs", "CallCov")
+	fmt.Println(strings.Repeat("-", 72))
+
+	for _, line := range lines[start:] {
+		var m struct {
+			Timestamp string `json:"timestamp"`
+			GitCommit string `json:"git_commit"`
+			Codebase  struct {
+				Symbols int `json:"symbols"`
+				Refs    int `json:"refs"`
+			} `json:"codebase"`
+			Index struct {
+				TotalMs int64 `json:"total_ms"`
+			} `json:"index"`
+			Query struct {
+				DefByNameMs float64 `json:"def_by_name_ms"`
+			} `json:"query"`
+			Quality struct {
+				CallGraphCoverage float64 `json:"callgraph_coverage_pct"`
+			} `json:"quality"`
+		}
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			continue
+		}
+
+		date := m.Timestamp[:10]
+		commit := m.GitCommit
+		if len(commit) > 7 {
+			commit = commit[:7]
+		}
+
+		fmt.Printf("%-12s %-8s %8d %8d %8d %8.2f %7.1f%%\n",
+			date, commit, m.Codebase.Symbols, m.Codebase.Refs,
+			m.Index.TotalMs, m.Query.DefByNameMs, m.Quality.CallGraphCoverage)
+	}
+
 	return nil
 }
 

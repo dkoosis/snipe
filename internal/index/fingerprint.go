@@ -13,12 +13,12 @@ import (
 
 // Fingerprint represents the state of a Go project for cache invalidation
 type Fingerprint struct {
-	Version    string // snipe version
-	GoMod      string // hash of go.mod
-	GoSum      string // hash of go.sum
-	GoWork     string // hash of go.work (if present)
-	GoEnv      string // relevant go env values
-	Combined   string // combined hash for quick comparison
+	Version  string // snipe version
+	GoMod    string // hash of go.mod
+	GoSum    string // hash of go.sum
+	GoWork   string // hash of go.work (if present)
+	GoEnv    string // relevant go env values
+	Combined string // combined hash for quick comparison
 }
 
 // ComputeFingerprint computes the fingerprint for a Go project

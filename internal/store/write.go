@@ -16,6 +16,12 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 	}
 	defer tx.Rollback()
 
+	// Build set of valid symbol IDs for filtering refs and edges
+	symbolIDs := make(map[string]struct{}, len(symbols))
+	for _, sym := range symbols {
+		symbolIDs[sym.ID] = struct{}{}
+	}
+
 	// Clear existing data
 	if err := truncateTables(tx); err != nil {
 		return err
@@ -26,13 +32,15 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 		return err
 	}
 
-	// Write refs
-	if err := writeRefs(tx, refs); err != nil {
+	// Filter and write refs (only those referencing known symbols)
+	validRefs := filterRefs(refs, symbolIDs)
+	if err := writeRefs(tx, validRefs); err != nil {
 		return err
 	}
 
-	// Write call edges
-	if err := writeCallEdges(tx, edges); err != nil {
+	// Filter and write call edges (only those referencing known symbols)
+	validEdges := filterCallEdges(edges, symbolIDs)
+	if err := writeCallEdges(tx, validEdges); err != nil {
 		return err
 	}
 
@@ -43,8 +51,44 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 	return nil
 }
 
+// filterRefs returns only refs that reference existing symbols.
+func filterRefs(refs []index.Ref, symbolIDs map[string]struct{}) []index.Ref {
+	result := make([]index.Ref, 0, len(refs))
+	for _, ref := range refs {
+		// symbol_id must exist
+		if _, ok := symbolIDs[ref.SymbolID]; !ok {
+			continue
+		}
+		// enclosing_id must exist (if set)
+		if ref.EnclosingID != "" {
+			if _, ok := symbolIDs[ref.EnclosingID]; !ok {
+				continue
+			}
+		}
+		result = append(result, ref)
+	}
+	return result
+}
+
+// filterCallEdges returns only edges that reference existing symbols.
+func filterCallEdges(edges []index.CallEdge, symbolIDs map[string]struct{}) []index.CallEdge {
+	result := make([]index.CallEdge, 0, len(edges))
+	for _, edge := range edges {
+		if _, ok := symbolIDs[edge.CallerID]; !ok {
+			continue
+		}
+		if _, ok := symbolIDs[edge.CalleeID]; !ok {
+			continue
+		}
+		result = append(result, edge)
+	}
+	return result
+}
+
 func truncateTables(tx *sql.Tx) error {
-	tables := []string{"symbols", "refs", "call_graph"}
+	// Delete in order: child tables first (refs, call_graph), then parent (symbols)
+	// This respects foreign key constraints
+	tables := []string{"refs", "call_graph", "symbols"}
 	for _, table := range tables {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
 			return fmt.Errorf("truncate %s: %w", table, err)
@@ -55,8 +99,8 @@ func truncateTables(tx *sql.Tx) error {
 
 func writeSymbols(tx *sql.Tx, symbols []index.Symbol) error {
 	stmt, err := tx.Prepare(`
-		INSERT INTO symbols (id, name, kind, file_path, line_start, col_start, line_end, col_end, signature, doc, receiver)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO symbols (id, name, kind, file_path, line_start, col_start, line_end, col_end, name_line, name_col, signature, doc, receiver)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("prepare symbols insert: %w", err)
@@ -73,6 +117,8 @@ func writeSymbols(tx *sql.Tx, symbols []index.Symbol) error {
 			sym.ColStart,
 			sym.LineEnd,
 			sym.ColEnd,
+			sym.NameLine,
+			sym.NameCol,
 			sym.Signature,
 			sym.Doc,
 			sym.Receiver,

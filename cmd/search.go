@@ -4,9 +4,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/search"
-	"github.com/spf13/cobra"
 )
 
 var searchCmd = &cobra.Command{
