@@ -36,7 +36,7 @@ func init() {
 func runRefs(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, lim, _, _ := GetOutputConfig()
+	_, human, lim, contextLines, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	// Need either a symbol name or --at position
@@ -162,6 +162,11 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		// Add context lines if requested
+		if contextLines > 0 {
+			_ = output.AddContext(&result, contextLines)
+		}
+
 		results[i] = result
 		tokenEstimate += output.EstimateTokens(ref.Snippet)
 	}
@@ -172,7 +177,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			Command:       "refs",
 			Query:         queryInfo,
 			RepoRoot:      dir,
-			IndexState:    output.IndexFresh, // TODO: check actual state
+			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(results),
 			Truncated:     len(results) >= lim,

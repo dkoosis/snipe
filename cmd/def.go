@@ -39,7 +39,7 @@ func init() {
 func runDef(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, _, _, _ := GetOutputConfig()
+	_, human, _, contextLines, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	// Need either a symbol name or --at position
@@ -143,6 +143,12 @@ func runDef(cmd *cobra.Command, args []string) error {
 	}
 
 	result := sym.ToResult()
+
+	// Add context lines if requested
+	if contextLines > 0 {
+		_ = output.AddContext(&result, contextLines)
+	}
+
 	tokenEstimate := output.EstimateTokens(result.Match)
 
 	resp := output.Response[output.Result]{
@@ -151,7 +157,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 			Command:       "def",
 			Query:         queryInfo,
 			RepoRoot:      dir,
-			IndexState:    output.IndexFresh, // TODO: check actual state
+			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         1,
 			TokenEstimate: tokenEstimate,

@@ -1,9 +1,11 @@
 package output
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"time"
 )
 
@@ -74,4 +76,61 @@ func FormatEditTarget(file string, r Range) string {
 		r.Start.Line, r.Start.Col,
 		r.End.Line, r.End.Col,
 	)
+}
+
+// AddContext loads N lines of context before and after the result's range
+func AddContext(result *Result, n int) error {
+	if n <= 0 {
+		return nil
+	}
+
+	lines, err := readFileLines(result.File)
+	if err != nil {
+		return err
+	}
+
+	startLine := result.Range.Start.Line
+	endLine := result.Range.End.Line
+
+	// Get N lines before
+	beforeStart := max(1, startLine-n)
+	var before []string
+	for i := beforeStart; i < startLine; i++ {
+		if i <= len(lines) {
+			before = append(before, lines[i-1])
+		}
+	}
+
+	// Get N lines after
+	afterEnd := min(len(lines), endLine+n)
+	var after []string
+	for i := endLine + 1; i <= afterEnd; i++ {
+		if i <= len(lines) {
+			after = append(after, lines[i-1])
+		}
+	}
+
+	if len(before) > 0 || len(after) > 0 {
+		result.Context = &Context{
+			Before: before,
+			After:  after,
+		}
+	}
+
+	return nil
+}
+
+func readFileLines(path string) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
 }

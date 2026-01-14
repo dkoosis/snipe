@@ -205,3 +205,89 @@ func (s *SymbolRow) ToCandidate() output.Candidate {
 		Kind: s.Kind,
 	}
 }
+
+// CallRow represents a call graph edge with caller/callee details
+type CallRow struct {
+	CallerID        string
+	CallerName      string
+	CallerKind      string
+	CallerFile      string
+	CallerSignature sql.NullString
+	CalleeID        string
+	CalleeName      string
+	CalleeKind      string
+	CalleeFile      string
+	CalleeSignature sql.NullString
+	CallLine        int
+	CallCol         int
+}
+
+// FindCallers returns all functions that call the given symbol
+func FindCallers(db *sql.DB, symbolID string, limit int) ([]CallRow, error) {
+	rows, err := db.Query(`
+		SELECT
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.signature,
+			cg.line, cg.col
+		FROM call_graph cg
+		JOIN symbols caller ON cg.caller_id = caller.id
+		JOIN symbols callee ON cg.callee_id = callee.id
+		WHERE cg.callee_id = ?
+		ORDER BY caller.file_path, cg.line
+		LIMIT ?
+	`, symbolID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []CallRow
+	for rows.Next() {
+		var r CallRow
+		err := rows.Scan(
+			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &r.CallerSignature,
+			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &r.CalleeSignature,
+			&r.CallLine, &r.CallCol,
+		)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
+// FindCallees returns all functions that the given symbol calls
+func FindCallees(db *sql.DB, symbolID string, limit int) ([]CallRow, error) {
+	rows, err := db.Query(`
+		SELECT
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.signature,
+			cg.line, cg.col
+		FROM call_graph cg
+		JOIN symbols caller ON cg.caller_id = caller.id
+		JOIN symbols callee ON cg.callee_id = callee.id
+		WHERE cg.caller_id = ?
+		ORDER BY cg.line, cg.col
+		LIMIT ?
+	`, symbolID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []CallRow
+	for rows.Next() {
+		var r CallRow
+		err := rows.Scan(
+			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &r.CallerSignature,
+			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &r.CalleeSignature,
+			&r.CallLine, &r.CallCol,
+		)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
