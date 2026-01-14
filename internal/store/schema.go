@@ -2,7 +2,7 @@ package store
 
 import "fmt"
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 // initSchema creates the database schema if it doesn't exist
 func (s *Store) initSchema() error {
@@ -83,6 +83,10 @@ func (s *Store) initSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_callgraph_callee ON call_graph(callee_id);
 	CREATE INDEX IF NOT EXISTS idx_imports_file ON imports(file_path);
 	CREATE INDEX IF NOT EXISTS idx_imports_pkg ON imports(pkg_path);
+
+	-- Composite indexes for position queries (hot path for --at lookups)
+	CREATE INDEX IF NOT EXISTS idx_symbols_position ON symbols(file_path, line_start, col_start);
+	CREATE INDEX IF NOT EXISTS idx_refs_position ON refs(file_path, line, col);
 	`
 
 	if _, err := s.db.Exec(schema); err != nil {
