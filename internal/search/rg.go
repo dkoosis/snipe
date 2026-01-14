@@ -1,0 +1,130 @@
+package search
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"os/exec"
+	"strings"
+
+	"github.com/dkoosis/snipe/internal/output"
+)
+
+// RgMatch represents a ripgrep JSON match
+type RgMatch struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
+
+// RgMatchData represents the data field for a match type
+type RgMatchData struct {
+	Path struct {
+		Text string `json:"text"`
+	} `json:"path"`
+	Lines struct {
+		Text string `json:"text"`
+	} `json:"lines"`
+	LineNumber  int `json:"line_number"`
+	AbsOffset   int `json:"absolute_offset"`
+	Submatches  []RgSubmatch `json:"submatches"`
+}
+
+// RgSubmatch represents a submatch within a line
+type RgSubmatch struct {
+	Match struct {
+		Text string `json:"text"`
+	} `json:"match"`
+	Start int `json:"start"`
+	End   int `json:"end"`
+}
+
+// Search runs ripgrep and returns formatted results
+func Search(dir, pattern string, limit, contextLines int) ([]output.Result, error) {
+	// Check if rg is available
+	if _, err := exec.LookPath("rg"); err != nil {
+		return nil, fmt.Errorf("ripgrep (rg) not found: install from https://github.com/BurntSushi/ripgrep")
+	}
+
+	args := []string{
+		"--json",
+		"--line-number",
+		"--column",
+		"--max-count", fmt.Sprintf("%d", limit*2), // Get more than limit to account for context
+	}
+
+	if contextLines > 0 {
+		args = append(args, "--context", fmt.Sprintf("%d", contextLines))
+	}
+
+	// Add exclude patterns
+	excludes := []string{"vendor", "node_modules", ".git", "testdata"}
+	for _, ex := range excludes {
+		args = append(args, "--glob", "!"+ex)
+	}
+
+	args = append(args, pattern, dir)
+
+	cmd := exec.Command("rg", args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("create pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start rg: %w", err)
+	}
+
+	var results []output.Result
+	scanner := bufio.NewScanner(stdout)
+
+	for scanner.Scan() && len(results) < limit {
+		line := scanner.Bytes()
+
+		var msg RgMatch
+		if err := json.Unmarshal(line, &msg); err != nil {
+			continue
+		}
+
+		if msg.Type != "match" {
+			continue
+		}
+
+		var data RgMatchData
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			continue
+		}
+
+		for _, sub := range data.Submatches {
+			result := output.Result{
+				ID:    generateSearchID(data.Path.Text, data.LineNumber, sub.Start),
+				File:  data.Path.Text,
+				Range: output.Range{
+					Start: output.Position{Line: data.LineNumber, Col: sub.Start + 1},
+					End:   output.Position{Line: data.LineNumber, Col: sub.End + 1},
+				},
+				Kind:  "match",
+				Name:  sub.Match.Text,
+				Match: strings.TrimSpace(data.Lines.Text),
+				EditTarget: output.FormatEditTarget(data.Path.Text, output.Range{
+					Start: output.Position{Line: data.LineNumber, Col: sub.Start + 1},
+					End:   output.Position{Line: data.LineNumber, Col: sub.End + 1},
+				}),
+			}
+			results = append(results, result)
+
+			if len(results) >= limit {
+				break
+			}
+		}
+	}
+
+	// Wait for command to finish (ignore exit code, rg returns 1 for no matches)
+	cmd.Wait()
+
+	return results, nil
+}
+
+func generateSearchID(file string, line, col int) string {
+	// Simple hash for search results
+	return fmt.Sprintf("s%d%d", line, col)
+}

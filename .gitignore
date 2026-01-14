@@ -1,0 +1,13 @@
+# Binary
+snipe
+
+# Index database
+.snipe/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Test artifacts
+coverage.out
