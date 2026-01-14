@@ -24,9 +24,9 @@ type RgMatchData struct {
 	Lines struct {
 		Text string `json:"text"`
 	} `json:"lines"`
-	LineNumber  int `json:"line_number"`
-	AbsOffset   int `json:"absolute_offset"`
-	Submatches  []RgSubmatch `json:"submatches"`
+	LineNumber int          `json:"line_number"`
+	AbsOffset  int          `json:"absolute_offset"`
+	Submatches []RgSubmatch `json:"submatches"`
 }
 
 // RgSubmatch represents a submatch within a line
@@ -96,8 +96,8 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 
 		for _, sub := range data.Submatches {
 			result := output.Result{
-				ID:    generateSearchID(data.Path.Text, data.LineNumber, sub.Start),
-				File:  data.Path.Text,
+				ID:   generateSearchID(data.Path.Text, data.LineNumber, sub.Start),
+				File: data.Path.Text,
 				Range: output.Range{
 					Start: output.Position{Line: data.LineNumber, Col: sub.Start + 1},
 					End:   output.Position{Line: data.LineNumber, Col: sub.End + 1},
@@ -118,13 +118,15 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 		}
 	}
 
-	// Wait for command to finish (ignore exit code, rg returns 1 for no matches)
+	// Close pipe to signal rg we're done reading. This causes SIGPIPE on rg's
+	// next write, allowing clean shutdown (same as `rg | head -n 50` behavior).
+	stdout.Close()
 	cmd.Wait()
 
 	return results, nil
 }
 
-func generateSearchID(file string, line, col int) string {
+func generateSearchID(_ string, line, col int) string {
 	// Simple hash for search results
 	return fmt.Sprintf("s%d%d", line, col)
 }
