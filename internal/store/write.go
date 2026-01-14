@@ -93,7 +93,7 @@ func filterCallEdges(edges []index.CallEdge, symbolIDs map[string]struct{}) []in
 }
 
 func truncateTables(tx *sql.Tx) error {
-	// Delete in order: child tables first (refs, call_graph), then parent (symbols)
+	// Delete in order: child tables first (refs, call_graph, imports), then parent (symbols)
 	// This respects foreign key constraints. Using explicit statements avoids
 	// string concatenation patterns that could be unsafe if copied with user input.
 	if _, err := tx.Exec("DELETE FROM refs"); err != nil {
@@ -101,6 +101,10 @@ func truncateTables(tx *sql.Tx) error {
 	}
 	if _, err := tx.Exec("DELETE FROM call_graph"); err != nil {
 		return fmt.Errorf("truncate call_graph: %w", err)
+	}
+	if _, err := tx.Exec("DELETE FROM imports"); err != nil {
+		// Ignore if table doesn't exist (backwards compatibility)
+		_ = err
 	}
 	if _, err := tx.Exec("DELETE FROM symbols"); err != nil {
 		return fmt.Errorf("truncate symbols: %w", err)
@@ -201,6 +205,56 @@ func nullString(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+// WriteImports writes import records to the database
+func (s *Store) WriteImports(imports []index.Import) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+
+	if err := writeImports(tx, imports); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func writeImports(tx *sql.Tx, imports []index.Import) error {
+	stmt, err := tx.Prepare(`
+		INSERT INTO imports (file_path, pkg_path, name, line, col, importer_pkg)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare imports insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, imp := range imports {
+		_, err := stmt.Exec(
+			imp.FilePath,
+			imp.PkgPath,
+			nullString(imp.Name),
+			imp.Line,
+			imp.Col,
+			nullString(imp.ImporterPkg),
+		)
+		if err != nil {
+			return fmt.Errorf("insert import %s: %w", imp.PkgPath, err)
+		}
+	}
+
+	return nil
 }
 
 // GetStats returns index statistics

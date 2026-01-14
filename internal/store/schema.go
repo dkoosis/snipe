@@ -2,7 +2,7 @@ package store
 
 import "fmt"
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 // initSchema creates the database schema if it doesn't exist
 func (s *Store) initSchema() error {
@@ -49,6 +49,17 @@ func (s *Store) initSchema() error {
 		FOREIGN KEY (callee_id) REFERENCES symbols(id)
 	);
 
+	-- Imports table: file -> package import relationships
+	CREATE TABLE IF NOT EXISTS imports (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		file_path TEXT NOT NULL,
+		pkg_path TEXT NOT NULL,
+		name TEXT,
+		line INT NOT NULL,
+		col INT NOT NULL,
+		importer_pkg TEXT
+	);
+
 	-- Metadata table: version, timestamps, fingerprint
 	CREATE TABLE IF NOT EXISTS meta (
 		key TEXT PRIMARY KEY,
@@ -70,6 +81,8 @@ func (s *Store) initSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_refs_file ON refs(file_path);
 	CREATE INDEX IF NOT EXISTS idx_callgraph_caller ON call_graph(caller_id);
 	CREATE INDEX IF NOT EXISTS idx_callgraph_callee ON call_graph(callee_id);
+	CREATE INDEX IF NOT EXISTS idx_imports_file ON imports(file_path);
+	CREATE INDEX IF NOT EXISTS idx_imports_pkg ON imports(pkg_path);
 	`
 
 	if _, err := s.db.Exec(schema); err != nil {

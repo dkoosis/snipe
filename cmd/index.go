@@ -101,10 +101,23 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "Found %d call edges\n", len(edges))
 
+	// Extract imports
+	fmt.Fprintf(os.Stderr, "Extracting imports...\n")
+	imports, err := index.ExtractImports(result)
+	if err != nil {
+		return fmt.Errorf("extract imports: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Found %d imports\n", len(imports))
+
 	// Write to store
 	fmt.Fprintf(os.Stderr, "Writing index...\n")
 	if err := s.WriteIndex(symbols, refs, edges); err != nil {
 		return fmt.Errorf("write index: %w", err)
+	}
+
+	// Write imports
+	if err := s.WriteImports(imports); err != nil {
+		return fmt.Errorf("write imports: %w", err)
 	}
 
 	// Store fingerprint
