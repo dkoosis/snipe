@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -114,15 +115,13 @@ func filterPackages(pkgs []*packages.Package, exclude []string) []*packages.Pack
 }
 
 func matchesExclude(pkgPath, pattern string) bool {
-	// Check if any path component matches the pattern
-	for _, component := range filepath.SplitList(pkgPath) {
+	// Split by "/" to get path components (package paths use forward slashes)
+	for _, component := range strings.Split(pkgPath, "/") {
 		if component == pattern {
 			return true
 		}
 	}
-	// Also check for pattern in path
-	matched, _ := filepath.Match("*"+pattern+"*", pkgPath)
-	return matched
+	return false
 }
 
 // WalkFiles walks all Go files in the loaded packages

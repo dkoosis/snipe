@@ -2,6 +2,7 @@ package index
 
 import (
 	"bufio"
+	"fmt"
 	"go/ast"
 	"go/token"
 	"os"
@@ -100,17 +101,18 @@ func ExtractRefs(result *LoadResult, symbols []Symbol) ([]Ref, error) {
 }
 
 // buildSymbolPosIndex creates a map from position key to symbol ID
+// Uses NameLine/NameCol (identifier position) to match obj.Pos() in call graph lookups
 func buildSymbolPosIndex(symbols []Symbol) map[string]string {
 	index := make(map[string]string)
 	for _, sym := range symbols {
-		key := posKey(sym.FilePath, sym.LineStart, sym.ColStart)
+		key := posKey(sym.FilePath, sym.NameLine, sym.NameCol)
 		index[key] = sym.ID
 	}
 	return index
 }
 
 func posKey(file string, line, col int) string {
-	return file + ":" + string(rune(line)) + ":" + string(rune(col))
+	return fmt.Sprintf("%s:%d:%d", file, line, col)
 }
 
 // enclosingFunc tracks function/method ranges for finding enclosing scope
@@ -124,14 +126,15 @@ func buildEnclosingMap(file *ast.File, filePath string, fset *token.FileSet) []e
 	var funcs []enclosingFunc
 
 	ast.Inspect(file, func(n ast.Node) bool {
-		if fn, ok := n.(*ast.FuncDecl); ok && fn.Body != nil {
-			pos := fset.Position(fn.Pos())
+		if fn, ok := n.(*ast.FuncDecl); ok && fn.Body != nil && fn.Name != nil {
+			// Use fn.Name.Pos() to match symbol ID generation in symbols.go
+			namePos := fset.Position(fn.Name.Pos())
 			kind := KindFunc
 			if fn.Recv != nil {
 				kind = KindMethod
 			}
 			funcs = append(funcs, enclosingFunc{
-				id:    generateID(filePath, pos.Line, pos.Column, string(kind)),
+				id:    generateID(filePath, namePos.Line, namePos.Column, string(kind)),
 				start: fn.Body.Lbrace,
 				end:   fn.Body.Rbrace,
 			})

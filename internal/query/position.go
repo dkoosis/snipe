@@ -61,12 +61,21 @@ func ParsePosition(s string) (*PositionQuery, error) {
 
 // ResolvePosition finds the symbol at or near the given position
 func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error) {
+	// Build file pattern: prefer exact match, then suffix match
+	// Suffix match uses trailing pattern (no leading %) to use index
+	filePattern := pos.File
+	if !strings.HasPrefix(pos.File, "/") {
+		// Relative path - use suffix match with trailing pattern
+		filePattern = "%" + pos.File
+	}
+
 	// First, try to find a reference at exactly this position
 	err = db.QueryRow(`
 		SELECT symbol_id FROM refs
-		WHERE file_path LIKE ? AND line = ? AND col = ?
+		WHERE (file_path = ? OR file_path LIKE ?)
+		AND line = ? AND col = ?
 		LIMIT 1
-	`, "%"+pos.File, pos.Line, pos.Col).Scan(&symbolID)
+	`, pos.File, filePattern, pos.Line, pos.Col).Scan(&symbolID)
 
 	if err == nil {
 		return symbolID, nil
@@ -79,10 +88,11 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	// Try to find a reference on this line, closest to the column
 	err = db.QueryRow(`
 		SELECT symbol_id FROM refs
-		WHERE file_path LIKE ? AND line = ?
+		WHERE (file_path = ? OR file_path LIKE ?)
+		AND line = ?
 		ORDER BY ABS(col - ?)
 		LIMIT 1
-	`, "%"+pos.File, pos.Line, pos.Col).Scan(&symbolID)
+	`, pos.File, filePattern, pos.Line, pos.Col).Scan(&symbolID)
 
 	if err == nil {
 		return symbolID, nil
@@ -95,9 +105,10 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	// Try to find a symbol definition at this position
 	err = db.QueryRow(`
 		SELECT id FROM symbols
-		WHERE file_path LIKE ? AND line_start = ? AND col_start <= ? AND col_end >= ?
+		WHERE (file_path = ? OR file_path LIKE ?)
+		AND line_start = ? AND col_start <= ? AND col_end >= ?
 		LIMIT 1
-	`, "%"+pos.File, pos.Line, pos.Col, pos.Col).Scan(&symbolID)
+	`, pos.File, filePattern, pos.Line, pos.Col, pos.Col).Scan(&symbolID)
 
 	if err == nil {
 		return symbolID, nil
@@ -110,10 +121,11 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	// Try to find a symbol that spans this line
 	err = db.QueryRow(`
 		SELECT id FROM symbols
-		WHERE file_path LIKE ? AND line_start <= ? AND line_end >= ?
+		WHERE (file_path = ? OR file_path LIKE ?)
+		AND line_start <= ? AND line_end >= ?
 		ORDER BY (line_end - line_start)
 		LIMIT 1
-	`, "%"+pos.File, pos.Line, pos.Line).Scan(&symbolID)
+	`, pos.File, filePattern, pos.Line, pos.Line).Scan(&symbolID)
 
 	if err == sql.ErrNoRows {
 		return "", fmt.Errorf("no symbol found at %s:%d:%d", pos.File, pos.Line, pos.Col)

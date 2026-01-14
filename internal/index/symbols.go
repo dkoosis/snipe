@@ -32,10 +32,12 @@ type Symbol struct {
 	Name      string
 	Kind      SymbolKind
 	FilePath  string
-	LineStart int
+	LineStart int // Display range start (includes 'func' keyword for functions)
 	ColStart  int
 	LineEnd   int
 	ColEnd    int
+	NameLine  int // Identifier position (used for ID generation and call graph linkage)
+	NameCol   int
 	Signature string
 	Doc       string
 	Receiver  string // For methods: "(*T)" or "(T)"
@@ -81,12 +83,15 @@ func extractFileSymbols(pkg *packages.Package, file *ast.File, filePath string, 
 	return symbols
 }
 
-func extractFuncSymbol(pkg *packages.Package, decl *ast.FuncDecl, filePath string, fset *token.FileSet) *Symbol {
+func extractFuncSymbol(_ *packages.Package, decl *ast.FuncDecl, filePath string, fset *token.FileSet) *Symbol {
 	if decl.Name == nil {
 		return nil
 	}
 
-	pos := fset.Position(decl.Pos())
+	// Use decl.Name.Pos() for the identifier position - this matches what
+	// types.Object.Pos() returns, enabling call graph linkage via posKey
+	namePos := fset.Position(decl.Name.Pos())
+	declPos := fset.Position(decl.Pos())
 	endPos := fset.Position(decl.End())
 
 	kind := KindFunc
@@ -101,14 +106,19 @@ func extractFuncSymbol(pkg *packages.Package, decl *ast.FuncDecl, filePath strin
 	doc := extractDoc(decl.Doc)
 
 	return &Symbol{
-		ID:        generateID(filePath, pos.Line, pos.Column, string(kind)),
+		// ID uses identifier position for posKey matching with call graph
+		ID:        generateID(filePath, namePos.Line, namePos.Column, string(kind)),
 		Name:      decl.Name.Name,
 		Kind:      kind,
 		FilePath:  filePath,
-		LineStart: pos.Line,
-		ColStart:  pos.Column,
+		// Range uses declaration start for user display (includes 'func' keyword)
+		LineStart: declPos.Line,
+		ColStart:  declPos.Column,
 		LineEnd:   endPos.Line,
 		ColEnd:    endPos.Column,
+		// Identifier position for call graph linkage
+		NameLine:  namePos.Line,
+		NameCol:   namePos.Column,
 		Signature: sig,
 		Doc:       doc,
 		Receiver:  receiver,
@@ -173,6 +183,8 @@ func extractTypeSymbol(pkg *packages.Package, spec *ast.TypeSpec, decl *ast.GenD
 		ColStart:  pos.Column,
 		LineEnd:   endPos.Line,
 		ColEnd:    endPos.Column,
+		NameLine:  pos.Line,
+		NameCol:   pos.Column,
 		Signature: sig,
 		Doc:       doc,
 	}
@@ -215,6 +227,8 @@ func extractValueSymbols(pkg *packages.Package, spec *ast.ValueSpec, decl *ast.G
 			ColStart:  pos.Column,
 			LineEnd:   endPos.Line,
 			ColEnd:    endPos.Column,
+			NameLine:  pos.Line,
+			NameCol:   pos.Column,
 			Signature: sig,
 			Doc:       doc,
 		})
