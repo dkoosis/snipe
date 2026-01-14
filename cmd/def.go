@@ -39,7 +39,7 @@ func init() {
 func runDef(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, _, _, contextLines, withBody, _ := GetOutputConfig()
+	_, human, _, _, contextLines, withBody, withSiblings, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	// Need either a symbol name or --at position
@@ -152,6 +152,14 @@ func runDef(cmd *cobra.Command, args []string) error {
 	// Add context lines if requested (only if not showing full body)
 	if contextLines > 0 && !withBody {
 		_ = output.AddContext(&result, contextLines)
+	}
+
+	// Add sibling declarations if requested
+	if withSiblings {
+		siblings, err := query.FindSiblings(s.DB(), sym.FilePath, sym.Kind, sym.ID, 20)
+		if err == nil && len(siblings) > 0 {
+			result.Siblings = siblings
+		}
 	}
 
 	tokenEstimate := output.EstimateTokens(result.Match)

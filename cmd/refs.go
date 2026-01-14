@@ -36,7 +36,7 @@ func init() {
 func runRefs(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, lim, off, contextLines, withBody, summary := GetOutputConfig()
+	_, human, lim, off, contextLines, withBody, _, summary := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	// Need either a symbol name or --at position

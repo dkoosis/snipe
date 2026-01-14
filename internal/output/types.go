@@ -63,7 +63,16 @@ type Result struct {
 	Body       string     `json:"body,omitempty"`
 	Enclosing  *Enclosing `json:"enclosing,omitempty"`
 	Context    *Context   `json:"context,omitempty"`
+	Siblings   []Sibling  `json:"siblings,omitempty"`
 	EditTarget string     `json:"edit_target"`
+}
+
+// Sibling represents another declaration of the same kind in the same file
+type Sibling struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Kind string `json:"kind"`
+	Line int    `json:"line"`
 }
 
 // Range represents a source code range

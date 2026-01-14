@@ -15,6 +15,7 @@ var (
 	offset       int
 	contextLines int
 	withBody     bool
+	withSiblings bool
 	summaryOnly  bool
 )
 
@@ -39,10 +40,11 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Skip first N results (for pagination)")
 	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 3, "Lines of context around match")
 	rootCmd.PersistentFlags().BoolVar(&withBody, "with-body", false, "Include full enclosing function body")
+	rootCmd.PersistentFlags().BoolVar(&withSiblings, "with-siblings", false, "Include sibling declarations in same file")
 	rootCmd.PersistentFlags().BoolVar(&summaryOnly, "summary", false, "Show summary stats only (counts per file)")
 }
 
 // GetOutputConfig returns the current output configuration
-func GetOutputConfig() (json bool, human bool, lim int, off int, ctx int, body bool, summary bool) {
-	return jsonOutput, humanOutput, limit, offset, contextLines, withBody, summaryOnly
+func GetOutputConfig() (json bool, human bool, lim int, off int, ctx int, body bool, siblings bool, summary bool) {
+	return jsonOutput, humanOutput, limit, offset, contextLines, withBody, withSiblings, summaryOnly
 }

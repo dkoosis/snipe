@@ -33,7 +33,7 @@ func init() {
 func runCallers(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, lim, off, contextLines, withBody, summary := GetOutputConfig()
+	_, human, lim, off, contextLines, withBody, _, summary := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	if len(args) == 0 && callersID == "" {

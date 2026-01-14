@@ -36,7 +36,7 @@ func init() {
 }
 
 func runHistory(cmd *cobra.Command, args []string) error {
-	_, human, _, _, _, _, _ := GetOutputConfig()
+	_, human, _, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	dir, err := os.Getwd()

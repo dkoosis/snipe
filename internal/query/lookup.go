@@ -206,6 +206,31 @@ func (s *SymbolRow) ToCandidate() output.Candidate {
 	}
 }
 
+// FindSiblings finds other symbols of the same kind in the same file
+func FindSiblings(db *sql.DB, filePath, kind, excludeID string, limit int) ([]output.Sibling, error) {
+	rows, err := db.Query(`
+		SELECT id, name, kind, line_start
+		FROM symbols
+		WHERE file_path = ? AND kind = ? AND id != ?
+		ORDER BY line_start
+		LIMIT ?
+	`, filePath, kind, excludeID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var siblings []output.Sibling
+	for rows.Next() {
+		var s output.Sibling
+		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.Line); err != nil {
+			return nil, err
+		}
+		siblings = append(siblings, s)
+	}
+	return siblings, rows.Err()
+}
+
 // CallRow represents a call graph edge with caller/callee details
 type CallRow struct {
 	CallerID        string
