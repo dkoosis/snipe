@@ -111,25 +111,22 @@ func runCallees(cmd *cobra.Command, args []string) error {
 	tokenEstimate := 0
 
 	for i, call := range calls {
+		// Show the call site (where the callee is invoked from the caller)
+		callSiteRange := output.Range{
+			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
+			End:   output.Position{Line: call.CallLine, Col: call.CallCol + 10},
+		}
 		result := output.Result{
-			ID:   call.CalleeID,
-			File: call.CalleeFile,
-			Range: output.Range{
-				Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-				End:   output.Position{Line: call.CallLine, Col: call.CallCol + 10},
-			},
-			Kind:  call.CalleeKind,
-			Name:  call.CalleeName,
-			Match: call.CalleeSignature.String,
-			EditTarget: output.FormatEditTarget(call.CallerFile, output.Range{
-				Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-				End:   output.Position{Line: call.CallLine, Col: call.CallCol + 10},
-			}),
+			ID:         call.CalleeID,
+			File:       call.CallerFile, // Call site location
+			Range:      callSiteRange,
+			Kind:       call.CalleeKind,
+			Name:       call.CalleeName,
+			Match:      call.CalleeSignature.String,
+			EditTarget: output.FormatEditTarget(call.CallerFile, callSiteRange),
 		}
 
 		if contextLines > 0 {
-			// Use the call site for context (in the caller's file)
-			result.File = call.CallerFile
 			_ = output.AddContext(&result, contextLines)
 		}
 

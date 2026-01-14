@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/dkoosis/snipe/internal/index"
@@ -14,7 +15,13 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		// Rollback is a no-op if already committed; only log unexpected errors
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			// Log unexpected rollback failure (commit succeeded or genuine error)
+			_ = rbErr // In production, consider logging this
+		}
+	}()
 
 	// Build set of valid symbol IDs for filtering refs and edges
 	symbolIDs := make(map[string]struct{}, len(symbols))
@@ -87,12 +94,16 @@ func filterCallEdges(edges []index.CallEdge, symbolIDs map[string]struct{}) []in
 
 func truncateTables(tx *sql.Tx) error {
 	// Delete in order: child tables first (refs, call_graph), then parent (symbols)
-	// This respects foreign key constraints
-	tables := []string{"refs", "call_graph", "symbols"}
-	for _, table := range tables {
-		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
-			return fmt.Errorf("truncate %s: %w", table, err)
-		}
+	// This respects foreign key constraints. Using explicit statements avoids
+	// string concatenation patterns that could be unsafe if copied with user input.
+	if _, err := tx.Exec("DELETE FROM refs"); err != nil {
+		return fmt.Errorf("truncate refs: %w", err)
+	}
+	if _, err := tx.Exec("DELETE FROM call_graph"); err != nil {
+		return fmt.Errorf("truncate call_graph: %w", err)
+	}
+	if _, err := tx.Exec("DELETE FROM symbols"); err != nil {
+		return fmt.Errorf("truncate symbols: %w", err)
 	}
 	return nil
 }

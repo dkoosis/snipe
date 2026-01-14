@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -129,8 +128,6 @@ func runCallers(cmd *cobra.Command, args []string) error {
 		}
 
 		if contextLines > 0 {
-			// Use the call site file/line for context
-			result.File = filepath.Dir(call.CallerFile) + "/" + filepath.Base(call.CallerFile)
 			_ = output.AddContext(&result, contextLines)
 		}
 
