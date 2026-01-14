@@ -163,6 +163,8 @@ func loadFileLines(path string) ([]string, error) {
 
 	var lines []string
 	scanner := bufio.NewScanner(f)
+	// Increase buffer for long lines (minified code, long strings)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}

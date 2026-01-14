@@ -39,11 +39,20 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("enable WAL mode: %w", err)
 	}
 
+	// Set busy timeout to avoid "database is locked" errors during concurrent access
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("set busy_timeout: %w", err)
+	}
+
 	// Enable foreign keys
 	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
 	}
+
+	// Limit connections to avoid lock contention
+	db.SetMaxOpenConns(1)
 
 	s := &Store{db: db, path: path}
 
