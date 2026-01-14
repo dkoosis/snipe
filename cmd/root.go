@@ -12,8 +12,10 @@ var (
 	jsonOutput   bool
 	humanOutput  bool
 	limit        int
+	offset       int
 	contextLines int
 	withBody     bool
+	summaryOnly  bool
 )
 
 var rootCmd = &cobra.Command{
@@ -34,11 +36,13 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", true, "JSON output (default)")
 	rootCmd.PersistentFlags().BoolVar(&humanOutput, "human", false, "Pretty-printed for debugging")
 	rootCmd.PersistentFlags().IntVar(&limit, "limit", 50, "Cap results")
+	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Skip first N results (for pagination)")
 	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 3, "Lines of context around match")
 	rootCmd.PersistentFlags().BoolVar(&withBody, "with-body", false, "Include full enclosing function body")
+	rootCmd.PersistentFlags().BoolVar(&summaryOnly, "summary", false, "Show summary stats only (counts per file)")
 }
 
 // GetOutputConfig returns the current output configuration
-func GetOutputConfig() (json bool, human bool, lim int, ctx int, body bool) {
-	return jsonOutput, humanOutput, limit, contextLines, withBody
+func GetOutputConfig() (json bool, human bool, lim int, off int, ctx int, body bool, summary bool) {
+	return jsonOutput, humanOutput, limit, offset, contextLines, withBody, summaryOnly
 }

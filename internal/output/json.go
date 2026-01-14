@@ -135,6 +135,30 @@ func readFileLines(path string) ([]string, error) {
 	return lines, scanner.Err()
 }
 
+// BuildSummary creates a summary from a slice of results
+func BuildSummary(results []Result) Summary {
+	fileCounts := make(map[string]int)
+	kindCounts := make(map[string]int)
+
+	for _, r := range results {
+		fileCounts[r.File]++
+		if r.Kind != "" {
+			kindCounts[r.Kind]++
+		}
+	}
+
+	var files []FileSummary
+	for file, count := range fileCounts {
+		files = append(files, FileSummary{File: file, Count: count})
+	}
+
+	return Summary{
+		Total: len(results),
+		Files: files,
+		Kinds: kindCounts,
+	}
+}
+
 // AddBody extracts the full source code for a result based on its range.
 func AddBody(result *Result) error {
 	lines, err := readFileLines(result.File)

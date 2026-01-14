@@ -130,7 +130,7 @@ func scanSymbolRows(rows *sql.Rows) ([]SymbolRow, error) {
 }
 
 // FindRefs finds all references to a symbol
-func FindRefs(db *sql.DB, symbolID string, limit int) ([]RefRow, error) {
+func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) {
 	rows, err := db.Query(`
 		SELECT r.id, r.symbol_id, r.file_path, r.line, r.col, r.enclosing_id, r.snippet,
 		       s.name, s.kind, s.signature
@@ -138,8 +138,8 @@ func FindRefs(db *sql.DB, symbolID string, limit int) ([]RefRow, error) {
 		LEFT JOIN symbols s ON r.enclosing_id = s.id
 		WHERE r.symbol_id = ?
 		ORDER BY r.file_path, r.line
-		LIMIT ?
-	`, symbolID, limit)
+		LIMIT ? OFFSET ?
+	`, symbolID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query refs: %w", err)
 	}
@@ -223,7 +223,7 @@ type CallRow struct {
 }
 
 // FindCallers returns all functions that call the given symbol
-func FindCallers(db *sql.DB, symbolID string, limit int) ([]CallRow, error) {
+func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, error) {
 	rows, err := db.Query(`
 		SELECT
 			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature,
@@ -234,8 +234,8 @@ func FindCallers(db *sql.DB, symbolID string, limit int) ([]CallRow, error) {
 		JOIN symbols callee ON cg.callee_id = callee.id
 		WHERE cg.callee_id = ?
 		ORDER BY caller.file_path, cg.line
-		LIMIT ?
-	`, symbolID, limit)
+		LIMIT ? OFFSET ?
+	`, symbolID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func FindCallers(db *sql.DB, symbolID string, limit int) ([]CallRow, error) {
 }
 
 // FindCallees returns all functions that the given symbol calls
-func FindCallees(db *sql.DB, symbolID string, limit int) ([]CallRow, error) {
+func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, error) {
 	rows, err := db.Query(`
 		SELECT
 			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature,
@@ -269,8 +269,8 @@ func FindCallees(db *sql.DB, symbolID string, limit int) ([]CallRow, error) {
 		JOIN symbols callee ON cg.callee_id = callee.id
 		WHERE cg.caller_id = ?
 		ORDER BY cg.line, cg.col
-		LIMIT ?
-	`, symbolID, limit)
+		LIMIT ? OFFSET ?
+	`, symbolID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

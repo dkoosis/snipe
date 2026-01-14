@@ -40,7 +40,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 
 	// Setup output writer
-	_, human, _, _, _ := GetOutputConfig()
+	_, human, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	// Compute fingerprint

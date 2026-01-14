@@ -16,6 +16,8 @@ type Meta struct {
 	Degraded      []string          `json:"degraded,omitempty"`
 	Ms            int64             `json:"ms"`
 	Total         int               `json:"total"`
+	Offset        int               `json:"offset,omitempty"`
+	Limit         int               `json:"limit,omitempty"`
 	Truncated     bool              `json:"truncated"`
 	TokenEstimate int               `json:"token_estimate,omitempty"`
 }
@@ -89,6 +91,19 @@ type Enclosing struct {
 type Context struct {
 	Before []string `json:"before,omitempty"`
 	After  []string `json:"after,omitempty"`
+}
+
+// Summary provides a condensed view of results grouped by file
+type Summary struct {
+	Total int            `json:"total"`
+	Files []FileSummary  `json:"files"`
+	Kinds map[string]int `json:"kinds,omitempty"`
+}
+
+// FileSummary shows the count of results in a single file
+type FileSummary struct {
+	File  string `json:"file"`
+	Count int    `json:"count"`
 }
 
 // Error codes

@@ -36,7 +36,7 @@ func init() {
 func runRefs(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, lim, contextLines, withBody := GetOutputConfig()
+	_, human, lim, off, contextLines, withBody, summary := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	// Need either a symbol name or --at position
@@ -124,7 +124,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	}
 
 	// Find all references
-	refs, err := query.FindRefs(s.DB(), symbolID, lim)
+	refs, err := query.FindRefs(s.DB(), symbolID, lim, off)
 	if err != nil {
 		return w.WriteError("refs", &output.Error{
 			Code:    output.ErrInternal,
@@ -184,6 +184,26 @@ func runRefs(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// If summary mode, return condensed output
+	if summary {
+		summaryData := output.BuildSummary(results)
+		summaryResp := output.Response[output.Summary]{
+			Results: []output.Summary{summaryData},
+			Meta: output.Meta{
+				Command:    "refs",
+				Query:      queryInfo,
+				RepoRoot:   dir,
+				IndexState: query.CheckIndexState(s.DB(), dir, Version),
+				Ms:         time.Since(start).Milliseconds(),
+				Total:      summaryData.Total,
+				Offset:     off,
+				Limit:      lim,
+				Truncated:  len(results) >= lim,
+			},
+		}
+		return w.WriteResponse(summaryResp)
+	}
+
 	resp := output.Response[output.Result]{
 		Results: results,
 		Meta: output.Meta{
@@ -193,6 +213,8 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(results),
+			Offset:        off,
+			Limit:         lim,
 			Truncated:     len(results) >= lim,
 			TokenEstimate: tokenEstimate,
 		},

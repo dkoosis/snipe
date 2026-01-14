@@ -1,0 +1,125 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/spf13/cobra"
+
+	"github.com/dkoosis/snipe/internal/metrics"
+	"github.com/dkoosis/snipe/internal/output"
+)
+
+var baselineCmd = &cobra.Command{
+	Use:   "baseline",
+	Short: "Capture performance baseline for a codebase",
+	Long: `Captures performance and quality metrics as a baseline.
+
+The baseline includes:
+- Index time, size, symbol/ref counts
+- Query latencies (def by name, def by position, refs)
+- Search latencies (simple and regex patterns)
+- Quality metrics (doc coverage, call graph coverage)
+
+Examples:
+  snipe baseline                      # Capture baseline for current directory
+  snipe baseline --output base.json   # Save to specific file
+  snipe baseline --name myproject     # Name the baseline`,
+	RunE: runBaseline,
+}
+
+var (
+	baselineOutput string
+	baselineName   string
+)
+
+func init() {
+	baselineCmd.Flags().StringVarP(&baselineOutput, "output", "o", "", "Output file (default: BASELINE.json)")
+	baselineCmd.Flags().StringVar(&baselineName, "name", "", "Codebase name for the baseline")
+	rootCmd.AddCommand(baselineCmd)
+}
+
+func runBaseline(cmd *cobra.Command, args []string) error {
+	_, human, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, human)
+
+	dir, err := os.Getwd()
+	if err != nil {
+		return w.WriteError("baseline", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "failed to get working directory: " + err.Error(),
+		})
+	}
+
+	// Use directory name as default baseline name
+	name := baselineName
+	if name == "" {
+		name = filepath.Base(dir)
+	}
+
+	if human {
+		fmt.Fprintf(os.Stderr, "Capturing baseline for %s...\n", dir)
+	}
+
+	baseline, err := metrics.Capture(metrics.CaptureConfig{
+		Dir:  dir,
+		Name: name,
+	})
+	if err != nil {
+		return w.WriteError("baseline", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "failed to capture baseline: " + err.Error(),
+		})
+	}
+
+	// Output JSON
+	jsonData, err := baseline.ToJSON()
+	if err != nil {
+		return w.WriteError("baseline", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "failed to serialize baseline: " + err.Error(),
+		})
+	}
+
+	// Write to output file if specified
+	outputFile := baselineOutput
+	if outputFile == "" {
+		outputFile = filepath.Join(dir, "BASELINE.json")
+	}
+
+	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
+		return w.WriteError("baseline", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "failed to write baseline file: " + err.Error(),
+		})
+	}
+
+	// Append to history
+	historyDir := filepath.Join(dir, ".snipe")
+	if err := os.MkdirAll(historyDir, 0755); err == nil {
+		historyFile := filepath.Join(historyDir, "metrics.jsonl")
+		jsonl, _ := baseline.ToJSONL()
+		if f, err := os.OpenFile(historyFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			f.Write(jsonl)
+			f.Write([]byte("\n"))
+			f.Close()
+		}
+	}
+
+	if human {
+		fmt.Fprintf(os.Stderr, "Baseline written to: %s\n", outputFile)
+		fmt.Fprintf(os.Stderr, "\nSummary:\n")
+		fmt.Fprintf(os.Stderr, "  Symbols:      %d\n", baseline.Codebase.Symbols)
+		fmt.Fprintf(os.Stderr, "  Refs:         %d\n", baseline.Codebase.Refs)
+		fmt.Fprintf(os.Stderr, "  Index time:   %dms\n", baseline.Index.TotalMs)
+		fmt.Fprintf(os.Stderr, "  Query p95:    %.2fms\n", baseline.Query.DefByNameMs)
+		fmt.Fprintf(os.Stderr, "  Doc coverage: %.1f%%\n", baseline.Quality.DocCoverage)
+		fmt.Println(outputFile)
+	} else {
+		os.Stdout.Write(jsonData)
+		os.Stdout.Write([]byte("\n"))
+	}
+
+	return nil
+}

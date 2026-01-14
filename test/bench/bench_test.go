@@ -105,7 +105,7 @@ func BenchmarkRefsBySymbolID(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = query.FindRefs(s.DB(), symbolID, 100)
+		_, _ = query.FindRefs(s.DB(), symbolID, 100, 0)
 	}
 }
 

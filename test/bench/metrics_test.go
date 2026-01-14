@@ -175,7 +175,7 @@ func TestCaptureBaseline(t *testing.T) {
 		symbolID := foundSyms[0].ID
 		start = time.Now()
 		for i := 0; i < runs; i++ {
-			query.FindRefs(s.DB(), symbolID, 100)
+			query.FindRefs(s.DB(), symbolID, 100, 0)
 		}
 		metrics.Query.RefsByIDMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
 	}

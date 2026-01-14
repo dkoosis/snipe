@@ -31,7 +31,7 @@ func init() {
 func runShow(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, _, contextLines, withBody := GetOutputConfig()
+	_, human, _, _, contextLines, withBody, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	symbolID := args[0]
