@@ -3,6 +3,7 @@ module github.com/dkoosis/snipe
 go 1.25.5
 
 require (
+	github.com/magefile/mage v1.15.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/tools v0.41.0
 	modernc.org/sqlite v1.44.0
