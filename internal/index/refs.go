@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/token"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -142,15 +143,38 @@ func buildEnclosingMap(file *ast.File, filePath string, fset *token.FileSet) []e
 		return true
 	})
 
+	// Sort by start position for binary search
+	sort.Slice(funcs, func(i, j int) bool {
+		return funcs[i].start < funcs[j].start
+	})
+
 	return funcs
 }
 
+// findEnclosing uses binary search to find the enclosing function for a position.
+// O(log N) instead of O(N) linear scan.
 func findEnclosing(pos token.Pos, funcs []enclosingFunc) string {
-	for _, fn := range funcs {
-		if pos >= fn.start && pos <= fn.end {
-			return fn.id
+	if len(funcs) == 0 {
+		return ""
+	}
+
+	// Binary search for rightmost function where start <= pos
+	idx := sort.Search(len(funcs), func(i int) bool {
+		return funcs[i].start > pos
+	})
+
+	// Check functions from idx-1 down to 0 (nested functions possible)
+	for i := idx - 1; i >= 0; i-- {
+		if pos >= funcs[i].start && pos <= funcs[i].end {
+			return funcs[i].id
+		}
+		// If this function ends before pos, earlier functions won't contain pos either
+		// (unless they're nested, but Go doesn't have nested named functions)
+		if funcs[i].end < pos {
+			break
 		}
 	}
+
 	return ""
 }
 

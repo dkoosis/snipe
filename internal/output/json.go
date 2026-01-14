@@ -6,7 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"time"
+)
+
+// fileCache caches file contents to avoid repeated reads
+var (
+	fileCache   = make(map[string][]string)
+	fileCacheMu sync.RWMutex
 )
 
 // Writer handles output formatting
@@ -121,6 +128,15 @@ func AddContext(result *Result, n int) error {
 }
 
 func readFileLines(path string) ([]string, error) {
+	// Check cache first
+	fileCacheMu.RLock()
+	if lines, ok := fileCache[path]; ok {
+		fileCacheMu.RUnlock()
+		return lines, nil
+	}
+	fileCacheMu.RUnlock()
+
+	// Read file
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -134,7 +150,23 @@ func readFileLines(path string) ([]string, error) {
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
-	return lines, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	// Cache the result
+	fileCacheMu.Lock()
+	fileCache[path] = lines
+	fileCacheMu.Unlock()
+
+	return lines, nil
+}
+
+// ClearFileCache clears the file cache. Call between commands if needed.
+func ClearFileCache() {
+	fileCacheMu.Lock()
+	fileCache = make(map[string][]string)
+	fileCacheMu.Unlock()
 }
 
 // BuildSummary creates a summary from a slice of results

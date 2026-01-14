@@ -185,7 +185,7 @@ func Bench() error {
 	return sh.RunV("go", "test", "-bench=.", "-benchmem", "./test/bench/")
 }
 
-// Trend shows performance metrics over time.
+// Trend shows performance metrics over time (last 30 entries).
 func Trend() error {
 	fmt.Println("→ Performance Trend (last 30 entries)")
 	fmt.Println()
@@ -239,6 +239,202 @@ func Trend() error {
 			date, commit, m.Codebase.Symbols, m.Codebase.Refs,
 			m.Index.TotalMs, m.Query.DefByNameMs, m.Quality.CallGraphCoverage)
 	}
+
+	return nil
+}
+
+// Metrics shows 30-day performance and quality metrics with sparklines.
+func Metrics() error {
+	data, err := os.ReadFile(".snipe/metrics.jsonl")
+	if err != nil {
+		return fmt.Errorf("no metrics history - run 'mage baseline' first")
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) == 0 {
+		return fmt.Errorf("no metrics data")
+	}
+
+	// Parse entries
+	type entry struct {
+		Timestamp string
+		Commit    string
+		Symbols   int
+		Refs      int
+		CallEdges int
+		IndexMs   int64
+		DefMs     float64
+		RefsMs    float64
+		DocCov    float64
+		CallCov   float64
+	}
+
+	var entries []entry
+	for _, line := range lines {
+		var m struct {
+			Timestamp string `json:"timestamp"`
+			GitCommit string `json:"git_commit"`
+			Codebase  struct {
+				Symbols   int `json:"symbols"`
+				Refs      int `json:"refs"`
+				CallEdges int `json:"call_edges"`
+			} `json:"codebase"`
+			Index struct {
+				TotalMs int64 `json:"total_ms"`
+			} `json:"index"`
+			Query struct {
+				DefByNameMs float64 `json:"def_by_name_ms"`
+				RefsByIDMs  float64 `json:"refs_by_id_ms"`
+			} `json:"query"`
+			Quality struct {
+				DocCoverage       float64 `json:"doc_coverage_pct"`
+				CallGraphCoverage float64 `json:"callgraph_coverage_pct"`
+			} `json:"quality"`
+		}
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			continue
+		}
+
+		commit := m.GitCommit
+		if len(commit) > 7 {
+			commit = commit[:7]
+		}
+
+		entries = append(entries, entry{
+			Timestamp: m.Timestamp,
+			Commit:    commit,
+			Symbols:   m.Codebase.Symbols,
+			Refs:      m.Codebase.Refs,
+			CallEdges: m.Codebase.CallEdges,
+			IndexMs:   m.Index.TotalMs,
+			DefMs:     m.Query.DefByNameMs,
+			RefsMs:    m.Query.RefsByIDMs,
+			DocCov:    m.Quality.DocCoverage,
+			CallCov:   m.Quality.CallGraphCoverage,
+		})
+	}
+
+	// Last 30 entries
+	start := 0
+	if len(entries) > 30 {
+		start = len(entries) - 30
+	}
+	entries = entries[start:]
+
+	if len(entries) == 0 {
+		return fmt.Errorf("no metrics data")
+	}
+
+	// Sparkline helper: ▁▂▃▄▅▆▇█
+	sparkline := func(values []float64) string {
+		if len(values) == 0 {
+			return ""
+		}
+		bars := []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+		minV, maxV := values[0], values[0]
+		for _, v := range values {
+			if v < minV {
+				minV = v
+			}
+			if v > maxV {
+				maxV = v
+			}
+		}
+		rangeV := maxV - minV
+		if rangeV == 0 {
+			rangeV = 1
+		}
+		var result strings.Builder
+		for _, v := range values {
+			idx := int((v - minV) / rangeV * 7)
+			if idx > 7 {
+				idx = 7
+			}
+			result.WriteRune(bars[idx])
+		}
+		return result.String()
+	}
+
+	// Collect series
+	var indexMs, defMs, refsMs []float64
+	var symbols, refs, calls []float64
+	var docCov, callCov []float64
+
+	for _, e := range entries {
+		indexMs = append(indexMs, float64(e.IndexMs))
+		defMs = append(defMs, e.DefMs)
+		refsMs = append(refsMs, e.RefsMs)
+		symbols = append(symbols, float64(e.Symbols))
+		refs = append(refs, float64(e.Refs))
+		calls = append(calls, float64(e.CallEdges))
+		docCov = append(docCov, e.DocCov)
+		callCov = append(callCov, e.CallCov)
+	}
+
+	curr := entries[len(entries)-1]
+	first := entries[0]
+
+	// Delta helpers
+	pctChange := func(curr, prev float64) string {
+		if prev == 0 {
+			return ""
+		}
+		pct := (curr - prev) / prev * 100
+		if pct > 0 {
+			return fmt.Sprintf("+%.1f%%", pct)
+		}
+		return fmt.Sprintf("%.1f%%", pct)
+	}
+
+	intChange := func(curr, prev int) string {
+		diff := curr - prev
+		if diff > 0 {
+			return fmt.Sprintf("+%d", diff)
+		} else if diff < 0 {
+			return fmt.Sprintf("%d", diff)
+		}
+		return "="
+	}
+
+	fmt.Println()
+	fmt.Println("SNIPE METRICS (30 measurements)")
+	fmt.Println(strings.Repeat("─", 70))
+	fmt.Println()
+
+	// Performance metrics (lower is better)
+	fmt.Println("PERFORMANCE                   Trend (30)                    Now      Δ")
+	fmt.Println(strings.Repeat("─", 70))
+	fmt.Printf("Index Time      %s  %8dms  %s\n",
+		sparkline(indexMs), curr.IndexMs, pctChange(float64(curr.IndexMs), float64(first.IndexMs)))
+	fmt.Printf("Def Query       %s  %8.3fms  %s\n",
+		sparkline(defMs), curr.DefMs, pctChange(curr.DefMs, first.DefMs))
+	fmt.Printf("Refs Query      %s  %8.3fms  %s\n",
+		sparkline(refsMs), curr.RefsMs, pctChange(curr.RefsMs, first.RefsMs))
+	fmt.Println()
+
+	// Codebase metrics (growth)
+	fmt.Println("CODEBASE                      Trend (30)                    Now      Δ")
+	fmt.Println(strings.Repeat("─", 70))
+	fmt.Printf("Symbols         %s  %8d  %s\n",
+		sparkline(symbols), curr.Symbols, intChange(curr.Symbols, first.Symbols))
+	fmt.Printf("References      %s  %8d  %s\n",
+		sparkline(refs), curr.Refs, intChange(curr.Refs, first.Refs))
+	fmt.Printf("Call Edges      %s  %8d  %s\n",
+		sparkline(calls), curr.CallEdges, intChange(curr.CallEdges, first.CallEdges))
+	fmt.Println()
+
+	// Quality metrics (higher is better)
+	fmt.Println("QUALITY                       Trend (30)                    Now      Δ")
+	fmt.Println(strings.Repeat("─", 70))
+	fmt.Printf("Doc Coverage    %s  %7.1f%%  %s\n",
+		sparkline(docCov), curr.DocCov, pctChange(curr.DocCov, first.DocCov))
+	fmt.Printf("Call Coverage   %s  %7.1f%%  %s\n",
+		sparkline(callCov), curr.CallCov, pctChange(curr.CallCov, first.CallCov))
+	fmt.Println()
+
+	fmt.Printf("Period: %s → %s (%d measurements)\n",
+		first.Timestamp[:10], curr.Timestamp[:10], len(entries))
+	fmt.Println()
 
 	return nil
 }
