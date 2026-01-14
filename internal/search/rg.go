@@ -3,6 +3,7 @@ package search
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -76,6 +77,8 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 
 	var results []output.Result
 	scanner := bufio.NewScanner(stdout)
+	// Increase buffer size to handle long lines (default is 64KB, increase to 1MB)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	for scanner.Scan() && len(results) < limit {
 		line := scanner.Bytes()
@@ -118,10 +121,32 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 		}
 	}
 
+	// Check for scanner errors (e.g., line too long even with increased buffer)
+	if err := scanner.Err(); err != nil {
+		stdout.Close()
+		cmd.Wait()
+		return results, fmt.Errorf("scan rg output: %w", err)
+	}
+
 	// Close pipe to signal rg we're done reading. This causes SIGPIPE on rg's
 	// next write, allowing clean shutdown (same as `rg | head -n 50` behavior).
 	stdout.Close()
-	cmd.Wait()
+
+	// Wait for rg to finish and check exit code
+	// rg exit codes: 0 = matches found, 1 = no matches, 2 = error
+	if err := cmd.Wait(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			// Exit code 1 means no matches - not an error
+			if exitErr.ExitCode() == 1 {
+				return results, nil
+			}
+			// Exit code 2+ means actual error
+			return results, fmt.Errorf("rg failed with exit code %d", exitErr.ExitCode())
+		}
+		// Other errors (not exit errors) are unexpected
+		return results, fmt.Errorf("wait for rg: %w", err)
+	}
 
 	return results, nil
 }
