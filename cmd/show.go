@@ -31,7 +31,7 @@ func init() {
 func runShow(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, _, contextLines, _ := GetOutputConfig()
+	_, human, _, contextLines, withBody := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	symbolID := args[0]
@@ -76,11 +76,20 @@ func runShow(cmd *cobra.Command, args []string) error {
 
 	result := sym.ToResult()
 
-	if contextLines > 0 {
+	// Add full body if requested
+	if withBody {
+		_ = output.AddBody(&result)
+	}
+
+	// Add context lines if requested (only if not showing full body)
+	if contextLines > 0 && !withBody {
 		_ = output.AddContext(&result, contextLines)
 	}
 
 	tokenEstimate := output.EstimateTokens(result.Match)
+	if result.Body != "" {
+		tokenEstimate = output.EstimateTokens(result.Body)
+	}
 
 	resp := output.Response[output.Result]{
 		Results: []output.Result{result},

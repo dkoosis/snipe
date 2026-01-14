@@ -33,7 +33,7 @@ func init() {
 func runCallees(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, lim, contextLines, _ := GetOutputConfig()
+	_, human, lim, contextLines, withBody := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	if len(args) == 0 && calleesID == "" {
@@ -126,12 +126,25 @@ func runCallees(cmd *cobra.Command, args []string) error {
 			EditTarget: output.FormatEditTarget(call.CallerFile, callSiteRange),
 		}
 
-		if contextLines > 0 {
+		// Add callee body if requested (from the callee's definition, not call site)
+		if withBody {
+			calleeSym, lookupErr := query.LookupByID(s.DB(), call.CalleeID)
+			if lookupErr == nil && calleeSym != nil {
+				calleeResult := calleeSym.ToResult()
+				_ = output.AddBody(&calleeResult)
+				result.Body = calleeResult.Body
+			}
+		}
+
+		if contextLines > 0 && !withBody {
 			_ = output.AddContext(&result, contextLines)
 		}
 
 		results[i] = result
 		tokenEstimate += output.EstimateTokens(call.CalleeSignature.String)
+		if result.Body != "" {
+			tokenEstimate = output.EstimateTokens(result.Body)
+		}
 	}
 
 	resp := output.Response[output.Result]{

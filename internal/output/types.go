@@ -58,6 +58,7 @@ type Result struct {
 	Kind       string     `json:"kind"`
 	Name       string     `json:"name"`
 	Match      string     `json:"match"`
+	Body       string     `json:"body,omitempty"`
 	Enclosing  *Enclosing `json:"enclosing,omitempty"`
 	Context    *Context   `json:"context,omitempty"`
 	EditTarget string     `json:"edit_target"`

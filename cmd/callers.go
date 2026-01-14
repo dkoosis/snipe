@@ -33,7 +33,7 @@ func init() {
 func runCallers(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, lim, contextLines, _ := GetOutputConfig()
+	_, human, lim, contextLines, withBody := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	if len(args) == 0 && callersID == "" {
@@ -127,12 +127,25 @@ func runCallers(cmd *cobra.Command, args []string) error {
 			}),
 		}
 
-		if contextLines > 0 {
+		// Add caller body if requested (from the caller's definition, not call site)
+		if withBody {
+			callerSym, lookupErr := query.LookupByID(s.DB(), call.CallerID)
+			if lookupErr == nil && callerSym != nil {
+				callerResult := callerSym.ToResult()
+				_ = output.AddBody(&callerResult)
+				result.Body = callerResult.Body
+			}
+		}
+
+		if contextLines > 0 && !withBody {
 			_ = output.AddContext(&result, contextLines)
 		}
 
 		results[i] = result
 		tokenEstimate += output.EstimateTokens(call.CallerSignature.String)
+		if result.Body != "" {
+			tokenEstimate = output.EstimateTokens(result.Body)
+		}
 	}
 
 	resp := output.Response[output.Result]{

@@ -36,7 +36,7 @@ func init() {
 func runRefs(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, lim, contextLines, _ := GetOutputConfig()
+	_, human, lim, contextLines, withBody := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
 	// Need either a symbol name or --at position
@@ -160,15 +160,28 @@ func runRefs(cmd *cobra.Command, args []string) error {
 				Name:      ref.EnclosingName,
 				Signature: ref.EnclosingSignature,
 			}
+
+			// Add enclosing function body if requested
+			if withBody {
+				encSym, lookupErr := query.LookupByID(s.DB(), ref.EnclosingID.String)
+				if lookupErr == nil && encSym != nil {
+					encResult := encSym.ToResult()
+					_ = output.AddBody(&encResult)
+					result.Body = encResult.Body
+				}
+			}
 		}
 
-		// Add context lines if requested
-		if contextLines > 0 {
+		// Add context lines if requested (only if not showing full body)
+		if contextLines > 0 && !withBody {
 			_ = output.AddContext(&result, contextLines)
 		}
 
 		results[i] = result
 		tokenEstimate += output.EstimateTokens(ref.Snippet)
+		if result.Body != "" {
+			tokenEstimate = output.EstimateTokens(result.Body)
+		}
 	}
 
 	resp := output.Response[output.Result]{

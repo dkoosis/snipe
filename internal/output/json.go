@@ -134,3 +134,30 @@ func readFileLines(path string) ([]string, error) {
 	}
 	return lines, scanner.Err()
 }
+
+// AddBody extracts the full source code for a result based on its range.
+func AddBody(result *Result) error {
+	lines, err := readFileLines(result.File)
+	if err != nil {
+		return err
+	}
+
+	startLine := result.Range.Start.Line
+	endLine := result.Range.End.Line
+
+	if startLine < 1 || endLine > len(lines) {
+		return nil // Invalid range, skip
+	}
+
+	// Extract lines from startLine to endLine (1-indexed)
+	var body string
+	for i := startLine; i <= endLine && i <= len(lines); i++ {
+		if i > startLine {
+			body += "\n"
+		}
+		body += lines[i-1]
+	}
+
+	result.Body = body
+	return nil
+}
