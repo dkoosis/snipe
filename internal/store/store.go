@@ -39,6 +39,18 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("enable WAL mode: %w", err)
 	}
 
+	// Balance durability and latency for WAL workloads
+	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("set synchronous: %w", err)
+	}
+
+	// Keep temporary data in memory for speed
+	if _, err := db.Exec("PRAGMA temp_store=MEMORY"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("set temp_store: %w", err)
+	}
+
 	// Set busy timeout to avoid "database is locked" errors during concurrent access
 	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
 		db.Close()
