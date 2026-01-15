@@ -135,6 +135,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	// Convert to results
 	results := make([]output.Result, len(refs))
 	tokenEstimate := 0
+	var degraded []string
 
 	for i, ref := range refs {
 		result := output.Result{
@@ -166,7 +167,9 @@ func runRefs(cmd *cobra.Command, args []string) error {
 				encSym, lookupErr := query.LookupByID(s.DB(), ref.EnclosingID.String)
 				if lookupErr == nil && encSym != nil {
 					encResult := encSym.ToResult()
-					_ = output.AddBody(&encResult)
+					if err := output.AddBody(&encResult); err != nil {
+						degraded = append(degraded, "body_extraction_failed")
+					}
 					result.Body = encResult.Body
 				}
 			}
@@ -174,7 +177,9 @@ func runRefs(cmd *cobra.Command, args []string) error {
 
 		// Add context lines if requested (only if not showing full body)
 		if contextLines > 0 && !withBody {
-			_ = output.AddContext(&result, contextLines)
+			if err := output.AddContext(&result, contextLines); err != nil {
+				degraded = append(degraded, "context_extraction_failed")
+			}
 		}
 
 		results[i] = result
@@ -183,6 +188,9 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			tokenEstimate = output.EstimateTokens(result.Body)
 		}
 	}
+
+	// Deduplicate degraded messages
+	degraded = uniqueStrings(degraded)
 
 	// If summary mode, return condensed output
 	if summary {
@@ -194,6 +202,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 				Query:      queryInfo,
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
+				Degraded:   degraded,
 				Ms:         time.Since(start).Milliseconds(),
 				Total:      summaryData.Total,
 				Offset:     off,
@@ -211,6 +220,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(results),
 			Offset:        off,

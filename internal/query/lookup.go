@@ -8,6 +8,9 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 )
 
+// TODO: Add context.Context to all query functions for cancellation support.
+// This is a future improvement - see https://github.com/dkoosis/snipe/issues/XX
+
 // SymbolRow represents a row from the symbols table
 type SymbolRow struct {
 	ID        string
@@ -23,7 +26,7 @@ type SymbolRow struct {
 	Receiver  sql.NullString
 }
 
-// LookupByID looks up a symbol by its ID
+// LookupByID looks up a symbol by its ID.
 func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 	var s SymbolRow
 	err := db.QueryRow(`

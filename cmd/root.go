@@ -48,3 +48,19 @@ func init() {
 func GetOutputConfig() (json bool, human bool, lim int, off int, ctx int, body bool, siblings bool, summary bool) {
 	return jsonOutput, humanOutput, limit, offset, contextLines, withBody, withSiblings, summaryOnly
 }
+
+// uniqueStrings removes duplicates from a string slice, preserving order.
+func uniqueStrings(ss []string) []string {
+	if len(ss) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if !seen[s] {
+			seen[s] = true
+			result = append(result, s)
+		}
+	}
+	return result
+}

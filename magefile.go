@@ -82,14 +82,16 @@ func qaDashboard() error {
 	return runFoDashboard(
 		// Build
 		"Build/snipe:go build -o bin/snipe .",
-		// Test - comprehensive
-		"Test/unit:go test -json -cover ./...",
+		// Test - comprehensive (note: -cover omitted to avoid "no such tool covdata" false failures)
+		"Test/unit:go test -json ./...",
 		"Test/race:go test -race -json -timeout=5m ./...",
 		"Test/blackbox:go test -json -tags=blackbox ./test/blackbox/...",
 		// Lint - full suite
 		"Lint/golangci:golangci-lint run ./...",
 		// Security
 		"Security/govulncheck:govulncheck ./...",
+		// Metrics - performance and quality baseline
+		"Metrics/snipe:cat BASELINE.json",
 	)
 }
 

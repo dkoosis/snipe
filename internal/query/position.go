@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// Note: strings is still used in ParsePosition for Join and Split
+
 // PositionQuery represents a file:line:col query
 type PositionQuery struct {
 	File string
@@ -59,23 +61,17 @@ func ParsePosition(s string) (*PositionQuery, error) {
 	}, nil
 }
 
-// ResolvePosition finds the symbol at or near the given position
+// ResolvePosition finds the symbol at or near the given position.
+// Note: pos.File should be an absolute path for optimal index usage.
+// Callers should resolve relative paths before calling this function.
 func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error) {
-	// Build file pattern: prefer exact match, then suffix match
-	// Suffix match uses trailing pattern (no leading %) to use index
-	filePattern := pos.File
-	if !strings.HasPrefix(pos.File, "/") {
-		// Relative path - use suffix match with trailing pattern
-		filePattern = "%" + pos.File
-	}
-
 	// First, try to find a reference at exactly this position
+	// Uses idx_refs_position composite index for O(1) lookup
 	err = db.QueryRow(`
 		SELECT symbol_id FROM refs
-		WHERE (file_path = ? OR file_path LIKE ?)
-		AND line = ? AND col = ?
+		WHERE file_path = ? AND line = ? AND col = ?
 		LIMIT 1
-	`, pos.File, filePattern, pos.Line, pos.Col).Scan(&symbolID)
+	`, pos.File, pos.Line, pos.Col).Scan(&symbolID)
 
 	if err == nil {
 		return symbolID, nil
@@ -88,11 +84,10 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	// Try to find a reference on this line, closest to the column
 	err = db.QueryRow(`
 		SELECT symbol_id FROM refs
-		WHERE (file_path = ? OR file_path LIKE ?)
-		AND line = ?
+		WHERE file_path = ? AND line = ?
 		ORDER BY ABS(col - ?)
 		LIMIT 1
-	`, pos.File, filePattern, pos.Line, pos.Col).Scan(&symbolID)
+	`, pos.File, pos.Line, pos.Col).Scan(&symbolID)
 
 	if err == nil {
 		return symbolID, nil
@@ -103,12 +98,12 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	}
 
 	// Try to find a symbol definition at this position
+	// Uses idx_symbols_position composite index
 	err = db.QueryRow(`
 		SELECT id FROM symbols
-		WHERE (file_path = ? OR file_path LIKE ?)
-		AND line_start = ? AND col_start <= ? AND col_end >= ?
+		WHERE file_path = ? AND line_start = ? AND col_start <= ? AND col_end >= ?
 		LIMIT 1
-	`, pos.File, filePattern, pos.Line, pos.Col, pos.Col).Scan(&symbolID)
+	`, pos.File, pos.Line, pos.Col, pos.Col).Scan(&symbolID)
 
 	if err == nil {
 		return symbolID, nil
@@ -118,14 +113,13 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 		return "", fmt.Errorf("query symbols: %w", err)
 	}
 
-	// Try to find a symbol that spans this line
+	// Try to find a symbol that spans this line (smallest enclosing)
 	err = db.QueryRow(`
 		SELECT id FROM symbols
-		WHERE (file_path = ? OR file_path LIKE ?)
-		AND line_start <= ? AND line_end >= ?
+		WHERE file_path = ? AND line_start <= ? AND line_end >= ?
 		ORDER BY (line_end - line_start)
 		LIMIT 1
-	`, pos.File, filePattern, pos.Line, pos.Line).Scan(&symbolID)
+	`, pos.File, pos.Line, pos.Line).Scan(&symbolID)
 
 	if err == sql.ErrNoRows {
 		return "", fmt.Errorf("no symbol found at %s:%d:%d", pos.File, pos.Line, pos.Col)

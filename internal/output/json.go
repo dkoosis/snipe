@@ -1,20 +1,16 @@
 package output
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"sync"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/util"
 )
 
-// fileCache caches file contents to avoid repeated reads
-var (
-	fileCache   = make(map[string][]string)
-	fileCacheMu sync.RWMutex
-)
+// globalFileCache is the default file cache for output operations.
+var globalFileCache = util.NewFileCache(util.DefaultMaxCachedFiles)
 
 // Writer handles output formatting
 type Writer struct {
@@ -70,8 +66,15 @@ func (w *Writer) Elapsed() int64 {
 	return time.Since(w.start).Milliseconds()
 }
 
-// EstimateTokens estimates the token count for a string
-// Rough approximation: ~4 chars per token for code
+// EstimateTokens estimates the token count for a string.
+//
+// This uses a rough heuristic of ~4 characters per token, which is
+// reasonably accurate for code (keywords, identifiers, operators).
+// For LLM models like GPT-4 and Claude, actual tokenization varies,
+// but this provides a useful upper-bound estimate for budget planning.
+//
+// Note: This is an approximation. For precise token counts, use the
+// specific tokenizer for your target model.
 func EstimateTokens(s string) int {
 	return (len(s) + 3) / 4
 }
@@ -128,45 +131,12 @@ func AddContext(result *Result, n int) error {
 }
 
 func readFileLines(path string) ([]string, error) {
-	// Check cache first
-	fileCacheMu.RLock()
-	if lines, ok := fileCache[path]; ok {
-		fileCacheMu.RUnlock()
-		return lines, nil
-	}
-	fileCacheMu.RUnlock()
-
-	// Read file
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	// Increase buffer for long lines (minified code, long strings)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	// Cache the result
-	fileCacheMu.Lock()
-	fileCache[path] = lines
-	fileCacheMu.Unlock()
-
-	return lines, nil
+	return globalFileCache.LoadLines(path)
 }
 
 // ClearFileCache clears the file cache. Call between commands if needed.
 func ClearFileCache() {
-	fileCacheMu.Lock()
-	fileCache = make(map[string][]string)
-	fileCacheMu.Unlock()
+	globalFileCache.Clear()
 }
 
 // BuildSummary creates a summary from a slice of results

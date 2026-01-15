@@ -143,21 +143,28 @@ func runDef(cmd *cobra.Command, args []string) error {
 	}
 
 	result := sym.ToResult()
+	var degraded []string
 
 	// Add full body if requested
 	if withBody {
-		_ = output.AddBody(&result)
+		if err := output.AddBody(&result); err != nil {
+			degraded = append(degraded, "body_extraction_failed")
+		}
 	}
 
 	// Add context lines if requested (only if not showing full body)
 	if contextLines > 0 && !withBody {
-		_ = output.AddContext(&result, contextLines)
+		if err := output.AddContext(&result, contextLines); err != nil {
+			degraded = append(degraded, "context_extraction_failed")
+		}
 	}
 
 	// Add sibling declarations if requested
 	if withSiblings {
 		siblings, err := query.FindSiblings(s.DB(), sym.FilePath, sym.Kind, sym.ID, 20)
-		if err == nil && len(siblings) > 0 {
+		if err != nil {
+			degraded = append(degraded, "siblings_query_failed")
+		} else if len(siblings) > 0 {
 			result.Siblings = siblings
 		}
 	}
@@ -174,6 +181,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         1,
 			TokenEstimate: tokenEstimate,

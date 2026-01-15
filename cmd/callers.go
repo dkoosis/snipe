@@ -109,6 +109,7 @@ func runCallers(cmd *cobra.Command, args []string) error {
 	// Convert to results - show the caller functions
 	results := make([]output.Result, len(calls))
 	tokenEstimate := 0
+	var degraded []string
 
 	for i, call := range calls {
 		result := output.Result{
@@ -132,13 +133,17 @@ func runCallers(cmd *cobra.Command, args []string) error {
 			callerSym, lookupErr := query.LookupByID(s.DB(), call.CallerID)
 			if lookupErr == nil && callerSym != nil {
 				callerResult := callerSym.ToResult()
-				_ = output.AddBody(&callerResult)
+				if err := output.AddBody(&callerResult); err != nil {
+					degraded = append(degraded, "body_extraction_failed")
+				}
 				result.Body = callerResult.Body
 			}
 		}
 
 		if contextLines > 0 && !withBody {
-			_ = output.AddContext(&result, contextLines)
+			if err := output.AddContext(&result, contextLines); err != nil {
+				degraded = append(degraded, "context_extraction_failed")
+			}
 		}
 
 		results[i] = result
@@ -147,6 +152,9 @@ func runCallers(cmd *cobra.Command, args []string) error {
 			tokenEstimate = output.EstimateTokens(result.Body)
 		}
 	}
+
+	// Deduplicate degraded messages
+	degraded = uniqueStrings(degraded)
 
 	// If summary mode, return condensed output
 	if summary {
@@ -158,6 +166,7 @@ func runCallers(cmd *cobra.Command, args []string) error {
 				Query:      queryInfo,
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
+				Degraded:   degraded,
 				Ms:         time.Since(start).Milliseconds(),
 				Total:      summaryData.Total,
 				Offset:     off,
@@ -175,6 +184,7 @@ func runCallers(cmd *cobra.Command, args []string) error {
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(results),
 			Offset:        off,

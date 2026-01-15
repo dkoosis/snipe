@@ -1,13 +1,13 @@
 package index
 
 import (
-	"bufio"
 	"fmt"
 	"go/ast"
 	"go/token"
-	"os"
 	"sort"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/util"
 )
 
 // Ref represents a reference to a symbol
@@ -40,7 +40,7 @@ func ExtractRefs(result *LoadResult, symbols []Symbol) ([]Ref, error) {
 			filePath := pkg.GoFiles[i]
 
 			// Load file content for snippets
-			lines, err := loadFileLines(filePath)
+			lines, err := util.LoadFileLines(filePath)
 			if err != nil {
 				continue // Skip files we can't read
 			}
@@ -176,21 +176,4 @@ func findEnclosing(pos token.Pos, funcs []enclosingFunc) string {
 	}
 
 	return ""
-}
-
-func loadFileLines(path string) ([]string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	// Increase buffer for long lines (minified code, long strings)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines, scanner.Err()
 }
