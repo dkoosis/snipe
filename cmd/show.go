@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"os"
 	"time"
 
@@ -35,6 +36,20 @@ func runShow(cmd *cobra.Command, args []string) error {
 	w := output.NewWriter(os.Stdout, human)
 
 	symbolID := args[0]
+
+	// Validate symbol ID format (16-char hex string)
+	if len(symbolID) != 16 {
+		return w.WriteError("show", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "invalid symbol ID: must be 16 characters",
+		})
+	}
+	if _, err := hex.DecodeString(symbolID); err != nil {
+		return w.WriteError("show", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "invalid symbol ID: must be hexadecimal",
+		})
+	}
 
 	dir, err := os.Getwd()
 	if err != nil {
