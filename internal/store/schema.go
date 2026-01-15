@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 6
+const schemaVersion = 7
 
 // migration represents a database migration.
 type migration struct {
@@ -126,8 +126,22 @@ var migrations = []migration{
 	},
 	{
 		version: 6,
-		name:    "current",
-		up:      ``, // No-op: marker for current version
+		name:    "no_op",
+		up:      ``, // No-op placeholder
+	},
+	{
+		version: 7,
+		name:    "embeddings_table",
+		up: `
+		CREATE TABLE IF NOT EXISTS embeddings (
+			symbol_id TEXT PRIMARY KEY,
+			embedding BLOB NOT NULL,
+			model TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			FOREIGN KEY (symbol_id) REFERENCES symbols(id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_embeddings_model ON embeddings(model);
+		`,
 	},
 }
 

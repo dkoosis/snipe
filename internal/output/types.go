@@ -61,6 +61,7 @@ type Result struct {
 	Name       string     `json:"name"`
 	Match      string     `json:"match"`
 	Body       string     `json:"body,omitempty"`
+	Score      float64    `json:"score,omitempty"`
 	Enclosing  *Enclosing `json:"enclosing,omitempty"`
 	Context    *Context   `json:"context,omitempty"`
 	Siblings   []Sibling  `json:"siblings,omitempty"`

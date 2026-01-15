@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/store"
@@ -16,12 +17,17 @@ import (
 var indexCmd = &cobra.Command{
 	Use:   "index [path]",
 	Short: "Build or update the code index",
-	Long:  `Builds a SQLite index of symbols, references, and call graph for fast navigation.`,
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runIndex,
+	Long: `Builds a SQLite index of symbols, references, and call graph for fast navigation.
+
+Use --embed to generate semantic embeddings for similarity search.`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runIndex,
 }
 
+var withEmbed bool
+
 func init() {
+	indexCmd.Flags().BoolVar(&withEmbed, "embed", false, "Generate embeddings for semantic search")
 	rootCmd.AddCommand(indexCmd)
 }
 
@@ -131,6 +137,17 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("store repo root: %w", err)
 	}
 
+	// Generate embeddings if requested
+	var embedCount int
+	if withEmbed {
+		ec, err := generateEmbeddings(s, symbols)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: embedding generation failed: %v\n", err)
+		} else {
+			embedCount = ec
+		}
+	}
+
 	// Output result
 	resp := output.Response[any]{
 		Results: nil,
@@ -143,5 +160,84 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		},
 	}
 
+	if embedCount > 0 {
+		fmt.Fprintf(os.Stderr, "Generated %d embeddings\n", embedCount)
+	}
+
 	return w.WriteResponse(resp)
+}
+
+// generateEmbeddings creates embeddings for symbols with signatures.
+func generateEmbeddings(s *store.Store, symbols []index.Symbol) (int, error) {
+	client, err := embed.NewClient()
+	if err != nil {
+		return 0, err
+	}
+
+	fmt.Fprintf(os.Stderr, "Generating embeddings with %s...\n", client.Model())
+
+	// Filter symbols worth embedding (functions, methods, types with signatures/docs)
+	var toEmbed []index.Symbol
+	for _, sym := range symbols {
+		// Embed functions, methods, and types
+		switch sym.Kind {
+		case index.KindFunc, index.KindMethod, index.KindType, index.KindInterface, index.KindStruct:
+			if sym.Signature != "" || sym.Doc != "" {
+				toEmbed = append(toEmbed, sym)
+			}
+		case index.KindVar, index.KindConst, index.KindField:
+			// Skip - these typically don't have meaningful signatures
+		}
+	}
+
+	if len(toEmbed) == 0 {
+		return 0, nil
+	}
+
+	// Batch embeddings (Voyage AI supports up to 128 texts per request)
+	const batchSize = 64
+	total := 0
+
+	for i := 0; i < len(toEmbed); i += batchSize {
+		end := i + batchSize
+		if end > len(toEmbed) {
+			end = len(toEmbed)
+		}
+		batch := toEmbed[i:end]
+
+		// Build texts for embedding
+		texts := make([]string, len(batch))
+		for j, sym := range batch {
+			// Combine name, signature, and doc for richer embeddings
+			text := sym.Name
+			if sym.Signature != "" {
+				text += " " + sym.Signature
+			}
+			if sym.Doc != "" {
+				text += " " + sym.Doc
+			}
+			texts[j] = text
+		}
+
+		// Generate embeddings
+		embeddings, err := client.Embed(texts, "document")
+		if err != nil {
+			return total, fmt.Errorf("embed batch %d: %w", i/batchSize, err)
+		}
+
+		// Store embeddings
+		for j, emb := range embeddings {
+			if emb == nil {
+				continue
+			}
+			if err := s.SaveEmbedding(batch[j].ID, emb, client.Model()); err != nil {
+				return total, fmt.Errorf("save embedding for %s: %w", batch[j].ID, err)
+			}
+			total++
+		}
+
+		fmt.Fprintf(os.Stderr, "  Embedded %d/%d symbols\n", end, len(toEmbed))
+	}
+
+	return total, nil
 }
