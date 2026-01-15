@@ -123,6 +123,16 @@ func runRefs(cmd *cobra.Command, args []string) error {
 		queryInfo = map[string]string{"symbol": name}
 	}
 
+	// Look up symbol to get name length for accurate range
+	symbolName := ""
+	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
+		symbolName = sym.Name
+	}
+	nameLen := len(symbolName)
+	if nameLen == 0 {
+		nameLen = 1 // Fallback to minimal range
+	}
+
 	// Find all references
 	refs, err := query.FindRefs(s.DB(), symbolID, lim, off)
 	if err != nil {
@@ -143,13 +153,13 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			File: ref.FilePath,
 			Range: output.Range{
 				Start: output.Position{Line: ref.Line, Col: ref.Col},
-				End:   output.Position{Line: ref.Line, Col: ref.Col + 10}, // Approximate
+				End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
 			},
 			Kind:  "ref",
 			Match: ref.Snippet,
 			EditTarget: output.FormatEditTarget(ref.FilePath, output.Range{
 				Start: output.Position{Line: ref.Line, Col: ref.Col},
-				End:   output.Position{Line: ref.Line, Col: ref.Col + 10},
+				End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
 			}),
 		}
 

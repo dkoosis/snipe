@@ -112,10 +112,15 @@ func runCallees(cmd *cobra.Command, args []string) error {
 	var degraded []string
 
 	for i, call := range calls {
+		// Use callee name length for accurate call site range
+		nameLen := len(call.CalleeName)
+		if nameLen == 0 {
+			nameLen = 1
+		}
 		// Show the call site (where the callee is invoked from the caller)
 		callSiteRange := output.Range{
 			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-			End:   output.Position{Line: call.CallLine, Col: call.CallCol + 10},
+			End:   output.Position{Line: call.CallLine, Col: call.CallCol + nameLen},
 		}
 		result := output.Result{
 			ID:         call.CalleeID,

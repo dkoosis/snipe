@@ -43,9 +43,65 @@ func (w *Writer) writeJSON(resp any) error {
 }
 
 func (w *Writer) writeHuman(resp any) error {
-	// For now, just pretty-print JSON
-	// TODO: implement proper human-readable format
-	return w.writeJSON(resp)
+	switch r := resp.(type) {
+	case Response[Result]:
+		return w.writeHumanResults(r)
+	case Response[Summary]:
+		return w.writeHumanSummary(r)
+	default:
+		// Fallback to JSON for unknown types
+		return w.writeJSON(resp)
+	}
+}
+
+func (w *Writer) writeHumanResults(resp Response[Result]) error {
+	if resp.Error != nil {
+		fmt.Fprintf(w.out, "Error: %s\n", resp.Error.Message)
+		if len(resp.Error.Candidates) > 0 {
+			fmt.Fprintln(w.out, "Candidates:")
+			for _, c := range resp.Error.Candidates {
+				fmt.Fprintf(w.out, "  %s (%s) in %s\n", c.Name, c.Kind, c.File)
+			}
+		}
+		return nil
+	}
+
+	for _, r := range resp.Results {
+		loc := fmt.Sprintf("%s:%d:%d", r.File, r.Range.Start.Line, r.Range.Start.Col)
+		if r.Match != "" {
+			fmt.Fprintf(w.out, "%s\t%s\t%s\n", loc, r.Kind, r.Match)
+		} else {
+			fmt.Fprintf(w.out, "%s\t%s\t%s\n", loc, r.Kind, r.Name)
+		}
+	}
+
+	fmt.Fprintf(w.out, "\n%d results in %dms\n", resp.Meta.Total, resp.Meta.Ms)
+	return nil
+}
+
+func (w *Writer) writeHumanSummary(resp Response[Summary]) error {
+	if len(resp.Results) == 0 {
+		fmt.Fprintln(w.out, "No results")
+		return nil
+	}
+
+	s := resp.Results[0]
+	fmt.Fprintf(w.out, "Total: %d results\n\n", s.Total)
+
+	if len(s.Kinds) > 0 {
+		fmt.Fprintln(w.out, "By kind:")
+		for kind, count := range s.Kinds {
+			fmt.Fprintf(w.out, "  %s: %d\n", kind, count)
+		}
+		fmt.Fprintln(w.out)
+	}
+
+	fmt.Fprintln(w.out, "By file:")
+	for _, f := range s.Files {
+		fmt.Fprintf(w.out, "  %s: %d\n", f.File, f.Count)
+	}
+
+	return nil
 }
 
 // WriteError writes an error response
