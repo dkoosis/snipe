@@ -37,6 +37,16 @@ func ParsePosition(s string) (*PositionQuery, error) {
 				Col:  1,
 			}, nil
 		}
+		if len(parts) >= 2 {
+			line, err = strconv.Atoi(parts[len(parts)-1])
+			if err == nil {
+				return &PositionQuery{
+					File: strings.Join(parts[:len(parts)-1], ":"),
+					Line: line,
+					Col:  1,
+				}, nil
+			}
+		}
 		return nil, fmt.Errorf("invalid line number: %s", parts[len(parts)-2])
 	}
 
