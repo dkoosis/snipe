@@ -192,7 +192,6 @@ func filterPackages(pkgs []*packages.Package, exclude []string) []*packages.Pack
 	for _, pkg := range pkgs {
 		excluded := false
 		for _, pattern := range exclude {
-			// Simple substring match for now
 			if matchesExclude(pkg.PkgPath, pattern) {
 				excluded = true
 				break
@@ -206,7 +205,31 @@ func filterPackages(pkgs []*packages.Package, exclude []string) []*packages.Pack
 }
 
 func matchesExclude(pkgPath, pattern string) bool {
-	// Split by "/" to get path components (package paths use forward slashes)
+	if pattern == "" {
+		return false
+	}
+
+	// If pattern contains "/", it's a multi-component pattern
+	// Match it as a contiguous path segment
+	if strings.Contains(pattern, "/") {
+		// Check if pattern appears as a complete segment (not partial match)
+		// Pattern must be at start, end, or surrounded by "/"
+		if pkgPath == pattern {
+			return true
+		}
+		if strings.HasPrefix(pkgPath, pattern+"/") {
+			return true
+		}
+		if strings.HasSuffix(pkgPath, "/"+pattern) {
+			return true
+		}
+		if strings.Contains(pkgPath, "/"+pattern+"/") {
+			return true
+		}
+		return false
+	}
+
+	// Single component pattern: split by "/" and match exactly
 	for _, component := range strings.Split(pkgPath, "/") {
 		if component == pattern {
 			return true
