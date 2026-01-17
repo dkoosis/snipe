@@ -13,31 +13,32 @@ import (
 
 // SymbolRow represents a row from the symbols table
 type SymbolRow struct {
-	ID        string
-	Name      string
-	Kind      string
-	FilePath  string
-	LineStart int
-	ColStart  int
-	LineEnd   int
-	ColEnd    int
-	Signature sql.NullString
-	Doc       sql.NullString
-	Receiver  sql.NullString
-	FileHash  string // Content hash for change detection
+	ID          string
+	Name        string
+	Kind        string
+	FilePath    string // Absolute path (for file operations)
+	FilePathRel string // Relative path (for output)
+	LineStart   int
+	ColStart    int
+	LineEnd     int
+	ColEnd      int
+	Signature   sql.NullString
+	Doc         sql.NullString
+	Receiver    sql.NullString
+	FileHash    string // Content hash for change detection
 }
 
 // LookupByID looks up a symbol by its ID.
 func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 	var s SymbolRow
-	var fileHash sql.NullString
+	var fileHash, filePathRel sql.NullString
 	err := db.QueryRow(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
 		WHERE s.id = ?
-	`, id).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
+	`, id).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &filePathRel, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
 		&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 
 	if err == sql.ErrNoRows {
@@ -47,6 +48,7 @@ func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 		return nil, fmt.Errorf("query symbol by id: %w", err)
 	}
 	s.FileHash = fileHash.String
+	s.FilePathRel = filePathRel.String
 	return &s, nil
 }
 
@@ -69,7 +71,7 @@ func LookupByName(db *sql.DB, name string) ([]SymbolRow, error) {
 
 func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 	rows, err := db.Query(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
@@ -96,7 +98,7 @@ func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
 	midPattern := "%/" + pkgPath + "/%"
 
 	rows, err := db.Query(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
@@ -133,7 +135,7 @@ func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error) {
 	}
 
 	rows, err := db.Query(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
@@ -152,13 +154,14 @@ func scanSymbolRows(rows *sql.Rows) ([]SymbolRow, error) {
 	var symbols []SymbolRow
 	for rows.Next() {
 		var s SymbolRow
-		var fileHash sql.NullString
-		err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
+		var fileHash, filePathRel sql.NullString
+		err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &filePathRel, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
 			&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 		if err != nil {
 			return nil, fmt.Errorf("scan symbol row: %w", err)
 		}
 		s.FileHash = fileHash.String
+		s.FilePathRel = filePathRel.String
 		symbols = append(symbols, s)
 	}
 	return symbols, rows.Err()
@@ -167,7 +170,7 @@ func scanSymbolRows(rows *sql.Rows) ([]SymbolRow, error) {
 // FindRefs finds all references to a symbol
 func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) {
 	rows, err := db.Query(`
-		SELECT r.id, r.symbol_id, r.file_path, r.line, r.col, r.enclosing_id, r.snippet,
+		SELECT r.id, r.symbol_id, r.file_path, r.file_path_rel, r.line, r.col, r.enclosing_id, r.snippet,
 		       s.name, s.kind, s.signature, f.hash
 		FROM refs r
 		LEFT JOIN symbols s ON r.enclosing_id = s.id
@@ -184,12 +187,13 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 	var refs []RefRow
 	for rows.Next() {
 		var r RefRow
-		var encName, encKind, encSig, fileHash sql.NullString
-		err := rows.Scan(&r.ID, &r.SymbolID, &r.FilePath, &r.Line, &r.Col, &r.EnclosingID, &r.Snippet,
+		var encName, encKind, encSig, fileHash, filePathRel sql.NullString
+		err := rows.Scan(&r.ID, &r.SymbolID, &r.FilePath, &filePathRel, &r.Line, &r.Col, &r.EnclosingID, &r.Snippet,
 			&encName, &encKind, &encSig, &fileHash)
 		if err != nil {
 			return nil, fmt.Errorf("scan ref row: %w", err)
 		}
+		r.FilePathRel = filePathRel.String
 		r.EnclosingName = encName.String
 		r.EnclosingKind = encKind.String
 		r.EnclosingSignature = encSig.String
@@ -202,11 +206,12 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 
 // RefRow represents a reference with enclosing context
 type RefRow struct {
-	ID                 string
-	SymbolID           string
-	FilePath           string
-	Line               int
-	Col                int
+	ID          string
+	SymbolID    string
+	FilePath    string // Absolute path (for file operations)
+	FilePathRel string // Relative path (for output)
+	Line        int
+	Col         int
 	EnclosingID        sql.NullString
 	Snippet            string
 	EnclosingName      string
@@ -221,23 +226,34 @@ func (s *SymbolRow) ToResult() output.Result {
 		Start: output.Position{Line: s.LineStart, Col: s.ColStart},
 		End:   output.Position{Line: s.LineEnd, Col: s.ColEnd},
 	}
+	// Use relative path for output, absolute path for file operations
+	filePath := s.FilePathRel
+	if filePath == "" {
+		filePath = s.FilePath // Fallback to absolute if relative not available
+	}
 	return output.Result{
 		ID:         s.ID,
-		File:       s.FilePath,
+		File:       filePath,
+		FileAbs:    s.FilePath,
 		Range:      r,
 		Kind:       s.Kind,
 		Name:       s.Name,
 		Match:      s.Signature.String,
-		EditTarget: output.FormatEditTargetWithHash(s.FilePath, r),
+		EditTarget: output.FormatEditTargetWithHash(filePath, s.FilePath, r),
 	}
 }
 
 // ToCandidate converts a SymbolRow to an output.Candidate
 func (s *SymbolRow) ToCandidate() output.Candidate {
+	// Use relative path for output
+	filePath := s.FilePathRel
+	if filePath == "" {
+		filePath = s.FilePath // Fallback to absolute if relative not available
+	}
 	return output.Candidate{
 		ID:   s.ID,
 		Name: s.Name,
-		File: s.FilePath,
+		File: filePath,
 		Kind: s.Kind,
 	}
 }
@@ -272,13 +288,15 @@ type CallRow struct {
 	CallerID        string
 	CallerName      string
 	CallerKind      string
-	CallerFile      string
+	CallerFile      string // Absolute path
+	CallerFileRel   string // Relative path
 	CallerSignature sql.NullString
 	CallerFileHash  string // Content hash for caller file
 	CalleeID        string
 	CalleeName      string
 	CalleeKind      string
-	CalleeFile      string
+	CalleeFile      string // Absolute path
+	CalleeFileRel   string // Relative path
 	CalleeSignature sql.NullString
 	CalleeFileHash  string // Content hash for callee file
 	CallLine        int
@@ -289,8 +307,8 @@ type CallRow struct {
 func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, error) {
 	rows, err := db.Query(`
 		SELECT
-			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature, fc.hash,
-			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.signature, fe.hash,
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, fe.hash,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -309,15 +327,17 @@ func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 	var results []CallRow
 	for rows.Next() {
 		var r CallRow
-		var callerHash, calleeHash sql.NullString
+		var callerHash, calleeHash, callerFileRel, calleeFileRel sql.NullString
 		err := rows.Scan(
-			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &r.CallerSignature, &callerHash,
-			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &r.CalleeSignature, &calleeHash,
+			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &callerFileRel, &r.CallerSignature, &callerHash,
+			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &calleeFileRel, &r.CalleeSignature, &calleeHash,
 			&r.CallLine, &r.CallCol,
 		)
 		if err != nil {
 			return nil, err
 		}
+		r.CallerFileRel = callerFileRel.String
+		r.CalleeFileRel = calleeFileRel.String
 		r.CallerFileHash = callerHash.String
 		r.CalleeFileHash = calleeHash.String
 		results = append(results, r)
@@ -329,8 +349,8 @@ func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, error) {
 	rows, err := db.Query(`
 		SELECT
-			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature, fc.hash,
-			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.signature, fe.hash,
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, fe.hash,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -349,15 +369,17 @@ func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 	var results []CallRow
 	for rows.Next() {
 		var r CallRow
-		var callerHash, calleeHash sql.NullString
+		var callerHash, calleeHash, callerFileRel, calleeFileRel sql.NullString
 		err := rows.Scan(
-			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &r.CallerSignature, &callerHash,
-			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &r.CalleeSignature, &calleeHash,
+			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &callerFileRel, &r.CallerSignature, &callerHash,
+			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &calleeFileRel, &r.CalleeSignature, &calleeHash,
 			&r.CallLine, &r.CallCol,
 		)
 		if err != nil {
 			return nil, err
 		}
+		r.CallerFileRel = callerFileRel.String
+		r.CalleeFileRel = calleeFileRel.String
 		r.CallerFileHash = callerHash.String
 		r.CalleeFileHash = calleeHash.String
 		results = append(results, r)

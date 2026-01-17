@@ -152,13 +152,19 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			Start: output.Position{Line: ref.Line, Col: ref.Col},
 			End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
 		}
+		// Use relative path for output, absolute for file operations
+		filePath := ref.FilePathRel
+		if filePath == "" {
+			filePath = ref.FilePath
+		}
 		result := output.Result{
 			ID:         ref.ID,
-			File:       ref.FilePath,
+			File:       filePath,
+			FileAbs:    ref.FilePath,
 			Range:      refRange,
 			Kind:       "ref",
 			Match:      ref.Snippet,
-			EditTarget: output.FormatEditTargetWithHash(ref.FilePath, refRange),
+			EditTarget: output.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
 		}
 
 		// Add enclosing info if available

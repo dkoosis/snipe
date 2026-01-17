@@ -64,7 +64,8 @@ type Candidate struct {
 // Result represents a single navigation result
 type Result struct {
 	ID         string     `json:"id"`
-	File       string     `json:"file"`
+	File       string     `json:"file"`                // Relative path (for output)
+	FileAbs    string     `json:"-"`                   // Absolute path (for file operations, not exported)
 	Range      Range      `json:"range"`
 	Kind       string     `json:"kind"`
 	Name       string     `json:"name"`
