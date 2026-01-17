@@ -140,3 +140,80 @@ func TestNewAmbiguousError(t *testing.T) {
 		t.Errorf("Candidates count = %d, want 2", len(err.Candidates))
 	}
 }
+
+// TestAmbiguousSymbolJSONFormat verifies the JSON output matches SPEC.md format
+func TestAmbiguousSymbolJSONFormat(t *testing.T) {
+	candidates := []Candidate{
+		{ID: "abc", Name: "Config", File: "config/config.go", Kind: "type"},
+		{ID: "def", Name: "Config", File: "server/config.go", Kind: "type"},
+	}
+	err := NewAmbiguousError("Config", candidates)
+
+	// Marshal to JSON
+	data, marshalErr := json.Marshal(err)
+	if marshalErr != nil {
+		t.Fatalf("Marshal failed: %v", marshalErr)
+	}
+
+	// Verify structure by parsing
+	var parsed map[string]interface{}
+	if unmarshalErr := json.Unmarshal(data, &parsed); unmarshalErr != nil {
+		t.Fatalf("Unmarshal failed: %v", unmarshalErr)
+	}
+
+	// Verify error code matches SPEC
+	code, ok := parsed["code"].(string)
+	if !ok || code != "AMBIGUOUS_SYMBOL" {
+		t.Errorf("code = %v, want %q", parsed["code"], "AMBIGUOUS_SYMBOL")
+	}
+
+	// Verify message exists
+	message, ok := parsed["message"].(string)
+	if !ok || message == "" {
+		t.Error("message should be a non-empty string")
+	}
+
+	// Verify candidates array exists with correct structure
+	candidatesRaw, ok := parsed["candidates"].([]interface{})
+	if !ok || len(candidatesRaw) != 2 {
+		t.Fatalf("candidates should be an array of 2, got %v", parsed["candidates"])
+	}
+
+	// Verify each candidate has required fields per SPEC
+	for i, cRaw := range candidatesRaw {
+		c, ok := cRaw.(map[string]interface{})
+		if !ok {
+			t.Errorf("candidate[%d] should be an object", i)
+			continue
+		}
+
+		// SPEC requires: id, name, file, kind
+		requiredFields := []string{"id", "name", "file", "kind"}
+		for _, field := range requiredFields {
+			if _, exists := c[field]; !exists {
+				t.Errorf("candidate[%d] missing required field %q", i, field)
+			}
+		}
+	}
+}
+
+// TestAmbiguousSymbolDeterminism verifies response is deterministic per SPEC
+func TestAmbiguousSymbolDeterminism(t *testing.T) {
+	candidates := []Candidate{
+		{ID: "abc", Name: "Config", File: "config/config.go", Kind: "type"},
+		{ID: "def", Name: "Config", File: "server/config.go", Kind: "type"},
+	}
+
+	// Create same error multiple times
+	err1 := NewAmbiguousError("Config", candidates)
+	err2 := NewAmbiguousError("Config", candidates)
+
+	// Marshal both
+	data1, _ := json.Marshal(err1)
+	data2, _ := json.Marshal(err2)
+
+	// Verify identical output
+	if string(data1) != string(data2) {
+		t.Error("NewAmbiguousError should produce deterministic output")
+	}
+}
