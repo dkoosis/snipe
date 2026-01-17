@@ -1,0 +1,54 @@
+{
+  "results": [
+    {
+      "id": "ref:main.go:15:10",
+      "file": "main.go",
+      "range": {
+        "start": {
+          "line": 15,
+          "col": 10
+        },
+        "end": {
+          "line": 15,
+          "col": 14
+        }
+      },
+      "kind": "ref",
+      "name": "main",
+      "match": "    main()",
+      "enclosing": {
+        "id": "go#main.go#init",
+        "kind": "func",
+        "name": "init"
+      },
+      "edit_target": "main.go:15:10-15:14"
+    },
+    {
+      "id": "ref:cmd/root.go:42:5",
+      "file": "cmd/root.go",
+      "range": {
+        "start": {
+          "line": 42,
+          "col": 5
+        },
+        "end": {
+          "line": 42,
+          "col": 9
+        }
+      },
+      "kind": "ref",
+      "name": "main",
+      "match": "main.Run()",
+      "edit_target": "cmd/root.go:42:5-42:9"
+    }
+  ],
+  "meta": {
+    "command": "refs",
+    "index_state": "fresh",
+    "ms": 23,
+    "total": 2,
+    "limit": 50,
+    "truncated": false
+  },
+  "error": null
+}

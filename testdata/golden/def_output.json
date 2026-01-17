@@ -1,0 +1,31 @@
+{
+  "results": [
+    {
+      "id": "go#main.go#main",
+      "file": "main.go",
+      "range": {
+        "start": {
+          "line": 5,
+          "col": 1
+        },
+        "end": {
+          "line": 10,
+          "col": 2
+        }
+      },
+      "kind": "func",
+      "name": "main",
+      "match": "func main() {",
+      "edit_target": "main.go:5:1-10:2"
+    }
+  ],
+  "meta": {
+    "command": "def",
+    "index_state": "fresh",
+    "ms": 15,
+    "total": 1,
+    "limit": 50,
+    "truncated": false
+  },
+  "error": null
+}

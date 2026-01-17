@@ -1,0 +1,31 @@
+{
+  "results": [
+    {
+      "id": "s1510",
+      "file": "internal/search/rg.go",
+      "range": {
+        "start": {
+          "line": 15,
+          "col": 10
+        },
+        "end": {
+          "line": 15,
+          "col": 16
+        }
+      },
+      "kind": "match",
+      "name": "Search",
+      "match": "func Search(dir, pattern string, limit, contextLines int) ([]output.Result, error) {",
+      "edit_target": "internal/search/rg.go:15:10-15:16"
+    }
+  ],
+  "meta": {
+    "command": "search",
+    "index_state": "fresh",
+    "ms": 8,
+    "total": 1,
+    "limit": 50,
+    "truncated": false
+  },
+  "error": null
+}
