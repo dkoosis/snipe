@@ -13,7 +13,8 @@ import (
 )
 
 var (
-	refsAt string
+	refsAt   string
+	refsKind string
 )
 
 var refsCmd = &cobra.Command{
@@ -23,13 +24,15 @@ var refsCmd = &cobra.Command{
 
 Examples:
   snipe refs ProcessOrder          # Find by name
-  snipe refs --at main.go:42:12    # Find at position`,
+  snipe refs --at main.go:42:12    # Find at position
+  snipe refs Workspace --kind=method  # Only method references`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runRefs,
 }
 
 func init() {
 	refsCmd.Flags().StringVar(&refsAt, "at", "", "Position to look up (file:line:col)")
+	refsCmd.Flags().StringVar(&refsKind, "kind", "", "Filter by enclosing kind (func, method, etc.)")
 	rootCmd.AddCommand(refsCmd)
 }
 
@@ -140,6 +143,17 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
+	}
+
+	// Filter by kind if specified
+	if refsKind != "" {
+		filtered := refs[:0]
+		for _, ref := range refs {
+			if ref.EnclosingKind == refsKind {
+				filtered = append(filtered, ref)
+			}
+		}
+		refs = filtered
 	}
 
 	// Convert to results

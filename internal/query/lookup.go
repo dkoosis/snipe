@@ -57,18 +57,54 @@ func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 // LookupByName looks up symbols by name
 // Returns candidates if multiple matches
 func LookupByName(db *sql.DB, name string) ([]SymbolRow, error) {
-	// Check for qualified name (pkg/path.Symbol)
-	if idx := strings.LastIndex(name, "."); idx >= 0 {
-		return lookupQualified(db, name[:idx], name[idx+1:])
-	}
-
 	// Check for method syntax ((*T).Method or T.Method)
 	if strings.HasPrefix(name, "(") || strings.Contains(name, ").") {
 		return lookupMethod(db, name)
 	}
 
+	// Check for qualified name (pkg/path.Symbol or Type.Method)
+	if idx := strings.LastIndex(name, "."); idx >= 0 {
+		prefix := name[:idx]
+		suffix := name[idx+1:]
+
+		// If prefix looks like a type name (starts with uppercase, no slashes),
+		// try method lookup first
+		if len(prefix) > 0 && prefix[0] >= 'A' && prefix[0] <= 'Z' && !strings.Contains(prefix, "/") {
+			results, err := lookupMethod(db, name)
+			if err != nil {
+				return nil, err
+			}
+			if len(results) > 0 {
+				return results, nil
+			}
+			// Fall through to qualified lookup
+		}
+
+		return lookupQualified(db, prefix, suffix)
+	}
+
 	// Simple name lookup
 	return lookupSimple(db, name)
+}
+
+// LookupByNameInFile looks up a symbol by name within a specific file pattern.
+// The filePattern can be a full path, relative path, or partial match.
+func LookupByNameInFile(db *sql.DB, name, filePattern string) ([]SymbolRow, error) {
+	pattern := "%" + filePattern + "%"
+	rows, err := db.Query(`
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.name = ? AND (s.file_path LIKE ? OR s.file_path_rel LIKE ?)
+		ORDER BY s.kind, s.file_path
+	`, name, pattern, pattern)
+	if err != nil {
+		return nil, fmt.Errorf("query symbols by name in file: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSymbolRows(rows)
 }
 
 func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
@@ -238,7 +274,7 @@ func (s *SymbolRow) ToResult() output.Result {
 	// Compute static analysis hints
 	hints := s.computeHints()
 
-	return output.Result{
+	result := output.Result{
 		ID:         s.ID,
 		File:       filePath,
 		FileAbs:    s.FilePath,
@@ -249,6 +285,18 @@ func (s *SymbolRow) ToResult() output.Result {
 		Hints:      hints,
 		EditTarget: output.FormatEditTargetWithHash(filePath, s.FilePath, r),
 	}
+
+	// Add receiver for methods
+	if s.Receiver.Valid && s.Receiver.String != "" {
+		result.Receiver = s.Receiver.String
+	}
+
+	// Add package path
+	if s.PkgPath != "" {
+		result.Package = s.PkgPath
+	}
+
+	return result
 }
 
 // computeHints detects static analysis hints for a symbol.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -109,6 +110,34 @@ func runDef(cmd *cobra.Command, args []string) error {
 				symbolID = name
 				queryInfo = map[string]string{"id": name}
 				goto lookup
+			}
+		}
+
+		// Check for file-qualified syntax: file.go:SymbolName
+		if idx := strings.LastIndex(name, ":"); idx > 0 && !strings.Contains(name[idx:], "/") {
+			filePart := name[:idx]
+			symbolPart := name[idx+1:]
+			if symbolPart != "" && !strings.Contains(symbolPart, ":") {
+				// This looks like file:symbol syntax
+				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
+				if err != nil {
+					return w.WriteError("def", &output.Error{
+						Code:    output.ErrInternal,
+						Message: err.Error(),
+					})
+				}
+				if len(symbols) == 1 {
+					symbolID = symbols[0].ID
+					queryInfo = map[string]string{"symbol": symbolPart, "file": filePart}
+					goto lookup
+				} else if len(symbols) > 1 {
+					candidates := make([]output.Candidate, len(symbols))
+					for i, s := range symbols {
+						candidates[i] = s.ToCandidate()
+					}
+					return w.WriteError("def", output.NewAmbiguousError(name, candidates))
+				}
+				// Fall through to regular lookup if not found
 			}
 		}
 

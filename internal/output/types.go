@@ -71,6 +71,8 @@ type Result struct {
 	Range      Range      `json:"range"`
 	Kind       string     `json:"kind,omitempty"`
 	Name       string     `json:"name,omitempty"`
+	Receiver   string     `json:"receiver,omitempty"`    // Method receiver type, e.g., "(*Server)" or "(Config)"
+	Package    string     `json:"package,omitempty"`     // Go package path
 	Match      string     `json:"match,omitempty"`
 	Body       string     `json:"body,omitempty"`
 	Score      float64    `json:"score,omitempty"`
