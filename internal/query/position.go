@@ -75,7 +75,24 @@ func ParsePosition(s string) (*PositionQuery, error) {
 // Note: pos.File should be an absolute path for optimal index usage.
 // Callers should resolve relative paths before calling this function.
 func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error) {
-	// First, try to find a reference at exactly this position
+	// First, try to find a symbol definition at exactly this position
+	// Check the identifier position (name_line/name_col) which is where users typically click
+	// This handles clicking directly on the symbol name in a definition
+	err = db.QueryRow(`
+		SELECT id FROM symbols
+		WHERE file_path = ? AND name_line = ? AND name_col = ?
+		LIMIT 1
+	`, pos.File, pos.Line, pos.Col).Scan(&symbolID)
+
+	if err == nil {
+		return symbolID, nil
+	}
+
+	if err != sql.ErrNoRows {
+		return "", fmt.Errorf("query symbols by name position: %w", err)
+	}
+
+	// Try to find a reference at exactly this position
 	// Uses idx_refs_position composite index for O(1) lookup
 	err = db.QueryRow(`
 		SELECT symbol_id FROM refs
@@ -89,6 +106,22 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 
 	if err != sql.ErrNoRows {
 		return "", fmt.Errorf("query refs: %w", err)
+	}
+
+	// Try to find a symbol whose identifier is on this line, closest to the column
+	err = db.QueryRow(`
+		SELECT id FROM symbols
+		WHERE file_path = ? AND name_line = ?
+		ORDER BY ABS(name_col - ?)
+		LIMIT 1
+	`, pos.File, pos.Line, pos.Col).Scan(&symbolID)
+
+	if err == nil {
+		return symbolID, nil
+	}
+
+	if err != sql.ErrNoRows {
+		return "", fmt.Errorf("query symbols by name line: %w", err)
 	}
 
 	// Try to find a reference on this line, closest to the column
@@ -107,7 +140,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 		return "", fmt.Errorf("query refs by line: %w", err)
 	}
 
-	// Try to find a symbol definition at this position
+	// Try to find a symbol definition whose display range contains this position
 	// Uses idx_symbols_position composite index
 	err = db.QueryRow(`
 		SELECT id FROM symbols

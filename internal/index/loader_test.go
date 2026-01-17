@@ -90,6 +90,44 @@ func TestMatchesExclude(t *testing.T) {
 			pattern: "",
 			want:    false,
 		},
+
+		// Multi-component pattern tests
+		{
+			name:    "multi-component at start",
+			pkgPath: "vendor/v2/pkg",
+			pattern: "vendor/v2",
+			want:    true,
+		},
+		{
+			name:    "multi-component in middle",
+			pkgPath: "example.com/vendor/v2/pkg",
+			pattern: "vendor/v2",
+			want:    true,
+		},
+		{
+			name:    "multi-component at end",
+			pkgPath: "example.com/vendor/v2",
+			pattern: "vendor/v2",
+			want:    true,
+		},
+		{
+			name:    "multi-component exact match",
+			pkgPath: "vendor/v2",
+			pattern: "vendor/v2",
+			want:    true,
+		},
+		{
+			name:    "multi-component partial no match",
+			pkgPath: "example.com/myvendor/v2/pkg",
+			pattern: "vendor/v2",
+			want:    false,
+		},
+		{
+			name:    "multi-component suffix no match",
+			pkgPath: "example.com/vendor/v2beta/pkg",
+			pattern: "vendor/v2",
+			want:    false,
+		},
 	}
 
 	for _, tt := range tests {

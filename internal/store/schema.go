@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 9
+const schemaVersion = 10
 
 // migration represents a database migration.
 type migration struct {
@@ -162,6 +162,18 @@ var migrations = []migration{
 
 		-- Composite index on symbols for relative path + line lookups
 		CREATE INDEX IF NOT EXISTS idx_symbols_pathrel_linestart ON symbols(file_path_rel, line_start);
+		`,
+	},
+	{
+		version: 10,
+		name:    "name_position_indexes",
+		up: `
+		-- Composite index on symbols for identifier position lookups
+		-- Optimizes: def --at file:line:col when cursor is on symbol identifier
+		CREATE INDEX IF NOT EXISTS idx_symbols_name_position ON symbols(file_path, name_line, name_col);
+
+		-- Index for name_line only, for line-based closest match queries
+		CREATE INDEX IF NOT EXISTS idx_symbols_name_line ON symbols(file_path, name_line);
 		`,
 	},
 }
