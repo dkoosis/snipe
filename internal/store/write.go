@@ -134,8 +134,8 @@ func truncateTables(tx *sql.Tx) error {
 
 func writeSymbols(tx *sql.Tx, symbols []index.Symbol, repoRoot string) error {
 	stmt, err := tx.Prepare(`
-		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, line_start, col_start, line_end, col_end, name_line, name_col, signature, doc, receiver)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path, line_start, col_start, line_end, col_end, name_line, name_col, signature, doc, receiver)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("prepare symbols insert: %w", err)
@@ -150,6 +150,7 @@ func writeSymbols(tx *sql.Tx, symbols []index.Symbol, repoRoot string) error {
 			string(sym.Kind),
 			sym.FilePath,
 			relPath,
+			sym.PkgPath,
 			sym.LineStart,
 			sym.ColStart,
 			sym.LineEnd,

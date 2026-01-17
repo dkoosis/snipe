@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 10
+const schemaVersion = 11
 
 // migration represents a database migration.
 type migration struct {
@@ -176,6 +176,11 @@ var migrations = []migration{
 		CREATE INDEX IF NOT EXISTS idx_symbols_name_line ON symbols(file_path, name_line);
 		`,
 	},
+	{
+		version: 11,
+		name:    "add_pkg_path",
+		up:      ``, // Handled specially - need to add column and index
+	},
 }
 
 // initSchema creates and migrates the database schema.
@@ -247,6 +252,11 @@ func (s *Store) runMigration(m migration) error {
 	case 8:
 		// Add file_path_rel columns for efficient exact-match queries
 		if err := s.addFilePathRelColumns(tx); err != nil {
+			return err
+		}
+	case 11:
+		// Add pkg_path column for qualified symbol lookups
+		if err := s.addPkgPathColumn(tx); err != nil {
 			return err
 		}
 	default:
@@ -332,6 +342,36 @@ func (s *Store) addFilePathRelColumns(tx *sql.Tx) error {
 		// Add index for efficient lookups
 		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_refs_file_path_rel ON refs(file_path_rel)`); err != nil {
 			return fmt.Errorf("add idx_refs_file_path_rel index: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// addPkgPathColumn handles migration 11 - adding pkg_path column.
+// This stores the Go package path for efficient qualified name lookups.
+func (s *Store) addPkgPathColumn(tx *sql.Tx) error {
+	// Check if pkg_path column exists on symbols
+	var colCount int
+	err := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('symbols') WHERE name = 'pkg_path'`).Scan(&colCount)
+	if err != nil {
+		return fmt.Errorf("check column existence: %w", err)
+	}
+
+	if colCount == 0 {
+		// Add column to symbols table (nullable for backfill compatibility)
+		if _, err := tx.Exec(`ALTER TABLE symbols ADD COLUMN pkg_path TEXT`); err != nil {
+			return fmt.Errorf("add symbols.pkg_path column: %w", err)
+		}
+
+		// Add index for efficient qualified name lookups
+		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_symbols_pkg_path ON symbols(pkg_path)`); err != nil {
+			return fmt.Errorf("add idx_symbols_pkg_path index: %w", err)
+		}
+
+		// Composite index for name + pkg_path queries
+		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_symbols_name_pkg ON symbols(name, pkg_path)`); err != nil {
+			return fmt.Errorf("add idx_symbols_name_pkg index: %w", err)
 		}
 	}
 

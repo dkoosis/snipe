@@ -32,7 +32,8 @@ type Symbol struct {
 	Name      string
 	Kind      SymbolKind
 	FilePath  string
-	LineStart int // Display range start (includes 'func' keyword for functions)
+	PkgPath   string // Go package path (e.g., "github.com/user/repo/internal/handler")
+	LineStart int    // Display range start (includes 'func' keyword for functions)
 	ColStart  int
 	LineEnd   int
 	ColEnd    int
@@ -48,13 +49,14 @@ func ExtractSymbols(result *LoadResult) ([]Symbol, error) {
 	var symbols []Symbol
 
 	for _, pkg := range result.Packages {
+		pkgPath := pkg.PkgPath
 		for i, file := range pkg.Syntax {
 			if i >= len(pkg.GoFiles) {
 				continue
 			}
 			filePath := pkg.GoFiles[i]
 
-			fileSymbols := extractFileSymbols(pkg, file, filePath, result.Fset)
+			fileSymbols := extractFileSymbols(pkg, file, filePath, pkgPath, result.Fset)
 			symbols = append(symbols, fileSymbols...)
 		}
 	}
@@ -62,19 +64,19 @@ func ExtractSymbols(result *LoadResult) ([]Symbol, error) {
 	return symbols, nil
 }
 
-func extractFileSymbols(pkg *packages.Package, file *ast.File, filePath string, fset *token.FileSet) []Symbol {
+func extractFileSymbols(pkg *packages.Package, file *ast.File, filePath, pkgPath string, fset *token.FileSet) []Symbol {
 	var symbols []Symbol
 
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch decl := n.(type) {
 		case *ast.FuncDecl:
-			sym := extractFuncSymbol(pkg, decl, filePath, fset)
+			sym := extractFuncSymbol(pkg, decl, filePath, pkgPath, fset)
 			if sym != nil {
 				symbols = append(symbols, *sym)
 			}
 
 		case *ast.GenDecl:
-			genSymbols := extractGenDeclSymbols(pkg, decl, filePath, fset)
+			genSymbols := extractGenDeclSymbols(pkg, decl, filePath, pkgPath, fset)
 			symbols = append(symbols, genSymbols...)
 		}
 		return true
@@ -83,7 +85,7 @@ func extractFileSymbols(pkg *packages.Package, file *ast.File, filePath string, 
 	return symbols
 }
 
-func extractFuncSymbol(_ *packages.Package, decl *ast.FuncDecl, filePath string, fset *token.FileSet) *Symbol {
+func extractFuncSymbol(_ *packages.Package, decl *ast.FuncDecl, filePath, pkgPath string, fset *token.FileSet) *Symbol {
 	if decl.Name == nil {
 		return nil
 	}
@@ -111,6 +113,7 @@ func extractFuncSymbol(_ *packages.Package, decl *ast.FuncDecl, filePath string,
 		Name:     decl.Name.Name,
 		Kind:     kind,
 		FilePath: filePath,
+		PkgPath:  pkgPath,
 		// Range uses declaration start for user display (includes 'func' keyword)
 		LineStart: declPos.Line,
 		ColStart:  declPos.Column,
@@ -125,19 +128,19 @@ func extractFuncSymbol(_ *packages.Package, decl *ast.FuncDecl, filePath string,
 	}
 }
 
-func extractGenDeclSymbols(pkg *packages.Package, decl *ast.GenDecl, filePath string, fset *token.FileSet) []Symbol {
+func extractGenDeclSymbols(pkg *packages.Package, decl *ast.GenDecl, filePath, pkgPath string, fset *token.FileSet) []Symbol {
 	var symbols []Symbol
 
 	for _, spec := range decl.Specs {
 		switch s := spec.(type) {
 		case *ast.TypeSpec:
-			sym := extractTypeSymbol(pkg, s, decl, filePath, fset)
+			sym := extractTypeSymbol(pkg, s, decl, filePath, pkgPath, fset)
 			if sym != nil {
 				symbols = append(symbols, *sym)
 			}
 
 		case *ast.ValueSpec:
-			valSymbols := extractValueSymbols(pkg, s, decl, filePath, fset)
+			valSymbols := extractValueSymbols(pkg, s, decl, filePath, pkgPath, fset)
 			symbols = append(symbols, valSymbols...)
 		}
 	}
@@ -145,7 +148,7 @@ func extractGenDeclSymbols(pkg *packages.Package, decl *ast.GenDecl, filePath st
 	return symbols
 }
 
-func extractTypeSymbol(pkg *packages.Package, spec *ast.TypeSpec, decl *ast.GenDecl, filePath string, fset *token.FileSet) *Symbol {
+func extractTypeSymbol(pkg *packages.Package, spec *ast.TypeSpec, decl *ast.GenDecl, filePath, pkgPath string, fset *token.FileSet) *Symbol {
 	if spec.Name == nil {
 		return nil
 	}
@@ -179,6 +182,7 @@ func extractTypeSymbol(pkg *packages.Package, spec *ast.TypeSpec, decl *ast.GenD
 		Name:      spec.Name.Name,
 		Kind:      kind,
 		FilePath:  filePath,
+		PkgPath:   pkgPath,
 		LineStart: pos.Line,
 		ColStart:  pos.Column,
 		LineEnd:   endPos.Line,
@@ -190,7 +194,7 @@ func extractTypeSymbol(pkg *packages.Package, spec *ast.TypeSpec, decl *ast.GenD
 	}
 }
 
-func extractValueSymbols(pkg *packages.Package, spec *ast.ValueSpec, decl *ast.GenDecl, filePath string, fset *token.FileSet) []Symbol {
+func extractValueSymbols(pkg *packages.Package, spec *ast.ValueSpec, decl *ast.GenDecl, filePath, pkgPath string, fset *token.FileSet) []Symbol {
 	var symbols []Symbol
 
 	kind := KindVar
@@ -223,6 +227,7 @@ func extractValueSymbols(pkg *packages.Package, spec *ast.ValueSpec, decl *ast.G
 			Name:      name.Name,
 			Kind:      kind,
 			FilePath:  filePath,
+			PkgPath:   pkgPath,
 			LineStart: pos.Line,
 			ColStart:  pos.Column,
 			LineEnd:   endPos.Line,

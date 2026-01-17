@@ -18,6 +18,7 @@ type SymbolRow struct {
 	Kind        string
 	FilePath    string // Absolute path (for file operations)
 	FilePathRel string // Relative path (for output)
+	PkgPath     string // Go package path (for qualified lookups)
 	LineStart   int
 	ColStart    int
 	LineEnd     int
@@ -31,14 +32,14 @@ type SymbolRow struct {
 // LookupByID looks up a symbol by its ID.
 func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 	var s SymbolRow
-	var fileHash, filePathRel sql.NullString
+	var fileHash, filePathRel, pkgPath sql.NullString
 	err := db.QueryRow(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
 		WHERE s.id = ?
-	`, id).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &filePathRel, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
+	`, id).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &filePathRel, &pkgPath, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
 		&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 
 	if err == sql.ErrNoRows {
@@ -49,6 +50,7 @@ func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 	}
 	s.FileHash = fileHash.String
 	s.FilePathRel = filePathRel.String
+	s.PkgPath = pkgPath.String
 	return &s, nil
 }
 
@@ -71,7 +73,7 @@ func LookupByName(db *sql.DB, name string) ([]SymbolRow, error) {
 
 func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 	rows, err := db.Query(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
@@ -87,27 +89,27 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 }
 
 func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
-	// Use file_path_rel for more precise matching than LIKE '%path%'.
-	// The pkgPath should appear as a directory component in file_path_rel.
-	// E.g., "internal/handler" should match "internal/handler/handler.go"
+	// Use pkg_path for efficient exact or suffix matching.
+	// The pkgPath may be a full path (e.g., "github.com/user/repo/internal/handler")
+	// or a suffix (e.g., "internal/handler").
 	//
-	// We use two patterns:
-	// 1. pkgPath/ at the start (e.g., "internal/handler/...")
-	// 2. /pkgPath/ anywhere (e.g., ".../internal/handler/...")
-	startPattern := pkgPath + "/%"
-	midPattern := "%/" + pkgPath + "/%"
+	// First try exact match, then suffix match.
+	// Uses idx_symbols_name_pkg composite index for O(log N) lookup.
+
+	// Pattern for suffix match: pkg_path ends with /pkgPath or equals pkgPath
+	suffixPattern := "%/" + pkgPath
 
 	rows, err := db.Query(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
 		WHERE s.name = ? AND (
-			s.file_path_rel LIKE ? OR
-			s.file_path_rel LIKE ?
+			s.pkg_path = ? OR
+			s.pkg_path LIKE ?
 		)
 		ORDER BY s.kind, s.file_path
-	`, name, startPattern, midPattern)
+	`, name, pkgPath, suffixPattern)
 	if err != nil {
 		return nil, fmt.Errorf("query symbols qualified: %w", err)
 	}
@@ -135,7 +137,7 @@ func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error) {
 	}
 
 	rows, err := db.Query(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
@@ -154,14 +156,15 @@ func scanSymbolRows(rows *sql.Rows) ([]SymbolRow, error) {
 	var symbols []SymbolRow
 	for rows.Next() {
 		var s SymbolRow
-		var fileHash, filePathRel sql.NullString
-		err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &filePathRel, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
+		var fileHash, filePathRel, pkgPath sql.NullString
+		err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &filePathRel, &pkgPath, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
 			&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 		if err != nil {
 			return nil, fmt.Errorf("scan symbol row: %w", err)
 		}
 		s.FileHash = fileHash.String
 		s.FilePathRel = filePathRel.String
+		s.PkgPath = pkgPath.String
 		symbols = append(symbols, s)
 	}
 	return symbols, rows.Err()
@@ -405,7 +408,7 @@ func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]SymbolRow, error) {
 	// For now, we use a simpler heuristic: find struct/type symbols that reference this interface
 	rows, err := db.Query(`
-		SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
@@ -429,20 +432,22 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 // FindPackageSymbols finds all exported symbols in files matching a package path pattern.
 // It filters to exported symbols only (those starting with uppercase).
 func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]SymbolRow, error) {
-	// Match package pattern as a directory component in file paths
-	pattern := "%" + pkgPattern + "/%"
+	// Match package pattern using pkg_path for more precise matching
+	// Pattern can be exact, suffix, or substring match
+	suffixPattern := "%/" + pkgPattern
+	substringPattern := "%" + pkgPattern + "%"
 
 	rows, err := db.Query(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
-		WHERE (s.file_path_rel LIKE ? OR s.file_path LIKE ?)
+		WHERE (s.pkg_path = ? OR s.pkg_path LIKE ? OR s.pkg_path LIKE ?)
 		  AND s.name GLOB '[A-Z]*'
 		  AND s.kind NOT IN ('field')
 		ORDER BY s.kind, s.name
 		LIMIT ? OFFSET ?
-	`, pattern, pattern, limit, offset)
+	`, pkgPattern, suffixPattern, substringPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query package symbols: %w", err)
 	}
@@ -459,18 +464,18 @@ func FindSymbolsByKind(db *sql.DB, kind string, filePattern string, limit, offse
 	if filePattern != "" {
 		pattern := "%" + filePattern + "%"
 		rows, err = db.Query(`
-			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 			       s.signature, s.doc, s.receiver, f.hash
 			FROM symbols s
 			LEFT JOIN files f ON s.file_path = f.path
 			WHERE s.kind = ?
-			  AND (s.file_path_rel LIKE ? OR s.file_path LIKE ?)
+			  AND (s.pkg_path LIKE ? OR s.file_path_rel LIKE ? OR s.file_path LIKE ?)
 			ORDER BY s.file_path, s.line_start
 			LIMIT ? OFFSET ?
-		`, kind, pattern, pattern, limit, offset)
+		`, kind, pattern, pattern, pattern, limit, offset)
 	} else {
 		rows, err = db.Query(`
-			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 			       s.signature, s.doc, s.receiver, f.hash
 			FROM symbols s
 			LEFT JOIN files f ON s.file_path = f.path
