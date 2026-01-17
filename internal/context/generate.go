@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+// Package directory constants.
+const (
+	pkgCmd      = "cmd"
+	pkgQuery    = "query"
+	pkgInternal = "internal"
+)
+
 // GenerateConfig configures context generation.
 type GenerateConfig struct {
 	// RepoRoot is the absolute path to the repository root
@@ -46,13 +53,14 @@ func generateProject(repoRoot string) Project {
 	}
 
 	// Detect build system
-	if fileExists(filepath.Join(repoRoot, "magefile.go")) {
+	switch {
+	case fileExists(filepath.Join(repoRoot, "magefile.go")):
 		proj.Build = "mage"
 		proj.Test = "mage test"
-	} else if fileExists(filepath.Join(repoRoot, "Makefile")) {
+	case fileExists(filepath.Join(repoRoot, "Makefile")):
 		proj.Build = "make"
 		proj.Test = "make test"
-	} else {
+	default:
 		proj.Build = "go build ./..."
 		proj.Test = "go test ./..."
 	}
@@ -84,11 +92,11 @@ func generateArchitecture(db *sql.DB, repoRoot string) Architecture {
 	hasQuery := false
 	for _, pkg := range packages {
 		switch pkg.name {
-		case "cmd":
+		case pkgCmd:
 			hasCmd = true
 		case "store":
 			hasStore = true
-		case "query":
+		case pkgQuery:
 			hasQuery = true
 		}
 	}
@@ -146,10 +154,11 @@ func getPackageInfo(db *sql.DB, repoRoot string) []packageInfo {
 		// Find entry point
 		entry := ""
 		keyFiles := []string{}
-		if pkgDir == "cmd" {
+		switch pkgDir {
+		case pkgCmd:
 			entry = "cmd/root.go"
 			keyFiles = append(keyFiles, "cmd/*.go")
-		} else if pkgDir == "internal" {
+		case pkgInternal:
 			// Get subdirectories
 			keyFiles = append(keyFiles, "internal/*/*.go")
 		}
@@ -231,7 +240,7 @@ func categorizeByConcern(relPath string) string {
 	}
 
 	// Check for internal packages
-	if len(parts) >= 2 && parts[0] == "internal" {
+	if len(parts) >= 2 && parts[0] == pkgInternal {
 		switch parts[1] {
 		case "store":
 			return "storage"
@@ -254,10 +263,10 @@ func categorizeByConcern(relPath string) string {
 
 	// Top-level directories
 	switch parts[0] {
-	case "cmd":
+	case pkgCmd:
 		return "cli"
-	case "internal":
-		return "internal"
+	case pkgInternal:
+		return pkgInternal
 	case "test":
 		return "testing"
 	}
@@ -270,40 +279,40 @@ func describeFile(relPath string) string {
 	name := strings.TrimSuffix(base, ".go")
 
 	descriptions := map[string]string{
-		"main":         "Application entry point",
-		"root":         "CLI root command",
-		"store":        "Database operations",
-		"schema":       "Database schema",
-		"types":        "Type definitions",
-		"config":       "Configuration handling",
-		"loader":       "Package loading",
-		"refs":         "Reference extraction",
-		"symbols":      "Symbol extraction",
-		"callgraph":    "Call graph analysis",
-		"lookup":       "Symbol lookup",
-		"position":     "Position-based queries",
-		"rg":           "Ripgrep integration",
-		"json":         "JSON output formatting",
-		"fingerprint":  "Index fingerprinting",
-		"generate":     "Code generation",
-		"imports":      "Import analysis",
-		"doctor":       "Health checks",
-		"search":       "Search command",
-		"def":          "Definition lookup",
-		"show":         "Symbol display",
-		"index":        "Index command",
-		"callers":      "Caller analysis",
-		"callees":      "Callee analysis",
-		"version":      "Version information",
-		"baseline":     "Performance baseline",
-		"sim":          "Similarity search",
-		"write":        "Write operations",
-		"client":       "Client implementation",
-		"vector":       "Vector operations",
-		"state":        "State management",
-		"history":      "History tracking",
-		"metrics":      "Metrics collection",
-		"degradation":  "Graceful degradation",
+		"main":        "Application entry point",
+		"root":        "CLI root command",
+		"store":       "Database operations",
+		"schema":      "Database schema",
+		"types":       "Type definitions",
+		"config":      "Configuration handling",
+		"loader":      "Package loading",
+		"refs":        "Reference extraction",
+		"symbols":     "Symbol extraction",
+		"callgraph":   "Call graph analysis",
+		"lookup":      "Symbol lookup",
+		"position":    "Position-based queries",
+		"rg":          "Ripgrep integration",
+		"json":        "JSON output formatting",
+		"fingerprint": "Index fingerprinting",
+		"generate":    "Code generation",
+		"imports":     "Import analysis",
+		"doctor":      "Health checks",
+		"search":      "Search command",
+		"def":         "Definition lookup",
+		"show":        "Symbol display",
+		"index":       "Index command",
+		"callers":     "Caller analysis",
+		"callees":     "Callee analysis",
+		"version":     "Version information",
+		"baseline":    "Performance baseline",
+		"sim":         "Similarity search",
+		"write":       "Write operations",
+		"client":      "Client implementation",
+		"vector":      "Vector operations",
+		"state":       "State management",
+		"history":     "History tracking",
+		"metrics":     "Metrics collection",
+		"degradation": "Graceful degradation",
 	}
 
 	if desc, ok := descriptions[name]; ok {
