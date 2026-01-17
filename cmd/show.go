@@ -89,7 +89,7 @@ func runShow(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	result := sym.ToResult()
+	result := sym.ToResultWithHints(s.DB())
 	var degraded []string
 
 	// Add full body if requested

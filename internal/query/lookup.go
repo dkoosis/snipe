@@ -234,6 +234,10 @@ func (s *SymbolRow) ToResult() output.Result {
 	if filePath == "" {
 		filePath = s.FilePath // Fallback to absolute if relative not available
 	}
+
+	// Compute static analysis hints
+	hints := s.computeHints()
+
 	return output.Result{
 		ID:         s.ID,
 		File:       filePath,
@@ -242,8 +246,55 @@ func (s *SymbolRow) ToResult() output.Result {
 		Kind:       s.Kind,
 		Name:       s.Name,
 		Match:      s.Signature.String,
+		Hints:      hints,
 		EditTarget: output.FormatEditTargetWithHash(filePath, s.FilePath, r),
 	}
+}
+
+// computeHints detects static analysis hints for a symbol.
+func (s *SymbolRow) computeHints() []string {
+	var hints []string
+
+	// Check for deprecated in doc string
+	if s.Doc.Valid && s.Doc.String != "" {
+		docLower := strings.ToLower(s.Doc.String)
+		if strings.Contains(docLower, "deprecated") {
+			hints = append(hints, output.HintDeprecated)
+		}
+	}
+
+	// Check for pointer receiver (method can be called on nil)
+	if s.Receiver.Valid && strings.HasPrefix(s.Receiver.String, "(*") {
+		hints = append(hints, output.HintPointerRecv)
+	}
+
+	return hints
+}
+
+// ToResultWithHints converts a SymbolRow to an output.Result with optional unused detection.
+// If db is provided, checks if exported symbols have zero references.
+func (s *SymbolRow) ToResultWithHints(db *sql.DB) output.Result {
+	result := s.ToResult()
+
+	// Check for unused exported symbols (requires db)
+	if db != nil && isExported(s.Name) {
+		var refCount int
+		err := db.QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id = ?`, s.ID).Scan(&refCount)
+		if err == nil && refCount == 0 {
+			result.Hints = append(result.Hints, output.HintUnused)
+		}
+	}
+
+	return result
+}
+
+// isExported returns true if a Go identifier is exported (starts with uppercase).
+func isExported(name string) bool {
+	if name == "" {
+		return false
+	}
+	r := rune(name[0])
+	return r >= 'A' && r <= 'Z'
 }
 
 // ToCandidate converts a SymbolRow to an output.Candidate

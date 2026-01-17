@@ -74,11 +74,19 @@ type Result struct {
 	Match      string     `json:"match,omitempty"`
 	Body       string     `json:"body,omitempty"`
 	Score      float64    `json:"score,omitempty"`
+	Hints      []string   `json:"hints,omitempty"`       // Static analysis hints: deprecated, unused, etc.
 	Enclosing  *Enclosing `json:"enclosing,omitempty"`
 	Context    *Context   `json:"context,omitempty"`
 	Siblings   []Sibling  `json:"siblings,omitempty"`
 	EditTarget string     `json:"edit_target,omitempty"`
 }
+
+// Hint constants for static analysis
+const (
+	HintDeprecated  = "deprecated"   // Symbol is marked as deprecated
+	HintUnused      = "unused"       // Exported symbol with no references
+	HintPointerRecv = "pointer_recv" // Method has pointer receiver (nil-callable)
+)
 
 // Sibling represents another declaration of the same kind in the same file
 type Sibling struct {
