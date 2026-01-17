@@ -398,3 +398,92 @@ func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 	}
 	return results, rows.Err()
 }
+
+// FindImplementers finds types that potentially implement an interface.
+// Since Go uses structural typing, we look for types that have methods
+// matching the interface's required methods.
+func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]SymbolRow, error) {
+	// For now, we use a simpler heuristic: find struct/type symbols that reference this interface
+	rows, err := db.Query(`
+		SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.kind IN ('struct', 'type')
+		  AND EXISTS (
+		    SELECT 1 FROM refs r
+		    WHERE r.symbol_id = ?
+		      AND r.file_path = s.file_path
+		  )
+		ORDER BY s.file_path, s.name
+		LIMIT ? OFFSET ?
+	`, interfaceID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query implementers: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSymbolRows(rows)
+}
+
+// FindPackageSymbols finds all exported symbols in files matching a package path pattern.
+// It filters to exported symbols only (those starting with uppercase).
+func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]SymbolRow, error) {
+	// Match package pattern as a directory component in file paths
+	pattern := "%" + pkgPattern + "/%"
+
+	rows, err := db.Query(`
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE (s.file_path_rel LIKE ? OR s.file_path LIKE ?)
+		  AND s.name GLOB '[A-Z]*'
+		  AND s.kind NOT IN ('field')
+		ORDER BY s.kind, s.name
+		LIMIT ? OFFSET ?
+	`, pattern, pattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query package symbols: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSymbolRows(rows)
+}
+
+// FindSymbolsByKind finds symbols of a specific kind, optionally filtered by file path pattern.
+func FindSymbolsByKind(db *sql.DB, kind string, filePattern string, limit, offset int) ([]SymbolRow, error) {
+	var rows *sql.Rows
+	var err error
+
+	if filePattern != "" {
+		pattern := "%" + filePattern + "%"
+		rows, err = db.Query(`
+			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+			       s.signature, s.doc, s.receiver, f.hash
+			FROM symbols s
+			LEFT JOIN files f ON s.file_path = f.path
+			WHERE s.kind = ?
+			  AND (s.file_path_rel LIKE ? OR s.file_path LIKE ?)
+			ORDER BY s.file_path, s.line_start
+			LIMIT ? OFFSET ?
+		`, kind, pattern, pattern, limit, offset)
+	} else {
+		rows, err = db.Query(`
+			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.line_start, s.col_start, s.line_end, s.col_end,
+			       s.signature, s.doc, s.receiver, f.hash
+			FROM symbols s
+			LEFT JOIN files f ON s.file_path = f.path
+			WHERE s.kind = ?
+			ORDER BY s.file_path, s.line_start
+			LIMIT ? OFFSET ?
+		`, kind, limit, offset)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("query symbols by kind: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSymbolRows(rows)
+}
