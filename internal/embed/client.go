@@ -41,8 +41,34 @@ type EmbeddingResponse struct {
 	} `json:"usage"`
 }
 
+// CredentialsPath returns the path to snipe's credentials file.
+func CredentialsPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".config", "snipe", "credentials")
+}
+
+// HasCredentials checks if embedding credentials are available.
+// Returns true if VOYAGE_API_KEY env var is set or credentials file exists.
+func HasCredentials() bool {
+	if os.Getenv("VOYAGE_API_KEY") != "" {
+		return true
+	}
+	path := CredentialsPath()
+	if path == "" {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(data), "VOYAGE_API_KEY=")
+}
+
 // NewClient creates a new embedding client.
-// It reads credentials from ~/.config/voyager/credentials if not provided.
+// It reads credentials from ~/.config/snipe/credentials if not provided.
 func NewClient() (*Client, error) {
 	apiKey := os.Getenv("VOYAGE_API_KEY")
 	model := os.Getenv("VOYAGE_MODEL")
@@ -52,7 +78,7 @@ func NewClient() (*Client, error) {
 	if apiKey == "" {
 		creds, err := loadCredentials()
 		if err != nil {
-			return nil, fmt.Errorf("no API key: set VOYAGE_API_KEY or create ~/.config/voyager/credentials: %w", err)
+			return nil, fmt.Errorf("no API key: set VOYAGE_API_KEY or create ~/.config/snipe/credentials: %w", err)
 		}
 		if apiKey == "" {
 			apiKey = creds["VOYAGE_API_KEY"]
@@ -87,12 +113,11 @@ func NewClient() (*Client, error) {
 
 // loadCredentials reads the credentials file.
 func loadCredentials() (map[string]string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
+	path := CredentialsPath()
+	if path == "" {
+		return nil, fmt.Errorf("cannot determine home directory")
 	}
 
-	path := filepath.Join(home, ".config", "voyager", "credentials")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

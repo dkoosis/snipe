@@ -28,7 +28,9 @@ Use --embed to generate semantic embeddings for similarity search.`,
 var withEmbed bool
 
 func init() {
-	indexCmd.Flags().BoolVar(&withEmbed, "embed", false, "Generate embeddings for semantic search")
+	// Default to true if embedding credentials are available
+	defaultEmbed := embed.HasCredentials()
+	indexCmd.Flags().BoolVar(&withEmbed, "embed", defaultEmbed, "Generate embeddings for semantic search (auto-enabled if credentials available)")
 	rootCmd.AddCommand(indexCmd)
 }
 
