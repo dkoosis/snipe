@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"sort"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/util"
@@ -21,14 +22,14 @@ type Ref struct {
 }
 
 // ExtractRefs extracts all references from loaded packages.
-// Uses an optimized approach: single AST pass with function stack tracking
-// for O(1) enclosing function lookup per reference.
+// For better performance during indexing, use ExtractRefsWithCache.
 func ExtractRefs(result *LoadResult, symbols []Symbol) ([]Ref, error) {
 	return ExtractRefsWithCache(result, symbols, nil)
 }
 
-// ExtractRefsWithCache extracts references using an optional file cache.
-// If cache is nil, files are loaded without caching.
+// ExtractRefsWithCache extracts all references from loaded packages.
+// If cache is provided, file contents are cached to avoid repeated disk reads.
+// The cache should be cleared after indexing completes to free memory.
 func ExtractRefsWithCache(result *LoadResult, symbols []Symbol, cache *util.FileCache) ([]Ref, error) {
 	// Build symbol lookup by definition position
 	symbolByPos := buildSymbolPosIndex(symbols)
@@ -46,7 +47,7 @@ func ExtractRefsWithCache(result *LoadResult, symbols []Symbol, cache *util.File
 			}
 			filePath := pkg.GoFiles[i]
 
-			// Load file content for snippets (with optional cache)
+			// Load file content for snippets (with optional caching)
 			var lines []string
 			var err error
 			if cache != nil {
@@ -58,9 +59,8 @@ func ExtractRefsWithCache(result *LoadResult, symbols []Symbol, cache *util.File
 				continue // Skip files we can't read
 			}
 
-			// Build position-to-enclosing map using AST walker with function stack.
-			// This is O(N) single pass instead of binary search per reference.
-			enclosingByPos := buildEnclosingByPos(file, filePath, result.Fset)
+			// Build enclosing function map for this file
+			enclosingMap := buildEnclosingMap(file, filePath, result.Fset)
 
 			// Extract references from Uses map
 			for ident, obj := range pkg.TypesInfo.Uses {
@@ -89,8 +89,8 @@ func ExtractRefsWithCache(result *LoadResult, symbols []Symbol, cache *util.File
 					continue // Skip if not in current file
 				}
 
-				// Get enclosing function - O(1) map lookup
-				enclosingID := enclosingByPos[ident.Pos()]
+				// Get enclosing function
+				enclosingID := findEnclosing(ident.Pos(), enclosingMap)
 
 				// Get snippet
 				snippet := ""
@@ -115,57 +115,6 @@ func ExtractRefsWithCache(result *LoadResult, symbols []Symbol, cache *util.File
 	return refs, nil
 }
 
-// buildEnclosingByPos creates a map from AST positions to enclosing function IDs.
-// Uses a single AST traversal with a function stack for O(1) lookup per position.
-// This replaces the previous approach of building a sorted list + binary search.
-func buildEnclosingByPos(file *ast.File, filePath string, fset *token.FileSet) map[token.Pos]string {
-	enclosingByPos := make(map[token.Pos]string)
-
-	// funcStack tracks the current enclosing function(s) during traversal
-	var funcStack []string
-
-	// Pre-allocate space for identifiers (typical Go file has many identifiers)
-	// We'll collect all idents during traversal and assign enclosing funcs
-	var inspector func(n ast.Node) bool
-	inspector = func(n ast.Node) bool {
-		if n == nil {
-			return true
-		}
-
-		switch node := n.(type) {
-		case *ast.FuncDecl:
-			if node.Body == nil || node.Name == nil {
-				return true
-			}
-			// Compute function ID
-			namePos := fset.Position(node.Name.Pos())
-			kind := KindFunc
-			if node.Recv != nil {
-				kind = KindMethod
-			}
-			funcID := generateID(filePath, namePos.Line, namePos.Column, string(kind))
-
-			// Push onto stack, traverse body, pop
-			funcStack = append(funcStack, funcID)
-			ast.Inspect(node.Body, inspector)
-			funcStack = funcStack[:len(funcStack)-1]
-
-			return false // Already handled children
-
-		case *ast.Ident:
-			// Record enclosing function for this identifier
-			if len(funcStack) > 0 {
-				enclosingByPos[node.Pos()] = funcStack[len(funcStack)-1]
-			}
-		}
-
-		return true
-	}
-
-	ast.Inspect(file, inspector)
-	return enclosingByPos
-}
-
 // buildSymbolPosIndex creates a map from position key to symbol ID
 // Uses NameLine/NameCol (identifier position) to match obj.Pos() in call graph lookups
 func buildSymbolPosIndex(symbols []Symbol) map[string]string {
@@ -179,4 +128,66 @@ func buildSymbolPosIndex(symbols []Symbol) map[string]string {
 
 func posKey(file string, line, col int) string {
 	return fmt.Sprintf("%s:%d:%d", file, line, col)
+}
+
+// enclosingFunc tracks function/method ranges for finding enclosing scope
+type enclosingFunc struct {
+	id    string
+	start token.Pos
+	end   token.Pos
+}
+
+func buildEnclosingMap(file *ast.File, filePath string, fset *token.FileSet) []enclosingFunc {
+	var funcs []enclosingFunc
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		if fn, ok := n.(*ast.FuncDecl); ok && fn.Body != nil && fn.Name != nil {
+			// Use fn.Name.Pos() to match symbol ID generation in symbols.go
+			namePos := fset.Position(fn.Name.Pos())
+			kind := KindFunc
+			if fn.Recv != nil {
+				kind = KindMethod
+			}
+			funcs = append(funcs, enclosingFunc{
+				id:    generateID(filePath, namePos.Line, namePos.Column, string(kind)),
+				start: fn.Body.Lbrace,
+				end:   fn.Body.Rbrace,
+			})
+		}
+		return true
+	})
+
+	// Sort by start position for binary search
+	sort.Slice(funcs, func(i, j int) bool {
+		return funcs[i].start < funcs[j].start
+	})
+
+	return funcs
+}
+
+// findEnclosing uses binary search to find the enclosing function for a position.
+// O(log N) instead of O(N) linear scan.
+func findEnclosing(pos token.Pos, funcs []enclosingFunc) string {
+	if len(funcs) == 0 {
+		return ""
+	}
+
+	// Binary search for rightmost function where start <= pos
+	idx := sort.Search(len(funcs), func(i int) bool {
+		return funcs[i].start > pos
+	})
+
+	// Check functions from idx-1 down to 0 (nested functions possible)
+	for i := idx - 1; i >= 0; i-- {
+		if pos >= funcs[i].start && pos <= funcs[i].end {
+			return funcs[i].id
+		}
+		// If this function ends before pos, earlier functions won't contain pos either
+		// (unless they're nested, but Go doesn't have nested named functions)
+		if funcs[i].end < pos {
+			break
+		}
+	}
+
+	return ""
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/store"
+	"github.com/dkoosis/snipe/internal/util"
 )
 
 var indexCmd = &cobra.Command{
@@ -91,13 +92,14 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "Found %d symbols\n", len(symbols))
 
-	// Extract refs
+	// Extract refs with file caching for performance
 	fmt.Fprintf(os.Stderr, "Extracting references...\n")
-	refs, err := index.ExtractRefs(result, symbols)
+	fileCache := util.NewFileCache(util.DefaultMaxCachedFiles)
+	refs, err := index.ExtractRefsWithCache(result, symbols, fileCache)
 	if err != nil {
 		return fmt.Errorf("extract refs: %w", err)
 	}
-	fmt.Fprintf(os.Stderr, "Found %d references\n", len(refs))
+	fmt.Fprintf(os.Stderr, "Found %d references (cached %d files)\n", len(refs), fileCache.Size())
 
 	// Extract call graph
 	fmt.Fprintf(os.Stderr, "Building call graph...\n")
