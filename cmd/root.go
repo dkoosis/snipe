@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dkoosis/snipe/internal/config"
 	"github.com/spf13/cobra"
+
+	"github.com/dkoosis/snipe/internal/config"
 )
 
 var (

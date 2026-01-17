@@ -12,10 +12,10 @@ var update = flag.Bool("update", false, "update golden files")
 
 // Golden file paths relative to testdata
 const (
-	goldenDir          = "../../testdata/golden"
-	goldenDefOutput    = "def_output.json"
-	goldenRefsOutput   = "refs_output.json"
-	goldenSearchOutput = "search_output.json"
+	goldenDir           = "../../testdata/golden"
+	goldenDefOutput     = "def_output.json"
+	goldenRefsOutput    = "refs_output.json"
+	goldenSearchOutput  = "search_output.json"
 	goldenCallersOutput = "callers_output.json"
 )
 

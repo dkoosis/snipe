@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dkoosis/snipe/internal/store"
 	"github.com/spf13/cobra"
+
+	"github.com/dkoosis/snipe/internal/store"
 )
 
 // DoctorResult represents the result of the doctor check.

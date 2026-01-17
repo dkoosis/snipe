@@ -1,0 +1,25 @@
+# fo dashboard configuration for snipe
+# Overrides default Orca-specific subsystems with snipe's package structure
+
+dashboard:
+  title:
+    text: "snipe"
+  subsystems:
+    - name: cmd
+      patterns: ["/cmd"]
+    - name: index
+      patterns: ["/internal/index"]
+    - name: query
+      patterns: ["/internal/query"]
+    - name: store
+      patterns: ["/internal/store"]
+    - name: search
+      patterns: ["/internal/search"]
+    - name: output
+      patterns: ["/internal/output"]
+    - name: metrics
+      patterns: ["/internal/metrics"]
+    - name: bench
+      patterns: ["/test/bench"]
+    - name: blackbox
+      patterns: ["/test/blackbox"]
