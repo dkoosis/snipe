@@ -115,6 +115,14 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "Found %d imports\n", len(imports))
 
+	// Extract file info (for content hashes)
+	fmt.Fprintf(os.Stderr, "Computing file hashes...\n")
+	files, err := index.ExtractFileInfo(result)
+	if err != nil {
+		return fmt.Errorf("extract file info: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Hashed %d files\n", len(files))
+
 	// Write to store
 	fmt.Fprintf(os.Stderr, "Writing index...\n")
 	if err := s.WriteIndex(symbols, refs, edges); err != nil {
@@ -124,6 +132,11 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	// Write imports
 	if err := s.WriteImports(imports); err != nil {
 		return fmt.Errorf("write imports: %w", err)
+	}
+
+	// Write file hashes
+	if err := s.WriteFiles(files); err != nil {
+		return fmt.Errorf("write files: %w", err)
 	}
 
 	// Store fingerprint

@@ -148,6 +148,65 @@ snipe sim --at file:line        # Find similar code
 snipe sim -q "error handling"   # Natural language search
 ```
 
+### Context Generation (orca#1685)
+
+```
+snipe context [path]          # Generate Claude-optimized project context
+snipe context --format=yaml   # Output as YAML (default: JSON)
+snipe context --full          # Include all symbols, not just key ones
+```
+
+**Output Structure:**
+
+```json
+{
+  "project": {
+    "name": "snipe",
+    "root": "/path/to/repo",
+    "lang": ["go"],
+    "build": "mage",
+    "test": "mage test"
+  },
+  "architecture": {
+    "components": [
+      {
+        "name": "indexer",
+        "purpose": "Static analysis via go/packages",
+        "entry": "cmd/index.go",
+        "key_files": ["internal/index/*.go"]
+      }
+    ],
+    "data_flows": ["CLI → index → SQLite → query → output"]
+  },
+  "files": {
+    "by_concern": {
+      "storage": {
+        "internal/store/store.go": "SQLite operations"
+      }
+    }
+  },
+  "symbols": {
+    "types": [
+      {"name": "Response", "file": "internal/output/types.go", "line": 23}
+    ],
+    "functions": [
+      {"name": "LookupByID", "file": "internal/query/lookup.go", "line": 45}
+    ]
+  },
+  "meta": {
+    "generated_at": "2026-01-16T...",
+    "git_commit": "abc123",
+    "index_fingerprint": "..."
+  }
+}
+```
+
+**Key Design Decisions:**
+- Leverages existing index data (symbols, files, call graph)
+- Adds heuristics for "key files" (high reference count, entry points)
+- Components inferred from package structure + call graph clustering
+- Freshness tied to index fingerprint
+
 ### Utilities
 
 ```

@@ -24,15 +24,21 @@ type SymbolRow struct {
 	Signature sql.NullString
 	Doc       sql.NullString
 	Receiver  sql.NullString
+	FileHash  string // Content hash for change detection
 }
 
 // LookupByID looks up a symbol by its ID.
 func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 	var s SymbolRow
+	var fileHash sql.NullString
 	err := db.QueryRow(`
-		SELECT id, name, kind, file_path, line_start, col_start, line_end, col_end, signature, doc, receiver
-		FROM symbols WHERE id = ?
-	`, id).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd, &s.Signature, &s.Doc, &s.Receiver)
+		SELECT s.id, s.name, s.kind, s.file_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.id = ?
+	`, id).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
+		&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -40,6 +46,7 @@ func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query symbol by id: %w", err)
 	}
+	s.FileHash = fileHash.String
 	return &s, nil
 }
 
@@ -62,9 +69,12 @@ func LookupByName(db *sql.DB, name string) ([]SymbolRow, error) {
 
 func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 	rows, err := db.Query(`
-		SELECT id, name, kind, file_path, line_start, col_start, line_end, col_end, signature, doc, receiver
-		FROM symbols WHERE name = ?
-		ORDER BY kind, file_path
+		SELECT s.id, s.name, s.kind, s.file_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.name = ?
+		ORDER BY s.kind, s.file_path
 	`, name)
 	if err != nil {
 		return nil, fmt.Errorf("query symbols by name: %w", err)
@@ -76,9 +86,12 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 
 func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
 	rows, err := db.Query(`
-		SELECT id, name, kind, file_path, line_start, col_start, line_end, col_end, signature, doc, receiver
-		FROM symbols WHERE name = ? AND file_path LIKE ?
-		ORDER BY kind, file_path
+		SELECT s.id, s.name, s.kind, s.file_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.name = ? AND s.file_path LIKE ?
+		ORDER BY s.kind, s.file_path
 	`, name, "%"+pkgPath+"%")
 	if err != nil {
 		return nil, fmt.Errorf("query symbols qualified: %w", err)
@@ -107,9 +120,12 @@ func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error) {
 	}
 
 	rows, err := db.Query(`
-		SELECT id, name, kind, file_path, line_start, col_start, line_end, col_end, signature, doc, receiver
-		FROM symbols WHERE name = ? AND (receiver = ? OR receiver = ?)
-		ORDER BY file_path
+		SELECT s.id, s.name, s.kind, s.file_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.name = ? AND (s.receiver = ? OR s.receiver = ?)
+		ORDER BY s.file_path
 	`, method, receiver, "(*"+strings.Trim(receiver, "()")+")")
 	if err != nil {
 		return nil, fmt.Errorf("query method: %w", err)
@@ -123,10 +139,13 @@ func scanSymbolRows(rows *sql.Rows) ([]SymbolRow, error) {
 	var symbols []SymbolRow
 	for rows.Next() {
 		var s SymbolRow
-		err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd, &s.Signature, &s.Doc, &s.Receiver)
+		var fileHash sql.NullString
+		err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
+			&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 		if err != nil {
 			return nil, fmt.Errorf("scan symbol row: %w", err)
 		}
+		s.FileHash = fileHash.String
 		symbols = append(symbols, s)
 	}
 	return symbols, rows.Err()
@@ -136,9 +155,10 @@ func scanSymbolRows(rows *sql.Rows) ([]SymbolRow, error) {
 func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) {
 	rows, err := db.Query(`
 		SELECT r.id, r.symbol_id, r.file_path, r.line, r.col, r.enclosing_id, r.snippet,
-		       s.name, s.kind, s.signature
+		       s.name, s.kind, s.signature, f.hash
 		FROM refs r
 		LEFT JOIN symbols s ON r.enclosing_id = s.id
+		LEFT JOIN files f ON r.file_path = f.path
 		WHERE r.symbol_id = ?
 		ORDER BY r.file_path, r.line
 		LIMIT ? OFFSET ?
@@ -151,15 +171,16 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 	var refs []RefRow
 	for rows.Next() {
 		var r RefRow
-		var encName, encKind, encSig sql.NullString
+		var encName, encKind, encSig, fileHash sql.NullString
 		err := rows.Scan(&r.ID, &r.SymbolID, &r.FilePath, &r.Line, &r.Col, &r.EnclosingID, &r.Snippet,
-			&encName, &encKind, &encSig)
+			&encName, &encKind, &encSig, &fileHash)
 		if err != nil {
 			return nil, fmt.Errorf("scan ref row: %w", err)
 		}
 		r.EnclosingName = encName.String
 		r.EnclosingKind = encKind.String
 		r.EnclosingSignature = encSig.String
+		r.FileHash = fileHash.String
 		refs = append(refs, r)
 	}
 
@@ -178,24 +199,23 @@ type RefRow struct {
 	EnclosingName      string
 	EnclosingKind      string
 	EnclosingSignature string
+	FileHash           string // Content hash for change detection
 }
 
 // ToResult converts a SymbolRow to an output.Result
 func (s *SymbolRow) ToResult() output.Result {
+	r := output.Range{
+		Start: output.Position{Line: s.LineStart, Col: s.ColStart},
+		End:   output.Position{Line: s.LineEnd, Col: s.ColEnd},
+	}
 	return output.Result{
-		ID:   s.ID,
-		File: s.FilePath,
-		Range: output.Range{
-			Start: output.Position{Line: s.LineStart, Col: s.ColStart},
-			End:   output.Position{Line: s.LineEnd, Col: s.ColEnd},
-		},
-		Kind:  s.Kind,
-		Name:  s.Name,
-		Match: s.Signature.String,
-		EditTarget: output.FormatEditTarget(s.FilePath, output.Range{
-			Start: output.Position{Line: s.LineStart, Col: s.ColStart},
-			End:   output.Position{Line: s.LineEnd, Col: s.ColEnd},
-		}),
+		ID:         s.ID,
+		File:       s.FilePath,
+		Range:      r,
+		Kind:       s.Kind,
+		Name:       s.Name,
+		Match:      s.Signature.String,
+		EditTarget: output.FormatEditTarget(s.FilePath, r, s.FileHash),
 	}
 }
 
@@ -241,11 +261,13 @@ type CallRow struct {
 	CallerKind      string
 	CallerFile      string
 	CallerSignature sql.NullString
+	CallerFileHash  string // Content hash for caller file
 	CalleeID        string
 	CalleeName      string
 	CalleeKind      string
 	CalleeFile      string
 	CalleeSignature sql.NullString
+	CalleeFileHash  string // Content hash for callee file
 	CallLine        int
 	CallCol         int
 }
@@ -254,12 +276,14 @@ type CallRow struct {
 func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, error) {
 	rows, err := db.Query(`
 		SELECT
-			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature,
-			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.signature,
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.signature, fe.hash,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
 		JOIN symbols callee ON cg.callee_id = callee.id
+		LEFT JOIN files fc ON caller.file_path = fc.path
+		LEFT JOIN files fe ON callee.file_path = fe.path
 		WHERE cg.callee_id = ?
 		ORDER BY caller.file_path, cg.line
 		LIMIT ? OFFSET ?
@@ -272,14 +296,17 @@ func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 	var results []CallRow
 	for rows.Next() {
 		var r CallRow
+		var callerHash, calleeHash sql.NullString
 		err := rows.Scan(
-			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &r.CallerSignature,
-			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &r.CalleeSignature,
+			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &r.CallerSignature, &callerHash,
+			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &r.CalleeSignature, &calleeHash,
 			&r.CallLine, &r.CallCol,
 		)
 		if err != nil {
 			return nil, err
 		}
+		r.CallerFileHash = callerHash.String
+		r.CalleeFileHash = calleeHash.String
 		results = append(results, r)
 	}
 	return results, rows.Err()
@@ -289,12 +316,14 @@ func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, error) {
 	rows, err := db.Query(`
 		SELECT
-			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature,
-			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.signature,
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.signature, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.signature, fe.hash,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
 		JOIN symbols callee ON cg.callee_id = callee.id
+		LEFT JOIN files fc ON caller.file_path = fc.path
+		LEFT JOIN files fe ON callee.file_path = fe.path
 		WHERE cg.caller_id = ?
 		ORDER BY cg.line, cg.col
 		LIMIT ? OFFSET ?
@@ -307,14 +336,17 @@ func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 	var results []CallRow
 	for rows.Next() {
 		var r CallRow
+		var callerHash, calleeHash sql.NullString
 		err := rows.Scan(
-			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &r.CallerSignature,
-			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &r.CalleeSignature,
+			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &r.CallerSignature, &callerHash,
+			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &r.CalleeSignature, &calleeHash,
 			&r.CallLine, &r.CallCol,
 		)
 		if err != nil {
 			return nil, err
 		}
+		r.CallerFileHash = callerHash.String
+		r.CalleeFileHash = calleeHash.String
 		results = append(results, r)
 	}
 	return results, rows.Err()

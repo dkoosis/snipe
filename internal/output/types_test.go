@@ -90,10 +90,19 @@ func TestFormatEditTarget(t *testing.T) {
 		Start: Position{Line: 42, Col: 10},
 		End:   Position{Line: 42, Col: 25},
 	}
-	got := FormatEditTarget("main.go", r)
+
+	// Without hash
+	got := FormatEditTarget("main.go", r, "")
 	want := "main.go:42:10-42:25"
 	if got != want {
-		t.Errorf("FormatEditTarget() = %q, want %q", got, want)
+		t.Errorf("FormatEditTarget() without hash = %q, want %q", got, want)
+	}
+
+	// With hash
+	got = FormatEditTarget("main.go", r, "abc123def456")
+	want = "main.go:42:10-42:25@abc123def456"
+	if got != want {
+		t.Errorf("FormatEditTarget() with hash = %q, want %q", got, want)
 	}
 }
 

@@ -129,7 +129,7 @@ func runCallees(cmd *cobra.Command, args []string) error {
 			Kind:       call.CalleeKind,
 			Name:       call.CalleeName,
 			Match:      call.CalleeSignature.String,
-			EditTarget: output.FormatEditTarget(call.CallerFile, callSiteRange),
+			EditTarget: output.FormatEditTarget(call.CallerFile, callSiteRange, call.CallerFileHash),
 		}
 
 		// Add callee body if requested (from the callee's definition, not call site)

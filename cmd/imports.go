@@ -81,20 +81,18 @@ func runImports(cmd *cobra.Command, args []string) error {
 			name = imp.Name.String + " " + imp.PkgPath
 		}
 
+		impRange := output.Range{
+			Start: output.Position{Line: imp.Line, Col: imp.Col},
+			End:   output.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
+		}
 		results[i] = output.Result{
-			ID:   imp.PkgPath,
-			File: imp.FilePath,
-			Range: output.Range{
-				Start: output.Position{Line: imp.Line, Col: imp.Col},
-				End:   output.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
-			},
-			Kind:  "import",
-			Name:  name,
-			Match: imp.PkgPath,
-			EditTarget: output.FormatEditTarget(imp.FilePath, output.Range{
-				Start: output.Position{Line: imp.Line, Col: imp.Col},
-				End:   output.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
-			}),
+			ID:         imp.PkgPath,
+			File:       imp.FilePath,
+			Range:      impRange,
+			Kind:       "import",
+			Name:       name,
+			Match:      imp.PkgPath,
+			EditTarget: output.FormatEditTarget(imp.FilePath, impRange, ""),
 		}
 		tokenEstimate += output.EstimateTokens(imp.PkgPath)
 	}

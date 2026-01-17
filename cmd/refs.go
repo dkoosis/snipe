@@ -148,19 +148,17 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	var degraded []string
 
 	for i, ref := range refs {
+		refRange := output.Range{
+			Start: output.Position{Line: ref.Line, Col: ref.Col},
+			End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
+		}
 		result := output.Result{
-			ID:   ref.ID,
-			File: ref.FilePath,
-			Range: output.Range{
-				Start: output.Position{Line: ref.Line, Col: ref.Col},
-				End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
-			},
-			Kind:  "ref",
-			Match: ref.Snippet,
-			EditTarget: output.FormatEditTarget(ref.FilePath, output.Range{
-				Start: output.Position{Line: ref.Line, Col: ref.Col},
-				End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
-			}),
+			ID:         ref.ID,
+			File:       ref.FilePath,
+			Range:      refRange,
+			Kind:       "ref",
+			Match:      ref.Snippet,
+			EditTarget: output.FormatEditTarget(ref.FilePath, refRange, ref.FileHash),
 		}
 
 		// Add enclosing info if available

@@ -135,13 +135,18 @@ func EstimateTokens(s string) int {
 	return (len(s) + 3) / 4
 }
 
-// FormatEditTarget formats a range as an edit target string
-func FormatEditTarget(file string, r Range) string {
-	return fmt.Sprintf("%s:%d:%d-%d:%d",
+// FormatEditTarget formats a range as an edit target string.
+// If hash is non-empty, appends it for change detection: file:L:C-L:C@hash
+func FormatEditTarget(file string, r Range, hash string) string {
+	target := fmt.Sprintf("%s:%d:%d-%d:%d",
 		file,
 		r.Start.Line, r.Start.Col,
 		r.End.Line, r.End.Col,
 	)
+	if hash != "" {
+		target += "@" + hash
+	}
+	return target
 }
 
 // AddContext loads N lines of context before and after the result's range

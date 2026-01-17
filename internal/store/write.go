@@ -257,6 +257,56 @@ func writeImports(tx *sql.Tx, imports []index.Import) error {
 	return nil
 }
 
+// WriteFiles writes file metadata to the database
+func (s *Store) WriteFiles(files []index.FileInfo) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+
+	// Clear existing file data
+	if _, err := tx.Exec("DELETE FROM files"); err != nil {
+		return fmt.Errorf("truncate files: %w", err)
+	}
+
+	// Insert new file data
+	stmt, err := tx.Prepare(`INSERT INTO files (path, mtime, hash) VALUES (?, ?, ?)`)
+	if err != nil {
+		return fmt.Errorf("prepare files insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, f := range files {
+		if _, err := stmt.Exec(f.Path, f.Mtime, f.Hash); err != nil {
+			return fmt.Errorf("insert file %s: %w", f.Path, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// GetFileHash retrieves the content hash for a file path
+func (s *Store) GetFileHash(path string) (string, error) {
+	var hash string
+	err := s.db.QueryRow(`SELECT hash FROM files WHERE path = ?`, path).Scan(&hash)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return hash, nil
+}
+
 // GetStats returns index statistics
 func (s *Store) GetStats() (symbols, refs, calls int, err error) {
 	err = s.db.QueryRow("SELECT COUNT(*) FROM symbols").Scan(&symbols)

@@ -117,20 +117,18 @@ func runCallers(cmd *cobra.Command, args []string) error {
 		if nameLen == 0 {
 			nameLen = 1
 		}
+		callRange := output.Range{
+			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
+			End:   output.Position{Line: call.CallLine, Col: call.CallCol + nameLen},
+		}
 		result := output.Result{
-			ID:   call.CallerID,
-			File: call.CallerFile,
-			Range: output.Range{
-				Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-				End:   output.Position{Line: call.CallLine, Col: call.CallCol + nameLen},
-			},
-			Kind:  call.CallerKind,
-			Name:  call.CallerName,
-			Match: call.CallerSignature.String,
-			EditTarget: output.FormatEditTarget(call.CallerFile, output.Range{
-				Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-				End:   output.Position{Line: call.CallLine, Col: call.CallCol + nameLen},
-			}),
+			ID:         call.CallerID,
+			File:       call.CallerFile,
+			Range:      callRange,
+			Kind:       call.CallerKind,
+			Name:       call.CallerName,
+			Match:      call.CallerSignature.String,
+			EditTarget: output.FormatEditTarget(call.CallerFile, callRange, call.CallerFileHash),
 		}
 
 		// Add caller body if requested (from the caller's definition, not call site)

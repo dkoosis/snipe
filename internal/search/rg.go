@@ -98,20 +98,18 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 		}
 
 		for _, sub := range data.Submatches {
+			matchRange := output.Range{
+				Start: output.Position{Line: data.LineNumber, Col: sub.Start + 1},
+				End:   output.Position{Line: data.LineNumber, Col: sub.End + 1},
+			}
 			result := output.Result{
-				ID:   generateSearchID(data.Path.Text, data.LineNumber, sub.Start),
-				File: data.Path.Text,
-				Range: output.Range{
-					Start: output.Position{Line: data.LineNumber, Col: sub.Start + 1},
-					End:   output.Position{Line: data.LineNumber, Col: sub.End + 1},
-				},
-				Kind:  "match",
-				Name:  sub.Match.Text,
-				Match: strings.TrimSpace(data.Lines.Text),
-				EditTarget: output.FormatEditTarget(data.Path.Text, output.Range{
-					Start: output.Position{Line: data.LineNumber, Col: sub.Start + 1},
-					End:   output.Position{Line: data.LineNumber, Col: sub.End + 1},
-				}),
+				ID:         generateSearchID(data.Path.Text, data.LineNumber, sub.Start),
+				File:       data.Path.Text,
+				Range:      matchRange,
+				Kind:       "match",
+				Name:       sub.Match.Text,
+				Match:      strings.TrimSpace(data.Lines.Text),
+				EditTarget: output.FormatEditTarget(data.Path.Text, matchRange, ""),
 			}
 			results = append(results, result)
 
