@@ -111,7 +111,14 @@ func runDef(cmd *cobra.Command, args []string) error {
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError("def", output.NewNotFoundError(name))
+			// Try to find similar symbols for helpful suggestions
+			maxDist := query.DefaultMaxDistance(name)
+			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
+			if err != nil {
+				// If fuzzy search fails, just return the basic error
+				return w.WriteError("def", output.NewNotFoundError(name))
+			}
+			return w.WriteError("def", output.NewNotFoundError(name, suggestions...))
 		}
 
 		if len(symbols) > 1 {
