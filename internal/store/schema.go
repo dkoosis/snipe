@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 8
+const schemaVersion = 9
 
 // migration represents a database migration.
 type migration struct {
@@ -147,6 +147,22 @@ var migrations = []migration{
 		version: 8,
 		name:    "add_file_path_rel",
 		up:      ``, // Handled specially - need to add columns and index
+	},
+	{
+		version: 9,
+		name:    "performance_composite_indexes",
+		up: `
+		-- Composite index on refs for position queries with relative paths
+		-- Optimizes: refs --at file:line:col queries
+		CREATE INDEX IF NOT EXISTS idx_refs_pathrel_position ON refs(file_path_rel, line, col);
+
+		-- Composite index on symbols for line-based lookups (without col for broader matches)
+		-- Optimizes: show --at file:line queries
+		CREATE INDEX IF NOT EXISTS idx_symbols_file_linestart ON symbols(file_path, line_start);
+
+		-- Composite index on symbols for relative path + line lookups
+		CREATE INDEX IF NOT EXISTS idx_symbols_pathrel_linestart ON symbols(file_path_rel, line_start);
+		`,
 	},
 }
 
