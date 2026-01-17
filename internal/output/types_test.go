@@ -127,8 +127,9 @@ func TestFormatEditTargetWithHash(t *testing.T) {
 		Start: Position{Line: 1, Col: 1},
 		End:   Position{Line: 1, Col: 10},
 	}
-	got := FormatEditTargetWithHash("/nonexistent/file.go", r)
-	want := "/nonexistent/file.go:1:1-1:10"
+	// Use relative path for output, absolute for hash computation
+	got := FormatEditTargetWithHash("file.go", "/nonexistent/file.go", r)
+	want := "file.go:1:1-1:10"
 	if got != want {
 		t.Errorf("FormatEditTargetWithHash() for nonexistent file = %q, want %q", got, want)
 	}

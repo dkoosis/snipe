@@ -122,14 +122,20 @@ func runCallees(cmd *cobra.Command, args []string) error {
 			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
 			End:   output.Position{Line: call.CallLine, Col: call.CallCol + nameLen},
 		}
+		// Use relative path for output, absolute for file operations
+		filePath := call.CallerFileRel
+		if filePath == "" {
+			filePath = call.CallerFile
+		}
 		result := output.Result{
 			ID:         call.CalleeID,
-			File:       call.CallerFile, // Call site location
+			File:       filePath, // Call site location
+			FileAbs:    call.CallerFile,
 			Range:      callSiteRange,
 			Kind:       call.CalleeKind,
 			Name:       call.CalleeName,
 			Match:      call.CalleeSignature.String,
-			EditTarget: output.FormatEditTargetWithHash(call.CallerFile, callSiteRange),
+			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callSiteRange),
 		}
 
 		// Add callee body if requested (from the callee's definition, not call site)

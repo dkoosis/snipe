@@ -243,9 +243,10 @@ func ComputeRangeHash(file string, r Range) string {
 
 // FormatEditTargetWithHash is a convenience function that computes the range hash
 // and formats the edit target in one call.
-func FormatEditTargetWithHash(file string, r Range) string {
-	hash := ComputeRangeHash(file, r)
-	return FormatEditTarget(file, r, hash)
+// fileRel is the relative path (for output), fileAbs is the absolute path (for reading file to compute hash).
+func FormatEditTargetWithHash(fileRel, fileAbs string, r Range) string {
+	hash := ComputeRangeHash(fileAbs, r)
+	return FormatEditTarget(fileRel, r, hash)
 }
 
 // AddContext loads N lines of context before and after the result's range
@@ -254,7 +255,12 @@ func AddContext(result *Result, n int) error {
 		return nil
 	}
 
-	lines, err := readFileLines(result.File)
+	// Use absolute path for file operations
+	filePath := result.FileAbs
+	if filePath == "" {
+		filePath = result.File // Fallback if FileAbs not set
+	}
+	lines, err := readFileLines(filePath)
 	if err != nil {
 		return err
 	}
@@ -394,7 +400,12 @@ func BuildSummary(results []Result) Summary {
 
 // AddBody extracts the full source code for a result based on its range.
 func AddBody(result *Result) error {
-	lines, err := readFileLines(result.File)
+	// Use absolute path for file operations
+	filePath := result.FileAbs
+	if filePath == "" {
+		filePath = result.File // Fallback if FileAbs not set
+	}
+	lines, err := readFileLines(filePath)
 	if err != nil {
 		return err
 	}

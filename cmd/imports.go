@@ -85,14 +85,20 @@ func runImports(cmd *cobra.Command, args []string) error {
 			Start: output.Position{Line: imp.Line, Col: imp.Col},
 			End:   output.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
 		}
+		// Compute relative path for output
+		filePathRel, _ := filepath.Rel(dir, imp.FilePath)
+		if filePathRel == "" {
+			filePathRel = imp.FilePath
+		}
 		results[i] = output.Result{
 			ID:         imp.PkgPath,
-			File:       imp.FilePath,
+			File:       filePathRel,
+			FileAbs:    imp.FilePath,
 			Range:      impRange,
 			Kind:       "import",
 			Name:       name,
 			Match:      imp.PkgPath,
-			EditTarget: output.FormatEditTargetWithHash(imp.FilePath, impRange),
+			EditTarget: output.FormatEditTargetWithHash(filePathRel, imp.FilePath, impRange),
 		}
 		tokenEstimate += output.EstimateTokens(imp.PkgPath)
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/output"
@@ -102,14 +103,20 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 				Start: output.Position{Line: data.LineNumber, Col: sub.Start + 1},
 				End:   output.Position{Line: data.LineNumber, Col: sub.End + 1},
 			}
+			// Compute relative path for output
+			filePathRel, _ := filepath.Rel(dir, data.Path.Text)
+			if filePathRel == "" {
+				filePathRel = data.Path.Text
+			}
 			result := output.Result{
 				ID:         generateSearchID(data.Path.Text, data.LineNumber, sub.Start),
-				File:       data.Path.Text,
+				File:       filePathRel,
+				FileAbs:    data.Path.Text,
 				Range:      matchRange,
 				Kind:       "match",
 				Name:       sub.Match.Text,
 				Match:      strings.TrimSpace(data.Lines.Text),
-				EditTarget: output.FormatEditTargetWithHash(data.Path.Text, matchRange),
+				EditTarget: output.FormatEditTargetWithHash(filePathRel, data.Path.Text, matchRange),
 			}
 			results = append(results, result)
 

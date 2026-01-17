@@ -121,14 +121,20 @@ func runCallers(cmd *cobra.Command, args []string) error {
 			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
 			End:   output.Position{Line: call.CallLine, Col: call.CallCol + nameLen},
 		}
+		// Use relative path for output, absolute for file operations
+		filePath := call.CallerFileRel
+		if filePath == "" {
+			filePath = call.CallerFile
+		}
 		result := output.Result{
 			ID:         call.CallerID,
-			File:       call.CallerFile,
+			File:       filePath,
+			FileAbs:    call.CallerFile,
 			Range:      callRange,
 			Kind:       call.CallerKind,
 			Name:       call.CallerName,
 			Match:      call.CallerSignature.String,
-			EditTarget: output.FormatEditTargetWithHash(call.CallerFile, callRange),
+			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callRange),
 		}
 
 		// Add caller body if requested (from the caller's definition, not call site)
