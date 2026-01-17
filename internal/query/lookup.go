@@ -250,11 +250,23 @@ func (s *SymbolRow) ToCandidate() output.Candidate {
 	if filePath == "" {
 		filePath = s.FilePath // Fallback to absolute if relative not available
 	}
+	// Extract a short doc snippet (first line, truncated to 80 chars)
+	docSnippet := ""
+	if s.Doc.Valid && s.Doc.String != "" {
+		docSnippet = s.Doc.String
+		if idx := strings.Index(docSnippet, "\n"); idx != -1 {
+			docSnippet = docSnippet[:idx]
+		}
+		if len(docSnippet) > 80 {
+			docSnippet = docSnippet[:77] + "..."
+		}
+	}
 	return output.Candidate{
 		ID:   s.ID,
 		Name: s.Name,
 		File: filePath,
 		Kind: s.Kind,
+		Doc:  docSnippet,
 	}
 }
 

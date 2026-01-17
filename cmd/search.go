@@ -64,7 +64,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		Meta: output.Meta{
 			Command:       "search",
 			Query:         map[string]string{"pattern": pattern},
-			IndexState:    output.IndexMissing, // search doesn't use index
+			IndexState:    output.IndexNotUsed, // search doesn't use index
 			Degraded:      []string{"no_index"},
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(results),
