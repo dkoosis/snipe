@@ -1,0 +1,37 @@
+{
+  "results": [
+    {
+      "id": "caller:cmd/search.go:25",
+      "file": "cmd/search.go",
+      "range": {
+        "start": {
+          "line": 25,
+          "col": 12
+        },
+        "end": {
+          "line": 25,
+          "col": 18
+        }
+      },
+      "kind": "caller",
+      "name": "runSearch",
+      "match": "    results, err := search.Search(dir, pattern, limit, ctx)",
+      "enclosing": {
+        "id": "go#cmd/search.go#runSearch",
+        "kind": "func",
+        "name": "runSearch",
+        "signature": "func runSearch(cmd *cobra.Command, args []string) error"
+      },
+      "edit_target": "cmd/search.go:25:12-25:18"
+    }
+  ],
+  "meta": {
+    "command": "callers",
+    "index_state": "fresh",
+    "ms": 12,
+    "total": 1,
+    "limit": 50,
+    "truncated": false
+  },
+  "error": null
+}
