@@ -299,6 +299,75 @@ func ClearFileCache() {
 	globalFileCache.Clear()
 }
 
+// ScoreResult calculates a relevance score for a result based on match quality.
+// Higher scores indicate better matches. Scoring factors:
+// - Exact name match: +100
+// - Prefix match: +50
+// - Definition (vs reference): +30
+// - Public symbol (uppercase): +20
+// - Shorter file path: +10 (normalized)
+func ScoreResult(result *Result, query string) float64 {
+	var score float64
+
+	name := result.Name
+	queryLower := strings.ToLower(query)
+	nameLower := strings.ToLower(name)
+
+	// Exact match (case-insensitive)
+	if nameLower == queryLower {
+		score += 100
+	} else if strings.HasPrefix(nameLower, queryLower) {
+		// Prefix match
+		score += 50
+	} else if strings.Contains(nameLower, queryLower) {
+		// Contains match
+		score += 25
+	}
+
+	// Bonus for definitions over references
+	switch result.Kind {
+	case "func", "method", "type", "struct", "interface", "const", "var":
+		score += 30
+	}
+
+	// Bonus for exported/public symbols
+	if len(name) > 0 && name[0] >= 'A' && name[0] <= 'Z' {
+		score += 20
+	}
+
+	// Slight bonus for shorter paths (more likely to be core code)
+	pathLen := len(result.File)
+	if pathLen > 0 {
+		score += 10.0 * (1.0 - float64(min(pathLen, 100))/100.0)
+	}
+
+	return score
+}
+
+// ScoreResults applies relevance scoring to all results.
+func ScoreResults(results []Result, query string) {
+	for i := range results {
+		results[i].Score = ScoreResult(&results[i], query)
+	}
+}
+
+// SortByScore sorts results by score in descending order (highest first).
+func SortByScore(results []Result) {
+	for i := 0; i < len(results)-1; i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[j].Score > results[i].Score {
+				results[i], results[j] = results[j], results[i]
+			}
+		}
+	}
+}
+
+// ScoreAndSort scores results by relevance and sorts by score descending.
+func ScoreAndSort(results []Result, query string) {
+	ScoreResults(results, query)
+	SortByScore(results)
+}
+
 // BuildSummary creates a summary from a slice of results
 func BuildSummary(results []Result) Summary {
 	fileCounts := make(map[string]int)

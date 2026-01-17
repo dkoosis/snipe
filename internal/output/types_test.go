@@ -463,3 +463,107 @@ func TestTruncateResultsSemantic(t *testing.T) {
 		}
 	})
 }
+
+func TestScoreResult(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   Result
+		query    string
+		minScore float64
+		maxScore float64
+	}{
+		{
+			name:     "exact match exported function",
+			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
+			query:    "ProcessOrder",
+			minScore: 140, // 100 (exact) + 30 (func) + 20 (exported) - path penalty
+			maxScore: 160,
+		},
+		{
+			name:     "exact match case insensitive",
+			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
+			query:    "processorder",
+			minScore: 140,
+			maxScore: 160,
+		},
+		{
+			name:     "prefix match",
+			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
+			query:    "Process",
+			minScore: 90, // 50 (prefix) + 30 (func) + 20 (exported)
+			maxScore: 110,
+		},
+		{
+			name:     "contains match",
+			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
+			query:    "Order",
+			minScore: 65, // 25 (contains) + 30 (func) + 20 (exported)
+			maxScore: 85,
+		},
+		{
+			name:     "unexported lower score",
+			result:   Result{Name: "processOrder", Kind: "func", File: "a.go"},
+			query:    "processOrder",
+			minScore: 120, // 100 (exact) + 30 (func) + 0 (unexported)
+			maxScore: 140,
+		},
+		{
+			name:     "reference kind lower score",
+			result:   Result{Name: "ProcessOrder", Kind: "ref", File: "a.go"},
+			query:    "ProcessOrder",
+			minScore: 110, // 100 (exact) + 0 (ref) + 20 (exported)
+			maxScore: 130,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			score := ScoreResult(&tt.result, tt.query)
+			if score < tt.minScore || score > tt.maxScore {
+				t.Errorf("ScoreResult() = %.1f, want between %.1f and %.1f", score, tt.minScore, tt.maxScore)
+			}
+		})
+	}
+}
+
+func TestSortByScore(t *testing.T) {
+	results := []Result{
+		{Name: "c", Score: 10},
+		{Name: "a", Score: 100},
+		{Name: "b", Score: 50},
+	}
+
+	SortByScore(results)
+
+	if results[0].Name != "a" || results[1].Name != "b" || results[2].Name != "c" {
+		t.Errorf("SortByScore() order = [%s, %s, %s], want [a, b, c]",
+			results[0].Name, results[1].Name, results[2].Name)
+	}
+}
+
+func TestScoreAndSort(t *testing.T) {
+	results := []Result{
+		{Name: "handler", Kind: "func", File: "a.go"},       // contains match
+		{Name: "HandleRequest", Kind: "func", File: "b.go"}, // prefix match
+		{Name: "handle", Kind: "func", File: "c.go"},        // exact match
+	}
+
+	ScoreAndSort(results, "handle")
+
+	// Exact match should be first
+	if results[0].Name != "handle" {
+		t.Errorf("first result should be exact match 'handle', got %q", results[0].Name)
+	}
+
+	// Prefix match should be second
+	if results[1].Name != "HandleRequest" {
+		t.Errorf("second result should be prefix match 'HandleRequest', got %q", results[1].Name)
+	}
+
+	// All should have non-zero scores
+	for i, r := range results {
+		if r.Score == 0 {
+			t.Errorf("result[%d] should have non-zero score", i)
+		}
+	}
+}
