@@ -128,7 +128,7 @@ func runCallers(cmd *cobra.Command, args []string) error {
 			Kind:       call.CallerKind,
 			Name:       call.CallerName,
 			Match:      call.CallerSignature.String,
-			EditTarget: output.FormatEditTarget(call.CallerFile, callRange, call.CallerFileHash),
+			EditTarget: output.FormatEditTargetWithHash(call.CallerFile, callRange),
 		}
 
 		// Add caller body if requested (from the caller's definition, not call site)

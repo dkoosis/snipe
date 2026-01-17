@@ -1,9 +1,12 @@
 package output
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/dkoosis/snipe/internal/util"
@@ -202,6 +205,47 @@ func FormatEditTarget(file string, r Range, hash string) string {
 		target += "@" + hash
 	}
 	return target
+}
+
+// ComputeRangeHash computes a SHA256 hash of the content within a line range.
+// Returns a truncated hash (16 hex chars) for embedding in edit_target.
+// If the range cannot be read, returns an empty string.
+func ComputeRangeHash(file string, r Range) string {
+	lines, err := readFileLines(file)
+	if err != nil {
+		return ""
+	}
+
+	startLine := r.Start.Line
+	endLine := r.End.Line
+
+	// Validate range
+	if startLine < 1 || endLine < startLine || startLine > len(lines) {
+		return ""
+	}
+	if endLine > len(lines) {
+		endLine = len(lines)
+	}
+
+	// Extract lines in range
+	var content strings.Builder
+	for i := startLine; i <= endLine; i++ {
+		if i > startLine {
+			content.WriteString("\n")
+		}
+		content.WriteString(lines[i-1])
+	}
+
+	// Compute SHA256 and truncate to 16 hex chars (8 bytes)
+	h := sha256.Sum256([]byte(content.String()))
+	return hex.EncodeToString(h[:8])
+}
+
+// FormatEditTargetWithHash is a convenience function that computes the range hash
+// and formats the edit target in one call.
+func FormatEditTargetWithHash(file string, r Range) string {
+	hash := ComputeRangeHash(file, r)
+	return FormatEditTarget(file, r, hash)
 }
 
 // AddContext loads N lines of context before and after the result's range

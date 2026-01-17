@@ -109,7 +109,7 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 				Kind:       "match",
 				Name:       sub.Match.Text,
 				Match:      strings.TrimSpace(data.Lines.Text),
-				EditTarget: output.FormatEditTarget(data.Path.Text, matchRange, ""),
+				EditTarget: output.FormatEditTargetWithHash(data.Path.Text, matchRange),
 			}
 			results = append(results, result)
 

@@ -92,7 +92,7 @@ func runImports(cmd *cobra.Command, args []string) error {
 			Kind:       "import",
 			Name:       name,
 			Match:      imp.PkgPath,
-			EditTarget: output.FormatEditTarget(imp.FilePath, impRange, ""),
+			EditTarget: output.FormatEditTargetWithHash(imp.FilePath, impRange),
 		}
 		tokenEstimate += output.EstimateTokens(imp.PkgPath)
 	}
