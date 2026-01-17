@@ -160,6 +160,13 @@ func runCallees(cmd *cobra.Command, args []string) error {
 	// Deduplicate degraded messages
 	degraded = uniqueStrings(degraded)
 
+	// Apply token budget truncation if specified
+	maxTok := GetMaxTokens()
+	tokenTruncated := false
+	if maxTok > 0 {
+		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+	}
+
 	// If summary mode, return condensed output
 	if summary {
 		summaryData := output.BuildSummary(results)
@@ -181,6 +188,12 @@ func runCallees(cmd *cobra.Command, args []string) error {
 		return w.WriteResponse(summaryResp)
 	}
 
+	// Recalculate token estimate after truncation
+	tokenEstimate = 0
+	for i := range results {
+		tokenEstimate += output.EstimateResultTokens(&results[i])
+	}
+
 	resp := output.Response[output.Result]{
 		Results: results,
 		Meta: output.Meta{
@@ -193,7 +206,7 @@ func runCallees(cmd *cobra.Command, args []string) error {
 			Total:         len(results),
 			Offset:        off,
 			Limit:         lim,
-			Truncated:     len(results) >= lim,
+			Truncated:     len(results) >= lim || tokenTruncated,
 			TokenEstimate: tokenEstimate,
 		},
 	}

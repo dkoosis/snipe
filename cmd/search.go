@@ -46,10 +46,17 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		})
 	}
 
+	// Apply token budget truncation if specified
+	maxTok := GetMaxTokens()
+	tokenTruncated := false
+	if maxTok > 0 {
+		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+	}
+
 	// Estimate tokens
 	tokenEstimate := 0
-	for _, r := range results {
-		tokenEstimate += output.EstimateTokens(r.Match)
+	for i := range results {
+		tokenEstimate += output.EstimateResultTokens(&results[i])
 	}
 
 	resp := output.Response[output.Result]{
@@ -61,7 +68,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			Degraded:      []string{"no_index"},
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(results),
-			Truncated:     len(results) >= lim,
+			Truncated:     len(results) >= lim || tokenTruncated,
 			TokenEstimate: tokenEstimate,
 		},
 	}

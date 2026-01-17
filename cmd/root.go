@@ -19,6 +19,7 @@ var (
 	withBody     bool
 	withSiblings bool
 	summaryOnly  bool
+	maxTokens    int
 
 	// loadedConfig holds the merged config (loaded lazily)
 	loadedConfig *config.Config
@@ -69,11 +70,17 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&withBody, "with-body", false, "Include full enclosing function body")
 	rootCmd.PersistentFlags().BoolVar(&withSiblings, "with-siblings", false, "Include sibling declarations in same file")
 	rootCmd.PersistentFlags().BoolVar(&summaryOnly, "summary", false, "Show summary stats only (counts per file)")
+	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Maximum tokens in output (0 = unlimited)")
 }
 
 // GetOutputConfig returns the current output configuration
 func GetOutputConfig() (json bool, human bool, lim int, off int, ctx int, body bool, siblings bool, summary bool) {
 	return jsonOutput, humanOutput, limit, offset, contextLines, withBody, withSiblings, summaryOnly
+}
+
+// GetMaxTokens returns the max-tokens flag value (0 = unlimited)
+func GetMaxTokens() int {
+	return maxTokens
 }
 
 // uniqueStrings removes duplicates from a string slice, preserving order.

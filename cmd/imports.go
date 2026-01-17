@@ -97,6 +97,19 @@ func runImports(cmd *cobra.Command, args []string) error {
 		tokenEstimate += output.EstimateTokens(imp.PkgPath)
 	}
 
+	// Apply token budget truncation if specified
+	maxTok := GetMaxTokens()
+	tokenTruncated := false
+	if maxTok > 0 {
+		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+	}
+
+	// Recalculate token estimate after truncation
+	tokenEstimate = 0
+	for i := range results {
+		tokenEstimate += output.EstimateResultTokens(&results[i])
+	}
+
 	resp := output.Response[output.Result]{
 		Results: results,
 		Meta: output.Meta{
@@ -106,7 +119,7 @@ func runImports(cmd *cobra.Command, args []string) error {
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(results),
-			Truncated:     len(results) >= lim,
+			Truncated:     len(results) >= lim || tokenTruncated,
 			TokenEstimate: tokenEstimate,
 			Offset:        offset,
 			Limit:         lim,
