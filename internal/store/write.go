@@ -4,13 +4,33 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/dkoosis/snipe/internal/index"
 )
 
-// WriteIndex writes symbols, refs, and call edges to the database
-// This performs a full reindex (truncate + insert)
+// toRelPath converts an absolute file path to a repo-relative path.
+// Returns the original path if it can't be made relative.
+func toRelPath(absPath, repoRoot string) string {
+	if repoRoot == "" {
+		return absPath
+	}
+	relPath, err := filepath.Rel(repoRoot, absPath)
+	if err != nil {
+		return absPath
+	}
+	// Normalize to forward slashes for consistency
+	return strings.ReplaceAll(relPath, "\\", "/")
+}
+
+// WriteIndex writes symbols, refs, and call edges to the database.
+// This performs a full reindex (truncate + insert).
+// The repo_root meta value (if set) is used to compute relative file paths.
 func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []index.CallEdge) error {
+	// Get repo root from meta if available (for computing relative paths)
+	repoRoot, _ := s.GetMeta("repo_root")
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -35,13 +55,13 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 	}
 
 	// Write symbols
-	if err := writeSymbols(tx, symbols); err != nil {
+	if err := writeSymbols(tx, symbols, repoRoot); err != nil {
 		return err
 	}
 
 	// Filter and write refs (only those referencing known symbols)
 	validRefs := filterRefs(refs, symbolIDs)
-	if err := writeRefs(tx, validRefs); err != nil {
+	if err := writeRefs(tx, validRefs, repoRoot); err != nil {
 		return err
 	}
 
@@ -112,10 +132,10 @@ func truncateTables(tx *sql.Tx) error {
 	return nil
 }
 
-func writeSymbols(tx *sql.Tx, symbols []index.Symbol) error {
+func writeSymbols(tx *sql.Tx, symbols []index.Symbol, repoRoot string) error {
 	stmt, err := tx.Prepare(`
-		INSERT INTO symbols (id, name, kind, file_path, line_start, col_start, line_end, col_end, name_line, name_col, signature, doc, receiver)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, line_start, col_start, line_end, col_end, name_line, name_col, signature, doc, receiver)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("prepare symbols insert: %w", err)
@@ -123,11 +143,13 @@ func writeSymbols(tx *sql.Tx, symbols []index.Symbol) error {
 	defer stmt.Close()
 
 	for _, sym := range symbols {
+		relPath := toRelPath(sym.FilePath, repoRoot)
 		_, err := stmt.Exec(
 			sym.ID,
 			sym.Name,
 			string(sym.Kind),
 			sym.FilePath,
+			relPath,
 			sym.LineStart,
 			sym.ColStart,
 			sym.LineEnd,
@@ -146,10 +168,10 @@ func writeSymbols(tx *sql.Tx, symbols []index.Symbol) error {
 	return nil
 }
 
-func writeRefs(tx *sql.Tx, refs []index.Ref) error {
+func writeRefs(tx *sql.Tx, refs []index.Ref, repoRoot string) error {
 	stmt, err := tx.Prepare(`
-		INSERT INTO refs (id, symbol_id, file_path, line, col, enclosing_id, snippet)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO refs (id, symbol_id, file_path, file_path_rel, line, col, enclosing_id, snippet)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("prepare refs insert: %w", err)
@@ -157,10 +179,12 @@ func writeRefs(tx *sql.Tx, refs []index.Ref) error {
 	defer stmt.Close()
 
 	for _, ref := range refs {
+		relPath := toRelPath(ref.FilePath, repoRoot)
 		_, err := stmt.Exec(
 			ref.ID,
 			ref.SymbolID,
 			ref.FilePath,
+			relPath,
 			ref.Line,
 			ref.Col,
 			nullString(ref.EnclosingID),

@@ -85,14 +85,27 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 }
 
 func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
+	// Use file_path_rel for more precise matching than LIKE '%path%'.
+	// The pkgPath should appear as a directory component in file_path_rel.
+	// E.g., "internal/handler" should match "internal/handler/handler.go"
+	//
+	// We use two patterns:
+	// 1. pkgPath/ at the start (e.g., "internal/handler/...")
+	// 2. /pkgPath/ anywhere (e.g., ".../internal/handler/...")
+	startPattern := pkgPath + "/%"
+	midPattern := "%/" + pkgPath + "/%"
+
 	rows, err := db.Query(`
 		SELECT s.id, s.name, s.kind, s.file_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
-		WHERE s.name = ? AND s.file_path LIKE ?
+		WHERE s.name = ? AND (
+			s.file_path_rel LIKE ? OR
+			s.file_path_rel LIKE ?
+		)
 		ORDER BY s.kind, s.file_path
-	`, name, "%"+pkgPath+"%")
+	`, name, startPattern, midPattern)
 	if err != nil {
 		return nil, fmt.Errorf("query symbols qualified: %w", err)
 	}
