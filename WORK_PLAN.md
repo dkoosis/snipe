@@ -422,16 +422,16 @@ Add to CI: `mage smoke` target.
 | golden-tests | B | todo | - | - | - |
 | enclosing-perf | C | todo | - | - | Phase 1 Gate |
 | file-cache | C | todo | - | - | Phase 1 Gate |
-| schema-indexes | C | todo | - | - | fix-like |
-| chunked-load | C | todo | - | - | Phase 1 Gate |
-| context-cmd | C | todo | - | - | Phase 1 Gate |
-| max-tokens | D | todo | - | - | Phase 2 Gate |
-| content-hash | D | todo | - | - | Phase 2 Gate |
-| schema-cmd | D | todo | - | - | Phase 2 Gate |
-| semantic-truncation | D | todo | - | - | Phase 2 Gate |
-| relevance-scoring | D | todo | - | - | Phase 2 Gate |
-| suggestions | D | todo | - | - | Phase 2 Gate |
-| mcp-server | E | todo | - | - | Phase 2 Gate |
+| schema-indexes | C | merged | #47 | - | fix-like |
+| chunked-load | C | merged | #46 | - | Phase 1 Gate |
+| context-cmd | C | merged | #45 | - | Phase 1 Gate |
+| max-tokens | D | merged | #48 | - | Phase 2 Gate |
+| content-hash | D | merged | #49 | - | Phase 2 Gate |
+| schema-cmd | D | merged | #50 | - | Phase 2 Gate |
+| semantic-truncation | D | merged | #52 | - | Phase 2 Gate |
+| relevance-scoring | D | merged | #53 | - | Phase 2 Gate |
+| suggestions | D | merged | #54 | - | Phase 2 Gate |
+| mcp-server | E | dropped | #51→reverted | - | Complexity outweighed value for CLI-first tool |
 | treesitter | E | todo | - | - | Phase 2 Gate |
 
 **Status values:** `todo` | `in-progress` | `blocked` | `in-review` | `merged`

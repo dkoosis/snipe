@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/dkoosis/snipe/internal/config"
-	snipemcp "github.com/dkoosis/snipe/internal/mcp"
 )
 
 var (
@@ -22,10 +20,7 @@ var (
 	withSiblings bool
 	summaryOnly  bool
 
-	maxTokens    int
-
-	mcpMode      bool
-
+	maxTokens int
 
 	// loadedConfig holds the merged config (loaded lazily)
 	loadedConfig *config.Config
@@ -37,11 +32,6 @@ var rootCmd = &cobra.Command{
 	Long: `snipe provides fast, deterministic code navigation optimized for LLM consumption.
 JSON-first output, position-addressed queries, static indexing for speed.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Skip config loading in MCP mode
-		if mcpMode {
-			return nil
-		}
-
 		// Load config and apply defaults if flags weren't explicitly set
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -64,10 +54,6 @@ JSON-first output, position-addressed queries, static indexing for speed.`,
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if mcpMode {
-			server := snipemcp.NewServer(Version)
-			return server.Run(context.Background())
-		}
 		// No subcommand specified, show help
 		return cmd.Help()
 	},
@@ -91,9 +77,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&summaryOnly, "summary", false, "Show summary stats only (counts per file)")
 
 	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Maximum tokens in output (0 = unlimited)")
-
-	rootCmd.Flags().BoolVar(&mcpMode, "mcp", false, "Run as MCP server (stdio transport)")
-
 }
 
 // GetOutputConfig returns the current output configuration
