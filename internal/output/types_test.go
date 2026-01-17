@@ -319,6 +319,251 @@ func TestEstimateResultTokens(t *testing.T) {
 	}
 }
 
+func TestTruncateBodySemantic(t *testing.T) {
+	t.Run("no truncation needed", func(t *testing.T) {
+		result := Result{Body: "line1\nline2\nline3"}
+		truncated := TruncateBodySemantic(&result, 5)
+		if truncated {
+			t.Error("should not truncate when lines fit")
+		}
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		result := Result{Body: ""}
+		truncated := TruncateBodySemantic(&result, 5)
+		if truncated {
+			t.Error("should not truncate empty body")
+		}
+	})
+
+	t.Run("truncate at statement boundary", func(t *testing.T) {
+		body := `func foo() {
+	x := 1;
+	y := 2;
+	z := 3;
+	return x + y + z;
+}`
+		result := Result{Body: body}
+		truncated := TruncateBodySemantic(&result, 4)
+		if !truncated {
+			t.Error("should truncate")
+		}
+		if !strings.Contains(result.Body, "// ... truncated") {
+			t.Error("should contain truncation marker")
+		}
+		lines := strings.Split(result.Body, "\n")
+		lastContentLine := ""
+		for i := len(lines) - 1; i >= 0; i-- {
+			if !strings.Contains(lines[i], "truncated") && strings.TrimSpace(lines[i]) != "" {
+				lastContentLine = strings.TrimSpace(lines[i])
+				break
+			}
+		}
+		if !strings.HasSuffix(lastContentLine, ";") && !strings.HasSuffix(lastContentLine, "{") {
+			t.Errorf("should end at statement boundary, got %q", lastContentLine)
+		}
+	})
+
+	t.Run("truncate at closing brace", func(t *testing.T) {
+		body := `func foo() {
+	if x > 0 {
+		return x
+	}
+	return 0
+}`
+		result := Result{Body: body}
+		truncated := TruncateBodySemantic(&result, 5)
+		if !truncated {
+			t.Error("should truncate")
+		}
+	})
+}
+
+func TestFindSemanticBoundary(t *testing.T) {
+	tests := []struct {
+		name     string
+		lines    []string
+		maxLines int
+		want     int
+	}{
+		{
+			name:     "statement with semicolon",
+			lines:    []string{"x := 1;", "y := 2;", "z := 3;"},
+			maxLines: 2,
+			want:     2,
+		},
+		{
+			name:     "closing brace",
+			lines:    []string{"if x {", "  return", "}", "next"},
+			maxLines: 3,
+			want:     3,
+		},
+		{
+			name:     "opening brace",
+			lines:    []string{"func foo() {", "  x := 1", "  return x"},
+			maxLines: 2,
+			want:     1,
+		},
+		{
+			name:     "no good boundary",
+			lines:    []string{"partial", "statement", "here"},
+			maxLines: 2,
+			want:     0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findSemanticBoundary(tt.lines, tt.maxLines)
+			if got != tt.want {
+				t.Errorf("findSemanticBoundary() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTruncateResultsSemantic(t *testing.T) {
+	results := []Result{
+		{Name: "foo", File: "a.go", Match: "func foo()", Body: "func foo() {\n\treturn\n}"},
+		{Name: "bar", File: "b.go", Match: "func bar()", Body: "func bar() {\n\treturn\n}"},
+		{Name: "baz", File: "c.go", Match: "func baz()"},
+	}
+
+	t.Run("zero budget returns all", func(t *testing.T) {
+		got, truncated, _ := TruncateResultsSemantic(results, 0, 10)
+		if truncated {
+			t.Error("should not truncate with zero budget")
+		}
+		if len(got) != len(results) {
+			t.Errorf("got %d results, want %d", len(got), len(results))
+		}
+	})
+
+	t.Run("large budget keeps all", func(t *testing.T) {
+		got, truncated, tokens := TruncateResultsSemantic(results, 10000, 10)
+		if truncated {
+			t.Error("should not truncate with large budget")
+		}
+		if len(got) != len(results) {
+			t.Errorf("got %d results, want %d", len(got), len(results))
+		}
+		if tokens == 0 {
+			t.Error("tokens should be non-zero")
+		}
+	})
+
+	t.Run("small budget truncates", func(t *testing.T) {
+		got, truncated, _ := TruncateResultsSemantic(results, 300, 5)
+		if !truncated {
+			t.Error("should truncate with small budget")
+		}
+		if len(got) == 0 {
+			t.Error("should return at least one result")
+		}
+	})
+}
+
+func TestScoreResult(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   Result
+		query    string
+		minScore float64
+		maxScore float64
+	}{
+		{
+			name:     "exact match exported function",
+			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
+			query:    "ProcessOrder",
+			minScore: 140,
+			maxScore: 160,
+		},
+		{
+			name:     "exact match case insensitive",
+			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
+			query:    "processorder",
+			minScore: 140,
+			maxScore: 160,
+		},
+		{
+			name:     "prefix match",
+			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
+			query:    "Process",
+			minScore: 90,
+			maxScore: 110,
+		},
+		{
+			name:     "contains match",
+			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
+			query:    "Order",
+			minScore: 65,
+			maxScore: 85,
+		},
+		{
+			name:     "unexported lower score",
+			result:   Result{Name: "processOrder", Kind: "func", File: "a.go"},
+			query:    "processOrder",
+			minScore: 120,
+			maxScore: 140,
+		},
+		{
+			name:     "reference kind lower score",
+			result:   Result{Name: "ProcessOrder", Kind: "ref", File: "a.go"},
+			query:    "ProcessOrder",
+			minScore: 110,
+			maxScore: 130,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			score := ScoreResult(&tt.result, tt.query)
+			if score < tt.minScore || score > tt.maxScore {
+				t.Errorf("ScoreResult() = %.1f, want between %.1f and %.1f", score, tt.minScore, tt.maxScore)
+			}
+		})
+	}
+}
+
+func TestSortByScore(t *testing.T) {
+	results := []Result{
+		{Name: "c", Score: 10},
+		{Name: "a", Score: 100},
+		{Name: "b", Score: 50},
+	}
+
+	SortByScore(results)
+
+	if results[0].Name != "a" || results[1].Name != "b" || results[2].Name != "c" {
+		t.Errorf("SortByScore() order = [%s, %s, %s], want [a, b, c]",
+			results[0].Name, results[1].Name, results[2].Name)
+	}
+}
+
+func TestScoreAndSort(t *testing.T) {
+	results := []Result{
+		{Name: "handler", Kind: "func", File: "a.go"},
+		{Name: "HandleRequest", Kind: "func", File: "b.go"},
+		{Name: "handle", Kind: "func", File: "c.go"},
+	}
+
+	ScoreAndSort(results, "handle")
+
+	if results[0].Name != "handle" {
+		t.Errorf("first result should be exact match 'handle', got %q", results[0].Name)
+	}
+
+	if results[1].Name != "HandleRequest" {
+		t.Errorf("second result should be prefix match 'HandleRequest', got %q", results[1].Name)
+	}
+
+	for i, r := range results {
+		if r.Score == 0 {
+			t.Errorf("result[%d] should have non-zero score", i)
+		}
+	}
+}
+
 func TestSuggestionsForDef(t *testing.T) {
 	t.Run("nil result", func(t *testing.T) {
 		suggestions := SuggestionsForDef(nil)

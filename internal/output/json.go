@@ -299,6 +299,75 @@ func ClearFileCache() {
 	globalFileCache.Clear()
 }
 
+// ScoreResult calculates a relevance score for a result based on match quality.
+// Higher scores indicate better matches. Scoring factors:
+// - Exact name match: +100
+// - Prefix match: +50
+// - Definition (vs reference): +30
+// - Public symbol (uppercase): +20
+// - Shorter file path: +10 (normalized)
+func ScoreResult(result *Result, query string) float64 {
+	var score float64
+
+	name := result.Name
+	queryLower := strings.ToLower(query)
+	nameLower := strings.ToLower(name)
+
+	// Exact match (case-insensitive)
+	if nameLower == queryLower {
+		score += 100
+	} else if strings.HasPrefix(nameLower, queryLower) {
+		// Prefix match
+		score += 50
+	} else if strings.Contains(nameLower, queryLower) {
+		// Contains match
+		score += 25
+	}
+
+	// Bonus for definitions over references
+	switch result.Kind {
+	case "func", "method", "type", "struct", "interface", "const", "var":
+		score += 30
+	}
+
+	// Bonus for exported/public symbols
+	if len(name) > 0 && name[0] >= 'A' && name[0] <= 'Z' {
+		score += 20
+	}
+
+	// Slight bonus for shorter paths (more likely to be core code)
+	pathLen := len(result.File)
+	if pathLen > 0 {
+		score += 10.0 * (1.0 - float64(min(pathLen, 100))/100.0)
+	}
+
+	return score
+}
+
+// ScoreResults applies relevance scoring to all results.
+func ScoreResults(results []Result, query string) {
+	for i := range results {
+		results[i].Score = ScoreResult(&results[i], query)
+	}
+}
+
+// SortByScore sorts results by score in descending order (highest first).
+func SortByScore(results []Result) {
+	for i := 0; i < len(results)-1; i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[j].Score > results[i].Score {
+				results[i], results[j] = results[j], results[i]
+			}
+		}
+	}
+}
+
+// ScoreAndSort scores results by relevance and sorts by score descending.
+func ScoreAndSort(results []Result, query string) {
+	ScoreResults(results, query)
+	SortByScore(results)
+}
+
 // BuildSummary creates a summary from a slice of results
 func BuildSummary(results []Result) Summary {
 	fileCounts := make(map[string]int)
@@ -348,4 +417,127 @@ func AddBody(result *Result) error {
 
 	result.Body = body
 	return nil
+}
+
+// TruncateBodySemantic truncates the Body field at a semantic boundary
+// (complete statement or declaration) to fit within maxLines.
+// Returns true if truncation occurred.
+func TruncateBodySemantic(result *Result, maxLines int) bool {
+	if result.Body == "" || maxLines <= 0 {
+		return false
+	}
+
+	lines := strings.Split(result.Body, "\n")
+	if len(lines) <= maxLines {
+		return false
+	}
+
+	// Find the best truncation point at a statement boundary
+	truncateAt := findSemanticBoundary(lines, maxLines)
+	if truncateAt <= 0 {
+		truncateAt = maxLines // Fallback to hard limit
+	}
+
+	result.Body = strings.Join(lines[:truncateAt], "\n") + "\n// ... truncated"
+	return true
+}
+
+// findSemanticBoundary finds the best line to truncate at, looking for
+// statement boundaries (lines ending with ; or } or { at appropriate nesting).
+// Returns 0 if no good boundary found before maxLines.
+func findSemanticBoundary(lines []string, maxLines int) int {
+	bestLine := 0
+	braceDepth := 0
+
+	for i := 0; i < maxLines && i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+
+		// Track brace depth
+		braceDepth += strings.Count(line, "{") - strings.Count(line, "}")
+
+		// Good truncation points: complete statements at depth 0 or 1
+		if braceDepth <= 1 {
+			// Line ends with semicolon (statement end)
+			if strings.HasSuffix(line, ";") {
+				bestLine = i + 1
+			}
+			// Line ends with closing brace (block end)
+			if strings.HasSuffix(line, "}") {
+				bestLine = i + 1
+			}
+			// Line ends with opening brace (start of block - include it)
+			if strings.HasSuffix(line, "{") && i < maxLines-1 {
+				bestLine = i + 1
+			}
+		}
+	}
+
+	return bestLine
+}
+
+// TruncateResultsSemantic truncates results to fit within a token budget,
+// preferring to keep complete results and truncating bodies at semantic boundaries.
+// Returns the truncated slice, whether truncation occurred, and the estimated token count.
+func TruncateResultsSemantic(results []Result, maxTokens int, maxBodyLines int) ([]Result, bool, int) {
+	if maxTokens <= 0 {
+		total := 0
+		for i := range results {
+			total += EstimateResultTokens(&results[i])
+		}
+		return results, false, total
+	}
+
+	// Reserve tokens for response wrapper
+	const overhead = 200
+	budget := maxTokens - overhead
+	if budget <= 0 {
+		return nil, len(results) > 0, 0
+	}
+
+	var truncated []Result
+	totalTokens := 0
+	didTruncate := false
+
+	for i := range results {
+		result := results[i] // Copy to allow modification
+
+		// First, try to fit the full result
+		resultTokens := EstimateResultTokens(&result)
+
+		if totalTokens+resultTokens <= budget {
+			totalTokens += resultTokens
+			truncated = append(truncated, result)
+			continue
+		}
+
+		// Result doesn't fit - try truncating its body
+		if result.Body != "" && maxBodyLines > 0 {
+			if TruncateBodySemantic(&result, maxBodyLines) {
+				didTruncate = true
+				resultTokens = EstimateResultTokens(&result)
+				if totalTokens+resultTokens <= budget {
+					totalTokens += resultTokens
+					truncated = append(truncated, result)
+					continue
+				}
+			}
+		}
+
+		// Still doesn't fit - stop adding results
+		if len(truncated) > 0 {
+			didTruncate = true
+			break
+		}
+
+		// First result must be included even if over budget
+		totalTokens += resultTokens
+		truncated = append(truncated, result)
+		didTruncate = true
+		break
+	}
+
+	return truncated, didTruncate, totalTokens
 }
