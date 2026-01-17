@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 7
+const schemaVersion = 8
 
 // migration represents a database migration.
 type migration struct {
@@ -143,6 +143,11 @@ var migrations = []migration{
 		CREATE INDEX IF NOT EXISTS idx_embeddings_model ON embeddings(model);
 		`,
 	},
+	{
+		version: 8,
+		name:    "add_file_path_rel",
+		up:      ``, // Handled specially - need to add columns and index
+	},
 }
 
 // initSchema creates and migrates the database schema.
@@ -211,6 +216,11 @@ func (s *Store) runMigration(m migration) error {
 		if err := s.addNamePositionColumns(tx); err != nil {
 			return err
 		}
+	case 8:
+		// Add file_path_rel columns for efficient exact-match queries
+		if err := s.addFilePathRelColumns(tx); err != nil {
+			return err
+		}
 	default:
 		// Run standard migration SQL
 		if m.up != "" {
@@ -251,6 +261,49 @@ func (s *Store) addNamePositionColumns(tx *sql.Tx) error {
 		}
 		if _, err := tx.Exec(`ALTER TABLE symbols ADD COLUMN name_col INT NOT NULL DEFAULT 0`); err != nil {
 			return fmt.Errorf("add name_col column: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// addFilePathRelColumns handles migration 8 - adding file_path_rel column.
+// This stores repo-relative paths for efficient exact-match queries.
+func (s *Store) addFilePathRelColumns(tx *sql.Tx) error {
+	// Check if file_path_rel column exists on symbols
+	var colCount int
+	err := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('symbols') WHERE name = 'file_path_rel'`).Scan(&colCount)
+	if err != nil {
+		return fmt.Errorf("check column existence: %w", err)
+	}
+
+	if colCount == 0 {
+		// Add column to symbols table (nullable initially for backfill compatibility)
+		if _, err := tx.Exec(`ALTER TABLE symbols ADD COLUMN file_path_rel TEXT`); err != nil {
+			return fmt.Errorf("add symbols.file_path_rel column: %w", err)
+		}
+
+		// Add index for efficient lookups
+		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_symbols_file_path_rel ON symbols(file_path_rel)`); err != nil {
+			return fmt.Errorf("add idx_symbols_file_path_rel index: %w", err)
+		}
+	}
+
+	// Check if file_path_rel column exists on refs
+	err = tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('refs') WHERE name = 'file_path_rel'`).Scan(&colCount)
+	if err != nil {
+		return fmt.Errorf("check refs column existence: %w", err)
+	}
+
+	if colCount == 0 {
+		// Add column to refs table
+		if _, err := tx.Exec(`ALTER TABLE refs ADD COLUMN file_path_rel TEXT`); err != nil {
+			return fmt.Errorf("add refs.file_path_rel column: %w", err)
+		}
+
+		// Add index for efficient lookups
+		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_refs_file_path_rel ON refs(file_path_rel)`); err != nil {
+			return fmt.Errorf("add idx_refs_file_path_rel index: %w", err)
 		}
 	}
 
