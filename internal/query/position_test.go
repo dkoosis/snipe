@@ -48,8 +48,27 @@ func TestParsePosition(t *testing.T) {
 			},
 		},
 		{
-			name:    "invalid",
-			input:   "nope",
+			name:  "absolute_unix_path",
+			input: "/Users/test/project/main.go:10:1",
+			want: PositionQuery{
+				File: "/Users/test/project/main.go",
+				Line: 10,
+				Col:  1,
+			},
+		},
+		{
+			name:    "missing_line",
+			input:   "main.go",
+			wantErr: true,
+		},
+		{
+			name:    "invalid_line_number",
+			input:   "main.go:abc",
+			wantErr: true,
+		},
+		{
+			name:    "invalid_column_number",
+			input:   "main.go:42:abc",
 			wantErr: true,
 		},
 	}
