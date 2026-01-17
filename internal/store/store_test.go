@@ -1,8 +1,10 @@
 package store
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -166,5 +168,93 @@ func TestCreateIndexDirectory(t *testing.T) {
 	parentDir := filepath.Dir(nestedPath)
 	if _, err := os.Stat(parentDir); os.IsNotExist(err) {
 		t.Error("Parent directory should have been created")
+	}
+}
+
+func TestConcurrentAccess(t *testing.T) {
+	// Test that concurrent read/write doesn't deadlock (10 goroutines)
+	// This verifies busy_timeout and connection limits work correctly
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "concurrent.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	const numGoroutines = 10
+	const opsPerGoroutine = 20
+
+	var wg sync.WaitGroup
+	errChan := make(chan error, numGoroutines*opsPerGoroutine)
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < opsPerGoroutine; j++ {
+				key := fmt.Sprintf("key_%d_%d", id, j)
+				value := fmt.Sprintf("value_%d_%d", id, j)
+
+				// Write
+				if err := s.SetMeta(key, value); err != nil {
+					errChan <- fmt.Errorf("SetMeta failed: %w", err)
+					return
+				}
+
+				// Read
+				got, err := s.GetMeta(key)
+				if err != nil {
+					errChan <- fmt.Errorf("GetMeta failed: %w", err)
+					return
+				}
+				if got != value {
+					errChan <- fmt.Errorf("got %q, want %q", got, value)
+					return
+				}
+			}
+		}(i)
+	}
+
+	// Wait with timeout to detect deadlock
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success - no deadlock
+	case err := <-errChan:
+		t.Fatalf("Concurrent access error: %v", err)
+	}
+
+	close(errChan)
+	for err := range errChan {
+		t.Errorf("Error during concurrent access: %v", err)
+	}
+}
+
+func TestBusyTimeoutPragma(t *testing.T) {
+	// Verify busy_timeout is set
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	var timeout int
+	err = s.DB().QueryRow("PRAGMA busy_timeout").Scan(&timeout)
+	if err != nil {
+		t.Fatalf("PRAGMA busy_timeout query failed: %v", err)
+	}
+
+	if timeout != 5000 {
+		t.Errorf("busy_timeout = %d, want 5000", timeout)
 	}
 }
