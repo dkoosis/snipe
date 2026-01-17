@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -100,8 +101,18 @@ func runDef(cmd *cobra.Command, args []string) error {
 		}
 		queryInfo = map[string]string{"at": defAt}
 	} else {
-		// Look up by name
+		// Check if input looks like a symbol ID (16-char hex string)
 		name := args[0]
+		if len(name) == 16 {
+			if _, err := hex.DecodeString(name); err == nil {
+				// Input is a valid hex ID, look up directly
+				symbolID = name
+				queryInfo = map[string]string{"id": name}
+				goto lookup
+			}
+		}
+
+		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
 			return w.WriteError("def", &output.Error{
@@ -133,6 +144,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 		queryInfo = map[string]string{"symbol": name}
 	}
 
+lookup:
 	// Get the symbol details
 	sym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {

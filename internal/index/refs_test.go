@@ -101,9 +101,9 @@ func TestPosKeyUniqueness(t *testing.T) {
 
 func TestBuildSymbolPosIndex(t *testing.T) {
 	symbols := []Symbol{
-		{ID: "sym1", FilePath: "/file.go", NameLine: 10, NameCol: 5},
-		{ID: "sym2", FilePath: "/file.go", NameLine: 20, NameCol: 10},
-		{ID: "sym3", FilePath: "/other.go", NameLine: 10, NameCol: 5},
+		{ID: "sym1", FilePath: "/file.go", NameLine: 10, NameCol: 5, Kind: KindFunc},
+		{ID: "sym2", FilePath: "/file.go", NameLine: 20, NameCol: 10, Kind: KindFunc},
+		{ID: "sym3", FilePath: "/other.go", NameLine: 10, NameCol: 5, Kind: KindFunc},
 	}
 
 	index := buildSymbolPosIndex(symbols)
@@ -121,14 +121,16 @@ func TestBuildSymbolPosIndex(t *testing.T) {
 		{"/file.go", 10, 6, "", false},    // wrong col
 		{"/file.go", 11, 5, "", false},    // wrong line
 		{"/missing.go", 10, 5, "", false}, // wrong file
+		// Fallback tests for col 1 (chunked loading)
+		{"/file.go", 10, 1, "sym1", true},  // fallback matches sym1
+		{"/file.go", 20, 1, "sym2", true},  // fallback matches sym2
 	}
 
 	for _, tt := range tests {
-		key := posKey(tt.file, tt.line, tt.col)
-		gotID, gotOK := index[key]
+		gotID, gotOK := index.Lookup(tt.file, tt.line, tt.col)
 		if gotID != tt.wantID || gotOK != tt.wantOK {
-			t.Errorf("index[%s] = (%q, %v), want (%q, %v)",
-				key, gotID, gotOK, tt.wantID, tt.wantOK)
+			t.Errorf("Lookup(%s, %d, %d) = (%q, %v), want (%q, %v)",
+				tt.file, tt.line, tt.col, gotID, gotOK, tt.wantID, tt.wantOK)
 		}
 	}
 }

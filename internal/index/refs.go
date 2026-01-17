@@ -75,10 +75,9 @@ func ExtractRefsWithCache(result *LoadResult, symbols []Symbol, cache *util.File
 				}
 
 				defPosInfo := result.Fset.Position(defPos)
-				defKey := posKey(defPosInfo.Filename, defPosInfo.Line, defPosInfo.Column)
 
-				// Look up the symbol ID
-				symbolID, ok := symbolByPos[defKey]
+				// Look up the symbol ID (with fallback for chunked loading)
+				symbolID, ok := symbolByPos.Lookup(defPosInfo.Filename, defPosInfo.Line, defPosInfo.Column)
 				if !ok {
 					continue // Reference to symbol not in our index (e.g., stdlib)
 				}
@@ -115,15 +114,52 @@ func ExtractRefsWithCache(result *LoadResult, symbols []Symbol, cache *util.File
 	return refs, nil
 }
 
-// buildSymbolPosIndex creates a map from position key to symbol ID
-// Uses NameLine/NameCol (identifier position) to match obj.Pos() in call graph lookups
-func buildSymbolPosIndex(symbols []Symbol) map[string]string {
-	index := make(map[string]string)
-	for _, sym := range symbols {
-		key := posKey(sym.FilePath, sym.NameLine, sym.NameCol)
-		index[key] = sym.ID
+// SymbolPosIndex provides position-based symbol lookup with fallback for chunked loading.
+// When packages are loaded in chunks, obj.Pos() may return declaration start (col 1)
+// instead of identifier position. The fallback index handles this case.
+type SymbolPosIndex struct {
+	exact    map[string]string // file:line:col -> symbol ID
+	fallback map[string]string // file:line -> symbol ID (for col 1 lookups)
+}
+
+// buildSymbolPosIndex creates a position index with exact and fallback lookups.
+func buildSymbolPosIndex(symbols []Symbol) *SymbolPosIndex {
+	idx := &SymbolPosIndex{
+		exact:    make(map[string]string),
+		fallback: make(map[string]string),
 	}
-	return index
+	for _, sym := range symbols {
+		// Exact key using identifier position
+		exactKey := posKey(sym.FilePath, sym.NameLine, sym.NameCol)
+		idx.exact[exactKey] = sym.ID
+
+		// Fallback key for declaration start (col 1) - only for funcs/methods
+		// which are the primary callees we care about
+		if sym.Kind == KindFunc || sym.Kind == KindMethod {
+			fallbackKey := posKey(sym.FilePath, sym.NameLine, 1)
+			// Don't overwrite if multiple symbols on same line
+			if _, exists := idx.fallback[fallbackKey]; !exists {
+				idx.fallback[fallbackKey] = sym.ID
+			}
+		}
+	}
+	return idx
+}
+
+// Lookup finds a symbol ID by position, trying exact match first then fallback.
+func (idx *SymbolPosIndex) Lookup(file string, line, col int) (string, bool) {
+	key := posKey(file, line, col)
+	if id, ok := idx.exact[key]; ok {
+		return id, true
+	}
+	// Fallback for chunked loading where col may be 1 (declaration start)
+	if col == 1 {
+		fallbackKey := posKey(file, line, 1)
+		if id, ok := idx.fallback[fallbackKey]; ok {
+			return id, true
+		}
+	}
+	return "", false
 }
 
 func posKey(file string, line, col int) string {
