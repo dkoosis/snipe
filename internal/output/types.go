@@ -140,12 +140,13 @@ type FileSummary struct {
 
 // Error codes
 const (
-	ErrNotFound        = "NOT_FOUND"
-	ErrAmbiguousSymbol = "AMBIGUOUS_SYMBOL"
-	ErrMissingIndex    = "MISSING_INDEX"
-	ErrStaleIndex      = "STALE_INDEX"
-	ErrRgNotFound      = "RG_NOT_FOUND"
-	ErrInternal        = "INTERNAL_ERROR"
+	ErrNotFound         = "NOT_FOUND"
+	ErrAmbiguousSymbol  = "AMBIGUOUS_SYMBOL"
+	ErrMissingIndex     = "MISSING_INDEX"
+	ErrIndexInProgress  = "INDEX_IN_PROGRESS"
+	ErrStaleIndex       = "STALE_INDEX"
+	ErrRgNotFound       = "RG_NOT_FOUND"
+	ErrInternal         = "INTERNAL_ERROR"
 )
 
 // NewNotFoundError creates a NOT_FOUND error with optional similar symbol suggestions.
@@ -195,6 +196,14 @@ func NewMissingIndexError() *Error {
 		Code:    ErrMissingIndex,
 		Message: "No index found. Run: snipe index",
 		Next:    &NextAction{Command: "snipe index"},
+	}
+}
+
+// NewIndexInProgressError creates an INDEX_IN_PROGRESS error
+func NewIndexInProgressError() *Error {
+	return &Error{
+		Code:    ErrIndexInProgress,
+		Message: "Indexing in progress. Wait for 'snipe index' to complete, then retry.",
 	}
 }
 

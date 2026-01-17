@@ -52,6 +52,9 @@ func runCallers(cmd *cobra.Command, args []string) error {
 	}
 
 	dbPath := store.DefaultIndexPath(dir)
+	if store.IsIndexing(dbPath) {
+		return w.WriteError("callers", output.NewIndexInProgressError())
+	}
 	if !store.Exists(dbPath) {
 		return w.WriteError("callers", output.NewMissingIndexError())
 	}

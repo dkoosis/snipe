@@ -97,3 +97,33 @@ func Exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+
+// LockPath returns the lock file path for an index
+func LockPath(dbPath string) string {
+	return dbPath + ".lock"
+}
+
+// IsIndexing checks if indexing is in progress (lock file exists)
+func IsIndexing(dbPath string) bool {
+	_, err := os.Stat(LockPath(dbPath))
+	return err == nil
+}
+
+// AcquireLock creates a lock file for indexing
+func AcquireLock(dbPath string) error {
+	lockPath := LockPath(dbPath)
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0755); err != nil {
+		return fmt.Errorf("create lock directory: %w", err)
+	}
+	f, err := os.Create(lockPath)
+	if err != nil {
+		return fmt.Errorf("create lock file: %w", err)
+	}
+	return f.Close()
+}
+
+// ReleaseLock removes the lock file
+func ReleaseLock(dbPath string) error {
+	return os.Remove(LockPath(dbPath))
+}

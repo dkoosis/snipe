@@ -60,6 +60,9 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	}
 
 	dbPath := store.DefaultIndexPath(dir)
+	if store.IsIndexing(dbPath) {
+		return w.WriteError("refs", output.NewIndexInProgressError())
+	}
 	if !store.Exists(dbPath) {
 		return w.WriteError("refs", output.NewMissingIndexError())
 	}

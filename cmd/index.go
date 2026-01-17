@@ -50,6 +50,13 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	_, human, _, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human)
 
+	// Acquire lock to signal indexing in progress
+	dbPath := store.DefaultIndexPath(absDir)
+	if err := store.AcquireLock(dbPath); err != nil {
+		return fmt.Errorf("acquire lock: %w", err)
+	}
+	defer store.ReleaseLock(dbPath) // Always release on exit
+
 	// Compute fingerprint
 	fp, err := index.ComputeFingerprint(absDir, Version)
 	if err != nil {
@@ -57,7 +64,6 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 
 	// Open or create store
-	dbPath := store.DefaultIndexPath(absDir)
 	s, err := store.Open(dbPath)
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)

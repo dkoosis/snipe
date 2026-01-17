@@ -60,6 +60,9 @@ func runShow(cmd *cobra.Command, args []string) error {
 	}
 
 	dbPath := store.DefaultIndexPath(dir)
+	if store.IsIndexing(dbPath) {
+		return w.WriteError("show", output.NewIndexInProgressError())
+	}
 	if !store.Exists(dbPath) {
 		return w.WriteError("show", output.NewMissingIndexError())
 	}
