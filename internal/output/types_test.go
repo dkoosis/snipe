@@ -2,6 +2,7 @@ package output
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -316,4 +317,149 @@ func TestEstimateResultTokens(t *testing.T) {
 	if tokensWithBody <= tokens {
 		t.Errorf("tokens with body (%d) should be greater than without (%d)", tokensWithBody, tokens)
 	}
+}
+
+func TestTruncateBodySemantic(t *testing.T) {
+	t.Run("no truncation needed", func(t *testing.T) {
+		result := Result{Body: "line1\nline2\nline3"}
+		truncated := TruncateBodySemantic(&result, 5)
+		if truncated {
+			t.Error("should not truncate when lines fit")
+		}
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		result := Result{Body: ""}
+		truncated := TruncateBodySemantic(&result, 5)
+		if truncated {
+			t.Error("should not truncate empty body")
+		}
+	})
+
+	t.Run("truncate at statement boundary", func(t *testing.T) {
+		body := `func foo() {
+	x := 1;
+	y := 2;
+	z := 3;
+	return x + y + z;
+}`
+		result := Result{Body: body}
+		truncated := TruncateBodySemantic(&result, 4)
+		if !truncated {
+			t.Error("should truncate")
+		}
+		if !strings.Contains(result.Body, "// ... truncated") {
+			t.Error("should contain truncation marker")
+		}
+		// Should end at a statement boundary (semicolon)
+		lines := strings.Split(result.Body, "\n")
+		lastContentLine := ""
+		for i := len(lines) - 1; i >= 0; i-- {
+			if !strings.Contains(lines[i], "truncated") && strings.TrimSpace(lines[i]) != "" {
+				lastContentLine = strings.TrimSpace(lines[i])
+				break
+			}
+		}
+		if !strings.HasSuffix(lastContentLine, ";") && !strings.HasSuffix(lastContentLine, "{") {
+			t.Errorf("should end at statement boundary, got %q", lastContentLine)
+		}
+	})
+
+	t.Run("truncate at closing brace", func(t *testing.T) {
+		body := `func foo() {
+	if x > 0 {
+		return x
+	}
+	return 0
+}`
+		result := Result{Body: body}
+		truncated := TruncateBodySemantic(&result, 5)
+		if !truncated {
+			t.Error("should truncate")
+		}
+	})
+}
+
+func TestFindSemanticBoundary(t *testing.T) {
+	tests := []struct {
+		name     string
+		lines    []string
+		maxLines int
+		want     int
+	}{
+		{
+			name:     "statement with semicolon",
+			lines:    []string{"x := 1;", "y := 2;", "z := 3;"},
+			maxLines: 2,
+			want:     2,
+		},
+		{
+			name:     "closing brace",
+			lines:    []string{"if x {", "  return", "}", "next"},
+			maxLines: 3,
+			want:     3,
+		},
+		{
+			name:     "opening brace",
+			lines:    []string{"func foo() {", "  x := 1", "  return x"},
+			maxLines: 2,
+			want:     1,
+		},
+		{
+			name:     "no good boundary",
+			lines:    []string{"partial", "statement", "here"},
+			maxLines: 2,
+			want:     0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findSemanticBoundary(tt.lines, tt.maxLines)
+			if got != tt.want {
+				t.Errorf("findSemanticBoundary() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTruncateResultsSemantic(t *testing.T) {
+	results := []Result{
+		{Name: "foo", File: "a.go", Match: "func foo()", Body: "func foo() {\n\treturn\n}"},
+		{Name: "bar", File: "b.go", Match: "func bar()", Body: "func bar() {\n\treturn\n}"},
+		{Name: "baz", File: "c.go", Match: "func baz()"},
+	}
+
+	t.Run("zero budget returns all", func(t *testing.T) {
+		got, truncated, _ := TruncateResultsSemantic(results, 0, 10)
+		if truncated {
+			t.Error("should not truncate with zero budget")
+		}
+		if len(got) != len(results) {
+			t.Errorf("got %d results, want %d", len(got), len(results))
+		}
+	})
+
+	t.Run("large budget keeps all", func(t *testing.T) {
+		got, truncated, tokens := TruncateResultsSemantic(results, 10000, 10)
+		if truncated {
+			t.Error("should not truncate with large budget")
+		}
+		if len(got) != len(results) {
+			t.Errorf("got %d results, want %d", len(got), len(results))
+		}
+		if tokens == 0 {
+			t.Error("tokens should be non-zero")
+		}
+	})
+
+	t.Run("small budget truncates", func(t *testing.T) {
+		got, truncated, _ := TruncateResultsSemantic(results, 300, 5)
+		if !truncated {
+			t.Error("should truncate with small budget")
+		}
+		if len(got) == 0 {
+			t.Error("should return at least one result")
+		}
+	})
 }
