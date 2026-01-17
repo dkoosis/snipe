@@ -135,6 +135,61 @@ func EstimateTokens(s string) int {
 	return (len(s) + 3) / 4
 }
 
+// EstimateResultTokens estimates token count for a single result.
+func EstimateResultTokens(r *Result) int {
+	tokens := EstimateTokens(r.Name)
+	tokens += EstimateTokens(r.File)
+	tokens += EstimateTokens(r.Match)
+	if r.Body != "" {
+		tokens += EstimateTokens(r.Body)
+	}
+	if r.Context != nil {
+		for _, line := range r.Context.Before {
+			tokens += EstimateTokens(line)
+		}
+		for _, line := range r.Context.After {
+			tokens += EstimateTokens(line)
+		}
+	}
+	if r.Enclosing != nil {
+		tokens += EstimateTokens(r.Enclosing.Signature)
+	}
+	// Add overhead for JSON structure (~50 tokens per result)
+	tokens += 50
+	return tokens
+}
+
+// TruncateToTokenBudget truncates results to fit within a token budget.
+// Returns the truncated slice and whether truncation occurred.
+// If maxTokens is 0, returns the original slice unchanged.
+func TruncateToTokenBudget(results []Result, maxTokens int) ([]Result, bool) {
+	if maxTokens <= 0 {
+		return results, false
+	}
+
+	// Reserve tokens for response wrapper (meta, error fields, etc.)
+	const overhead = 200
+	budget := maxTokens - overhead
+	if budget <= 0 {
+		return nil, len(results) > 0
+	}
+
+	var truncated []Result
+	totalTokens := 0
+
+	for i := range results {
+		resultTokens := EstimateResultTokens(&results[i])
+		if totalTokens+resultTokens > budget && len(truncated) > 0 {
+			// Would exceed budget and we have at least one result
+			return truncated, true
+		}
+		totalTokens += resultTokens
+		truncated = append(truncated, results[i])
+	}
+
+	return truncated, false
+}
+
 // FormatEditTarget formats a range as an edit target string.
 // If hash is non-empty, appends it for change detection: file:L:C-L:C@hash
 func FormatEditTarget(file string, r Range, hash string) string {

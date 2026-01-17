@@ -217,3 +217,76 @@ func TestAmbiguousSymbolDeterminism(t *testing.T) {
 		t.Error("NewAmbiguousError should produce deterministic output")
 	}
 }
+
+func TestTruncateToTokenBudget(t *testing.T) {
+	// Create test results
+	results := []Result{
+		{Name: "foo", File: "a.go", Match: "func foo()"},
+		{Name: "bar", File: "b.go", Match: "func bar()"},
+		{Name: "baz", File: "c.go", Match: "func baz()"},
+	}
+
+	t.Run("zero budget means no truncation", func(t *testing.T) {
+		got, truncated := TruncateToTokenBudget(results, 0)
+		if truncated {
+			t.Error("should not be truncated with 0 budget")
+		}
+		if len(got) != len(results) {
+			t.Errorf("got %d results, want %d", len(got), len(results))
+		}
+	})
+
+	t.Run("large budget keeps all results", func(t *testing.T) {
+		got, truncated := TruncateToTokenBudget(results, 10000)
+		if truncated {
+			t.Error("should not be truncated with large budget")
+		}
+		if len(got) != len(results) {
+			t.Errorf("got %d results, want %d", len(got), len(results))
+		}
+	})
+
+	t.Run("small budget truncates results", func(t *testing.T) {
+		// Very small budget should still return at least one result
+		got, truncated := TruncateToTokenBudget(results, 300)
+		if !truncated {
+			t.Error("should be truncated with small budget")
+		}
+		if len(got) == 0 {
+			t.Error("should return at least one result")
+		}
+		if len(got) >= len(results) {
+			t.Error("should have fewer results than input")
+		}
+	})
+
+	t.Run("empty input returns empty", func(t *testing.T) {
+		got, truncated := TruncateToTokenBudget(nil, 1000)
+		if truncated {
+			t.Error("should not be truncated with empty input")
+		}
+		if len(got) != 0 {
+			t.Error("should return empty slice")
+		}
+	})
+}
+
+func TestEstimateResultTokens(t *testing.T) {
+	result := Result{
+		Name:  "ProcessOrder",
+		File:  "order/handler.go",
+		Match: "func ProcessOrder(ctx context.Context, order *Order) error",
+	}
+
+	tokens := EstimateResultTokens(&result)
+	if tokens < 50 {
+		t.Errorf("tokens = %d, expected at least 50 (includes overhead)", tokens)
+	}
+
+	// Adding body should increase token count
+	result.Body = "func ProcessOrder(ctx context.Context, order *Order) error {\n\treturn nil\n}"
+	tokensWithBody := EstimateResultTokens(&result)
+	if tokensWithBody <= tokens {
+		t.Errorf("tokens with body (%d) should be greater than without (%d)", tokensWithBody, tokens)
+	}
+}

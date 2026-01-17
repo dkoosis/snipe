@@ -170,6 +170,13 @@ func runSim(cmd *cobra.Command, args []string) error {
 
 	degraded = uniqueStrings(degraded)
 
+	// Apply token budget truncation if specified
+	maxTok := GetMaxTokens()
+	tokenTruncated := false
+	if maxTok > 0 {
+		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+	}
+
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
@@ -190,6 +197,12 @@ func runSim(cmd *cobra.Command, args []string) error {
 		return w.WriteResponse(summaryResp)
 	}
 
+	// Recalculate token estimate after truncation
+	tokenEstimate = 0
+	for i := range results {
+		tokenEstimate += output.EstimateResultTokens(&results[i])
+	}
+
 	resp := output.Response[output.Result]{
 		Results: results,
 		Meta: output.Meta{
@@ -202,7 +215,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 			Total:         len(results),
 			Offset:        off,
 			Limit:         lim,
-			Truncated:     len(matches) >= lim,
+			Truncated:     len(matches) >= lim || tokenTruncated,
 			TokenEstimate: tokenEstimate,
 		},
 	}
