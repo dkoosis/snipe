@@ -351,7 +351,6 @@ func TestTruncateBodySemantic(t *testing.T) {
 		if !strings.Contains(result.Body, "// ... truncated") {
 			t.Error("should contain truncation marker")
 		}
-		// Should end at a statement boundary (semicolon)
 		lines := strings.Split(result.Body, "\n")
 		lastContentLine := ""
 		for i := len(lines) - 1; i >= 0; i-- {
@@ -476,7 +475,7 @@ func TestScoreResult(t *testing.T) {
 			name:     "exact match exported function",
 			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
 			query:    "ProcessOrder",
-			minScore: 140, // 100 (exact) + 30 (func) + 20 (exported) - path penalty
+			minScore: 140,
 			maxScore: 160,
 		},
 		{
@@ -490,28 +489,28 @@ func TestScoreResult(t *testing.T) {
 			name:     "prefix match",
 			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
 			query:    "Process",
-			minScore: 90, // 50 (prefix) + 30 (func) + 20 (exported)
+			minScore: 90,
 			maxScore: 110,
 		},
 		{
 			name:     "contains match",
 			result:   Result{Name: "ProcessOrder", Kind: "func", File: "a.go"},
 			query:    "Order",
-			minScore: 65, // 25 (contains) + 30 (func) + 20 (exported)
+			minScore: 65,
 			maxScore: 85,
 		},
 		{
 			name:     "unexported lower score",
 			result:   Result{Name: "processOrder", Kind: "func", File: "a.go"},
 			query:    "processOrder",
-			minScore: 120, // 100 (exact) + 30 (func) + 0 (unexported)
+			minScore: 120,
 			maxScore: 140,
 		},
 		{
 			name:     "reference kind lower score",
 			result:   Result{Name: "ProcessOrder", Kind: "ref", File: "a.go"},
 			query:    "ProcessOrder",
-			minScore: 110, // 100 (exact) + 0 (ref) + 20 (exported)
+			minScore: 110,
 			maxScore: 130,
 		},
 	}
@@ -543,27 +542,199 @@ func TestSortByScore(t *testing.T) {
 
 func TestScoreAndSort(t *testing.T) {
 	results := []Result{
-		{Name: "handler", Kind: "func", File: "a.go"},       // contains match
-		{Name: "HandleRequest", Kind: "func", File: "b.go"}, // prefix match
-		{Name: "handle", Kind: "func", File: "c.go"},        // exact match
+		{Name: "handler", Kind: "func", File: "a.go"},
+		{Name: "HandleRequest", Kind: "func", File: "b.go"},
+		{Name: "handle", Kind: "func", File: "c.go"},
 	}
 
 	ScoreAndSort(results, "handle")
 
-	// Exact match should be first
 	if results[0].Name != "handle" {
 		t.Errorf("first result should be exact match 'handle', got %q", results[0].Name)
 	}
 
-	// Prefix match should be second
 	if results[1].Name != "HandleRequest" {
 		t.Errorf("second result should be prefix match 'HandleRequest', got %q", results[1].Name)
 	}
 
-	// All should have non-zero scores
 	for i, r := range results {
 		if r.Score == 0 {
 			t.Errorf("result[%d] should have non-zero score", i)
 		}
+	}
+}
+
+func TestSuggestionsForDef(t *testing.T) {
+	t.Run("nil result", func(t *testing.T) {
+		suggestions := SuggestionsForDef(nil)
+		if suggestions != nil {
+			t.Error("should return nil for nil result")
+		}
+	})
+
+	t.Run("function result", func(t *testing.T) {
+		result := &Result{Name: "ProcessOrder", Kind: "func"}
+		suggestions := SuggestionsForDef(result)
+
+		if len(suggestions) < 3 {
+			t.Errorf("expected at least 3 suggestions for func, got %d", len(suggestions))
+		}
+
+		// Should include refs, callers, callees suggestions
+		hasRefs := false
+		hasCallers := false
+		hasCallees := false
+		for _, s := range suggestions {
+			if strings.Contains(s.Command, "refs") {
+				hasRefs = true
+			}
+			if strings.Contains(s.Command, "callers") {
+				hasCallers = true
+			}
+			if strings.Contains(s.Command, "callees") {
+				hasCallees = true
+			}
+		}
+		if !hasRefs {
+			t.Error("should suggest refs command")
+		}
+		if !hasCallers {
+			t.Error("should suggest callers command for func")
+		}
+		if !hasCallees {
+			t.Error("should suggest callees command for func")
+		}
+	})
+
+	t.Run("type result", func(t *testing.T) {
+		result := &Result{Name: "Config", Kind: "type"}
+		suggestions := SuggestionsForDef(result)
+
+		// Should only suggest refs, not callers/callees
+		if len(suggestions) != 1 {
+			t.Errorf("expected 1 suggestion for type, got %d", len(suggestions))
+		}
+	})
+}
+
+func TestSuggestionsForRefs(t *testing.T) {
+	t.Run("few results", func(t *testing.T) {
+		suggestions := SuggestionsForRefs("foo", 5)
+		if len(suggestions) < 1 {
+			t.Error("should have at least one suggestion")
+		}
+	})
+
+	t.Run("many results", func(t *testing.T) {
+		suggestions := SuggestionsForRefs("foo", 50)
+		hasSummary := false
+		for _, s := range suggestions {
+			if strings.Contains(s.Command, "--summary") {
+				hasSummary = true
+			}
+		}
+		if !hasSummary {
+			t.Error("should suggest summary for many results")
+		}
+	})
+}
+
+func TestSuggestionsForSearch(t *testing.T) {
+	t.Run("no results", func(t *testing.T) {
+		suggestions := SuggestionsForSearch("pattern", 0)
+		if len(suggestions) == 0 {
+			t.Error("should suggest alternatives when no results")
+		}
+	})
+
+	t.Run("many results", func(t *testing.T) {
+		suggestions := SuggestionsForSearch("TODO", 50)
+		hasSummary := false
+		for _, s := range suggestions {
+			if strings.Contains(s.Command, "--summary") {
+				hasSummary = true
+			}
+		}
+		if !hasSummary {
+			t.Error("should suggest summary for many results")
+		}
+	})
+}
+
+func TestSuggestionsForAmbiguous(t *testing.T) {
+	t.Run("empty candidates", func(t *testing.T) {
+		suggestions := SuggestionsForAmbiguous(nil)
+		if suggestions != nil {
+			t.Error("should return nil for empty candidates")
+		}
+	})
+
+	t.Run("multiple candidates", func(t *testing.T) {
+		candidates := []Candidate{
+			{Name: "Config", File: "a/config.go", Kind: "type"},
+			{Name: "Config", File: "b/config.go", Kind: "type"},
+		}
+		suggestions := SuggestionsForAmbiguous(candidates)
+
+		if len(suggestions) != 2 {
+			t.Errorf("expected 2 suggestions, got %d", len(suggestions))
+		}
+
+		for _, s := range suggestions {
+			if !strings.Contains(s.Command, "--at") {
+				t.Error("suggestions should use --at flag")
+			}
+		}
+	})
+
+	t.Run("limits to 3 suggestions", func(t *testing.T) {
+		candidates := []Candidate{
+			{Name: "Config", File: "a/config.go", Kind: "type"},
+			{Name: "Config", File: "b/config.go", Kind: "type"},
+			{Name: "Config", File: "c/config.go", Kind: "type"},
+			{Name: "Config", File: "d/config.go", Kind: "type"},
+			{Name: "Config", File: "e/config.go", Kind: "type"},
+		}
+		suggestions := SuggestionsForAmbiguous(candidates)
+
+		if len(suggestions) > 3 {
+			t.Errorf("should limit to 3 suggestions, got %d", len(suggestions))
+		}
+	})
+}
+
+func TestSuggestionJSONFormat(t *testing.T) {
+	resp := Response[Result]{
+		Results: []Result{{Name: "foo", Kind: "func", File: "a.go"}},
+		Meta:    Meta{Command: "def"},
+		Suggestions: []Suggestion{
+			{Command: "snipe refs foo", Description: "Find usages", Priority: 1},
+		},
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	suggestions, ok := parsed["suggestions"].([]interface{})
+	if !ok {
+		t.Fatal("suggestions should be an array")
+	}
+	if len(suggestions) != 1 {
+		t.Errorf("expected 1 suggestion, got %d", len(suggestions))
+	}
+
+	s := suggestions[0].(map[string]interface{})
+	if s["command"] != "snipe refs foo" {
+		t.Errorf("command = %v, want 'snipe refs foo'", s["command"])
+	}
+	if s["description"] != "Find usages" {
+		t.Errorf("description = %v, want 'Find usages'", s["description"])
 	}
 }
