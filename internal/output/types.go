@@ -2,9 +2,18 @@ package output
 
 // Response is the top-level response structure for all commands
 type Response[T any] struct {
-	Results []T    `json:"results"`
-	Meta    Meta   `json:"meta"`
-	Error   *Error `json:"error"`
+	Results     []T          `json:"results"`
+	Meta        Meta         `json:"meta"`
+	Error       *Error       `json:"error"`
+	Suggestions []Suggestion `json:"suggestions,omitempty"`
+}
+
+// Suggestion provides actionable next steps for LLM consumers
+type Suggestion struct {
+	Command     string `json:"command"`               // The suggested snipe command
+	Description string `json:"description"`           // Why this command might be useful
+	Priority    int    `json:"priority,omitempty"`    // 1=high, 2=medium, 3=low
+	Condition   string `json:"condition,omitempty"`   // When this suggestion applies
 }
 
 // Meta contains metadata about the query execution
@@ -150,4 +159,120 @@ func NewMissingIndexError() *Error {
 		Message: "No index found. Run: snipe index",
 		Next:    &NextAction{Command: "snipe index"},
 	}
+}
+
+// SuggestionsForDef generates suggestions after a def command
+func SuggestionsForDef(result *Result) []Suggestion {
+	if result == nil {
+		return nil
+	}
+
+	suggestions := []Suggestion{
+		{
+			Command:     "snipe refs " + result.Name,
+			Description: "Find all usages of this symbol",
+			Priority:    1,
+		},
+	}
+
+	// If it's a function/method, suggest callers
+	if result.Kind == "func" || result.Kind == "method" {
+		suggestions = append(suggestions, Suggestion{
+			Command:     "snipe callers " + result.Name,
+			Description: "Find functions that call this",
+			Priority:    2,
+		})
+		suggestions = append(suggestions, Suggestion{
+			Command:     "snipe callees " + result.Name,
+			Description: "Find functions called by this",
+			Priority:    2,
+		})
+	}
+
+	return suggestions
+}
+
+// SuggestionsForRefs generates suggestions after a refs command
+func SuggestionsForRefs(symbol string, resultCount int) []Suggestion {
+	suggestions := []Suggestion{
+		{
+			Command:     "snipe def " + symbol,
+			Description: "Jump to the definition",
+			Priority:    1,
+		},
+	}
+
+	if resultCount > 10 {
+		suggestions = append(suggestions, Suggestion{
+			Command:     "snipe refs " + symbol + " --summary",
+			Description: "Get summary grouped by file",
+			Priority:    2,
+			Condition:   "many results",
+		})
+	}
+
+	return suggestions
+}
+
+// SuggestionsForSearch generates suggestions after a search command
+func SuggestionsForSearch(pattern string, resultCount int) []Suggestion {
+	var suggestions []Suggestion
+
+	if resultCount == 0 {
+		suggestions = append(suggestions, Suggestion{
+			Command:     "snipe search \"" + pattern + "\" --context 5",
+			Description: "Try with more context lines",
+			Priority:    2,
+		})
+	}
+
+	if resultCount > 20 {
+		suggestions = append(suggestions, Suggestion{
+			Command:     "snipe search \"" + pattern + "\" --summary",
+			Description: "Get summary grouped by file",
+			Priority:    2,
+			Condition:   "many results",
+		})
+	}
+
+	return suggestions
+}
+
+// SuggestionsForCallers generates suggestions after a callers command
+func SuggestionsForCallers(symbol string, resultCount int) []Suggestion {
+	suggestions := []Suggestion{
+		{
+			Command:     "snipe def " + symbol,
+			Description: "View the function definition",
+			Priority:    1,
+		},
+		{
+			Command:     "snipe callees " + symbol,
+			Description: "See what this function calls",
+			Priority:    2,
+		},
+	}
+
+	return suggestions
+}
+
+// SuggestionsForAmbiguous generates suggestions when symbol is ambiguous
+func SuggestionsForAmbiguous(candidates []Candidate) []Suggestion {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	suggestions := make([]Suggestion, 0, len(candidates))
+	for i, c := range candidates {
+		if i >= 3 {
+			break // Limit to 3 suggestions
+		}
+		suggestions = append(suggestions, Suggestion{
+			Command:     "snipe def --at " + c.File + ":1:1",
+			Description: "Use position to specify " + c.Name + " in " + c.File,
+			Priority:    1,
+		})
+	}
+
+	return suggestions
 }
