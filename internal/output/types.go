@@ -38,6 +38,7 @@ const (
 	IndexFresh   IndexState = "fresh"
 	IndexStale   IndexState = "stale"
 	IndexMissing IndexState = "missing"
+	IndexNotUsed IndexState = "not_used"
 )
 
 // Error represents an error response
@@ -59,23 +60,24 @@ type Candidate struct {
 	Name string `json:"name"`
 	File string `json:"file"`
 	Kind string `json:"kind"`
+	Doc  string `json:"doc,omitempty"`
 }
 
 // Result represents a single navigation result
 type Result struct {
 	ID         string     `json:"id"`
-	File       string     `json:"file"`                // Relative path (for output)
-	FileAbs    string     `json:"-"`                   // Absolute path (for file operations, not exported)
+	File       string     `json:"file"`                  // Relative path (for output)
+	FileAbs    string     `json:"-"`                     // Absolute path (for file operations, not exported)
 	Range      Range      `json:"range"`
-	Kind       string     `json:"kind"`
-	Name       string     `json:"name"`
-	Match      string     `json:"match"`
+	Kind       string     `json:"kind,omitempty"`
+	Name       string     `json:"name,omitempty"`
+	Match      string     `json:"match,omitempty"`
 	Body       string     `json:"body,omitempty"`
 	Score      float64    `json:"score,omitempty"`
 	Enclosing  *Enclosing `json:"enclosing,omitempty"`
 	Context    *Context   `json:"context,omitempty"`
 	Siblings   []Sibling  `json:"siblings,omitempty"`
-	EditTarget string     `json:"edit_target"`
+	EditTarget string     `json:"edit_target,omitempty"`
 }
 
 // Sibling represents another declaration of the same kind in the same file
@@ -136,12 +138,36 @@ const (
 	ErrInternal        = "INTERNAL_ERROR"
 )
 
-// NewNotFoundError creates a NOT_FOUND error
-func NewNotFoundError(symbol string) *Error {
+// NewNotFoundError creates a NOT_FOUND error with optional similar symbol suggestions.
+func NewNotFoundError(symbol string, suggestions ...string) *Error {
+	msg := "Symbol not found: " + symbol
+	if len(suggestions) > 0 {
+		msg += ". Did you mean: " + joinSuggestions(suggestions)
+	}
 	return &Error{
 		Code:    ErrNotFound,
-		Message: "Symbol not found: " + symbol,
+		Message: msg,
 	}
+}
+
+// joinSuggestions formats a list of suggestions for display.
+func joinSuggestions(suggestions []string) string {
+	if len(suggestions) == 0 {
+		return ""
+	}
+	if len(suggestions) == 1 {
+		return suggestions[0] + "?"
+	}
+	// Join all but the last with commas, then add "or" before the last
+	result := ""
+	for i, s := range suggestions[:len(suggestions)-1] {
+		if i > 0 {
+			result += ", "
+		}
+		result += s
+	}
+	result += ", or " + suggestions[len(suggestions)-1] + "?"
+	return result
 }
 
 // NewAmbiguousError creates an AMBIGUOUS_SYMBOL error

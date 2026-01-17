@@ -163,6 +163,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			FileAbs:    ref.FilePath,
 			Range:      refRange,
 			Kind:       "ref",
+			Name:       symbolName,
 			Match:      ref.Snippet,
 			EditTarget: output.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
 		}
