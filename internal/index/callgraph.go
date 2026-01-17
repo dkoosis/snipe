@@ -16,7 +16,9 @@ type CallEdge struct {
 	Col      int
 }
 
-// ExtractCallGraph extracts the static call graph from loaded packages
+// ExtractCallGraph extracts the static call graph from loaded packages.
+// Uses an optimized approach: single AST pass with function stack tracking
+// for O(1) enclosing function lookup per call.
 func ExtractCallGraph(result *LoadResult, symbols []Symbol) ([]CallEdge, error) {
 	// Build symbol lookup by definition position
 	symbolByPos := buildSymbolPosIndex(symbols)
@@ -34,30 +36,72 @@ func ExtractCallGraph(result *LoadResult, symbols []Symbol) ([]CallEdge, error) 
 			}
 			filePath := pkg.GoFiles[i]
 
-			// Build enclosing function map for this file
-			enclosingMap := buildEnclosingMap(file, filePath, result.Fset)
-
-			// Walk AST looking for call expressions
-			ast.Inspect(file, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-
-				edge := extractCallEdge(pkg, call, filePath, result.Fset, symbolByPos, enclosingMap)
-				if edge != nil {
-					edges = append(edges, *edge)
-				}
-
-				return true
-			})
+			// Extract call edges using AST walker with function stack tracking.
+			// This avoids the separate buildEnclosingMap + findEnclosing passes.
+			fileEdges := extractCallEdgesWithStack(pkg, file, filePath, result.Fset, symbolByPos)
+			edges = append(edges, fileEdges...)
 		}
 	}
 
 	return edges, nil
 }
 
-func extractCallEdge(pkg *packages.Package, call *ast.CallExpr, filePath string, fset *token.FileSet, symbolByPos map[string]string, enclosingMap []enclosingFunc) *CallEdge {
+// extractCallEdgesWithStack extracts all call edges from a file using a single AST pass.
+// Maintains a function stack to track the current enclosing function for O(1) lookup.
+func extractCallEdgesWithStack(pkg *packages.Package, file *ast.File, filePath string, fset *token.FileSet, symbolByPos map[string]string) []CallEdge {
+	var edges []CallEdge
+	var funcStack []string // Stack of enclosing function IDs
+
+	var inspector func(n ast.Node) bool
+	inspector = func(n ast.Node) bool {
+		if n == nil {
+			return true
+		}
+
+		switch node := n.(type) {
+		case *ast.FuncDecl:
+			if node.Body == nil || node.Name == nil {
+				return true
+			}
+			// Compute function ID
+			namePos := fset.Position(node.Name.Pos())
+			kind := KindFunc
+			if node.Recv != nil {
+				kind = KindMethod
+			}
+			funcID := generateID(filePath, namePos.Line, namePos.Column, string(kind))
+
+			// Push onto stack, traverse body, pop
+			funcStack = append(funcStack, funcID)
+			ast.Inspect(node.Body, inspector)
+			funcStack = funcStack[:len(funcStack)-1]
+
+			return false // Already handled children
+
+		case *ast.CallExpr:
+			// Extract call edge with current enclosing function
+			edge := extractCallEdgeFromExpr(pkg, node, filePath, fset, symbolByPos, funcStack)
+			if edge != nil {
+				edges = append(edges, *edge)
+			}
+		}
+
+		return true
+	}
+
+	ast.Inspect(file, inspector)
+	return edges
+}
+
+// extractCallEdgeFromExpr extracts a call edge from a call expression.
+// Uses the function stack for O(1) enclosing function lookup.
+func extractCallEdgeFromExpr(pkg *packages.Package, call *ast.CallExpr, filePath string, fset *token.FileSet, symbolByPos map[string]string, funcStack []string) *CallEdge {
+	// Get current enclosing function (caller)
+	if len(funcStack) == 0 {
+		return nil // Call not inside a function (e.g., init expression)
+	}
+	callerID := funcStack[len(funcStack)-1]
+
 	// Get the callee identifier
 	var calleeIdent *ast.Ident
 
@@ -102,12 +146,6 @@ func extractCallEdge(pkg *packages.Package, call *ast.CallExpr, filePath string,
 
 	// Get call position
 	callPos := fset.Position(call.Pos())
-
-	// Find the enclosing function (caller)
-	callerID := findEnclosing(call.Pos(), enclosingMap)
-	if callerID == "" {
-		return nil // Call not inside a function (e.g., init expression)
-	}
 
 	return &CallEdge{
 		CallerID: callerID,
