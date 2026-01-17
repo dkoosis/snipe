@@ -46,6 +46,17 @@ snipe show --id abc123         # Expand previous result
         └─────────────────┘
 ```
 
+## SQLite durability and maintenance notes
+
+The index database is opened with WAL and `synchronous=NORMAL` to balance
+durability and latency for short-lived indexing and query workloads. If you
+need maximum durability (e.g., running in environments with frequent power
+loss), consider profiling with `synchronous=FULL` before changing defaults,
+as it can materially increase write latency. Use `ANALYZE` after large schema
+changes or bulk reindexing to refresh SQLite statistics. Periodic `VACUUM`
+is only recommended if you observe unbounded database growth after deletes,
+since it rewrites the entire file and can be I/O intensive.
+
 ## Output Example
 
 ```json
