@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dkoosis/snipe/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +18,9 @@ var (
 	withBody     bool
 	withSiblings bool
 	summaryOnly  bool
+
+	// loadedConfig holds the merged config (loaded lazily)
+	loadedConfig *config.Config
 )
 
 var rootCmd = &cobra.Command{
@@ -24,6 +28,28 @@ var rootCmd = &cobra.Command{
 	Short: "Code navigation CLI for LLMs",
 	Long: `snipe provides fast, deterministic code navigation optimized for LLM consumption.
 JSON-first output, position-addressed queries, static indexing for speed.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Load config and apply defaults if flags weren't explicitly set
+		cwd, err := os.Getwd()
+		if err != nil {
+			cwd = ""
+		}
+		cfg, err := config.Load(cwd)
+		if err != nil {
+			return fmt.Errorf("load config: %w", err)
+		}
+		loadedConfig = cfg
+
+		// Apply config defaults only if flags weren't explicitly set
+		if !cmd.Flags().Changed("limit") && cfg.Limit > 0 {
+			limit = cfg.Limit
+		}
+		if !cmd.Flags().Changed("context") && cfg.ContextLines > 0 {
+			contextLines = cfg.ContextLines
+		}
+
+		return nil
+	},
 }
 
 func Execute() {
@@ -63,4 +89,12 @@ func uniqueStrings(ss []string) []string {
 		}
 	}
 	return result
+}
+
+// GetConfig returns the loaded configuration.
+func GetConfig() *config.Config {
+	if loadedConfig == nil {
+		return config.DefaultConfig()
+	}
+	return loadedConfig
 }
