@@ -158,7 +158,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			Range:      refRange,
 			Kind:       "ref",
 			Match:      ref.Snippet,
-			EditTarget: output.FormatEditTarget(ref.FilePath, refRange, ref.FileHash),
+			EditTarget: output.FormatEditTargetWithHash(ref.FilePath, refRange),
 		}
 
 		// Add enclosing info if available

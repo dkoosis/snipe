@@ -228,7 +228,7 @@ func (s *SymbolRow) ToResult() output.Result {
 		Kind:       s.Kind,
 		Name:       s.Name,
 		Match:      s.Signature.String,
-		EditTarget: output.FormatEditTarget(s.FilePath, r, s.FileHash),
+		EditTarget: output.FormatEditTargetWithHash(s.FilePath, r),
 	}
 }
 

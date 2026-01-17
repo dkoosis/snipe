@@ -106,6 +106,33 @@ func TestFormatEditTarget(t *testing.T) {
 	}
 }
 
+func TestComputeRangeHash(t *testing.T) {
+	// Test with invalid file returns empty string
+	hash := ComputeRangeHash("/nonexistent/file.go", Range{
+		Start: Position{Line: 1, Col: 1},
+		End:   Position{Line: 1, Col: 10},
+	})
+	if hash != "" {
+		t.Errorf("ComputeRangeHash() for nonexistent file = %q, want empty string", hash)
+	}
+
+	// Test with invalid range returns empty string
+	// (can't test without actual file, but we test the structure)
+}
+
+func TestFormatEditTargetWithHash(t *testing.T) {
+	// For nonexistent file, should return target without hash
+	r := Range{
+		Start: Position{Line: 1, Col: 1},
+		End:   Position{Line: 1, Col: 10},
+	}
+	got := FormatEditTargetWithHash("/nonexistent/file.go", r)
+	want := "/nonexistent/file.go:1:1-1:10"
+	if got != want {
+		t.Errorf("FormatEditTargetWithHash() for nonexistent file = %q, want %q", got, want)
+	}
+}
+
 func TestEstimateTokens(t *testing.T) {
 	tests := []struct {
 		input string
