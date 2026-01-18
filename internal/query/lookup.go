@@ -620,6 +620,35 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 	return scanSymbolRows(rows)
 }
 
+// GetCallersPreview returns a preview of top N callers for a symbol.
+// Used for quick caller context without full call graph traversal.
+func GetCallersPreview(db *sql.DB, symbolID string, limit int) ([]output.CallerPreview, error) {
+	rows, err := db.Query(`
+		SELECT caller.id, caller.name, caller.file_path_rel, cg.line
+		FROM call_graph cg
+		JOIN symbols caller ON cg.caller_id = caller.id
+		WHERE cg.callee_id = ?
+		ORDER BY caller.file_path_rel, cg.line
+		LIMIT ?
+	`, symbolID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query callers preview: %w", err)
+	}
+	defer rows.Close()
+
+	var callers []output.CallerPreview
+	for rows.Next() {
+		var c output.CallerPreview
+		var fileRel sql.NullString
+		if err := rows.Scan(&c.ID, &c.Name, &fileRel, &c.Line); err != nil {
+			return nil, fmt.Errorf("scan caller preview: %w", err)
+		}
+		c.File = fileRel.String
+		callers = append(callers, c)
+	}
+	return callers, rows.Err()
+}
+
 // FindSymbolsByKind finds symbols of a specific kind, optionally filtered by file path pattern.
 func FindSymbolsByKind(db *sql.DB, kind string, filePattern string, limit, offset int) ([]SymbolRow, error) {
 	var rows *sql.Rows

@@ -28,6 +28,12 @@ var (
 
 	maxTokens int
 
+	// response_format mode: concise, detailed, or summary
+	responseFormat string
+
+	// KG integration
+	withKGHints bool
+
 	// loadedConfig holds the merged config (loaded lazily)
 	loadedConfig *config.Config
 )
@@ -113,7 +119,27 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&summaryOnly, "summary", false, "Show summary stats only (counts per file)")
 
 	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Maximum tokens in output (0 = unlimited)")
+
+	// response_format flag for go_symbol parity
+	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "", "Output format: concise (minimal), detailed (full metadata), summary (file counts)")
+
+	// KG integration flag
+	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include hints from Orca knowledge graph")
 }
+
+// ResponseFormat represents output format modes for go_symbol parity.
+type ResponseFormat string
+
+const (
+	// FormatDefault uses command-specific defaults.
+	FormatDefault ResponseFormat = ""
+	// FormatConcise strips bodies, minimal metadata.
+	FormatConcise ResponseFormat = "concise"
+	// FormatDetailed includes full metadata and all hints.
+	FormatDetailed ResponseFormat = "detailed"
+	// FormatSummary aggregates results by file (counts only).
+	FormatSummary ResponseFormat = "summary"
+)
 
 // GetOutputConfig returns the current output configuration
 func GetOutputConfig() (json bool, human bool, compact bool, lim int, off int, ctx int, body bool, siblings bool, summary bool) {
@@ -122,6 +148,42 @@ func GetOutputConfig() (json bool, human bool, compact bool, lim int, off int, c
 	// noSiblings overrides withSiblings (default true)
 	effectiveSiblings := withSiblings && !noSiblings
 	return jsonOutput, humanOutput, compactOutput, limit, offset, contextLines, effectiveBody, effectiveSiblings, summaryOnly
+}
+
+// GetResponseFormat returns the response format mode.
+// Returns the effective format, resolving --summary flag as an alias.
+func GetResponseFormat() ResponseFormat {
+	// --summary flag is an alias for --format=summary
+	if summaryOnly && responseFormat == "" {
+		return FormatSummary
+	}
+	return ResponseFormat(responseFormat)
+}
+
+// ApplyFormatOverrides adjusts output config based on --format flag.
+// Returns (withBody, withSiblings, contextLines) based on format mode.
+func ApplyFormatOverrides(format ResponseFormat, baseBody, baseSiblings bool, baseContext int) (bool, bool, int) {
+	switch format {
+	case FormatConcise:
+		// Concise: no body, no siblings, minimal context
+		return false, false, 0
+	case FormatDetailed:
+		// Detailed: everything enabled, full context
+		return true, true, baseContext
+	case FormatSummary:
+		// Summary: no body needed (just counts)
+		return false, false, 0
+	case FormatDefault:
+		// Default: use base values
+		return baseBody, baseSiblings, baseContext
+	}
+	// Unreachable, but satisfies exhaustive check
+	return baseBody, baseSiblings, baseContext
+}
+
+// GetWithKGHints returns whether KG hints should be included.
+func GetWithKGHints() bool {
+	return withKGHints
 }
 
 // GetMaxTokens returns the max-tokens flag value (0 = unlimited)

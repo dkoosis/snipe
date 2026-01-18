@@ -26,7 +26,15 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 	pattern := args[0]
 
-	_, human, compact, lim, _, ctx, _, _, _ := GetOutputConfig()
+	_, human, compact, lim, _, ctx, _, _, summary := GetOutputConfig()
+	format := GetResponseFormat()
+
+	// Apply format overrides
+	_, _, ctx = ApplyFormatOverrides(format, false, false, ctx)
+	if format == FormatSummary {
+		summary = true
+	}
+
 	w := output.NewWriter(os.Stdout, human, compact)
 
 	// Get current directory
@@ -51,6 +59,23 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	tokenTruncated := false
 	if maxTok > 0 {
 		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+	}
+
+	// If summary mode, return condensed output
+	if summary {
+		summaryData := output.BuildSummary(results)
+		summaryResp := output.Response[output.Summary]{
+			Results: []output.Summary{summaryData},
+			Meta: output.Meta{
+				Command:    "search",
+				Query:      map[string]string{"pattern": pattern},
+				IndexState: output.IndexNotUsed,
+				Ms:         time.Since(start).Milliseconds(),
+				Total:      summaryData.Total,
+				Truncated:  len(results) >= lim,
+			},
+		}
+		return w.WriteResponse(summaryResp)
 	}
 
 	// Estimate tokens
