@@ -75,8 +75,20 @@ type FileInfo struct {
 
 // Symbols lists key types and functions.
 type Symbols struct {
-	Types     []SymbolRef `json:"types,omitempty" yaml:"types,omitempty"`
-	Functions []SymbolRef `json:"functions,omitempty" yaml:"functions,omitempty"`
+	Types           []SymbolRef      `json:"types,omitempty" yaml:"types,omitempty"`
+	Functions       []SymbolRef      `json:"functions,omitempty" yaml:"functions,omitempty"`
+	ExtensionPoints []ExtensionPoint `json:"extension_points,omitempty" yaml:"extension_points,omitempty"`
+}
+
+// ExtensionPoint describes a high-centrality symbol suitable for extension.
+type ExtensionPoint struct {
+	Name        string `json:"name" yaml:"name"`
+	Kind        string `json:"kind" yaml:"kind"` // interface, func, type
+	File        string `json:"file" yaml:"file"`
+	Line        int    `json:"line" yaml:"line"`
+	RefCount    int    `json:"ref_count" yaml:"ref_count"`                           // How often it's referenced
+	CallerCount int    `json:"caller_count,omitempty" yaml:"caller_count,omitempty"` // For funcs: how often called
+	Purpose     string `json:"purpose,omitempty" yaml:"purpose,omitempty"`           // From doc comment
 }
 
 // SymbolRef is a lightweight reference to a symbol.
