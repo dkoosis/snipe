@@ -33,7 +33,23 @@ type Project struct {
 // Architecture describes high-level code structure.
 type Architecture struct {
 	Components []Component `json:"components" yaml:"components"`
-	DataFlows  []string    `json:"data_flows,omitempty" yaml:"data_flows,omitempty"`
+	DataFlows  []DataFlow  `json:"data_flows,omitempty" yaml:"data_flows,omitempty"`
+	Boundaries []Boundary  `json:"boundaries,omitempty" yaml:"boundaries,omitempty"`
+}
+
+// DataFlow describes a data path between components.
+type DataFlow struct {
+	From   string `json:"from" yaml:"from"`
+	To     string `json:"to" yaml:"to"`
+	Via    string `json:"via,omitempty" yaml:"via,omitempty"` // Mechanism: "import", "call", "channel"
+	Weight int    `json:"weight,omitempty" yaml:"weight,omitempty"`
+}
+
+// Boundary describes ownership of a package/directory.
+type Boundary struct {
+	Package string   `json:"package" yaml:"package"`
+	Owns    []string `json:"owns" yaml:"owns"`                           // What this package is responsible for
+	Exports []string `json:"exports,omitempty" yaml:"exports,omitempty"` // Key exported symbols
 }
 
 // Component represents a logical grouping of code.

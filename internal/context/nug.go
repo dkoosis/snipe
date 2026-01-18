@@ -99,7 +99,24 @@ func (p *ProjectContext) ToNuggets() []Nugget {
 		if len(p.Architecture.DataFlows) > 0 {
 			archBody.WriteString("data_flows:\n")
 			for _, df := range p.Architecture.DataFlows {
-				archBody.WriteString(fmt.Sprintf("  - %s\n", df))
+				archBody.WriteString(fmt.Sprintf("  - %s -> %s", df.From, df.To))
+				if df.Via != "" {
+					archBody.WriteString(fmt.Sprintf(" (%s)", df.Via))
+				}
+				archBody.WriteString("\n")
+			}
+		}
+
+		if len(p.Architecture.Boundaries) > 0 {
+			archBody.WriteString("boundaries:\n")
+			for _, b := range p.Architecture.Boundaries {
+				archBody.WriteString(fmt.Sprintf("  %s:\n", b.Package))
+				if len(b.Owns) > 0 {
+					archBody.WriteString(fmt.Sprintf("    owns: [%s]\n", strings.Join(b.Owns, ", ")))
+				}
+				if len(b.Exports) > 0 {
+					archBody.WriteString(fmt.Sprintf("    exports: [%s]\n", strings.Join(b.Exports, ", ")))
+				}
 			}
 		}
 
