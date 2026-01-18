@@ -419,13 +419,16 @@ func generateSymbols(db *sql.DB, repoRoot string, full bool, maxSymbols int) Sym
 		limit = 1000
 	}
 
-	// Get types (structs, interfaces, type aliases)
+	// Get types ranked by reference count (most referenced = most important)
 	typeRows, err := db.Query(`
-		SELECT name, file_path, line_start
-		FROM symbols
-		WHERE kind IN ('type', 'interface', 'struct')
-		  AND file_path LIKE ? || '/%'
-		ORDER BY name
+		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
+		FROM symbols s
+		LEFT JOIN refs r ON s.id = r.symbol_id
+		WHERE s.kind IN ('type', 'interface', 'struct')
+		  AND s.file_path LIKE ? || '/%'
+		  AND s.name GLOB '[A-Z]*'
+		GROUP BY s.id
+		ORDER BY ref_count DESC
 		LIMIT ?
 	`, repoRoot, limit)
 	if err == nil {
@@ -433,7 +436,8 @@ func generateSymbols(db *sql.DB, repoRoot string, full bool, maxSymbols int) Sym
 		for typeRows.Next() {
 			var ref SymbolRef
 			var fullPath string
-			if err := typeRows.Scan(&ref.Name, &fullPath, &ref.Line); err != nil {
+			var refCount int
+			if err := typeRows.Scan(&ref.Name, &fullPath, &ref.Line, &refCount); err != nil {
 				continue
 			}
 			ref.File = strings.TrimPrefix(fullPath, repoRoot+"/")
@@ -441,14 +445,16 @@ func generateSymbols(db *sql.DB, repoRoot string, full bool, maxSymbols int) Sym
 		}
 	}
 
-	// Get functions (prioritize exported ones)
+	// Get functions ranked by reference count
 	funcRows, err := db.Query(`
-		SELECT name, file_path, line_start
-		FROM symbols
-		WHERE kind IN ('func', 'method')
-		  AND file_path LIKE ? || '/%'
-		  AND name GLOB '[A-Z]*'
-		ORDER BY name
+		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
+		FROM symbols s
+		LEFT JOIN refs r ON s.id = r.symbol_id
+		WHERE s.kind IN ('func', 'method')
+		  AND s.file_path LIKE ? || '/%'
+		  AND s.name GLOB '[A-Z]*'
+		GROUP BY s.id
+		ORDER BY ref_count DESC
 		LIMIT ?
 	`, repoRoot, limit)
 	if err == nil {
@@ -456,7 +462,8 @@ func generateSymbols(db *sql.DB, repoRoot string, full bool, maxSymbols int) Sym
 		for funcRows.Next() {
 			var ref SymbolRef
 			var fullPath string
-			if err := funcRows.Scan(&ref.Name, &fullPath, &ref.Line); err != nil {
+			var refCount int
+			if err := funcRows.Scan(&ref.Name, &fullPath, &ref.Line, &refCount); err != nil {
 				continue
 			}
 			ref.File = strings.TrimPrefix(fullPath, repoRoot+"/")
@@ -464,7 +471,85 @@ func generateSymbols(db *sql.DB, repoRoot string, full bool, maxSymbols int) Sym
 		}
 	}
 
+	// Get extension points: high-centrality symbols suitable for adding new functionality
+	syms.ExtensionPoints = getExtensionPoints(db, repoRoot)
+
 	return syms
+}
+
+// getExtensionPoints finds symbols that are good extension points:
+// - Interfaces (can add new implementations)
+// - High-ref-count funcs (central to codebase)
+// - Types with many callers (frequently used)
+func getExtensionPoints(db *sql.DB, repoRoot string) []ExtensionPoint {
+	var points []ExtensionPoint
+
+	// Query for interfaces and high-centrality symbols
+	rows, err := db.Query(`
+		SELECT
+			s.name,
+			s.kind,
+			s.file_path,
+			s.line_start,
+			s.doc,
+			COUNT(DISTINCT r.id) as ref_count,
+			(SELECT COUNT(*) FROM call_graph c WHERE c.callee_id = s.id) as caller_count
+		FROM symbols s
+		LEFT JOIN refs r ON s.id = r.symbol_id
+		WHERE s.file_path LIKE ? || '/%'
+		  AND s.name GLOB '[A-Z]*'
+		  AND (
+		      s.kind = 'interface'
+		      OR (s.kind IN ('func', 'method') AND s.name NOT LIKE 'New%')
+		  )
+		GROUP BY s.id
+		HAVING ref_count >= 3 OR s.kind = 'interface'
+		ORDER BY (ref_count + caller_count * 2) DESC
+		LIMIT 10
+	`, repoRoot)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var ep ExtensionPoint
+		var fullPath string
+		var doc sql.NullString
+		if err := rows.Scan(&ep.Name, &ep.Kind, &fullPath, &ep.Line, &doc, &ep.RefCount, &ep.CallerCount); err != nil {
+			continue
+		}
+		ep.File = strings.TrimPrefix(fullPath, repoRoot+"/")
+		if doc.Valid && doc.String != "" {
+			// Extract first sentence for purpose
+			ep.Purpose = extractFirstSentence(doc.String)
+		}
+		points = append(points, ep)
+	}
+
+	return points
+}
+
+// extractFirstSentence returns the first sentence of a doc comment.
+func extractFirstSentence(doc string) string {
+	doc = strings.TrimSpace(doc)
+	// Find first period followed by space or end of string
+	for i, r := range doc {
+		if r == '.' {
+			if i+1 >= len(doc) || doc[i+1] == ' ' || doc[i+1] == '\n' {
+				return doc[:i+1]
+			}
+		}
+		// Stop at newline too
+		if r == '\n' {
+			return strings.TrimSpace(doc[:i])
+		}
+	}
+	// No period found, return first 100 chars
+	if len(doc) > 100 {
+		return doc[:100] + "..."
+	}
+	return doc
 }
 
 func generateMeta(db *sql.DB) Meta {
