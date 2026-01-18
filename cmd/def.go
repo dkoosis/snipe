@@ -41,6 +41,11 @@ func runDef(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
 	_, human, compact, _, _, contextLines, withBody, withSiblings, _ := GetOutputConfig()
+	format := GetResponseFormat()
+
+	// Apply format overrides
+	withBody, withSiblings, contextLines = ApplyFormatOverrides(format, withBody, withSiblings, contextLines)
+
 	w := output.NewWriter(os.Stdout, human, compact)
 
 	// Need either a symbol name or --at position
@@ -60,6 +65,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 
 	var symbolID string
 	var queryInfo map[string]string
+	var decisionPath []string
 
 	if defAt != "" {
 		// Resolve position
@@ -84,6 +90,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 			})
 		}
 		queryInfo = map[string]string{"at": defAt}
+		decisionPath = append(decisionPath, "lookup:position")
 	} else {
 		// Check if input looks like a symbol ID (16-char hex string)
 		name := args[0]
@@ -92,6 +99,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 				// Input is a valid hex ID, look up directly
 				symbolID = name
 				queryInfo = map[string]string{"id": name}
+				decisionPath = append(decisionPath, "lookup:id")
 				goto lookup
 			}
 		}
@@ -112,6 +120,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 				if len(symbols) == 1 {
 					symbolID = symbols[0].ID
 					queryInfo = map[string]string{"symbol": symbolPart, "file": filePart}
+					decisionPath = append(decisionPath, "lookup:file_qualified")
 					goto lookup
 				} else if len(symbols) > 1 {
 					candidates := make([]output.Candidate, len(symbols))
@@ -154,6 +163,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 
 		symbolID = symbols[0].ID
 		queryInfo = map[string]string{"symbol": name}
+		decisionPath = append(decisionPath, "lookup:name")
 	}
 
 lookup:
@@ -200,6 +210,16 @@ lookup:
 		}
 	}
 
+	// Add callers_preview for func/method kinds (always include top 3)
+	if sym.Kind == "func" || sym.Kind == "method" {
+		callers, err := query.GetCallersPreview(s.DB(), sym.ID, 3)
+		if err != nil {
+			degraded = append(degraded, "callers_preview_failed")
+		} else if len(callers) > 0 {
+			result.CallersPreview = callers
+		}
+	}
+
 	tokenEstimate := output.EstimateTokens(result.Match)
 	if result.Body != "" {
 		tokenEstimate = output.EstimateTokens(result.Body)
@@ -216,6 +236,7 @@ lookup:
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         1,
 			TokenEstimate: tokenEstimate,
+			DecisionPath:  decisionPath,
 		},
 	}
 

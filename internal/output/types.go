@@ -29,6 +29,7 @@ type Meta struct {
 	Limit         int               `json:"limit,omitempty"`
 	Truncated     bool              `json:"truncated"`
 	TokenEstimate int               `json:"token_estimate,omitempty"`
+	DecisionPath  []string          `json:"decision_path,omitempty"` // Resolution strategy trace
 }
 
 // IndexState represents the state of the index
@@ -65,23 +66,41 @@ type Candidate struct {
 
 // Result represents a single navigation result
 type Result struct {
-	ID         string     `json:"id"`
-	File       string     `json:"file"` // Relative path (for output)
-	FileAbs    string     `json:"-"`    // Absolute path (for file operations, not exported)
-	Range      Range      `json:"range"`
-	Kind       string     `json:"kind,omitempty"`
-	Name       string     `json:"name,omitempty"`
-	Receiver   string     `json:"receiver,omitempty"` // Method receiver type, e.g., "(*Server)" or "(Config)"
-	Package    string     `json:"package,omitempty"`  // Go package path
-	Match      string     `json:"match,omitempty"`
-	Body       string     `json:"body,omitempty"`
-	Score      float64    `json:"score,omitempty"`
-	RefCount   int        `json:"ref_count"`       // Number of references to this symbol (-1 = unavailable)
-	Hints      []string   `json:"hints,omitempty"` // Static analysis hints: deprecated, unused, etc.
-	Enclosing  *Enclosing `json:"enclosing,omitempty"`
-	Context    *Context   `json:"context,omitempty"`
-	Siblings   []Sibling  `json:"siblings,omitempty"`
-	EditTarget string     `json:"edit_target,omitempty"`
+	ID             string          `json:"id"`
+	File           string          `json:"file"` // Relative path (for output)
+	FileAbs        string          `json:"-"`    // Absolute path (for file operations, not exported)
+	Range          Range           `json:"range"`
+	Kind           string          `json:"kind,omitempty"`
+	Name           string          `json:"name,omitempty"`
+	Receiver       string          `json:"receiver,omitempty"` // Method receiver type, e.g., "(*Server)" or "(Config)"
+	Package        string          `json:"package,omitempty"`  // Go package path
+	Match          string          `json:"match,omitempty"`
+	Body           string          `json:"body,omitempty"`
+	Score          float64         `json:"score,omitempty"`
+	RefCount       int             `json:"ref_count"`                    // Number of references to this symbol (-1 = unavailable)
+	Hints          []string        `json:"hints,omitempty"`              // Static analysis hints: deprecated, unused, etc.
+	CallersPreview []CallerPreview `json:"callers_preview,omitempty"`    // Top callers for func/method
+	KGHints        []KGHint        `json:"kg_hints,omitempty"`           // Knowledge graph hints from Orca
+	Enclosing      *Enclosing      `json:"enclosing,omitempty"`
+	Context        *Context        `json:"context,omitempty"`
+	Siblings       []Sibling       `json:"siblings,omitempty"`
+	EditTarget     string          `json:"edit_target,omitempty"`
+}
+
+// CallerPreview represents a preview of a function caller
+type CallerPreview struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	File string `json:"file"`
+	Line int    `json:"line"`
+}
+
+// KGHint represents a hint from the Orca knowledge graph
+type KGHint struct {
+	ID       string `json:"id"`
+	Kind     string `json:"kind"`               // trap, pattern, etc.
+	Severity string `json:"severity,omitempty"` // h, m, l for traps
+	Summary  string `json:"summary"`
 }
 
 // Hint constants for static analysis
