@@ -63,17 +63,13 @@ Auto-compacts when piped. Each result has edit_target for file:line:col handoff.
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set up context with signal handling for graceful cancellation
 		ctx := context.Background()
-
-		// Apply timeout if specified
+		var cancel context.CancelFunc
 		if timeout > 0 {
-			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ctx, timeout)
-			cmdCancel = cancel
 		} else {
-			var cancel context.CancelFunc
 			ctx, cancel = context.WithCancel(ctx)
-			cmdCancel = cancel
 		}
+		cmdCancel = cancel
 
 		// Handle Ctrl+C gracefully
 		sigCh := make(chan os.Signal, 1)
@@ -85,6 +81,7 @@ Auto-compacts when piped. Each result has edit_target for file:line:col handoff.
 				cmdCancel()
 			case <-ctx.Done():
 			}
+			signal.Stop(sigCh)
 		}()
 
 		cmdCtx = ctx
@@ -112,6 +109,12 @@ Auto-compacts when piped. Each result has edit_target for file:line:col handoff.
 		autoCompact = !term.IsTerminal(int(os.Stdout.Fd()))
 
 		return nil
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		// Cancel context to release signal goroutine
+		if cmdCancel != nil {
+			cmdCancel()
+		}
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// No subcommand specified, show help
