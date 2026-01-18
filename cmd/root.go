@@ -173,10 +173,12 @@ func ApplyFormatOverrides(format ResponseFormat, baseBody, baseSiblings bool, ba
 	case FormatSummary:
 		// Summary: no body needed (just counts)
 		return false, false, 0
-	default:
+	case FormatDefault:
 		// Default: use base values
 		return baseBody, baseSiblings, baseContext
 	}
+	// Unreachable, but satisfies exhaustive check
+	return baseBody, baseSiblings, baseContext
 }
 
 // GetWithKGHints returns whether KG hints should be included.

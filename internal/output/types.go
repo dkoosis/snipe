@@ -77,10 +77,10 @@ type Result struct {
 	Match          string          `json:"match,omitempty"`
 	Body           string          `json:"body,omitempty"`
 	Score          float64         `json:"score,omitempty"`
-	RefCount       int             `json:"ref_count"`                    // Number of references to this symbol (-1 = unavailable)
-	Hints          []string        `json:"hints,omitempty"`              // Static analysis hints: deprecated, unused, etc.
-	CallersPreview []CallerPreview `json:"callers_preview,omitempty"`    // Top callers for func/method
-	KGHints        []KGHint        `json:"kg_hints,omitempty"`           // Knowledge graph hints from Orca
+	RefCount       int             `json:"ref_count"`                 // Number of references to this symbol (-1 = unavailable)
+	Hints          []string        `json:"hints,omitempty"`           // Static analysis hints: deprecated, unused, etc.
+	CallersPreview []CallerPreview `json:"callers_preview,omitempty"` // Top callers for func/method
+	KGHints        []KGHint        `json:"kg_hints,omitempty"`        // Knowledge graph hints from Orca
 	Enclosing      *Enclosing      `json:"enclosing,omitempty"`
 	Context        *Context        `json:"context,omitempty"`
 	Siblings       []Sibling       `json:"siblings,omitempty"`
