@@ -76,8 +76,8 @@ type Result struct {
 	Match      string     `json:"match,omitempty"`
 	Body       string     `json:"body,omitempty"`
 	Score      float64    `json:"score,omitempty"`
-	RefCount   int        `json:"ref_count"` // Number of references to this symbol (-1 = unavailable)
-	Hints      []string   `json:"hints,omitempty"`     // Static analysis hints: deprecated, unused, etc.
+	RefCount   int        `json:"ref_count"`       // Number of references to this symbol (-1 = unavailable)
+	Hints      []string   `json:"hints,omitempty"` // Static analysis hints: deprecated, unused, etc.
 	Enclosing  *Enclosing `json:"enclosing,omitempty"`
 	Context    *Context   `json:"context,omitempty"`
 	Siblings   []Sibling  `json:"siblings,omitempty"`

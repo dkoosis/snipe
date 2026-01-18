@@ -9,18 +9,7 @@
   },
   "results": [
     {
-      "context": {
-        "after": [
-          "",
-          "func UseGreeter(g greet.Greeter) string {",
-          "\treturn g.Hello()"
-        ],
-        "before": [
-          "\treturn Callee()",
-          "}",
-          ""
-        ]
-      },
+      "body": "func Callee() string {\n\treturn \"ok\"\n}",
       "edit_target": "\u003crepo\u003e/main.go:30:1-32:2@8b60bd8320e77b84",
       "file": "\u003crepo\u003e/main.go",
       "kind": "func",
@@ -36,7 +25,30 @@
           "col": 1,
           "line": 30
         }
-      }
+      },
+      "ref_count": 2,
+      "siblings": [
+        {
+          "kind": "func",
+          "line": 17,
+          "name": "Caller"
+        },
+        {
+          "kind": "func",
+          "line": 23,
+          "name": "AnotherCaller"
+        },
+        {
+          "kind": "func",
+          "line": 34,
+          "name": "UseGreeter"
+        },
+        {
+          "kind": "func",
+          "line": 38,
+          "name": "UseAmbiguous"
+        }
+      ]
     }
   ]
 }

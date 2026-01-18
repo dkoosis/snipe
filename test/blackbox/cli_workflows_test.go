@@ -73,7 +73,8 @@ func TestRefs_BySymbol_ReturnsReferences_When_IndexPresent(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
 
-	stdout, stderr, exitCode := run(t, repoDir, "refs", "Callee", "--context", "2")
+	// --no-body is required to get context lines (--with-body is default true and skips context)
+	stdout, stderr, exitCode := run(t, repoDir, "refs", "Callee", "--no-body", "--context", "2")
 	if exitCode != 0 {
 		t.Fatalf("refs exit %d stderr=%s", exitCode, string(stderr))
 	}
@@ -99,7 +100,7 @@ func TestRefs_BySymbol_ReturnsReferences_When_IndexPresent(t *testing.T) {
 		t.Fatalf("expected 2 context lines, got before=%d after=%d", len(before), len(after))
 	}
 
-	stdoutAlt, _, _ := run(t, repoDir, "refs", "Callee", "--context", "1")
+	stdoutAlt, _, _ := run(t, repoDir, "refs", "Callee", "--no-body", "--context", "1")
 	respAlt := parseJSON(t, stdoutAlt)
 	resultsAlt := requireSlice(t, respAlt["results"], "results")
 	firstAlt := requireMap(t, resultsAlt[0], "results[0]")

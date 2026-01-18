@@ -113,6 +113,20 @@ findCallees:
 	tokenEstimate := 0
 	var degraded []string
 
+	// Batch fetch callee symbols if bodies are requested (avoids N+1 queries)
+	var calleeSymbols map[string]*query.SymbolRow
+	if withBody && len(calls) > 0 {
+		calleeIDs := make([]string, len(calls))
+		for i, call := range calls {
+			calleeIDs[i] = call.CalleeID
+		}
+		var batchErr error
+		calleeSymbols, batchErr = query.BatchLookupByID(s.DB(), calleeIDs)
+		if batchErr != nil {
+			degraded = append(degraded, "batch_lookup_failed")
+		}
+	}
+
 	for i, call := range calls {
 		// Use callee name length for accurate call site range
 		nameLen := len(call.CalleeName)
@@ -142,8 +156,7 @@ findCallees:
 
 		// Add callee body if requested (from the callee's definition, not call site)
 		if withBody {
-			calleeSym, lookupErr := query.LookupByID(s.DB(), call.CalleeID)
-			if lookupErr == nil && calleeSym != nil {
+			if calleeSym, ok := calleeSymbols[call.CalleeID]; ok && calleeSym != nil {
 				calleeResult := calleeSym.ToResult()
 				if err := output.AddBody(&calleeResult); err != nil {
 					degraded = append(degraded, "body_extraction_failed")

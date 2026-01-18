@@ -54,6 +54,57 @@ func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 	return &s, nil
 }
 
+// BatchLookupByID looks up multiple symbols by their IDs in a single query.
+// Returns a map from ID to SymbolRow. Missing IDs are not included in the map.
+func BatchLookupByID(db *sql.DB, ids []string) (map[string]*SymbolRow, error) {
+	if len(ids) == 0 {
+		return make(map[string]*SymbolRow), nil
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.id IN (%s)
+	`, strings.Join(placeholders, ", "))
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("batch query symbols: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]*SymbolRow, len(ids))
+	for rows.Next() {
+		var s SymbolRow
+		var fileHash, filePathRel, pkgPath sql.NullString
+		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &filePathRel, &pkgPath,
+			&s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
+			&s.Signature, &s.Doc, &s.Receiver, &fileHash); err != nil {
+			return nil, fmt.Errorf("scan symbol row: %w", err)
+		}
+		s.FileHash = fileHash.String
+		s.FilePathRel = filePathRel.String
+		s.PkgPath = pkgPath.String
+		result[s.ID] = &s
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate symbol rows: %w", err)
+	}
+
+	return result, nil
+}
+
 // LookupByName looks up symbols by name
 // Returns candidates if multiple matches
 func LookupByName(db *sql.DB, name string) ([]SymbolRow, error) {

@@ -12,13 +12,13 @@ type ProjectContext struct {
 
 // BootContext is a minimal context for LLM boot sequences (~2000 tokens).
 type BootContext struct {
-	Project     string       `json:"project" yaml:"project"`
-	Lang        string       `json:"lang" yaml:"lang"`
-	Build       string       `json:"build" yaml:"build"`
-	Test        string       `json:"test" yaml:"test"`
-	EntryPoints []string     `json:"entry_points" yaml:"entry_points"`
-	KeySymbols  []SymbolRef  `json:"key_symbols" yaml:"key_symbols"`
-	Commit      string       `json:"commit" yaml:"commit"`
+	Project     string      `json:"project" yaml:"project"`
+	Lang        string      `json:"lang" yaml:"lang"`
+	Build       string      `json:"build" yaml:"build"`
+	Test        string      `json:"test" yaml:"test"`
+	EntryPoints []string    `json:"entry_points" yaml:"entry_points"`
+	KeySymbols  []SymbolRef `json:"key_symbols" yaml:"key_symbols"`
+	Commit      string      `json:"commit" yaml:"commit"`
 }
 
 // Project contains basic project information.

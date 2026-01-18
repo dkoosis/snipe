@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	symAt          string
-	symRefsLimit   int
+	symAt           string
+	symRefsLimit    int
 	symCallersLimit int
 	symCalleesLimit int
 )

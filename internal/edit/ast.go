@@ -16,10 +16,10 @@ import (
 type Operation string
 
 const (
-	OpReplaceBody   Operation = "replace_body"   // Keep signature, replace body
-	OpReplaceFull   Operation = "replace_full"   // Replace entire symbol
-	OpInsertAfter   Operation = "insert_after"   // Add code after symbol
-	OpInsertBefore  Operation = "insert_before"  // Add code before symbol
+	OpReplaceBody  Operation = "replace_body"  // Keep signature, replace body
+	OpReplaceFull  Operation = "replace_full"  // Replace entire symbol
+	OpInsertAfter  Operation = "insert_after"  // Add code after symbol
+	OpInsertBefore Operation = "insert_before" // Add code before symbol
 )
 
 // ValidOperations returns all valid operation types
@@ -29,12 +29,12 @@ func ValidOperations() []Operation {
 
 // Request describes an edit operation
 type Request struct {
-	File       string    // File path to edit
-	Symbol     string    // Symbol name to find
-	Line       int       // Optional: specific line to target
-	Operation  Operation // Edit operation type
-	NewCode    string    // New code to insert/replace
-	ExpectedHash string  // Optional: hash to validate freshness
+	File         string    // File path to edit
+	Symbol       string    // Symbol name to find
+	Line         int       // Optional: specific line to target
+	Operation    Operation // Edit operation type
+	NewCode      string    // New code to insert/replace
+	ExpectedHash string    // Optional: hash to validate freshness
 }
 
 // Result contains the edit result

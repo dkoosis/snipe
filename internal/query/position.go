@@ -157,10 +157,11 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	}
 
 	// Try to find a symbol that spans this line (smallest enclosing)
+	// Secondary sort by name, id ensures deterministic results for same-size spans
 	err = db.QueryRow(`
 		SELECT id FROM symbols
 		WHERE file_path = ? AND line_start <= ? AND line_end >= ?
-		ORDER BY (line_end - line_start)
+		ORDER BY (line_end - line_start), name, id
 		LIMIT 1
 	`, pos.File, pos.Line, pos.Line).Scan(&symbolID)
 

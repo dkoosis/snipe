@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -361,14 +362,17 @@ func ScoreResults(results []Result, query string) {
 }
 
 // SortByScore sorts results by score in descending order (highest first).
+// Uses stable sort with deterministic tie-breaking by File, then Name.
 func SortByScore(results []Result) {
-	for i := 0; i < len(results)-1; i++ {
-		for j := i + 1; j < len(results); j++ {
-			if results[j].Score > results[i].Score {
-				results[i], results[j] = results[j], results[i]
-			}
+	sort.SliceStable(results, func(i, j int) bool {
+		if results[i].Score != results[j].Score {
+			return results[i].Score > results[j].Score
 		}
-	}
+		if results[i].File != results[j].File {
+			return results[i].File < results[j].File
+		}
+		return results[i].Name < results[j].Name
+	})
 }
 
 // ScoreAndSort scores results by relevance and sorts by score descending.

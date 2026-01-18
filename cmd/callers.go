@@ -113,6 +113,20 @@ findCallers:
 	tokenEstimate := 0
 	var degraded []string
 
+	// Batch fetch caller symbols if bodies are requested (avoids N+1 queries)
+	var callerSymbols map[string]*query.SymbolRow
+	if withBody && len(calls) > 0 {
+		callerIDs := make([]string, len(calls))
+		for i, call := range calls {
+			callerIDs[i] = call.CallerID
+		}
+		var batchErr error
+		callerSymbols, batchErr = query.BatchLookupByID(s.DB(), callerIDs)
+		if batchErr != nil {
+			degraded = append(degraded, "batch_lookup_failed")
+		}
+	}
+
 	for i, call := range calls {
 		// Use callee name length for accurate call site range
 		nameLen := len(call.CalleeName)
@@ -141,8 +155,7 @@ findCallers:
 
 		// Add caller body if requested (from the caller's definition, not call site)
 		if withBody {
-			callerSym, lookupErr := query.LookupByID(s.DB(), call.CallerID)
-			if lookupErr == nil && callerSym != nil {
+			if callerSym, ok := callerSymbols[call.CallerID]; ok && callerSym != nil {
 				callerResult := callerSym.ToResult()
 				if err := output.AddBody(&callerResult); err != nil {
 					degraded = append(degraded, "body_extraction_failed")
