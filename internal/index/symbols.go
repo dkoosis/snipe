@@ -85,7 +85,7 @@ func extractFileSymbols(pkg *packages.Package, file *ast.File, filePath, pkgPath
 	return symbols
 }
 
-func extractFuncSymbol(_ *packages.Package, decl *ast.FuncDecl, filePath, pkgPath string, fset *token.FileSet) *Symbol {
+func extractFuncSymbol(pkg *packages.Package, decl *ast.FuncDecl, filePath, pkgPath string, fset *token.FileSet) *Symbol {
 	if decl.Name == nil {
 		return nil
 	}
@@ -104,7 +104,8 @@ func extractFuncSymbol(_ *packages.Package, decl *ast.FuncDecl, filePath, pkgPat
 		receiver = formatReceiver(decl.Recv.List[0].Type)
 	}
 
-	sig := formatFuncSignature(decl)
+	// Prefer type-based signature with qualified types when available
+	sig := formatFuncSignatureTyped(pkg, decl)
 	doc := extractDoc(decl.Doc)
 
 	return &Symbol{
@@ -252,6 +253,118 @@ func formatReceiver(expr ast.Expr) string {
 		return "(" + t.Name + ")"
 	}
 	return ""
+}
+
+// formatFuncSignatureTyped formats a function signature using type information
+// when available, falling back to AST-based formatting otherwise.
+// Type-based formatting provides qualified package names for external types.
+func formatFuncSignatureTyped(pkg *packages.Package, decl *ast.FuncDecl) string {
+	// Try to get type information for qualified signatures
+	if pkg.TypesInfo != nil {
+		if obj := pkg.TypesInfo.Defs[decl.Name]; obj != nil {
+			if fn, ok := obj.(*types.Func); ok {
+				return formatTypedSignature(fn, pkg.PkgPath)
+			}
+		}
+	}
+	// Fallback to AST-based formatting
+	return formatFuncSignature(decl)
+}
+
+// formatTypedSignature formats a function signature using types.TypeString
+// with a qualifier that shows short package names for external types.
+func formatTypedSignature(fn *types.Func, currentPkg string) string {
+	sig := fn.Type().(*types.Signature)
+	var b strings.Builder
+	b.WriteString("func ")
+
+	// Format receiver if present
+	if recv := sig.Recv(); recv != nil {
+		b.WriteString("(")
+		if recv.Name() != "" {
+			b.WriteString(recv.Name())
+			b.WriteString(" ")
+		}
+		b.WriteString(formatType(recv.Type(), currentPkg))
+		b.WriteString(") ")
+	}
+
+	b.WriteString(fn.Name())
+
+	// Format type parameters (generics) if present
+	if tp := sig.TypeParams(); tp != nil && tp.Len() > 0 {
+		b.WriteString("[")
+		for i := 0; i < tp.Len(); i++ {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			tparam := tp.At(i)
+			b.WriteString(tparam.Obj().Name())
+			constraint := tparam.Constraint()
+			// Only show constraint if not the default 'any'
+			if constraint != nil {
+				cstr := formatType(constraint, currentPkg)
+				if cstr != "any" && cstr != "interface{}" {
+					b.WriteString(" ")
+					b.WriteString(cstr)
+				}
+			}
+		}
+		b.WriteString("]")
+	}
+
+	// Format parameters
+	b.WriteString(formatTuple(sig.Params(), currentPkg, sig.Variadic()))
+
+	// Format results
+	results := sig.Results()
+	if results.Len() > 0 {
+		b.WriteString(" ")
+		if results.Len() == 1 && results.At(0).Name() == "" {
+			// Single unnamed result: no parens
+			b.WriteString(formatType(results.At(0).Type(), currentPkg))
+		} else {
+			b.WriteString(formatTuple(results, currentPkg, false))
+		}
+	}
+
+	return b.String()
+}
+
+// formatTuple formats a parameter or result tuple with qualified types.
+func formatTuple(tuple *types.Tuple, currentPkg string, variadic bool) string {
+	var parts []string
+	for i := 0; i < tuple.Len(); i++ {
+		v := tuple.At(i)
+		var part string
+		if v.Name() != "" {
+			part = v.Name() + " "
+		}
+		// Handle variadic parameter (last param with ...)
+		if variadic && i == tuple.Len()-1 {
+			if slice, ok := v.Type().(*types.Slice); ok {
+				part += "..." + formatType(slice.Elem(), currentPkg)
+			} else {
+				part += formatType(v.Type(), currentPkg)
+			}
+		} else {
+			part += formatType(v.Type(), currentPkg)
+		}
+		parts = append(parts, part)
+	}
+	return "(" + strings.Join(parts, ", ") + ")"
+}
+
+// formatType formats a type with a qualifier that uses short package names.
+// Types from the current package are unqualified, external types show "pkg.Type".
+func formatType(t types.Type, currentPkg string) string {
+	qualifier := func(pkg *types.Package) string {
+		if pkg == nil || pkg.Path() == currentPkg {
+			return "" // No qualifier for current package
+		}
+		return pkg.Name() // Use short name, e.g., "http" not "net/http"
+	}
+	return types.TypeString(t, qualifier)
 }
 
 func formatFuncSignature(decl *ast.FuncDecl) string {
