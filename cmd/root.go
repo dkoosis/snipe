@@ -5,20 +5,22 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/dkoosis/snipe/internal/config"
 )
 
 var (
 	// Global flags
-	jsonOutput   bool
-	humanOutput  bool
-	limit        int
-	offset       int
-	contextLines int
-	withBody     bool
-	withSiblings bool
-	summaryOnly  bool
+	jsonOutput    bool
+	humanOutput   bool
+	compactOutput bool
+	limit         int
+	offset        int
+	contextLines  int
+	withBody      bool
+	withSiblings  bool
+	summaryOnly   bool
 
 	maxTokens int
 
@@ -50,7 +52,8 @@ Key flags (apply to most commands):
 
 Output format:
   JSON with {results, meta, error}. Use --human for debugging.
-  Each result has edit_target for direct file:line:col handoff.`,
+  Each result has edit_target for direct file:line:col handoff.
+  Use --compact for minified JSON (~30% smaller, auto-enabled for pipes).`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Load config and apply defaults if flags weren't explicitly set
 		cwd, err := os.Getwd()
@@ -71,6 +74,11 @@ Output format:
 			contextLines = cfg.ContextLines
 		}
 
+		// Auto-enable compact mode when output is not a TTY (piped to another process)
+		if !cmd.Flags().Changed("compact") && !term.IsTerminal(int(os.Stdout.Fd())) {
+			compactOutput = true
+		}
+
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -89,6 +97,7 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", true, "JSON output (default)")
 	rootCmd.PersistentFlags().BoolVar(&humanOutput, "human", false, "Pretty-printed for debugging")
+	rootCmd.PersistentFlags().BoolVar(&compactOutput, "compact", false, "Minified JSON (auto-enabled for pipes)")
 	rootCmd.PersistentFlags().IntVar(&limit, "limit", 50, "Cap results")
 	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Skip first N results (for pagination)")
 	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 3, "Lines of context around match")
@@ -100,8 +109,8 @@ func init() {
 }
 
 // GetOutputConfig returns the current output configuration
-func GetOutputConfig() (json bool, human bool, lim int, off int, ctx int, body bool, siblings bool, summary bool) {
-	return jsonOutput, humanOutput, limit, offset, contextLines, withBody, withSiblings, summaryOnly
+func GetOutputConfig() (json bool, human bool, compact bool, lim int, off int, ctx int, body bool, siblings bool, summary bool) {
+	return jsonOutput, humanOutput, compactOutput, limit, offset, contextLines, withBody, withSiblings, summaryOnly
 }
 
 // GetMaxTokens returns the max-tokens flag value (0 = unlimited)

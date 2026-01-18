@@ -46,8 +46,8 @@ func runSim(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 	queryText := args[0]
 
-	_, human, lim, off, contextLines, withBody, _, summary := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human)
+	_, human, compact, lim, off, contextLines, withBody, _, summary := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, human, compact)
 
 	dir, err := os.Getwd()
 	if err != nil {

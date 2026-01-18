@@ -37,8 +37,8 @@ func init() {
 func runImpl(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, lim, off, contextLines, withBody, _, summary := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human)
+	_, human, compact, lim, off, contextLines, withBody, _, summary := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, human, compact)
 
 	if len(args) == 0 && implID == "" {
 		return w.WriteError("impl", &output.Error{

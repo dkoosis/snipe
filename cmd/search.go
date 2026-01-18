@@ -26,8 +26,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 	pattern := args[0]
 
-	_, human, lim, _, ctx, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human)
+	_, human, compact, lim, _, ctx, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, human, compact)
 
 	// Get current directory
 	dir, err := os.Getwd()

@@ -17,17 +17,19 @@ var globalFileCache = util.NewFileCache(util.DefaultMaxCachedFiles)
 
 // Writer handles output formatting
 type Writer struct {
-	out   io.Writer
-	human bool
-	start time.Time
+	out     io.Writer
+	human   bool
+	compact bool
+	start   time.Time
 }
 
 // NewWriter creates a new output writer
-func NewWriter(out io.Writer, human bool) *Writer {
+func NewWriter(out io.Writer, human, compact bool) *Writer {
 	return &Writer{
-		out:   out,
-		human: human,
-		start: time.Now(),
+		out:     out,
+		human:   human,
+		compact: compact,
+		start:   time.Now(),
 	}
 }
 
@@ -41,7 +43,9 @@ func (w *Writer) WriteResponse(resp any) error {
 
 func (w *Writer) writeJSON(resp any) error {
 	enc := json.NewEncoder(w.out)
-	enc.SetIndent("", "  ")
+	if !w.compact {
+		enc.SetIndent("", "  ")
+	}
 	return enc.Encode(resp)
 }
 

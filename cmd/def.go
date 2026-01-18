@@ -41,8 +41,8 @@ func init() {
 func runDef(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, _, _, contextLines, withBody, withSiblings, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human)
+	_, human, compact, _, _, contextLines, withBody, withSiblings, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, human, compact)
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && defAt == "" {

@@ -38,7 +38,7 @@ fi
 
 # Performance tuning
 export GOMAXPROCS=${GOMAXPROCS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
-export GOTOOLCHAIN=local
+export GOTOOLCHAIN=auto
 
 # Increase file descriptor limit if possible
 ulimit -n 65536 2>/dev/null || true

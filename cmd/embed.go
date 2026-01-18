@@ -66,8 +66,8 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 	dbPath := store.DefaultIndexPath(absDir)
 
 	// Setup output writer
-	_, human, _, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human)
+	_, human, compact, _, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, human, compact)
 
 	// Load batch client
 	client, err := embed.NewBatchClient(snipeDir)
