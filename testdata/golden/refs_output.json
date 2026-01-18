@@ -16,6 +16,7 @@
       "kind": "ref",
       "name": "main",
       "match": "    main()",
+      "ref_count": 0,
       "enclosing": {
         "id": "go#main.go#init",
         "kind": "func",
@@ -39,6 +40,7 @@
       "kind": "ref",
       "name": "main",
       "match": "main.Run()",
+      "ref_count": 0,
       "edit_target": "cmd/root.go:42:5-42:9"
     }
   ],

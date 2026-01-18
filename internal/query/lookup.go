@@ -319,21 +319,35 @@ func (s *SymbolRow) computeHints() []string {
 	return hints
 }
 
-// ToResultWithHints converts a SymbolRow to an output.Result with optional unused detection.
-// If db is provided, checks if exported symbols have zero references.
+// ToResultWithHints converts a SymbolRow to an output.Result with ref count and unused detection.
+// If db is provided, includes reference count and checks if exported symbols are unused.
+// RefCount is set to -1 if the query fails.
 func (s *SymbolRow) ToResultWithHints(db *sql.DB) output.Result {
 	result := s.ToResult()
 
-	// Check for unused exported symbols (requires db)
-	if db != nil && isExported(s.Name) {
+	// Get reference count (always included when db is available)
+	if db != nil {
 		var refCount int
 		err := db.QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id = ?`, s.ID).Scan(&refCount)
-		if err == nil && refCount == 0 {
-			result.Hints = append(result.Hints, output.HintUnused)
+		if err != nil {
+			result.RefCount = -1 // Indicate unavailable due to error
+		} else {
+			result.RefCount = refCount
+			// Check for unused exported symbols
+			if isExported(s.Name) && refCount == 0 {
+				result.Hints = append(result.Hints, output.HintUnused)
+			}
 		}
 	}
 
 	return result
+}
+
+// GetRefCount returns the number of references to a symbol.
+func GetRefCount(db *sql.DB, symbolID string) (int, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id = ?`, symbolID).Scan(&count)
+	return count, err
 }
 
 // isExported returns true if a Go identifier is exported (starts with uppercase).

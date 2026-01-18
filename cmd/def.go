@@ -12,7 +12,6 @@ import (
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
-	"github.com/dkoosis/snipe/internal/store"
 )
 
 var (
@@ -52,29 +51,10 @@ func runDef(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// Find repo root and open store
-	dir, err := os.Getwd()
+	// Find repo root and open store (auto-indexes if needed)
+	s, dir, err := OpenStore(w, "def")
 	if err != nil {
-		return w.WriteError("def", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to get working directory: " + err.Error(),
-		})
-	}
-
-	dbPath := store.DefaultIndexPath(dir)
-	if store.IsIndexing(dbPath) {
-		return w.WriteError("def", output.NewIndexInProgressError())
-	}
-	if !store.Exists(dbPath) {
-		return w.WriteError("def", output.NewMissingIndexError())
-	}
-
-	s, err := store.Open(dbPath)
-	if err != nil {
-		return w.WriteError("def", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to open index: " + err.Error(),
-		})
+		return err // Error already written by OpenStore
 	}
 	defer s.Close()
 

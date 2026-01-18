@@ -8,6 +8,8 @@ import (
 	"golang.org/x/term"
 
 	"github.com/dkoosis/snipe/internal/config"
+	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/store"
 )
 
 var (
@@ -19,7 +21,9 @@ var (
 	offset        int
 	contextLines  int
 	withBody      bool
+	noBody        bool
 	withSiblings  bool
+	noSiblings    bool
 	summaryOnly   bool
 
 	maxTokens int
@@ -45,7 +49,8 @@ Commands:
 
 Key flags (apply to most commands):
   --at file:line:col   Query by position (what you have from errors/output)
-  --with-body          Include full function/method body
+  --no-body            Exclude function/method body (body included by default)
+  --no-siblings        Exclude sibling declarations (siblings included by default for def)
   --limit N            Cap results (default 50)
   --summary            Return counts per file instead of full results
   --max-tokens N       Truncate output to token budget
@@ -101,8 +106,10 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&limit, "limit", 50, "Cap results")
 	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Skip first N results (for pagination)")
 	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 3, "Lines of context around match")
-	rootCmd.PersistentFlags().BoolVar(&withBody, "with-body", false, "Include full enclosing function body")
-	rootCmd.PersistentFlags().BoolVar(&withSiblings, "with-siblings", false, "Include sibling declarations in same file")
+	rootCmd.PersistentFlags().BoolVar(&withBody, "with-body", true, "Include full enclosing function body (default: true)")
+	rootCmd.PersistentFlags().BoolVar(&noBody, "no-body", false, "Exclude function/method body")
+	rootCmd.PersistentFlags().BoolVar(&withSiblings, "with-siblings", true, "Include sibling declarations in same file (for def)")
+	rootCmd.PersistentFlags().BoolVar(&noSiblings, "no-siblings", false, "Exclude sibling declarations")
 	rootCmd.PersistentFlags().BoolVar(&summaryOnly, "summary", false, "Show summary stats only (counts per file)")
 
 	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Maximum tokens in output (0 = unlimited)")
@@ -110,7 +117,11 @@ func init() {
 
 // GetOutputConfig returns the current output configuration
 func GetOutputConfig() (json bool, human bool, compact bool, lim int, off int, ctx int, body bool, siblings bool, summary bool) {
-	return jsonOutput, humanOutput, compactOutput, limit, offset, contextLines, withBody, withSiblings, summaryOnly
+	// noBody overrides withBody (default true)
+	effectiveBody := withBody && !noBody
+	// noSiblings overrides withSiblings (default true)
+	effectiveSiblings := withSiblings && !noSiblings
+	return jsonOutput, humanOutput, compactOutput, limit, offset, contextLines, effectiveBody, effectiveSiblings, summaryOnly
 }
 
 // GetMaxTokens returns the max-tokens flag value (0 = unlimited)
@@ -140,4 +151,50 @@ func GetConfig() *config.Config {
 		return config.DefaultConfig()
 	}
 	return loadedConfig
+}
+
+// OpenStore opens the index for query commands.
+// Returns the store, working directory, and any error.
+func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		if w != nil {
+			_ = w.WriteError(cmdName, &output.Error{
+				Code:    output.ErrInternal,
+				Message: "failed to get working directory: " + err.Error(),
+			})
+		}
+		return nil, "", err
+	}
+
+	dbPath := store.DefaultIndexPath(dir)
+
+	// Check if indexing is in progress
+	if store.IsIndexing(dbPath) {
+		if w != nil {
+			_ = w.WriteError(cmdName, output.NewIndexInProgressError())
+		}
+		return nil, dir, fmt.Errorf("indexing in progress")
+	}
+
+	// Check for missing index
+	if !store.Exists(dbPath) {
+		if w != nil {
+			_ = w.WriteError(cmdName, output.NewMissingIndexError())
+		}
+		return nil, dir, fmt.Errorf("index missing")
+	}
+
+	s, err := store.Open(dbPath)
+	if err != nil {
+		if w != nil {
+			_ = w.WriteError(cmdName, &output.Error{
+				Code:    output.ErrInternal,
+				Message: "failed to open index: " + err.Error(),
+			})
+		}
+		return nil, dir, err
+	}
+
+	return s, dir, nil
 }

@@ -16,6 +16,7 @@ import (
 var (
 	contextFormat string
 	contextFull   bool
+	contextBoot   bool
 )
 
 var contextCmd = &cobra.Command{
@@ -28,14 +29,15 @@ The output includes:
 - Project metadata (name, root, build commands)
 - Architecture components and data flows
 - Files organized by concern
-- Key types and functions
+- Key types and functions (ranked by reference count)
 - Generation metadata
 
 Examples:
   snipe context                    # Generate context for current directory
   snipe context .                  # Same as above
   snipe context --format=yaml      # Output as YAML
-  snipe context --full             # Include all symbols, not just key ones`,
+  snipe context --full             # Include all symbols, not just key ones
+  snipe context --boot             # Minimal context for LLM boot (~2000 tokens)`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runContext,
 }
@@ -43,6 +45,7 @@ Examples:
 func init() {
 	contextCmd.Flags().StringVar(&contextFormat, "format", "json", "Output format: json or yaml")
 	contextCmd.Flags().BoolVar(&contextFull, "full", false, "Include all symbols, not just key ones")
+	contextCmd.Flags().BoolVar(&contextBoot, "boot", false, "Minimal context for LLM boot (~2000 tokens)")
 	rootCmd.AddCommand(contextCmd)
 }
 
@@ -83,9 +86,22 @@ func runContext(cmd *cobra.Command, args []string) error {
 		Full:     contextFull,
 	}
 
-	ctx, err := context.Generate(cfg)
-	if err != nil {
-		return fmt.Errorf("generate context: %w", err)
+	var output interface{}
+
+	if contextBoot {
+		// Generate minimal boot context
+		bootCtx, err := context.GenerateBoot(cfg)
+		if err != nil {
+			return fmt.Errorf("generate boot context: %w", err)
+		}
+		output = bootCtx
+	} else {
+		// Generate full context
+		ctx, err := context.Generate(cfg)
+		if err != nil {
+			return fmt.Errorf("generate context: %w", err)
+		}
+		output = ctx
 	}
 
 	// Output in requested format
@@ -93,13 +109,13 @@ func runContext(cmd *cobra.Command, args []string) error {
 	case "yaml":
 		enc := yaml.NewEncoder(os.Stdout)
 		enc.SetIndent(2)
-		if err := enc.Encode(ctx); err != nil {
+		if err := enc.Encode(output); err != nil {
 			return fmt.Errorf("encode yaml: %w", err)
 		}
 	case "json":
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		if err := enc.Encode(ctx); err != nil {
+		if err := enc.Encode(output); err != nil {
 			return fmt.Errorf("encode json: %w", err)
 		}
 	default:

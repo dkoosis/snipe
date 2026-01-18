@@ -5,9 +5,20 @@ package context
 type ProjectContext struct {
 	Project      Project      `json:"project" yaml:"project"`
 	Architecture Architecture `json:"architecture" yaml:"architecture"`
-	Files        Files        `json:"files" yaml:"files"`
+	Files        Files        `json:"files,omitempty" yaml:"files,omitempty"`
 	Symbols      Symbols      `json:"symbols" yaml:"symbols"`
 	Meta         Meta         `json:"meta" yaml:"meta"`
+}
+
+// BootContext is a minimal context for LLM boot sequences (~2000 tokens).
+type BootContext struct {
+	Project     string       `json:"project" yaml:"project"`
+	Lang        string       `json:"lang" yaml:"lang"`
+	Build       string       `json:"build" yaml:"build"`
+	Test        string       `json:"test" yaml:"test"`
+	EntryPoints []string     `json:"entry_points" yaml:"entry_points"`
+	KeySymbols  []SymbolRef  `json:"key_symbols" yaml:"key_symbols"`
+	Commit      string       `json:"commit" yaml:"commit"`
 }
 
 // Project contains basic project information.

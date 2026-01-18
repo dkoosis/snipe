@@ -44,6 +44,96 @@ func Generate(cfg GenerateConfig) (*ProjectContext, error) {
 	return ctx, nil
 }
 
+// GenerateBoot creates a minimal BootContext for LLM boot sequences (~2000 tokens).
+func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
+	proj := generateProject(cfg.RepoRoot)
+	meta := generateMeta(cfg.DB)
+
+	// Get entry points (cmd/* main.go files)
+	entryPoints := getEntryPoints(cfg.DB, cfg.RepoRoot)
+
+	// Get top symbols by reference count (most referenced = most important)
+	keySymbols := getKeySymbolsByRefCount(cfg.DB, cfg.RepoRoot, 10)
+
+	lang := "go"
+	if len(proj.Lang) > 0 {
+		lang = proj.Lang[0]
+	}
+
+	return &BootContext{
+		Project:     proj.Name,
+		Lang:        lang,
+		Build:       proj.Build,
+		Test:        proj.Test,
+		EntryPoints: entryPoints,
+		KeySymbols:  keySymbols,
+		Commit:      meta.GitCommit,
+	}, nil
+}
+
+// getEntryPoints finds main.go files in cmd/ directory
+func getEntryPoints(db *sql.DB, repoRoot string) []string {
+	var entryPoints []string
+
+	rows, err := db.Query(`
+		SELECT DISTINCT file_path
+		FROM symbols
+		WHERE file_path LIKE ? || '/cmd/%/main.go'
+		   OR file_path LIKE ? || '/main.go'
+		ORDER BY file_path
+		LIMIT 5
+	`, repoRoot, repoRoot)
+	if err != nil {
+		return entryPoints
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			continue
+		}
+		relPath := strings.TrimPrefix(path, repoRoot+"/")
+		entryPoints = append(entryPoints, relPath)
+	}
+
+	return entryPoints
+}
+
+// getKeySymbolsByRefCount returns symbols ordered by reference count (most important first)
+func getKeySymbolsByRefCount(db *sql.DB, repoRoot string, limit int) []SymbolRef {
+	var symbols []SymbolRef
+
+	rows, err := db.Query(`
+		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
+		FROM symbols s
+		LEFT JOIN refs r ON s.id = r.symbol_id
+		WHERE s.file_path LIKE ? || '/%'
+		  AND s.kind IN ('func', 'method', 'type', 'interface', 'struct')
+		  AND s.name GLOB '[A-Z]*'
+		GROUP BY s.id
+		ORDER BY ref_count DESC
+		LIMIT ?
+	`, repoRoot, limit)
+	if err != nil {
+		return symbols
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var ref SymbolRef
+		var fullPath string
+		var refCount int
+		if err := rows.Scan(&ref.Name, &fullPath, &ref.Line, &refCount); err != nil {
+			continue
+		}
+		ref.File = strings.TrimPrefix(fullPath, repoRoot+"/")
+		symbols = append(symbols, ref)
+	}
+
+	return symbols
+}
+
 func generateProject(repoRoot string) Project {
 	name := filepath.Base(repoRoot)
 	proj := Project{

@@ -16,6 +16,7 @@
       "kind": "func",
       "name": "main",
       "match": "func main() {",
+      "ref_count": 0,
       "edit_target": "main.go:5:1-10:2"
     }
   ],
