@@ -93,6 +93,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	loadStart := time.Now()
 
 	result, err := index.Load(index.LoadConfig{
+		Context:  GetContext(),
 		Dir:      absDir,
 		Patterns: []string{"./..."},
 	})
