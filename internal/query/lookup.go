@@ -391,7 +391,140 @@ func (s *SymbolRow) ToResultWithHints(db *sql.DB) output.Result {
 		}
 	}
 
+	// Add function analysis for func/method kinds
+	if s.Kind == "func" || s.Kind == "method" {
+		result.Analysis = s.ComputeFuncAnalysis()
+	}
+
 	return result
+}
+
+// ComputeFuncAnalysis computes function metrics from symbol data.
+func (s *SymbolRow) ComputeFuncAnalysis() *output.FuncAnalysis {
+	analysis := &output.FuncAnalysis{
+		LineCount:  s.LineEnd - s.LineStart + 1,
+		IsExported: isExported(s.Name),
+	}
+
+	// Extract receiver type for methods
+	if s.Receiver.Valid && s.Receiver.String != "" {
+		recv := s.Receiver.String
+		// Strip parentheses: "(*Server)" -> "*Server"
+		recv = strings.TrimPrefix(recv, "(")
+		recv = strings.TrimSuffix(recv, ")")
+		analysis.ReceiverType = recv
+	}
+
+	// Parse signature for param/result counts
+	if s.Signature.Valid && s.Signature.String != "" {
+		sig := s.Signature.String
+		analysis.ParamCount, analysis.ResultCount, analysis.IsVariadic = parseSignatureCounts(sig)
+	}
+
+	return analysis
+}
+
+// parseSignatureCounts extracts param count, result count, and variadic flag from a signature.
+// Example: "func Load(cfg LoadConfig) (*LoadResult, error)" -> (1, 2, false)
+// Example: "func (*Writer) WriteError(cmd string, err *Error) error" -> (2, 1, false)
+func parseSignatureCounts(sig string) (params, results int, variadic bool) {
+	// Skip "func" prefix if present
+	sig = strings.TrimPrefix(sig, "func")
+	sig = strings.TrimSpace(sig)
+
+	// Skip receiver if present (e.g., "(*Writer)" or "(T)")
+	if len(sig) > 0 && sig[0] == '(' {
+		recvEnd := findMatchingParen(sig, 0)
+		if recvEnd > 0 {
+			sig = strings.TrimSpace(sig[recvEnd+1:])
+		}
+	}
+
+	// Skip function name (until next paren)
+	parenStart := strings.Index(sig, "(")
+	if parenStart < 0 {
+		return 0, 0, false
+	}
+
+	// Find the matching closing paren
+	paramEnd := findMatchingParen(sig, parenStart)
+	if paramEnd < 0 {
+		return 0, 0, false
+	}
+
+	paramStr := sig[parenStart+1 : paramEnd]
+	params, variadic = countParams(paramStr)
+
+	// Check for results after params
+	rest := strings.TrimSpace(sig[paramEnd+1:])
+	if rest == "" {
+		return params, 0, variadic
+	}
+
+	// Results can be: "(Type, error)", "Type", or nothing
+	if len(rest) > 0 && rest[0] == '(' {
+		resultEnd := findMatchingParen(rest, 0)
+		if resultEnd > 0 {
+			resultStr := rest[1:resultEnd]
+			results, _ = countParams(resultStr)
+		}
+	} else if len(rest) > 0 {
+		// Single unnamed result (e.g., "error" or "*Type")
+		results = 1
+	}
+
+	return params, results, variadic
+}
+
+// findMatchingParen finds the index of the closing paren matching the opening at start.
+func findMatchingParen(s string, start int) int {
+	if start >= len(s) || s[start] != '(' {
+		return -1
+	}
+	depth := 0
+	for i := start; i < len(s); i++ {
+		switch s[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// countParams counts parameters in a param list string.
+// Handles cases like "a, b int" (2 params) and "opts ...T" (variadic).
+func countParams(paramStr string) (count int, variadic bool) {
+	paramStr = strings.TrimSpace(paramStr)
+	if paramStr == "" {
+		return 0, false
+	}
+
+	// Check for variadic
+	variadic = strings.Contains(paramStr, "...")
+
+	// Split by comma, but be careful of generics and nested types
+	// Simple heuristic: count commas at depth 0, add 1
+	depth := 0
+	commas := 0
+	for _, ch := range paramStr {
+		switch ch {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+		case ',':
+			if depth == 0 {
+				commas++
+			}
+		}
+	}
+
+	return commas + 1, variadic
 }
 
 // GetRefCount returns the number of references to a symbol.
