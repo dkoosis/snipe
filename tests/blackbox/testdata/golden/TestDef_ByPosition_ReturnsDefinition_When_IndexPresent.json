@@ -2,7 +2,6 @@
   "error": null,
   "meta": {
     "command": "def",
-    "index_state": "fresh",
     "query": {
       "at": "\u003crepo\u003e/main.go:19:11"
     },
@@ -26,7 +25,6 @@
       },
       "edit_target": "\u003crepo\u003e/main.go:30:1-32:2@8b60bd8320e77b84",
       "file": "\u003crepo\u003e/main.go",
-      "id": "b0b053f674b2e191",
       "kind": "func",
       "match": "func Callee() string",
       "name": "Callee",

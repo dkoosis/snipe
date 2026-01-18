@@ -2,6 +2,7 @@ package blackbox
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,17 +16,22 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	code := runTests(m)
+	os.Exit(code)
+}
+
+func runTests(m *testing.M) int {
 	root, err := findRepoRoot()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1
 	}
 	repoRoot = root
 
 	tmpDir, err := os.MkdirTemp("", "snipe-blackbox-*")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1
 	}
 	defer os.RemoveAll(tmpDir)
 
@@ -41,10 +47,10 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, stdout.String())
 		fmt.Fprintln(os.Stderr, stderr.String())
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1
 	}
 
-	os.Exit(m.Run())
+	return m.Run()
 }
 
 func run(t *testing.T, repoDir string, args ...string) (stdout []byte, stderr []byte, exitCode int) {
@@ -65,7 +71,8 @@ func run(t *testing.T, repoDir string, args ...string) (stdout []byte, stderr []
 	if err == nil {
 		return stdout, stderr, 0
 	}
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		return stdout, stderr, exitErr.ExitCode()
 	}
 	return stdout, stderr, 1
