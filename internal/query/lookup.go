@@ -469,7 +469,7 @@ func parseSignatureCounts(sig string) (params, results int, variadic bool) {
 			results, _ = countParams(resultStr)
 		}
 	} else if len(rest) > 0 {
-		// Single unnamed result (e.g., "error" or "*Type")
+		// Single result (e.g., "error" or "*Type")
 		results = 1
 	}
 
@@ -497,7 +497,7 @@ func findMatchingParen(s string, start int) int {
 }
 
 // countParams counts parameters in a param list string.
-// Handles cases like "a, b int" (2 params) and "opts ...T" (variadic).
+// Handles cases like "a int, b int" (2 params) and "opts ...T" (variadic).
 func countParams(paramStr string) (count int, variadic bool) {
 	paramStr = strings.TrimSpace(paramStr)
 	if paramStr == "" {
