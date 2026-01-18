@@ -80,11 +80,23 @@ type Result struct {
 	RefCount       int             `json:"ref_count"`                 // Number of references to this symbol (-1 = unavailable)
 	Hints          []string        `json:"hints,omitempty"`           // Static analysis hints: deprecated, unused, etc.
 	CallersPreview []CallerPreview `json:"callers_preview,omitempty"` // Top callers for func/method
+	Analysis       *FuncAnalysis   `json:"analysis,omitempty"`        // Function/method analysis (for func/method kinds)
 	KGHints        []KGHint        `json:"kg_hints,omitempty"`        // Knowledge graph hints from Orca
 	Enclosing      *Enclosing      `json:"enclosing,omitempty"`
 	Context        *Context        `json:"context,omitempty"`
 	Siblings       []Sibling       `json:"siblings,omitempty"`
 	EditTarget     string          `json:"edit_target,omitempty"`
+}
+
+// FuncAnalysis provides metrics about a function or method.
+// Populated for func/method kinds in detailed format.
+type FuncAnalysis struct {
+	LineCount    int    `json:"line_count"`              // Number of lines in function body
+	ParamCount   int    `json:"param_count"`             // Number of parameters
+	ResultCount  int    `json:"result_count"`            // Number of return values
+	ReceiverType string `json:"receiver_type,omitempty"` // Receiver type for methods (e.g., "*Server")
+	IsExported   bool   `json:"is_exported"`             // Whether the function is exported
+	IsVariadic   bool   `json:"is_variadic,omitempty"`   // Whether the function has variadic params
 }
 
 // CallerPreview represents a preview of a function caller
