@@ -161,7 +161,14 @@ func generateProject(repoRoot string) Project {
 func generateArchitecture(db *sql.DB, repoRoot string) Architecture {
 	arch := Architecture{
 		Components: []Component{},
-		DataFlows:  []string{},
+		DataFlows:  []DataFlow{},
+		Boundaries: []Boundary{},
+	}
+
+	// Detect the Go module path from existing symbols
+	modulePath := detectModulePath(db)
+	if modulePath == "" {
+		modulePath = filepath.Base(repoRoot) // fallback
 	}
 
 	// Find top-level packages and their purposes
@@ -176,29 +183,213 @@ func generateArchitecture(db *sql.DB, repoRoot string) Architecture {
 		arch.Components = append(arch.Components, comp)
 	}
 
-	// Generate data flow if cmd package exists
-	hasCmd := false
-	hasStore := false
-	hasQuery := false
-	for _, pkg := range packages {
-		switch pkg.name {
-		case pkgCmd:
-			hasCmd = true
-		case "store":
-			hasStore = true
-		case pkgQuery:
-			hasQuery = true
-		}
-	}
-	if hasCmd && hasStore {
-		if hasQuery {
-			arch.DataFlows = append(arch.DataFlows, "CLI -> query -> store -> SQLite")
-		} else {
-			arch.DataFlows = append(arch.DataFlows, "CLI -> store -> SQLite")
-		}
-	}
+	// Infer data flows from import relationships
+	arch.DataFlows = inferDataFlows(db, modulePath)
+
+	// Build package boundaries
+	arch.Boundaries = inferBoundaries(db, modulePath)
 
 	return arch
+}
+
+// detectModulePath finds the Go module path from indexed symbols.
+func detectModulePath(db *sql.DB) string {
+	var pkgPath string
+	// Get the shortest distinct package path (should be the module root)
+	err := db.QueryRow(`
+		SELECT pkg_path FROM symbols
+		WHERE pkg_path NOT LIKE '%/internal/%'
+		  AND pkg_path NOT LIKE '%/cmd/%'
+		ORDER BY LENGTH(pkg_path)
+		LIMIT 1
+	`).Scan(&pkgPath)
+	if err != nil {
+		return ""
+	}
+	return pkgPath
+}
+
+// inferDataFlows analyzes imports to determine data flow between packages.
+func inferDataFlows(db *sql.DB, modulePath string) []DataFlow {
+	// Query inter-package imports within the repository
+	rows, err := db.Query(`
+		SELECT
+			importer_pkg,
+			pkg_path,
+			COUNT(*) as weight
+		FROM imports
+		WHERE importer_pkg LIKE ? || '%'
+		  AND pkg_path LIKE ? || '/%'
+		GROUP BY importer_pkg, pkg_path
+		HAVING weight >= 2
+		ORDER BY weight DESC
+		LIMIT 20
+	`, modulePath, modulePath)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	// Map full package paths to short names
+	var flows []DataFlow
+	seen := make(map[string]bool)
+
+	for rows.Next() {
+		var importer, imported string
+		var weight int
+		if err := rows.Scan(&importer, &imported, &weight); err != nil {
+			continue
+		}
+
+		// Extract short names from package paths
+		fromPkg := extractPkgShortName(importer, modulePath)
+		toPkg := extractPkgShortName(imported, modulePath)
+
+		// Skip self-imports and internal details
+		if fromPkg == toPkg || fromPkg == "" || toPkg == "" {
+			continue
+		}
+
+		key := fromPkg + "->" + toPkg
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		flows = append(flows, DataFlow{
+			From:   fromPkg,
+			To:     toPkg,
+			Via:    "import",
+			Weight: weight,
+		})
+	}
+
+	return flows
+}
+
+// extractPkgShortName converts a full package path to a short component name.
+func extractPkgShortName(pkgPath, modulePath string) string {
+	// Strip module path prefix
+	rel := strings.TrimPrefix(pkgPath, modulePath)
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" {
+		return "root"
+	}
+
+	// Extract first or second level component
+	parts := strings.Split(rel, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+
+	// For internal/*, use internal/subpkg
+	if parts[0] == pkgInternal && len(parts) > 1 {
+		return pkgInternal + "/" + parts[1]
+	}
+
+	return parts[0]
+}
+
+// inferBoundaries determines what each package owns/exports.
+func inferBoundaries(db *sql.DB, modulePath string) []Boundary {
+	// Get distinct internal packages
+	rows, err := db.Query(`
+		SELECT DISTINCT pkg_path
+		FROM symbols
+		WHERE pkg_path LIKE ? || '/internal/%'
+		ORDER BY pkg_path
+	`, modulePath)
+	if err != nil {
+		return nil
+	}
+
+	// Collect package paths first (avoid nested queries)
+	type pkgInfo struct {
+		fullPath  string
+		shortName string
+	}
+	var packages []pkgInfo
+	seen := make(map[string]bool)
+
+	for rows.Next() {
+		var pkgPath string
+		if err := rows.Scan(&pkgPath); err != nil {
+			continue
+		}
+
+		shortName := extractPkgShortName(pkgPath, modulePath)
+		if shortName == "" || seen[shortName] {
+			continue
+		}
+		seen[shortName] = true
+		packages = append(packages, pkgInfo{fullPath: pkgPath, shortName: shortName})
+	}
+	rows.Close()
+
+	// Now build boundaries with exports (safe to query now)
+	var boundaries []Boundary
+	for _, pkg := range packages {
+		exports := getExportedSymbols(db, pkg.fullPath, 5)
+		owns := inferOwnership(pkg.shortName)
+
+		boundaries = append(boundaries, Boundary{
+			Package: pkg.shortName,
+			Owns:    owns,
+			Exports: exports,
+		})
+	}
+
+	return boundaries
+}
+
+// getExportedSymbols returns the top exported symbols for a package.
+func getExportedSymbols(db *sql.DB, pkgPath string, limit int) []string {
+	rows, err := db.Query(`
+		SELECT s.name
+		FROM symbols s
+		LEFT JOIN refs r ON s.id = r.symbol_id
+		WHERE s.pkg_path = ?
+		  AND s.name GLOB '[A-Z]*'
+		  AND s.kind IN ('func', 'type', 'interface', 'struct')
+		GROUP BY s.id
+		ORDER BY COUNT(r.id) DESC
+		LIMIT ?
+	`, pkgPath, limit)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var exports []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			continue
+		}
+		exports = append(exports, name)
+	}
+	return exports
+}
+
+// inferOwnership determines what a package is responsible for based on its name.
+func inferOwnership(pkgName string) []string {
+	ownership := map[string][]string{
+		"internal/store":   {"SQLite database", "persistence", "transactions"},
+		"internal/query":   {"symbol lookup", "reference lookup", "call graph queries"},
+		"internal/index":   {"Go package loading", "symbol extraction", "call graph building"},
+		"internal/output":  {"JSON formatting", "response structures", "suggestions"},
+		"internal/config":  {"configuration loading", "defaults", "validation"},
+		"internal/search":  {"ripgrep integration", "regex patterns", "result parsing"},
+		"internal/embed":   {"vector embeddings", "similarity search", "embedding API"},
+		"internal/context": {"boot context", "project analysis", "LLM summaries"},
+		"internal/analyze": {"function analysis", "warning detection", "doc status"},
+		"cmd":              {"CLI commands", "flags", "output formatting"},
+	}
+
+	if owns, ok := ownership[pkgName]; ok {
+		return owns
+	}
+	return []string{"implementation details"}
 }
 
 type packageInfo struct {
