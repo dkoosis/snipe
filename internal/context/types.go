@@ -46,7 +46,15 @@ type Component struct {
 
 // Files organizes files by concern/purpose.
 type Files struct {
-	ByConcern map[string]map[string]string `json:"by_concern" yaml:"by_concern"`
+	ByConcern map[string][]FileInfo `json:"by_concern" yaml:"by_concern"`
+}
+
+// FileInfo describes a file with its purpose and key exports.
+type FileInfo struct {
+	Path        string   `json:"path" yaml:"path"`
+	Description string   `json:"description" yaml:"description"`
+	Source      string   `json:"source,omitempty" yaml:"source,omitempty"` // "doc" or "inferred"
+	Exports     []string `json:"exports,omitempty" yaml:"exports,omitempty"`
 }
 
 // Symbols lists key types and functions.
