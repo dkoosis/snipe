@@ -768,28 +768,6 @@ func getExtensionPoints(db *sql.DB, repoRoot string) []ExtensionPoint {
 	return points
 }
 
-// extractFirstSentence returns the first sentence of a doc comment.
-func extractFirstSentence(doc string) string {
-	doc = strings.TrimSpace(doc)
-	// Find first period followed by space or end of string
-	for i, r := range doc {
-		if r == '.' {
-			if i+1 >= len(doc) || doc[i+1] == ' ' || doc[i+1] == '\n' {
-				return doc[:i+1]
-			}
-		}
-		// Stop at newline too
-		if r == '\n' {
-			return strings.TrimSpace(doc[:i])
-		}
-	}
-	// No period found, return first 100 chars
-	if len(doc) > 100 {
-		return doc[:100] + "..."
-	}
-	return doc
-}
-
 func generateMeta(db *sql.DB) Meta {
 	meta := Meta{
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
