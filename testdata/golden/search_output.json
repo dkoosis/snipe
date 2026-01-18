@@ -16,6 +16,7 @@
       "kind": "match",
       "name": "Search",
       "match": "func Search(dir, pattern string, limit, contextLines int) ([]output.Result, error) {",
+      "ref_count": 0,
       "edit_target": "internal/search/rg.go:15:10-15:16"
     }
   ],

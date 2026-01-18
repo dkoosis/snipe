@@ -16,6 +16,7 @@
       "kind": "caller",
       "name": "runSearch",
       "match": "    results, err := search.Search(dir, pattern, limit, ctx)",
+      "ref_count": 0,
       "enclosing": {
         "id": "go#cmd/search.go#runSearch",
         "kind": "func",
