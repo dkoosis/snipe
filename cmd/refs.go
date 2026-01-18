@@ -144,6 +144,24 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	tokenEstimate := 0
 	var degraded []string
 
+	// Batch fetch enclosing symbols if bodies are requested (avoids N+1 queries)
+	var enclosingSymbols map[string]*query.SymbolRow
+	if withBody && len(refs) > 0 {
+		enclosingIDs := make([]string, 0, len(refs))
+		for _, ref := range refs {
+			if ref.EnclosingID.Valid {
+				enclosingIDs = append(enclosingIDs, ref.EnclosingID.String)
+			}
+		}
+		if len(enclosingIDs) > 0 {
+			var batchErr error
+			enclosingSymbols, batchErr = query.BatchLookupByID(s.DB(), enclosingIDs)
+			if batchErr != nil {
+				degraded = append(degraded, "batch_lookup_failed")
+			}
+		}
+	}
+
 	for i, ref := range refs {
 		refRange := output.Range{
 			Start: output.Position{Line: ref.Line, Col: ref.Col},
@@ -176,8 +194,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 
 			// Add enclosing function body if requested
 			if withBody {
-				encSym, lookupErr := query.LookupByID(s.DB(), ref.EnclosingID.String)
-				if lookupErr == nil && encSym != nil {
+				if encSym, ok := enclosingSymbols[ref.EnclosingID.String]; ok && encSym != nil {
 					encResult := encSym.ToResult()
 					if err := output.AddBody(&encResult); err != nil {
 						degraded = append(degraded, "body_extraction_failed")
