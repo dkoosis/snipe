@@ -1,96 +1,176 @@
 # snipe: Code Navigation CLI for LLMs
 
-## tl;dr
+## Quick Start
 
-Single Go binary for fast, JSON-first code navigation. Optimized for Claude. Static indexing (no gopls daemon). Will spin out to separate repo.
-
-## Problem
-
-AI wastes tokens on exploratory navigation:
-- rg finds text, not symbols
-- gopls has cold-start latency, requires daemon
-- Results lack context for immediate editing
-- No standard nav → edit handoff format
-
-## Solution
-
-```
-snipe index                    # Build SQLite index via go/packages
-snipe def --at file:line:col   # Definition at position
-snipe refs ProcessOrder        # All references
-snipe callers ProcessOrder     # Call sites (static)
-snipe show --id abc123         # Expand previous result
+```bash
+snipe index                     # Build index (run once, rerun when code changes)
+snipe def ProcessOrder          # Jump to definition by name
+snipe def --at main.go:42:12    # Jump to definition at position
+snipe refs ProcessOrder         # Find all references
+snipe callers ProcessOrder      # Who calls this?
+snipe callees ProcessOrder      # What does this call?
+snipe show a3f2c1de89ab0123     # Expand result by hex ID
 ```
 
-**Key design decisions:**
-- **Static indexer** via go/packages, not gopls — no daemon, <50ms queries
-- **Position-first** addressing (`--at file:line:col`) — what Claude actually has
-- **Determinism contract** — all commands return `{results, meta, error}`
-- **Edit-ready output** — `edit_target` field for direct handoff
-- **Graceful degradation** — core works without embeddings
+## Why snipe?
+
+- **Static indexing**: No gopls daemon, <50ms queries
+- **Position-first**: `--at file:line:col` maps directly to error output
+- **JSON-first**: Deterministic `{results, meta, error}` format
+- **Edit-ready**: Every result has `edit_target` for direct handoff
+- **Hex ID chaining**: Use IDs from one command in another
+
+## Commands
+
+### `snipe index`
+Build SQLite index from Go source. Run before other commands.
+```bash
+snipe index              # Index current directory
+snipe index --embed      # Include semantic embeddings (requires VOYAGE_API_KEY)
+```
+
+### `snipe def [symbol|id]`
+Jump to symbol definition.
+```bash
+snipe def ProcessOrder           # By name
+snipe def --at main.go:42:12     # By position (from error output)
+snipe def a3f2c1de89ab0123       # By hex ID (auto-detected)
+snipe def handler.go:Server      # File-scoped lookup
+snipe def --with-body ProcessOrder  # Include function body
+```
+
+### `snipe refs [symbol]`
+Find all references to a symbol.
+```bash
+snipe refs ProcessOrder          # All references
+snipe refs --at main.go:42:12    # References to symbol at position
+snipe refs Workspace --kind=method  # Filter by enclosing kind
+```
+
+### `snipe callers [symbol|id]`
+Find functions that call a symbol.
+```bash
+snipe callers ProcessOrder       # Who calls ProcessOrder?
+snipe callers a3f2c1de89ab0123   # By hex ID (auto-detected)
+snipe callers --with-body ProcessOrder  # Include caller bodies
+```
+
+### `snipe callees [symbol|id]`
+Find functions that a symbol calls.
+```bash
+snipe callees ProcessOrder       # What does ProcessOrder call?
+snipe callees a3f2c1de89ab0123   # By hex ID (auto-detected)
+snipe callees --with-body ProcessOrder  # Include callee bodies
+```
+
+### `snipe show <id>`
+Expand a hex ID from previous results.
+```bash
+snipe show a3f2c1de89ab0123      # Get full details for ID
+snipe show a3f2c1de89ab0123 --with-body  # Include body
+```
+
+### `snipe search <pattern>`
+Text search via ripgrep. Works without an index.
+```bash
+snipe search "TODO:"             # Find all TODOs
+snipe search "func.*Handler"     # Regex search
+```
+
+### `snipe doctor`
+Check index health and freshness.
+```bash
+snipe doctor                     # Quick health check
+```
+
+## Key Flags
+
+| Flag | Effect |
+|------|--------|
+| `--at file:line:col` | Query by position (from error/output) |
+| `--with-body` | Include full function/method body |
+| `--limit N` | Cap results (default 50) |
+| `--offset N` | Skip first N results (pagination) |
+| `--context N` | Lines of context around match (default 3) |
+| `--summary` | Return counts per file instead of full results |
+| `--max-tokens N` | Truncate output to token budget |
+| `--human` | Pretty-print for debugging |
+
+## Output Format
+
+All commands return JSON:
+```json
+{
+  "results": [{
+    "id": "a3f2c1de89ab0123",
+    "file": "order/handler.go",
+    "range": {"start": {"line": 42, "col": 4}, "end": {"line": 42, "col": 31}},
+    "kind": "func",
+    "name": "ProcessOrder",
+    "match": "func ProcessOrder(ctx context.Context, order *Order) error",
+    "edit_target": "order/handler.go:42:4-42:31#abc123"
+  }],
+  "meta": {
+    "ms": 23,
+    "total": 7,
+    "index_state": "fresh",
+    "token_estimate": 450
+  }
+}
+```
+
+Key fields:
+- `id`: 16-char hex ID, usable in subsequent commands
+- `edit_target`: Direct handoff format for edits
+- `index_state`: "fresh", "stale", or "missing"
+
+## Workflow Example
+
+```bash
+# 1. Index the codebase
+snipe index
+
+# 2. Find definition of a function mentioned in error
+snipe def --at server/handler.go:142:15
+
+# 3. Result shows ID a3f2c1de89ab0123. Find who calls it:
+snipe callers a3f2c1de89ab0123
+
+# 4. Get full body of a caller:
+snipe show b4e3d2c1a0f98765 --with-body
+
+# 5. What does that caller call?
+snipe callees b4e3d2c1a0f98765
+```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐
-│            snipe CLI                │
-├───────────┬───────────┬─────────────┤
-│    rg     │go/packages│  embeddings │
-│  (shell)  │ (compiled)│ (optional)  │
-└───────────┴─────┬─────┴─────────────┘
-                  ▼
-        ┌─────────────────┐
-        │ SQLite (indexed)│
-        │ symbols, refs,  │
-        │ call_graph      │
-        └─────────────────┘
+snipe CLI
+    |
+    +-- go/packages (static indexing)
+    +-- ripgrep (text search)
+    +-- Voyage AI (optional embeddings)
+    |
+    v
+SQLite (.snipe/index.db)
+    +-- symbols (id, name, kind, file, range, signature)
+    +-- refs (symbol_id, file, line, col, enclosing_id)
+    +-- call_graph (caller_id, callee_id, file, line, col)
+    +-- embeddings (optional, for semantic search)
 ```
 
-## SQLite durability and maintenance notes
+## Configuration
 
-The index database is opened with WAL and `synchronous=NORMAL` to balance
-durability and latency for short-lived indexing and query workloads. If you
-need maximum durability (e.g., running in environments with frequent power
-loss), consider profiling with `synchronous=FULL` before changing defaults,
-as it can materially increase write latency. Use `ANALYZE` after large schema
-changes or bulk reindexing to refresh SQLite statistics. Periodic `VACUUM`
-is only recommended if you observe unbounded database growth after deletes,
-since it rewrites the entire file and can be I/O intensive.
-
-## Output Example
-
+Create `.snipe/config.json`:
 ```json
 {
-  "results": [{
-    "id": "a3f2c1",
-    "file": "order/handler.go",
-    "range": { "start": {"line": 42, "col": 4}, "end": {"line": 42, "col": 31} },
-    "match": "ProcessOrder(ctx, req.Order)",
-    "enclosing": {
-      "kind": "func",
-      "name": "HandleCheckout",
-      "signature": "func HandleCheckout(ctx context.Context, req *Request) error"
-    },
-    "edit_target": "order/handler.go:42:4-42:31"
-  }],
-  "meta": { "ms": 23, "total": 7, "index_state": "fresh", "token_estimate": 450 }
+  "limit": 100,
+  "context_lines": 5,
+  "embed_mode": "auto"
 }
 ```
 
-## Phases
-
-1. **MVP**: index, search, def, refs (Go only)
-2. **Complete**: callers, callees, impl, type, show
-3. **Semantic**: `snipe sim` with embeddings
-4. **Multi-lang**: TS/JS via tsserver
-
-## Spin-out Plan
-
-- [ ] Create `snipe` repo
-- [ ] Move spec
-- [ ] Phase 1 implementation
-- [ ] Orca integration (MCP wrapper or direct CLI use)
-
----
-
-Full spec attached below.
+Or use environment variables:
+- `VOYAGE_API_KEY`: Enable embeddings
+- `ANTHROPIC_API_KEY`: Future semantic features

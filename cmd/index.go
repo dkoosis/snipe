@@ -20,17 +20,33 @@ var indexCmd = &cobra.Command{
 	Short: "Build or update the code index",
 	Long: `Builds a SQLite index of symbols, references, and call graph for fast navigation.
 
-Use --embed to generate semantic embeddings for similarity search.`,
+Embedding modes:
+  auto     - Use batch API for initial indexing (async), realtime for incremental
+  batch    - Force batch API (async, up to 12h completion)
+  realtime - Force realtime API (sync, may timeout on large codebases)
+  off      - Skip embedding generation`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runIndex,
 }
 
-var withEmbed bool
+// Embedding mode constants.
+const (
+	embedModeAuto     = "auto"
+	embedModeBatch    = "batch"
+	embedModeRealtime = "realtime"
+	embedModeOff      = "off"
+)
+
+var (
+	withEmbed bool   // Legacy flag, kept for compatibility
+	embedMode string // New flag: auto, batch, realtime, off
+)
 
 func init() {
-	// Default to true if embedding credentials are available
+	// Legacy flag - kept for backwards compatibility
 	defaultEmbed := embed.HasCredentials()
-	indexCmd.Flags().BoolVar(&withEmbed, "embed", defaultEmbed, "Generate embeddings for semantic search (auto-enabled if credentials available)")
+	indexCmd.Flags().BoolVar(&withEmbed, "embed", defaultEmbed, "Generate embeddings (deprecated: use --embed-mode)")
+	indexCmd.Flags().StringVar(&embedMode, "embed-mode", "auto", "Embedding mode: auto, batch, realtime, off")
 	rootCmd.AddCommand(indexCmd)
 }
 
@@ -160,14 +176,31 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("store repo root: %w", err)
 	}
 
-	// Generate embeddings if requested
+	// Determine effective embedding mode
+	effectiveMode := resolveEmbedMode(embedMode, withEmbed, s)
+
+	// Generate embeddings based on mode
 	var embedCount int
-	if withEmbed {
+	var embedStatus string
+	switch effectiveMode {
+	case embedModeOff:
+		embedStatus = "disabled"
+	case embedModeBatch:
+		status, err := startBatchEmbeddings(absDir, symbols)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: batch embedding failed: %v\n", err)
+			embedStatus = "failed"
+		} else {
+			embedStatus = status
+		}
+	case embedModeRealtime:
 		ec, err := generateEmbeddings(s, symbols)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: embedding generation failed: %v\n", err)
+			embedStatus = "failed"
 		} else {
 			embedCount = ec
+			embedStatus = "completed"
 		}
 	}
 
@@ -185,6 +218,8 @@ func runIndex(cmd *cobra.Command, args []string) error {
 
 	if embedCount > 0 {
 		fmt.Fprintf(os.Stderr, "Generated %d embeddings\n", embedCount)
+	} else if embedStatus == "batch_started" {
+		fmt.Fprintf(os.Stderr, "Batch embedding started (async). Use 'snipe embed-status' to check progress.\n")
 	}
 
 	return w.WriteResponse(resp)
@@ -263,4 +298,130 @@ func generateEmbeddings(s *store.Store, symbols []index.Symbol) (int, error) {
 	}
 
 	return total, nil
+}
+
+// resolveEmbedMode determines the effective embedding mode.
+func resolveEmbedMode(mode string, legacyEmbed bool, s *store.Store) string {
+	// Handle legacy --embed=false
+	if !legacyEmbed && mode == embedModeAuto {
+		return embedModeOff
+	}
+
+	// Check if credentials are available
+	if !embed.HasCredentials() {
+		return embedModeOff
+	}
+
+	switch mode {
+	case embedModeOff:
+		return embedModeOff
+	case embedModeBatch:
+		return embedModeBatch
+	case embedModeRealtime:
+		return embedModeRealtime
+	case embedModeAuto:
+		// Auto: use batch for initial indexing, realtime for incremental
+		count, err := s.CountEmbeddings()
+		if err != nil || count == 0 {
+			// No existing embeddings - use batch for initial indexing
+			return embedModeBatch
+		}
+		// Has embeddings - use realtime for incremental updates
+		return embedModeRealtime
+	default:
+		return embedModeAuto
+	}
+}
+
+// startBatchEmbeddings initiates async batch embedding via Voyage API.
+func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, error) {
+	snipeDir := filepath.Join(repoRoot, ".snipe")
+	client, err := embed.NewBatchClient(snipeDir)
+	if err != nil {
+		return "", err
+	}
+
+	// Check for existing batch in progress
+	state, err := client.LoadState()
+	if err != nil {
+		return "", fmt.Errorf("load state: %w", err)
+	}
+
+	if state != nil && (state.Status == "validating" || state.Status == "in_progress") {
+		fmt.Fprintf(os.Stderr, "Batch embedding already in progress (batch_id: %s, status: %s)\n", state.BatchID, state.Status)
+		return "batch_in_progress", nil
+	}
+
+	// Filter symbols worth embedding
+	var toEmbed []embed.SymbolText
+	for _, sym := range symbols {
+		switch sym.Kind {
+		case index.KindFunc, index.KindMethod, index.KindType, index.KindInterface, index.KindStruct:
+			if sym.Signature != "" || sym.Doc != "" {
+				text := sym.Name
+				if sym.Signature != "" {
+					text += " " + sym.Signature
+				}
+				if sym.Doc != "" {
+					text += " " + sym.Doc
+				}
+				toEmbed = append(toEmbed, embed.SymbolText{
+					ID:   sym.ID,
+					Text: text,
+				})
+			}
+		case index.KindVar, index.KindConst, index.KindField:
+			// Skip - these typically don't have meaningful signatures
+		}
+	}
+
+	if len(toEmbed) == 0 {
+		return "no_symbols", nil
+	}
+
+	fmt.Fprintf(os.Stderr, "Starting batch embedding for %d symbols with %s...\n", len(toEmbed), client.Model())
+
+	// Write JSONL file
+	jsonlPath, err := client.WriteJSONL(toEmbed, snipeDir)
+	if err != nil {
+		return "", fmt.Errorf("write JSONL: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "  Wrote %s\n", jsonlPath)
+
+	// Upload file
+	fmt.Fprintf(os.Stderr, "  Uploading to Voyage AI...\n")
+	fileResp, err := client.UploadFile(jsonlPath)
+	if err != nil {
+		return "", fmt.Errorf("upload file: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "  Uploaded file_id: %s\n", fileResp.ID)
+
+	// Create batch
+	fmt.Fprintf(os.Stderr, "  Creating batch job...\n")
+	batchResp, err := client.CreateBatch(fileResp.ID)
+	if err != nil {
+		return "", fmt.Errorf("create batch: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "  Created batch_id: %s (status: %s)\n", batchResp.ID, batchResp.Status)
+
+	// Save state for polling
+	newState := &embed.BatchState{
+		BatchID:     batchResp.ID,
+		InputFileID: fileResp.ID,
+		Status:      batchResp.Status,
+		Total:       len(toEmbed),
+		Completed:   0,
+		Failed:      0,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		Model:       client.Model(),
+	}
+	if err := client.SaveState(newState); err != nil {
+		return "", fmt.Errorf("save state: %w", err)
+	}
+
+	// Clean up local JSONL file
+	os.Remove(jsonlPath)
+
+	return "batch_started", nil
 }

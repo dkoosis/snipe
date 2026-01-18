@@ -122,8 +122,8 @@ func TestBuildSymbolPosIndex(t *testing.T) {
 		{"/file.go", 11, 5, "", false},    // wrong line
 		{"/missing.go", 10, 5, "", false}, // wrong file
 		// Fallback tests for col 1 (chunked loading)
-		{"/file.go", 10, 1, "sym1", true},  // fallback matches sym1
-		{"/file.go", 20, 1, "sym2", true},  // fallback matches sym2
+		{"/file.go", 10, 1, "sym1", true}, // fallback matches sym1
+		{"/file.go", 20, 1, "sym2", true}, // fallback matches sym2
 	}
 
 	for _, tt := range tests {

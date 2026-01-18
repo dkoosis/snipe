@@ -319,15 +319,14 @@ func ScoreResult(result *Result, query string) float64 {
 	queryLower := strings.ToLower(query)
 	nameLower := strings.ToLower(name)
 
-	// Exact match (case-insensitive)
-	if nameLower == queryLower {
-		score += 100
-	} else if strings.HasPrefix(nameLower, queryLower) {
-		// Prefix match
-		score += 50
-	} else if strings.Contains(nameLower, queryLower) {
-		// Contains match
-		score += 25
+	// Match scoring (case-insensitive)
+	switch {
+	case nameLower == queryLower:
+		score += 100 // Exact match
+	case strings.HasPrefix(nameLower, queryLower):
+		score += 50 // Prefix match
+	case strings.Contains(nameLower, queryLower):
+		score += 25 // Contains match
 	}
 
 	// Bonus for definitions over references

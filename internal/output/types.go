@@ -10,10 +10,10 @@ type Response[T any] struct {
 
 // Suggestion provides actionable next steps for LLM consumers
 type Suggestion struct {
-	Command     string `json:"command"`               // The suggested snipe command
-	Description string `json:"description"`           // Why this command might be useful
-	Priority    int    `json:"priority,omitempty"`    // 1=high, 2=medium, 3=low
-	Condition   string `json:"condition,omitempty"`   // When this suggestion applies
+	Command     string `json:"command"`             // The suggested snipe command
+	Description string `json:"description"`         // Why this command might be useful
+	Priority    int    `json:"priority,omitempty"`  // 1=high, 2=medium, 3=low
+	Condition   string `json:"condition,omitempty"` // When this suggestion applies
 }
 
 // Meta contains metadata about the query execution
@@ -66,17 +66,17 @@ type Candidate struct {
 // Result represents a single navigation result
 type Result struct {
 	ID         string     `json:"id"`
-	File       string     `json:"file"`                  // Relative path (for output)
-	FileAbs    string     `json:"-"`                     // Absolute path (for file operations, not exported)
+	File       string     `json:"file"` // Relative path (for output)
+	FileAbs    string     `json:"-"`    // Absolute path (for file operations, not exported)
 	Range      Range      `json:"range"`
 	Kind       string     `json:"kind,omitempty"`
 	Name       string     `json:"name,omitempty"`
-	Receiver   string     `json:"receiver,omitempty"`    // Method receiver type, e.g., "(*Server)" or "(Config)"
-	Package    string     `json:"package,omitempty"`     // Go package path
+	Receiver   string     `json:"receiver,omitempty"` // Method receiver type, e.g., "(*Server)" or "(Config)"
+	Package    string     `json:"package,omitempty"`  // Go package path
 	Match      string     `json:"match,omitempty"`
 	Body       string     `json:"body,omitempty"`
 	Score      float64    `json:"score,omitempty"`
-	Hints      []string   `json:"hints,omitempty"`       // Static analysis hints: deprecated, unused, etc.
+	Hints      []string   `json:"hints,omitempty"` // Static analysis hints: deprecated, unused, etc.
 	Enclosing  *Enclosing `json:"enclosing,omitempty"`
 	Context    *Context   `json:"context,omitempty"`
 	Siblings   []Sibling  `json:"siblings,omitempty"`
@@ -140,13 +140,13 @@ type FileSummary struct {
 
 // Error codes
 const (
-	ErrNotFound         = "NOT_FOUND"
-	ErrAmbiguousSymbol  = "AMBIGUOUS_SYMBOL"
-	ErrMissingIndex     = "MISSING_INDEX"
-	ErrIndexInProgress  = "INDEX_IN_PROGRESS"
-	ErrStaleIndex       = "STALE_INDEX"
-	ErrRgNotFound       = "RG_NOT_FOUND"
-	ErrInternal         = "INTERNAL_ERROR"
+	ErrNotFound        = "NOT_FOUND"
+	ErrAmbiguousSymbol = "AMBIGUOUS_SYMBOL"
+	ErrMissingIndex    = "MISSING_INDEX"
+	ErrIndexInProgress = "INDEX_IN_PROGRESS"
+	ErrStaleIndex      = "STALE_INDEX"
+	ErrRgNotFound      = "RG_NOT_FOUND"
+	ErrInternal        = "INTERNAL_ERROR"
 )
 
 // NewNotFoundError creates a NOT_FOUND error with optional similar symbol suggestions.

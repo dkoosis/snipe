@@ -245,12 +245,12 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 
 // RefRow represents a reference with enclosing context
 type RefRow struct {
-	ID          string
-	SymbolID    string
-	FilePath    string // Absolute path (for file operations)
-	FilePathRel string // Relative path (for output)
-	Line        int
-	Col         int
+	ID                 string
+	SymbolID           string
+	FilePath           string // Absolute path (for file operations)
+	FilePathRel        string // Relative path (for output)
+	Line               int
+	Col                int
 	EnclosingID        sql.NullString
 	Snippet            string
 	EnclosingName      string

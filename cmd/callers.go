@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"os"
 	"time"
 
@@ -12,13 +13,18 @@ import (
 )
 
 var callersCmd = &cobra.Command{
-	Use:   "callers [symbol]",
+	Use:   "callers [symbol|id]",
 	Short: "Find functions that call a symbol",
 	Long: `Finds all functions that call a given symbol.
 
+Accepts symbol name or 16-char hex ID (auto-detected).
+Use --with-body to include caller function bodies.
+
 Examples:
   snipe callers ProcessOrder      # Find callers by name
-  snipe callers --id abc123       # Find callers by symbol ID`,
+  snipe callers a3f2c1de89ab0123  # Find callers by hex ID (auto-detected)
+  snipe callers --id abc123       # Explicit --id flag
+  snipe callers ProcessOrder --with-body  # Include caller bodies`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runCallers,
 }
@@ -76,6 +82,16 @@ func runCallers(cmd *cobra.Command, args []string) error {
 		queryInfo = map[string]string{"id": callersID}
 	} else {
 		name := args[0]
+
+		// Check if input looks like a symbol ID (16-char hex string)
+		if len(name) == 16 {
+			if _, err := hex.DecodeString(name); err == nil {
+				symbolID = name
+				queryInfo = map[string]string{"id": name}
+				goto findCallers
+			}
+		}
+
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
 			return w.WriteError("callers", &output.Error{
@@ -99,6 +115,8 @@ func runCallers(cmd *cobra.Command, args []string) error {
 		symbolID = symbols[0].ID
 		queryInfo = map[string]string{"symbol": name}
 	}
+
+findCallers:
 
 	// Find callers
 	calls, err := query.FindCallers(s.DB(), symbolID, lim, off)

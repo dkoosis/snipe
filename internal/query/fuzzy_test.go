@@ -36,12 +36,12 @@ func TestLevenshteinDistance(t *testing.T) {
 		{"WORLD", "world", 0},
 		{"GoLang", "golang", 0},
 
-		// Common typos
+		// Common typos (intentional misspellings for testing)
 		{"handler", "Handler", 0},
-		{"hanlder", "handler", 2}, // transposition = 2 edits
+		{"hanlder", "handler", 2}, //nolint:misspell // transposition = 2 edits
 		{"hnadler", "handler", 2},
-		{"proces", "process", 1},
-		{"proccess", "process", 1},
+		{"proces", "process", 1},   //nolint:misspell // intentional test case
+		{"proccess", "process", 1}, //nolint:misspell // intentional test case
 
 		// Symbol name variations
 		{"ProcessOrder", "processorder", 0},

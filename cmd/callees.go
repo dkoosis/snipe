@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"os"
 	"time"
 
@@ -12,13 +13,18 @@ import (
 )
 
 var calleesCmd = &cobra.Command{
-	Use:   "callees [symbol]",
+	Use:   "callees [symbol|id]",
 	Short: "Find functions that a symbol calls",
 	Long: `Finds all functions called by a given symbol.
 
+Accepts symbol name or 16-char hex ID (auto-detected).
+Use --with-body to include callee function bodies.
+
 Examples:
   snipe callees ProcessOrder      # Find callees by name
-  snipe callees --id abc123       # Find callees by symbol ID`,
+  snipe callees a3f2c1de89ab0123  # Find callees by hex ID (auto-detected)
+  snipe callees --id abc123       # Explicit --id flag
+  snipe callees ProcessOrder --with-body  # Include callee bodies`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runCallees,
 }
@@ -76,6 +82,16 @@ func runCallees(cmd *cobra.Command, args []string) error {
 		queryInfo = map[string]string{"id": calleesID}
 	} else {
 		name := args[0]
+
+		// Check if input looks like a symbol ID (16-char hex string)
+		if len(name) == 16 {
+			if _, err := hex.DecodeString(name); err == nil {
+				symbolID = name
+				queryInfo = map[string]string{"id": name}
+				goto findCallees
+			}
+		}
+
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
 			return w.WriteError("callees", &output.Error{
@@ -99,6 +115,8 @@ func runCallees(cmd *cobra.Command, args []string) error {
 		symbolID = symbols[0].ID
 		queryInfo = map[string]string{"symbol": name}
 	}
+
+findCallees:
 
 	// Find callees
 	calls, err := query.FindCallees(s.DB(), symbolID, lim, off)

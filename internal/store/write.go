@@ -113,7 +113,7 @@ func filterCallEdges(edges []index.CallEdge, symbolIDs map[string]struct{}) []in
 }
 
 func truncateTables(tx *sql.Tx) error {
-	// Delete in order: child tables first (refs, call_graph, imports), then parent (symbols)
+	// Delete in order: child tables first (refs, call_graph, embeddings, imports), then parent (symbols)
 	// This respects foreign key constraints. Using explicit statements avoids
 	// string concatenation patterns that could be unsafe if copied with user input.
 	if _, err := tx.Exec("DELETE FROM refs"); err != nil {
@@ -121,6 +121,10 @@ func truncateTables(tx *sql.Tx) error {
 	}
 	if _, err := tx.Exec("DELETE FROM call_graph"); err != nil {
 		return fmt.Errorf("truncate call_graph: %w", err)
+	}
+	if _, err := tx.Exec("DELETE FROM embeddings"); err != nil {
+		// Ignore if table doesn't exist (backwards compatibility)
+		_ = err
 	}
 	if _, err := tx.Exec("DELETE FROM imports"); err != nil {
 		// Ignore if table doesn't exist (backwards compatibility)

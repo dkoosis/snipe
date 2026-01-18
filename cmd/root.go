@@ -29,8 +29,28 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "snipe",
 	Short: "Code navigation CLI for LLMs",
-	Long: `snipe provides fast, deterministic code navigation optimized for LLM consumption.
-JSON-first output, position-addressed queries, static indexing for speed.`,
+	Long: `snipe: Fast, deterministic Go code navigation for LLMs.
+
+Commands:
+  index     Build SQLite index from Go source (run first)
+  def       Jump to definition (by name, position, or hex ID)
+  refs      Find all references to a symbol
+  callers   Find functions that call a symbol
+  callees   Find functions that a symbol calls
+  show      Expand symbol by hex ID (from previous results)
+  search    Text search via ripgrep (no index needed)
+  doctor    Check index health and freshness
+
+Key flags (apply to most commands):
+  --at file:line:col   Query by position (what you have from errors/output)
+  --with-body          Include full function/method body
+  --limit N            Cap results (default 50)
+  --summary            Return counts per file instead of full results
+  --max-tokens N       Truncate output to token budget
+
+Output format:
+  JSON with {results, meta, error}. Use --human for debugging.
+  Each result has edit_target for direct file:line:col handoff.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Load config and apply defaults if flags weren't explicitly set
 		cwd, err := os.Getwd()
