@@ -2,6 +2,9 @@
   "error": null,
   "meta": {
     "command": "def",
+    "decision_path": [
+      "lookup:position"
+    ],
     "query": {
       "at": "\u003crepo\u003e/main.go:19:11"
     },
@@ -12,6 +15,18 @@
   "results": [
     {
       "body": "func Callee() string {\n\treturn \"ok\"\n}",
+      "callers_preview": [
+        {
+          "file": "\u003crepo\u003e/main.go",
+          "line": 19,
+          "name": "Caller"
+        },
+        {
+          "file": "\u003crepo\u003e/main.go",
+          "line": 27,
+          "name": "AnotherCaller"
+        }
+      ],
       "edit_target": "\u003crepo\u003e/main.go:30:1-32:2@8b60bd8320e77b84",
       "file": "\u003crepo\u003e/main.go",
       "kind": "func",

@@ -22,6 +22,7 @@ var (
 	editNewCodeFile string
 	editApply       bool
 	editBatch       bool
+	editAt          string
 )
 
 // EditResponse contains the result of an edit operation
@@ -73,13 +74,14 @@ func init() {
 	editCmd.Flags().StringVar(&editNewCodeFile, "new-code-file", "", "File containing new code")
 	editCmd.Flags().BoolVar(&editApply, "apply", false, "Apply changes (default: preview only)")
 	editCmd.Flags().BoolVar(&editBatch, "batch", false, "Read batch operations from stdin")
+	editCmd.Flags().StringVar(&editAt, "at", "", "Position to edit (file:line:col)")
 	rootCmd.AddCommand(editCmd)
 }
 
 func runEdit(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, compact, _, _, _, _, _, _ := GetOutputConfig()
+	human, compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human, compact)
 
 	// Handle batch mode
@@ -87,11 +89,11 @@ func runEdit(cmd *cobra.Command, args []string) error {
 		return runBatchEdit(w, start)
 	}
 
-	// Single edit mode
-	if len(args) == 0 {
+	// Single edit mode - need symbol name or --at position
+	if len(args) == 0 && editAt == "" {
 		return w.WriteError("edit", &output.Error{
 			Code:    output.ErrInternal,
-			Message: "provide a symbol name",
+			Message: "provide a symbol name or --at position",
 		})
 	}
 
@@ -130,42 +132,80 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	defer s.Close()
 
 	// Resolve symbol
-	name := args[0]
 	var filePath string
 	var symbolName string
 
-	// Check if input is a hex ID
-	if len(name) == 16 {
-		if _, err := hex.DecodeString(name); err == nil {
-			sym, err := query.LookupByID(s.DB(), name)
-			if err != nil || sym == nil {
-				return w.WriteError("edit", &output.Error{
-					Code:    output.ErrNotFound,
-					Message: "symbol not found: " + name,
-				})
-			}
-			filePath = sym.FilePath
-			symbolName = sym.Name
-			goto doEdit
+	// Handle --at position resolution
+	if editAt != "" {
+		pos, err := query.ParsePosition(editAt)
+		if err != nil {
+			return w.WriteError("edit", &output.Error{
+				Code:    output.ErrInternal,
+				Message: err.Error(),
+			})
 		}
+
+		// Make path absolute if relative
+		if !filepath.IsAbs(pos.File) {
+			pos.File = filepath.Join(dir, pos.File)
+		}
+
+		symbolID, err := query.ResolvePosition(s.DB(), pos)
+		if err != nil {
+			return w.WriteError("edit", &output.Error{
+				Code:    output.ErrNotFound,
+				Message: err.Error(),
+			})
+		}
+
+		sym, err := query.LookupByID(s.DB(), symbolID)
+		if err != nil || sym == nil {
+			return w.WriteError("edit", &output.Error{
+				Code:    output.ErrNotFound,
+				Message: "symbol not found at position",
+			})
+		}
+
+		filePath = sym.FilePath
+		symbolName = sym.Name
+		goto doEdit
 	}
 
-	// Check for file:Symbol syntax
-	if idx := strings.LastIndex(name, ":"); idx > 0 {
-		possibleFile := name[:idx]
-		possibleSymbol := name[idx+1:]
-		if !strings.Contains(possibleSymbol, ":") {
-			symbols, err := query.LookupByNameInFile(s.DB(), possibleSymbol, possibleFile)
-			if err == nil && len(symbols) == 1 {
-				filePath = symbols[0].FilePath
-				symbolName = symbols[0].Name
+	// Resolve by name - block scopes name to avoid goto issues
+	{
+		name := args[0]
+
+		// Check if input is a hex ID
+		if len(name) == 16 {
+			if _, err := hex.DecodeString(name); err == nil {
+				sym, err := query.LookupByID(s.DB(), name)
+				if err != nil || sym == nil {
+					return w.WriteError("edit", &output.Error{
+						Code:    output.ErrNotFound,
+						Message: "symbol not found: " + name,
+					})
+				}
+				filePath = sym.FilePath
+				symbolName = sym.Name
 				goto doEdit
 			}
 		}
-	}
 
-	// Regular name lookup
-	{
+		// Check for file:Symbol syntax
+		if idx := strings.LastIndex(name, ":"); idx > 0 {
+			possibleFile := name[:idx]
+			possibleSymbol := name[idx+1:]
+			if !strings.Contains(possibleSymbol, ":") {
+				symbols, err := query.LookupByNameInFile(s.DB(), possibleSymbol, possibleFile)
+				if err == nil && len(symbols) == 1 {
+					filePath = symbols[0].FilePath
+					symbolName = symbols[0].Name
+					goto doEdit
+				}
+			}
+		}
+
+		// Regular name lookup
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
 			return w.WriteError("edit", &output.Error{

@@ -1,6 +1,8 @@
 package store
 
 import (
+	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -141,5 +143,81 @@ func TestWriteIndexEmpty(t *testing.T) {
 	symCount, refCount, callCount, _ := s.GetStats()
 	if symCount != 0 || refCount != 0 || callCount != 0 {
 		t.Errorf("Counts should all be 0, got sym=%d ref=%d call=%d", symCount, refCount, callCount)
+	}
+}
+
+func TestWriteIndexPreservesEmbeddings(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	// First write: create symbols
+	symbols1 := []index.Symbol{
+		{ID: "sym1", Name: "Func1", Kind: index.KindFunc, FilePath: "/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+		{ID: "sym2", Name: "Func2", Kind: index.KindFunc, FilePath: "/b.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+		{ID: "sym3", Name: "Func3", Kind: index.KindFunc, FilePath: "/c.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+	}
+	if err := s.WriteIndex(symbols1, nil, nil); err != nil {
+		t.Fatalf("First WriteIndex failed: %v", err)
+	}
+
+	// Add embeddings for all symbols
+	embedding := []float32{0.1, 0.2, 0.3}
+	for _, sym := range symbols1 {
+		if err := s.SaveEmbedding(sym.ID, embedding, "test-model"); err != nil {
+			t.Fatalf("SaveEmbedding failed for %s: %v", sym.ID, err)
+		}
+	}
+
+	// Verify all embeddings exist
+	count1, err := s.CountEmbeddings()
+	if err != nil {
+		t.Fatalf("CountEmbeddings failed: %v", err)
+	}
+	if count1 != 3 {
+		t.Errorf("Expected 3 embeddings, got %d", count1)
+	}
+
+	// Second write: reindex with 2 of the same symbols + 1 new one
+	// sym1 and sym2 should keep their embeddings, sym3's embedding should be deleted
+	symbols2 := []index.Symbol{
+		{ID: "sym1", Name: "Func1", Kind: index.KindFunc, FilePath: "/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+		{ID: "sym2", Name: "Func2", Kind: index.KindFunc, FilePath: "/b.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+		{ID: "sym4", Name: "Func4", Kind: index.KindFunc, FilePath: "/d.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+	}
+	if err := s.WriteIndex(symbols2, nil, nil); err != nil {
+		t.Fatalf("Second WriteIndex failed: %v", err)
+	}
+
+	// Verify: should have 2 embeddings (sym1, sym2 preserved; sym3 orphaned and deleted)
+	count2, err := s.CountEmbeddings()
+	if err != nil {
+		t.Fatalf("CountEmbeddings after reindex failed: %v", err)
+	}
+	if count2 != 2 {
+		t.Errorf("Expected 2 embeddings after reindex (preserved sym1, sym2), got %d", count2)
+	}
+
+	// Verify the correct embeddings remain
+	emb1, _, err := s.GetEmbedding("sym1")
+	if err != nil || emb1 == nil {
+		t.Errorf("sym1 embedding should be preserved, got err=%v emb=%v", err, emb1)
+	}
+	emb2, _, err := s.GetEmbedding("sym2")
+	if err != nil || emb2 == nil {
+		t.Errorf("sym2 embedding should be preserved, got err=%v emb=%v", err, emb2)
+	}
+	emb3, _, err := s.GetEmbedding("sym3")
+	if !errors.Is(err, sql.ErrNoRows) || emb3 != nil {
+		t.Errorf("sym3 embedding should be deleted (orphaned), got err=%v emb=%v", err, emb3)
+	}
+	emb4, _, err := s.GetEmbedding("sym4")
+	if !errors.Is(err, sql.ErrNoRows) || emb4 != nil {
+		t.Errorf("sym4 has no embedding yet (new symbol), got err=%v emb=%v", err, emb4)
 	}
 }

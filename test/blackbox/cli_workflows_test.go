@@ -74,7 +74,7 @@ func TestRefs_BySymbol_ReturnsReferences_When_IndexPresent(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
 
-	// --no-body is required to get context lines (--with-body is default true and skips context)
+	// --no-body is required to get context lines (body is included by default and skips context)
 	stdout, stderr, exitCode := run(t, repoDir, "refs", "Callee", "--no-body", "--context", "2")
 	if exitCode != 0 {
 		t.Fatalf("refs exit %d stderr=%s", exitCode, string(stderr))
@@ -392,7 +392,7 @@ func TestMaxTokens_Truncates_When_LowBudget(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
 
-	stdout, stderr, exitCode := run(t, repoDir, "refs", "Callee", "--with-body", "--max-tokens", "50")
+	stdout, stderr, exitCode := run(t, repoDir, "refs", "Callee", "--max-tokens", "50")
 	if exitCode != 0 {
 		t.Fatalf("refs --max-tokens exit %d stderr=%s", exitCode, string(stderr))
 	}
@@ -404,13 +404,14 @@ func TestMaxTokens_Truncates_When_LowBudget(t *testing.T) {
 	}
 }
 
-func TestWithBody_IncludesFunctionBody_When_Enabled(t *testing.T) {
+func TestBody_IncludedByDefault(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
 
-	stdout, stderr, exitCode := run(t, repoDir, "refs", "Callee", "--with-body")
+	// Body is now included by default (no --with-body flag needed)
+	stdout, stderr, exitCode := run(t, repoDir, "refs", "Callee")
 	if exitCode != 0 {
-		t.Fatalf("refs --with-body exit %d stderr=%s", exitCode, string(stderr))
+		t.Fatalf("refs exit %d stderr=%s", exitCode, string(stderr))
 	}
 	resp := parseJSON(t, stdout)
 	results := requireSlice(t, resp["results"], "results")
@@ -423,7 +424,7 @@ func TestWithBody_IncludesFunctionBody_When_Enabled(t *testing.T) {
 			return
 		}
 	}
-	t.Skip("TODO: refs --with-body did not include body field")
+	t.Skip("TODO: refs did not include body field")
 }
 
 func TestSchema_CommandOutputsValidJSONSchema(t *testing.T) {

@@ -630,12 +630,12 @@ func TestSuggestionsForRefs(t *testing.T) {
 		suggestions := SuggestionsForRefs("foo", 50)
 		hasSummary := false
 		for _, s := range suggestions {
-			if strings.Contains(s.Command, "--summary") {
+			if strings.Contains(s.Command, "--format=summary") {
 				hasSummary = true
 			}
 		}
 		if !hasSummary {
-			t.Error("should suggest summary for many results")
+			t.Error("should suggest --format=summary for many results")
 		}
 	})
 }
@@ -652,12 +652,12 @@ func TestSuggestionsForSearch(t *testing.T) {
 		suggestions := SuggestionsForSearch("TODO", 50)
 		hasSummary := false
 		for _, s := range suggestions {
-			if strings.Contains(s.Command, "--summary") {
+			if strings.Contains(s.Command, "--format=summary") {
 				hasSummary = true
 			}
 		}
 		if !hasSummary {
-			t.Error("should suggest summary for many results")
+			t.Error("should suggest --format=summary for many results")
 		}
 	})
 }

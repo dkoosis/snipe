@@ -65,7 +65,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 
 	// Setup output writer
-	_, human, compact, _, _, _, _, _, _ := GetOutputConfig()
+	human, compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human, compact)
 
 	// Acquire lock to signal indexing in progress

@@ -42,7 +42,7 @@ func init() {
 }
 
 func runCheck(cmd *cobra.Command, args []string) error {
-	_, human, compact, _, _, _, _, _, _ := GetOutputConfig()
+	human, compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human, compact)
 
 	dir, err := os.Getwd()

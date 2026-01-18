@@ -34,7 +34,10 @@ func init() {
 func runPkg(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, compact, lim, off, contextLines, withBody, _, summary := GetOutputConfig()
+	human, compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
+	format := GetResponseFormat()
+	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
+	summary := format == FormatSummary
 	w := output.NewWriter(os.Stdout, human, compact)
 
 	pkgPattern := args[0]

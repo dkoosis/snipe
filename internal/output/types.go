@@ -270,7 +270,7 @@ func SuggestionsForRefs(symbol string, resultCount int) []Suggestion {
 
 	if resultCount > 10 {
 		suggestions = append(suggestions, Suggestion{
-			Command:     "snipe refs " + symbol + " --summary",
+			Command:     "snipe refs " + symbol + " --format=summary",
 			Description: "Get summary grouped by file",
 			Priority:    2,
 			Condition:   "many results",
@@ -294,7 +294,7 @@ func SuggestionsForSearch(pattern string, resultCount int) []Suggestion {
 
 	if resultCount > 20 {
 		suggestions = append(suggestions, Suggestion{
-			Command:     "snipe search \"" + pattern + "\" --summary",
+			Command:     "snipe search \"" + pattern + "\" --format=summary",
 			Description: "Get summary grouped by file",
 			Priority:    2,
 			Condition:   "many results",
@@ -342,3 +342,117 @@ func SuggestionsForAmbiguous(candidates []Candidate) []Suggestion {
 
 	return suggestions
 }
+
+// ============================================================================
+// Explain types - structured function explanations for LLM consumption
+// ============================================================================
+
+// ExplainResult contains structured explanation of a symbol.
+// Designed for LLM consumption with explicit confidence and source tracking.
+type ExplainResult struct {
+	Symbol        string          `json:"symbol"`
+	File          string          `json:"file"`          // file:line format
+	Kind          string          `json:"kind"`          // func, method, type, etc.
+	Signature     string          `json:"signature"`     // Always included for context
+	Purpose       string          `json:"purpose"`       // Best-effort summary
+	PurposeSource PurposeSource   `json:"purpose_source"` // How purpose was derived
+	Mechanism     []MechanismStep `json:"mechanism,omitempty"`
+	CallerContext *CallerContext  `json:"caller_context,omitempty"`
+	Warnings      []Warning       `json:"warnings,omitempty"`
+	DocStatus     DocStatus       `json:"doc_status"`
+	KeyDeps       []string        `json:"key_deps,omitempty"` // Key dependencies
+}
+
+// PurposeSource indicates how the purpose field was derived.
+type PurposeSource string
+
+const (
+	// PurposeFromDoc means purpose came from doc comment first sentence.
+	PurposeFromDoc PurposeSource = "doc"
+	// PurposeFromTemplate means purpose was generated from signature patterns.
+	PurposeFromTemplate PurposeSource = "template"
+	// PurposeFromLLM means purpose was enriched by LLM (future).
+	PurposeFromLLM PurposeSource = "llm"
+	// PurposeMissing means no purpose could be determined.
+	PurposeMissing PurposeSource = "missing"
+)
+
+// MechanismStep describes one observable execution step.
+// Only includes what can be determined from static analysis.
+type MechanismStep struct {
+	Action string `json:"action"`          // validates, opens, creates, etc.
+	Target string `json:"target"`          // What is being acted on
+	Note   string `json:"note,omitempty"`  // Brief clarification
+	Line   int    `json:"line,omitempty"`  // Source anchor for navigation
+}
+
+// CallerContext summarizes who calls this symbol.
+type CallerContext struct {
+	Count      int      `json:"count"`                 // Total caller count
+	Pattern    string   `json:"pattern,omitempty"`     // Observed pattern, e.g., "all cmd/*.go RunE"
+	TopCallers []string `json:"top_callers,omitempty"` // Names of top callers (capped)
+}
+
+// Warning represents a static analysis finding.
+// High-precision only: we prefer missing a warning over false alarms.
+type Warning struct {
+	Code     WarningCode `json:"code"`
+	Severity string      `json:"severity"` // high, medium, low
+	Line     int         `json:"line"`
+	Message  string      `json:"message"`
+	Evidence string      `json:"evidence,omitempty"` // Source snippet showing the issue
+}
+
+// WarningCode identifies the type of warning.
+type WarningCode string
+
+const (
+	// WarnDeferInLoop - defer statement inside a loop (resource accumulation).
+	WarnDeferInLoop WarningCode = "defer_in_loop"
+	// WarnIgnoredError - error return value explicitly ignored.
+	WarnIgnoredError WarningCode = "ignored_error"
+	// WarnLostCancel - context.WithCancel/Timeout without defer cancel().
+	WarnLostCancel WarningCode = "lost_cancel"
+)
+
+// DocStatus indicates documentation freshness.
+type DocStatus struct {
+	Status  DocStatusCode `json:"status"`
+	Reasons []string      `json:"reasons,omitempty"` // Why status was determined
+}
+
+// DocStatusCode represents documentation state.
+type DocStatusCode string
+
+const (
+	// DocFresh - doc present and references match signature.
+	DocFresh DocStatusCode = "fresh"
+	// DocStale - doc references params/returns that no longer exist.
+	DocStale DocStatusCode = "stale"
+	// DocMissing - no doc comment present.
+	DocMissing DocStatusCode = "missing"
+)
+
+// ExplainMode controls depth of explain analysis.
+type ExplainMode string
+
+const (
+	// ExplainBrief - minimal analysis, fastest.
+	ExplainBrief ExplainMode = "brief"
+	// ExplainNormal - standard analysis (default).
+	ExplainNormal ExplainMode = "normal"
+	// ExplainDeep - full analysis including all callers.
+	ExplainDeep ExplainMode = "deep"
+)
+
+// WarningsMode controls warning analysis depth.
+type WarningsMode string
+
+const (
+	// WarningsNone - skip warning analysis.
+	WarningsNone WarningsMode = "none"
+	// WarningsFast - quick AST-only checks.
+	WarningsFast WarningsMode = "fast"
+	// WarningsFull - comprehensive analysis.
+	WarningsFull WarningsMode = "full"
+)

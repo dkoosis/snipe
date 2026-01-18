@@ -33,7 +33,7 @@ func init() {
 func runImporters(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, compact, lim, offset, _, _, _, _ := GetOutputConfig()
+	human, compact, lim, offset, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human, compact)
 
 	pkgPath := args[0]

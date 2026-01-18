@@ -14,25 +14,23 @@ import (
 
 var (
 	// Global flags
-	jsonOutput    bool
 	humanOutput   bool
-	compactOutput bool
 	limit         int
 	offset        int
 	contextLines  int
-	withBody      bool
 	noBody        bool
-	withSiblings  bool
 	noSiblings    bool
-	summaryOnly   bool
-
-	maxTokens int
+	signatureOnly bool
+	maxTokens     int
 
 	// response_format mode: concise, detailed, or summary
 	responseFormat string
 
 	// KG integration
 	withKGHints bool
+
+	// Internal: auto-compact when piped
+	autoCompact bool
 
 	// loadedConfig holds the merged config (loaded lazily)
 	loadedConfig *config.Config
@@ -43,28 +41,16 @@ var rootCmd = &cobra.Command{
 	Short: "Code navigation CLI for LLMs",
 	Long: `snipe: Fast, deterministic Go code navigation for LLMs.
 
-Commands:
+Core commands:
   index     Build SQLite index from Go source (run first)
-  def       Jump to definition (by name, position, or hex ID)
-  refs      Find all references to a symbol
+  def       Jump to definition
+  refs      Find all references
   callers   Find functions that call a symbol
-  callees   Find functions that a symbol calls
-  show      Expand symbol by hex ID (from previous results)
+  callees   Find functions called by a symbol
   search    Text search via ripgrep (no index needed)
-  doctor    Check index health and freshness
 
-Key flags (apply to most commands):
-  --at file:line:col   Query by position (what you have from errors/output)
-  --no-body            Exclude function/method body (body included by default)
-  --no-siblings        Exclude sibling declarations (siblings included by default for def)
-  --limit N            Cap results (default 50)
-  --summary            Return counts per file instead of full results
-  --max-tokens N       Truncate output to token budget
-
-Output format:
-  JSON with {results, meta, error}. Use --human for debugging.
-  Each result has edit_target for direct file:line:col handoff.
-  Use --compact for minified JSON (~30% smaller, auto-enabled for pipes).`,
+Output: JSON with {results, meta, error}. Use --human for debugging.
+Auto-compacts when piped. Each result has edit_target for file:line:col handoff.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Load config and apply defaults if flags weren't explicitly set
 		cwd, err := os.Getwd()
@@ -85,10 +71,8 @@ Output format:
 			contextLines = cfg.ContextLines
 		}
 
-		// Auto-enable compact mode when output is not a TTY (piped to another process)
-		if !cmd.Flags().Changed("compact") && !term.IsTerminal(int(os.Stdout.Fd())) {
-			compactOutput = true
-		}
+		// Auto-compact when output is piped (not a TTY)
+		autoCompact = !term.IsTerminal(int(os.Stdout.Fd()))
 
 		return nil
 	},
@@ -106,25 +90,16 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", true, "JSON output (default)")
-	rootCmd.PersistentFlags().BoolVar(&humanOutput, "human", false, "Pretty-printed for debugging")
-	rootCmd.PersistentFlags().BoolVar(&compactOutput, "compact", false, "Minified JSON (auto-enabled for pipes)")
+	rootCmd.PersistentFlags().BoolVar(&humanOutput, "human", false, "Pretty-print for debugging")
 	rootCmd.PersistentFlags().IntVar(&limit, "limit", 50, "Cap results")
-	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Skip first N results (for pagination)")
-	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 3, "Lines of context around match")
-	rootCmd.PersistentFlags().BoolVar(&withBody, "with-body", true, "Include full enclosing function body (default: true)")
-	rootCmd.PersistentFlags().BoolVar(&noBody, "no-body", false, "Exclude function/method body")
-	rootCmd.PersistentFlags().BoolVar(&withSiblings, "with-siblings", true, "Include sibling declarations in same file (for def)")
+	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Pagination offset")
+	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 3, "Context lines around match")
+	rootCmd.PersistentFlags().BoolVar(&noBody, "no-body", false, "Exclude function body")
 	rootCmd.PersistentFlags().BoolVar(&noSiblings, "no-siblings", false, "Exclude sibling declarations")
-	rootCmd.PersistentFlags().BoolVar(&summaryOnly, "summary", false, "Show summary stats only (counts per file)")
-
-	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Maximum tokens in output (0 = unlimited)")
-
-	// response_format flag for go_symbol parity
-	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "", "Output format: concise (minimal), detailed (full metadata), summary (file counts)")
-
-	// KG integration flag
-	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include hints from Orca knowledge graph")
+	rootCmd.PersistentFlags().BoolVar(&signatureOnly, "signature-only", false, "Return only signature (no body, no context)")
+	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Token budget (0 = unlimited)")
+	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "", "concise | detailed | summary")
+	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
 }
 
 // ResponseFormat represents output format modes for go_symbol parity.
@@ -141,22 +116,18 @@ const (
 	FormatSummary ResponseFormat = "summary"
 )
 
-// GetOutputConfig returns the current output configuration
-func GetOutputConfig() (json bool, human bool, compact bool, lim int, off int, ctx int, body bool, siblings bool, summary bool) {
-	// noBody overrides withBody (default true)
-	effectiveBody := withBody && !noBody
-	// noSiblings overrides withSiblings (default true)
-	effectiveSiblings := withSiblings && !noSiblings
-	return jsonOutput, humanOutput, compactOutput, limit, offset, contextLines, effectiveBody, effectiveSiblings, summaryOnly
+// GetOutputConfig returns the current output configuration.
+// Returns: human, compact, limit, offset, contextLines, withBody, withSiblings
+func GetOutputConfig() (human bool, compact bool, lim int, off int, ctx int, body bool, siblings bool) {
+	// Apply signature-only override
+	if signatureOnly {
+		return humanOutput, autoCompact, limit, offset, 0, false, false
+	}
+	return humanOutput, autoCompact, limit, offset, contextLines, !noBody, !noSiblings
 }
 
 // GetResponseFormat returns the response format mode.
-// Returns the effective format, resolving --summary flag as an alias.
 func GetResponseFormat() ResponseFormat {
-	// --summary flag is an alias for --format=summary
-	if summaryOnly && responseFormat == "" {
-		return FormatSummary
-	}
 	return ResponseFormat(responseFormat)
 }
 

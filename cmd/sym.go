@@ -58,7 +58,7 @@ func init() {
 func runSym(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, compact, _, _, contextLines, withBody, withSiblings, _ := GetOutputConfig()
+	human, compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, human, compact)
 
 	// Need either a symbol name or --at position

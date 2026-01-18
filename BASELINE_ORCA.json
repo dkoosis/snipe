@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-18T01:24:24Z",
+  "timestamp": "2026-01-18T16:50:59Z",
   "git_commit": "94ad6ad11",
   "go_version": "go1.25.5",
   "codebase": {
@@ -7,23 +7,23 @@
     "symbols": 9857,
     "refs": 29461,
     "call_edges": 9207,
-    "db_size_kb": 34688
+    "db_size_kb": 34652
   },
   "index": {
-    "total_ms": 37857,
-    "load_ms": 5381,
-    "extract_ms": 15070,
-    "persist_ms": 17345,
-    "peak_mem_mb": 1931
+    "total_ms": 4032,
+    "load_ms": 2214,
+    "extract_ms": 1070,
+    "persist_ms": 745,
+    "peak_mem_mb": 1525
   },
   "query": {
-    "def_by_name_ms": 1.0471,
-    "def_by_pos_ms": 2.1016399999999997,
-    "refs_by_id_ms": 2.5943400000000003
+    "def_by_name_ms": 0.02699,
+    "def_by_pos_ms": 0.05804,
+    "refs_by_id_ms": 0.05777
   },
   "search": {
-    "simple_pattern_ms": 10.78593,
-    "regex_pattern_ms": 21.25201
+    "simple_pattern_ms": 6.0723,
+    "regex_pattern_ms": 20.074630000000003
   },
   "quality": {
     "symbols_with_doc": 5768,

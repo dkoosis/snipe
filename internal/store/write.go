@@ -49,13 +49,23 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 		symbolIDs[sym.ID] = struct{}{}
 	}
 
-	// Clear existing data
+	// Preserve existing embeddings before clearing data
+	if _, err := preserveEmbeddings(tx); err != nil {
+		return err
+	}
+
+	// Clear existing data (embeddings go to temp table, then get restored)
 	if err := truncateTables(tx); err != nil {
 		return err
 	}
 
 	// Write symbols
 	if err := writeSymbols(tx, symbols, repoRoot); err != nil {
+		return err
+	}
+
+	// Restore embeddings for symbols that still exist
+	if _, err := restoreEmbeddings(tx); err != nil {
 		return err
 	}
 
@@ -113,7 +123,8 @@ func filterCallEdges(edges []index.CallEdge, symbolIDs map[string]struct{}) []in
 }
 
 func truncateTables(tx *sql.Tx) error {
-	// Delete in order: child tables first (refs, call_graph, embeddings, imports), then parent (symbols)
+	// Delete in order: child tables first (refs, call_graph, imports), then parent (symbols)
+	// Note: embeddings are preserved via temp table and restored by restoreEmbeddings()
 	// This respects foreign key constraints. Using explicit statements avoids
 	// string concatenation patterns that could be unsafe if copied with user input.
 	if _, err := tx.Exec("DELETE FROM refs"); err != nil {
@@ -122,11 +133,12 @@ func truncateTables(tx *sql.Tx) error {
 	if _, err := tx.Exec("DELETE FROM call_graph"); err != nil {
 		return fmt.Errorf("truncate call_graph: %w", err)
 	}
-	if _, err := tx.Exec("DELETE FROM embeddings"); err != nil {
+	if _, err := tx.Exec("DELETE FROM imports"); err != nil {
 		// Ignore if table doesn't exist (backwards compatibility)
 		_ = err
 	}
-	if _, err := tx.Exec("DELETE FROM imports"); err != nil {
+	// Delete embeddings (they'll be restored from temp table after symbols are inserted)
+	if _, err := tx.Exec("DELETE FROM embeddings"); err != nil {
 		// Ignore if table doesn't exist (backwards compatibility)
 		_ = err
 	}
@@ -134,6 +146,55 @@ func truncateTables(tx *sql.Tx) error {
 		return fmt.Errorf("truncate symbols: %w", err)
 	}
 	return nil
+}
+
+// preserveEmbeddings copies existing embeddings to a temp table for restoration after reindex.
+// Returns the number of embeddings preserved.
+func preserveEmbeddings(tx *sql.Tx) (int64, error) {
+	// Create temp table (if embeddings table exists)
+	_, err := tx.Exec(`
+		CREATE TEMP TABLE IF NOT EXISTS preserved_embeddings AS
+		SELECT symbol_id, embedding, model, created_at FROM embeddings WHERE 1=0
+	`)
+	if err != nil {
+		// embeddings table might not exist - that's OK
+		return 0, nil
+	}
+
+	// Copy current embeddings to temp table
+	result, err := tx.Exec(`
+		INSERT INTO preserved_embeddings (symbol_id, embedding, model, created_at)
+		SELECT symbol_id, embedding, model, created_at FROM embeddings
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("copy embeddings to temp: %w", err)
+	}
+
+	count, _ := result.RowsAffected()
+	return count, nil
+}
+
+// restoreEmbeddings restores embeddings from temp table for symbols that still exist.
+// Returns the number of embeddings restored.
+func restoreEmbeddings(tx *sql.Tx) (int64, error) {
+	// Restore embeddings for symbols that exist in the new index
+	result, err := tx.Exec(`
+		INSERT OR IGNORE INTO embeddings (symbol_id, embedding, model, created_at)
+		SELECT p.symbol_id, p.embedding, p.model, p.created_at
+		FROM preserved_embeddings p
+		WHERE p.symbol_id IN (SELECT id FROM symbols)
+	`)
+	if err != nil {
+		// Temp table might not exist (no embeddings to preserve)
+		return 0, nil
+	}
+
+	count, _ := result.RowsAffected()
+
+	// Clean up temp table
+	_, _ = tx.Exec("DROP TABLE IF EXISTS preserved_embeddings")
+
+	return count, nil
 }
 
 func writeSymbols(tx *sql.Tx, symbols []index.Symbol, repoRoot string) error {

@@ -41,7 +41,7 @@ func init() {
 func runDef(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	_, human, compact, _, _, contextLines, withBody, withSiblings, _ := GetOutputConfig()
+	human, compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
 	format := GetResponseFormat()
 
 	// Apply format overrides
