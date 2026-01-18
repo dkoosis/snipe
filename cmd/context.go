@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	contextFormat string
-	contextFull   bool
-	contextBoot   bool
+	contextFormat    string
+	contextFull      bool
+	contextBoot      bool
+	contextOutputNug bool
 )
 
 var contextCmd = &cobra.Command{
@@ -46,6 +47,7 @@ func init() {
 	contextCmd.Flags().StringVar(&contextFormat, "format", "json", "Output format: json or yaml")
 	contextCmd.Flags().BoolVar(&contextFull, "full", false, "Include all symbols, not just key ones")
 	contextCmd.Flags().BoolVar(&contextBoot, "boot", false, "Minimal context for LLM boot (~2000 tokens)")
+	contextCmd.Flags().BoolVar(&contextOutputNug, "output-nug", false, "Output as Orca nugget YAML (for save_nug)")
 	rootCmd.AddCommand(contextCmd)
 }
 
@@ -86,26 +88,39 @@ func runContext(cmd *cobra.Command, args []string) error {
 		Full:     contextFull,
 	}
 
-	var output interface{}
-
 	if contextBoot {
 		// Generate minimal boot context
 		bootCtx, err := context.GenerateBoot(cfg)
 		if err != nil {
 			return fmt.Errorf("generate boot context: %w", err)
 		}
-		output = bootCtx
-	} else {
-		// Generate full context
-		ctx, err := context.Generate(cfg)
-		if err != nil {
-			return fmt.Errorf("generate context: %w", err)
+
+		// Output as nuggets if requested
+		if contextOutputNug {
+			nugs := bootCtx.ToNuggets()
+			return outputNuggets(nugs)
 		}
-		output = ctx
+
+		return outputContext(bootCtx, contextFormat)
 	}
 
-	// Output in requested format
-	switch contextFormat {
+	// Generate full context
+	ctx, err := context.Generate(cfg)
+	if err != nil {
+		return fmt.Errorf("generate context: %w", err)
+	}
+
+	// Output as nuggets if requested
+	if contextOutputNug {
+		nugs := ctx.ToNuggets()
+		return outputNuggets(nugs)
+	}
+
+	return outputContext(ctx, contextFormat)
+}
+
+func outputContext(output interface{}, format string) error {
+	switch format {
 	case "yaml":
 		enc := yaml.NewEncoder(os.Stdout)
 		enc.SetIndent(2)
@@ -119,8 +134,19 @@ func runContext(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("encode json: %w", err)
 		}
 	default:
-		return fmt.Errorf("unsupported format: %s (use json or yaml)", contextFormat)
+		return fmt.Errorf("unsupported format: %s (use json or yaml)", format)
 	}
+	return nil
+}
 
+func outputNuggets(nugs []context.Nugget) error {
+	enc := yaml.NewEncoder(os.Stdout)
+	enc.SetIndent(2)
+	for _, nug := range nugs {
+		if err := enc.Encode(nug); err != nil {
+			return fmt.Errorf("encode nug yaml: %w", err)
+		}
+		fmt.Println("---")
+	}
 	return nil
 }
