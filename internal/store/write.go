@@ -158,7 +158,7 @@ func preserveEmbeddings(tx *sql.Tx) (int64, error) {
 	`)
 	if err != nil {
 		// embeddings table might not exist - that's OK
-		return 0, nil
+		return 0, nil //nolint:nilerr // Graceful degradation when embeddings table doesn't exist
 	}
 
 	// Copy current embeddings to temp table
@@ -176,7 +176,7 @@ func preserveEmbeddings(tx *sql.Tx) (int64, error) {
 
 // restoreEmbeddings restores embeddings from temp table for symbols that still exist.
 // Returns the number of embeddings restored.
-func restoreEmbeddings(tx *sql.Tx) (int64, error) {
+func restoreEmbeddings(tx *sql.Tx) (int64, error) { //nolint:unparam // error kept for API consistency with preserveEmbeddings
 	// Restore embeddings for symbols that exist in the new index
 	result, err := tx.Exec(`
 		INSERT OR IGNORE INTO embeddings (symbol_id, embedding, model, created_at)
@@ -186,7 +186,7 @@ func restoreEmbeddings(tx *sql.Tx) (int64, error) {
 	`)
 	if err != nil {
 		// Temp table might not exist (no embeddings to preserve)
-		return 0, nil
+		return 0, nil //nolint:nilerr // Graceful degradation when no embeddings to restore
 	}
 
 	count, _ := result.RowsAffected()

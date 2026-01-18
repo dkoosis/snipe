@@ -125,7 +125,7 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*output.ExplainR
 }
 
 // extractMechanism builds mechanism steps from callees.
-func extractMechanism(db *sql.DB, sym *SymbolRow, fn *ast.FuncDecl, fset *token.FileSet, mode output.ExplainMode) ([]output.MechanismStep, []string, error) {
+func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.FileSet, mode output.ExplainMode) ([]output.MechanismStep, []string, error) {
 	// Get callees from the call graph
 	limit := 20
 	if mode == output.ExplainDeep {
@@ -174,40 +174,40 @@ func extractMechanism(db *sql.DB, sym *SymbolRow, fn *ast.FuncDecl, fset *token.
 func inferAction(name string) string {
 	// Check exact matches first
 	actionMap := map[string]string{
-		"Open":     "opens",
-		"Close":    "closes",
-		"Read":     "reads",
-		"Write":    "writes",
-		"Get":      "retrieves",
-		"Set":      "updates",
-		"Save":     "persists",
-		"Store":    "persists",
-		"Load":     "loads",
-		"Parse":    "parses",
-		"Format":   "formats",
-		"Validate": "validates",
-		"Check":    "validates",
-		"Execute":  "executes",
-		"Run":      "executes",
-		"Start":    "starts",
-		"Stop":     "stops",
-		"Init":     "initializes",
-		"Create":   "creates",
-		"Delete":   "deletes",
-		"Remove":   "removes",
-		"Add":      "adds",
-		"Append":   "appends",
-		"Insert":   "inserts",
-		"Update":   "updates",
-		"Find":     "finds",
-		"Search":   "searches",
-		"Query":    "queries",
-		"Fetch":    "fetches",
-		"Send":     "sends",
-		"Receive":  "receives",
-		"Encode":   "encodes",
-		"Decode":   "decodes",
-		"Marshal":  "serializes",
+		"Open":      "opens",
+		"Close":     "closes",
+		"Read":      "reads",
+		"Write":     "writes",
+		"Get":       "retrieves",
+		"Set":       "updates",
+		"Save":      "persists",
+		"Store":     "persists",
+		"Load":      "loads",
+		"Parse":     "parses",
+		"Format":    "formats",
+		"Validate":  "validates",
+		"Check":     "validates",
+		"Execute":   "executes",
+		"Run":       "executes",
+		"Start":     "starts",
+		"Stop":      "stops",
+		"Init":      "initializes",
+		"Create":    "creates",
+		"Delete":    "deletes",
+		"Remove":    "removes",
+		"Add":       "adds",
+		"Append":    "appends",
+		"Insert":    "inserts",
+		"Update":    "updates",
+		"Find":      "finds",
+		"Search":    "searches",
+		"Query":     "queries",
+		"Fetch":     "fetches",
+		"Send":      "sends",
+		"Receive":   "receives",
+		"Encode":    "encodes",
+		"Decode":    "decodes",
+		"Marshal":   "serializes",
 		"Unmarshal": "deserializes",
 	}
 
@@ -240,7 +240,7 @@ func inferAction(name string) string {
 }
 
 // inferNote adds context notes for important patterns.
-func inferNote(name, kind string) string {
+func inferNote(name, _ string) string {
 	// Context-related
 	if strings.Contains(strings.ToLower(name), "context") {
 		return "context propagation"
@@ -269,7 +269,7 @@ func extractDeps(sig string, deps map[string]bool) {
 	// Simple extraction: find capitalized identifiers that look like types
 	// This is a heuristic, not exhaustive
 	words := strings.FieldsFunc(sig, func(r rune) bool {
-		return !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.')
+		return !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.') //nolint:staticcheck // readable as-is
 	})
 
 	for _, word := range words {

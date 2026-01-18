@@ -152,6 +152,17 @@ func Build() error {
 	return sh.Run("go", "build", "-ldflags", ldflags, "-o", "bin/snipe", ".")
 }
 
+// Install builds and installs snipe to $GOPATH/bin.
+func Install() error {
+	fmt.Println("→ Installing snipe...")
+	version := getVersion()
+	commit := getCommit()
+	ldflags := fmt.Sprintf("-X github.com/dkoosis/snipe/cmd.Version=%s -X github.com/dkoosis/snipe/cmd.GitCommit=%s",
+		version, commit)
+
+	return sh.Run("go", "install", "-ldflags", ldflags, ".")
+}
+
 // Test runs unit tests.
 func Test() error {
 	return sh.RunV("go", "test", "-cover", "./...")

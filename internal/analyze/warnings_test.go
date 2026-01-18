@@ -6,9 +6,10 @@ import (
 	"go/token"
 	"testing"
 
-	"github.com/dkoosis/snipe/internal/output"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dkoosis/snipe/internal/output"
 )
 
 func TestDetectDeferInLoop(t *testing.T) {

@@ -6,9 +6,10 @@ import (
 	"go/token"
 	"testing"
 
-	"github.com/dkoosis/snipe/internal/output"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dkoosis/snipe/internal/output"
 )
 
 func TestCheckDocStatus(t *testing.T) {
@@ -84,50 +85,50 @@ func WithParam(config Config) error {
 
 func TestExtractPurpose(t *testing.T) {
 	tests := []struct {
-		name       string
-		code       string
-		doc        string
-		wantSource output.PurposeSource
+		name         string
+		code         string
+		doc          string
+		wantSource   output.PurposeSource
 		wantNonEmpty bool
 	}{
 		{
 			name: "purpose from doc",
 			code: `package test
 func Calculate(x int) int { return x * 2 }`,
-			doc:        "Calculate doubles the input value.",
-			wantSource: output.PurposeFromDoc,
+			doc:          "Calculate doubles the input value.",
+			wantSource:   output.PurposeFromDoc,
 			wantNonEmpty: true,
 		},
 		{
 			name: "purpose from template - New prefix",
 			code: `package test
 func NewServer(config Config) *Server { return nil }`,
-			doc:        "",
-			wantSource: output.PurposeFromTemplate,
+			doc:          "",
+			wantSource:   output.PurposeFromTemplate,
 			wantNonEmpty: true,
 		},
 		{
 			name: "purpose from template - Get prefix",
 			code: `package test
 func GetUser(id string) *User { return nil }`,
-			doc:        "",
-			wantSource: output.PurposeFromTemplate,
+			doc:          "",
+			wantSource:   output.PurposeFromTemplate,
 			wantNonEmpty: true,
 		},
 		{
 			name: "purpose from template - method",
 			code: `package test
 func (s *Server) Shutdown() {}`,
-			doc:        "",
-			wantSource: output.PurposeFromTemplate,
+			doc:          "",
+			wantSource:   output.PurposeFromTemplate,
 			wantNonEmpty: true,
 		},
 		{
 			name: "purpose missing - no doc, no pattern",
 			code: `package test
 func xyz() {}`,
-			doc:        "",
-			wantSource: output.PurposeMissing,
+			doc:          "",
+			wantSource:   output.PurposeMissing,
 			wantNonEmpty: false,
 		},
 	}
@@ -159,9 +160,9 @@ func xyz() {}`,
 
 func TestExtractFirstSentence(t *testing.T) {
 	tests := []struct {
-		name   string
-		doc    string
-		want   string
+		name string
+		doc  string
+		want string
 	}{
 		{
 			name: "simple sentence",

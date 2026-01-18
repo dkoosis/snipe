@@ -182,7 +182,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 func addWatchDirs(watcher *fsnotify.Watcher, root string) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // Skip inaccessible directories
+			return nil //nolint:nilerr // Skip inaccessible directories gracefully
 		}
 
 		// Skip hidden directories and common non-source directories

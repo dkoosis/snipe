@@ -351,10 +351,10 @@ func SuggestionsForAmbiguous(candidates []Candidate) []Suggestion {
 // Designed for LLM consumption with explicit confidence and source tracking.
 type ExplainResult struct {
 	Symbol        string          `json:"symbol"`
-	File          string          `json:"file"`          // file:line format
-	Kind          string          `json:"kind"`          // func, method, type, etc.
-	Signature     string          `json:"signature"`     // Always included for context
-	Purpose       string          `json:"purpose"`       // Best-effort summary
+	File          string          `json:"file"`           // file:line format
+	Kind          string          `json:"kind"`           // func, method, type, etc.
+	Signature     string          `json:"signature"`      // Always included for context
+	Purpose       string          `json:"purpose"`        // Best-effort summary
 	PurposeSource PurposeSource   `json:"purpose_source"` // How purpose was derived
 	Mechanism     []MechanismStep `json:"mechanism,omitempty"`
 	CallerContext *CallerContext  `json:"caller_context,omitempty"`
@@ -380,10 +380,10 @@ const (
 // MechanismStep describes one observable execution step.
 // Only includes what can be determined from static analysis.
 type MechanismStep struct {
-	Action string `json:"action"`          // validates, opens, creates, etc.
-	Target string `json:"target"`          // What is being acted on
-	Note   string `json:"note,omitempty"`  // Brief clarification
-	Line   int    `json:"line,omitempty"`  // Source anchor for navigation
+	Action string `json:"action"`         // validates, opens, creates, etc.
+	Target string `json:"target"`         // What is being acted on
+	Note   string `json:"note,omitempty"` // Brief clarification
+	Line   int    `json:"line,omitempty"` // Source anchor for navigation
 }
 
 // CallerContext summarizes who calls this symbol.

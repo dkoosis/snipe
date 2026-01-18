@@ -9,10 +9,10 @@ import (
 
 // TypeInfo contains type relationship information.
 type TypeInfo struct {
-	Symbol   SymbolRow
-	Methods  []MethodInfo
-	Embeds   []EmbedInfo
-	Fields   []FieldInfo
+	Symbol  SymbolRow
+	Methods []MethodInfo
+	Embeds  []EmbedInfo
+	Fields  []FieldInfo
 	// Implements is marked as partial - full interface satisfaction
 	// requires type-checker analysis which is a v2 feature.
 	Implements ImplementsInfo
@@ -140,7 +140,7 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 }
 
 // getMethodsForType finds all methods for a type by receiver matching.
-func getMethodsForType(db *sql.DB, typeName, pkgPath string) ([]MethodInfo, error) {
+func getMethodsForType(db *sql.DB, typeName, _ string) ([]MethodInfo, error) {
 	// Match both value and pointer receivers
 	valueRecv := "(" + typeName + ")"
 	ptrRecv := "(*" + typeName + ")"
@@ -175,7 +175,7 @@ func getMethodsForType(db *sql.DB, typeName, pkgPath string) ([]MethodInfo, erro
 // getEmbedsForType finds embedded types within a struct definition.
 // This uses a heuristic: look for type references within the struct's line range
 // that are at field positions (based on column position patterns).
-func getEmbedsForType(db *sql.DB, typeID, filePath string, lineStart, lineEnd int) ([]EmbedInfo, error) {
+func getEmbedsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([]EmbedInfo, error) {
 	// Query refs to other types within this type's definition
 	rows, err := db.Query(`
 		SELECT DISTINCT r.symbol_id, s.name, s.kind, r.file_path_rel, r.line
@@ -204,7 +204,7 @@ func getEmbedsForType(db *sql.DB, typeID, filePath string, lineStart, lineEnd in
 }
 
 // getFieldsForType finds fields within a struct definition.
-func getFieldsForType(db *sql.DB, typeID, filePath string, lineStart, lineEnd int) ([]FieldInfo, error) {
+func getFieldsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([]FieldInfo, error) {
 	// Query field symbols within the struct's line range
 	rows, err := db.Query(`
 		SELECT name, signature, line_start
