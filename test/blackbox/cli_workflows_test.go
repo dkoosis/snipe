@@ -4,6 +4,7 @@ package blackbox
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -460,6 +461,114 @@ func TestVersion_PrintsSomethingSane(t *testing.T) {
 
 	if !strings.Contains(string(stdout), "snipe version") {
 		t.Fatalf("unexpected version output: %s", string(stdout))
+	}
+}
+
+func TestEdit_PreviewMode_ReturnsEditPlan_When_NoApplyFlag(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	// Test edit in preview mode (no --apply flag)
+	stdout, stderr, exitCode := run(t, repoDir, "edit", "Callee",
+		"--operation", "replace_body",
+		"--new-code", `return "edited"`)
+	if exitCode != 0 {
+		t.Fatalf("edit preview exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:         "edit",
+		requireQuery:    true,
+		requireRepoRoot: true,
+	})
+
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected edit results")
+	}
+
+	first := requireMap(t, results[0], "results[0]")
+
+	// Verify edit response fields
+	if _, ok := first["file"]; !ok {
+		t.Fatalf("edit result missing file")
+	}
+	if _, ok := first["symbol"]; !ok {
+		t.Fatalf("edit result missing symbol")
+	}
+	if op := getString(t, first["operation"], "operation"); op != "replace_body" {
+		t.Fatalf("expected operation replace_body, got %s", op)
+	}
+	if _, ok := first["original_code"]; !ok {
+		t.Fatalf("edit result missing original_code")
+	}
+	if _, ok := first["new_code"]; !ok {
+		t.Fatalf("edit result missing new_code")
+	}
+	if _, ok := first["diff"]; !ok {
+		t.Fatalf("edit result missing diff")
+	}
+
+	// Verify it's in preview mode (not applied)
+	applied := getBool(t, first["applied"], "applied")
+	if applied {
+		t.Fatalf("expected applied=false in preview mode")
+	}
+}
+
+func TestEdit_ApplyMode_ModifiesFile_When_ApplyFlagSet(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	// Apply an edit
+	stdout, stderr, exitCode := run(t, repoDir, "edit", "Callee",
+		"--operation", "replace_body",
+		"--new-code", `return "applied"`,
+		"--apply")
+	if exitCode != 0 {
+		t.Fatalf("edit apply exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected edit results")
+	}
+
+	first := requireMap(t, results[0], "results[0]")
+	applied := getBool(t, first["applied"], "applied")
+	if !applied {
+		t.Fatalf("expected applied=true when --apply used")
+	}
+
+	// Verify the file was actually modified
+	mainPath := first["file"].(string)
+	if !strings.HasPrefix(mainPath, "/") {
+		mainPath = repoDir + "/" + mainPath
+	}
+	content, err := os.ReadFile(mainPath)
+	if err != nil {
+		t.Fatalf("read modified file: %v", err)
+	}
+	if !strings.Contains(string(content), `"applied"`) {
+		t.Fatalf("file not modified as expected")
+	}
+}
+
+func TestEdit_SymbolNotFound_ReturnsError(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, _, _ := run(t, repoDir, "edit", "NonExistentSymbol",
+		"--operation", "replace_body",
+		"--new-code", "return nil")
+
+	resp := parseJSON(t, stdout)
+	errObj := requireMap(t, resp["error"], "error")
+	code := getString(t, errObj["code"], "error.code")
+	if code != "NOT_FOUND" {
+		t.Fatalf("expected NOT_FOUND error, got %s", code)
 	}
 }
 
