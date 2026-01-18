@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dkoosis/snipe/internal/kg"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
@@ -217,6 +218,26 @@ lookup:
 			degraded = append(degraded, "callers_preview_failed")
 		} else if len(callers) > 0 {
 			result.CallersPreview = callers
+		}
+	}
+
+	// Add KG hints if requested
+	if GetWithKGHints() {
+		hints := kg.GetHints(kg.Config{
+			File:    sym.FilePathRel,
+			Symbol:  sym.Name,
+			Package: sym.PkgPath,
+		})
+		if len(hints) > 0 {
+			result.KGHints = make([]output.KGHint, len(hints))
+			for i, h := range hints {
+				result.KGHints[i] = output.KGHint{
+					ID:       h.ID,
+					Kind:     h.Kind,
+					Severity: h.Severity,
+					Summary:  h.Summary,
+				}
+			}
 		}
 	}
 
