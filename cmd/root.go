@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -22,6 +26,7 @@ var (
 	noSiblings    bool
 	signatureOnly bool
 	maxTokens     int
+	timeout       time.Duration
 
 	// response_format mode: concise, detailed, or summary
 	responseFormat string
@@ -34,6 +39,10 @@ var (
 
 	// loadedConfig holds the merged config (loaded lazily)
 	loadedConfig *config.Config
+
+	// cmdCtx is the context for the current command (with timeout and signal handling)
+	cmdCtx    context.Context
+	cmdCancel context.CancelFunc
 )
 
 var rootCmd = &cobra.Command{
@@ -52,6 +61,31 @@ Core commands:
 Output: JSON with {results, meta, error}. Use --human for debugging.
 Auto-compacts when piped. Each result has edit_target for file:line:col handoff.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Set up context with signal handling for graceful cancellation
+		ctx := context.Background()
+		var cancel context.CancelFunc
+		if timeout > 0 {
+			ctx, cancel = context.WithTimeout(ctx, timeout)
+		} else {
+			ctx, cancel = context.WithCancel(ctx)
+		}
+		cmdCancel = cancel
+
+		// Handle Ctrl+C gracefully
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			select {
+			case <-sigCh:
+				fmt.Fprintln(os.Stderr, "\nInterrupted, cleaning up...")
+				cmdCancel()
+			case <-ctx.Done():
+			}
+			signal.Stop(sigCh)
+		}()
+
+		cmdCtx = ctx
+
 		// Load config and apply defaults if flags weren't explicitly set
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -75,6 +109,12 @@ Auto-compacts when piped. Each result has edit_target for file:line:col handoff.
 		autoCompact = !term.IsTerminal(int(os.Stdout.Fd()))
 
 		return nil
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		// Cancel context to release signal goroutine
+		if cmdCancel != nil {
+			cmdCancel()
+		}
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// No subcommand specified, show help
@@ -100,6 +140,16 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Token budget (0 = unlimited)")
 	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "", "concise | detailed | summary")
 	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
+	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for command (e.g., 30s, 5m)")
+}
+
+// GetContext returns the command context (with timeout and signal handling).
+// Returns context.Background() if called before PersistentPreRunE.
+func GetContext() context.Context {
+	if cmdCtx == nil {
+		return context.Background()
+	}
+	return cmdCtx
 }
 
 // ResponseFormat represents output format modes for go_symbol parity.

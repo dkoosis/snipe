@@ -1,6 +1,7 @@
 package index
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -12,6 +13,8 @@ import (
 
 // LoadConfig configures how packages are loaded
 type LoadConfig struct {
+	// Context for cancellation support (optional, defaults to context.Background)
+	Context context.Context
 	// Dir is the directory to load packages from
 	Dir string
 	// Patterns are the package patterns to load (e.g., "./...")
@@ -44,7 +47,13 @@ func DefaultExclude() []string {
 
 // Load loads Go packages from the specified directory.
 // If ChunkSize > 0, packages are loaded in batches to prevent OOM on large repos.
+// Supports cancellation via cfg.Context.
 func Load(cfg LoadConfig) (*LoadResult, error) {
+	ctx := cfg.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if cfg.Dir == "" {
 		cfg.Dir = "."
 	}
@@ -58,6 +67,11 @@ func Load(cfg LoadConfig) (*LoadResult, error) {
 		cfg.ChunkSize = DefaultChunkSize
 	}
 
+	// Check for cancellation before starting
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("cancelled: %w", err)
+	}
+
 	// Resolve absolute path
 	absDir, err := filepath.Abs(cfg.Dir)
 	if err != nil {
@@ -68,14 +82,20 @@ func Load(cfg LoadConfig) (*LoadResult, error) {
 
 	// First pass: get package names only (lightweight)
 	nameCfg := &packages.Config{
-		Mode:  packages.NeedName,
-		Dir:   absDir,
-		Tests: cfg.Tests,
+		Mode:    packages.NeedName,
+		Dir:     absDir,
+		Tests:   cfg.Tests,
+		Context: ctx,
 	}
 
 	nameOnlyPkgs, err := packages.Load(nameCfg, cfg.Patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("list packages: %w", err)
+	}
+
+	// Check for cancellation after listing
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("cancelled: %w", err)
 	}
 
 	// Filter and get unique import paths
@@ -91,15 +111,15 @@ func Load(cfg LoadConfig) (*LoadResult, error) {
 
 	// If small enough, load all at once
 	if len(pkgPaths) <= cfg.ChunkSize {
-		return loadPackagesFull(absDir, fset, pkgPaths, cfg.Tests)
+		return loadPackagesFull(ctx, absDir, fset, pkgPaths, cfg.Tests)
 	}
 
 	// Chunked loading for large codebases
-	return loadPackagesChunked(absDir, fset, pkgPaths, cfg.ChunkSize, cfg.Tests, cfg.OnProgress)
+	return loadPackagesChunked(ctx, absDir, fset, pkgPaths, cfg.ChunkSize, cfg.Tests, cfg.OnProgress)
 }
 
 // loadPackagesFull loads all packages in a single call.
-func loadPackagesFull(dir string, fset *token.FileSet, pkgPaths []string, tests bool) (*LoadResult, error) {
+func loadPackagesFull(ctx context.Context, dir string, fset *token.FileSet, pkgPaths []string, tests bool) (*LoadResult, error) {
 	loadCfg := &packages.Config{
 		Mode: packages.NeedName |
 			packages.NeedFiles |
@@ -107,9 +127,10 @@ func loadPackagesFull(dir string, fset *token.FileSet, pkgPaths []string, tests 
 			packages.NeedTypes |
 			packages.NeedTypesInfo |
 			packages.NeedImports,
-		Dir:   dir,
-		Fset:  fset,
-		Tests: tests,
+		Dir:     dir,
+		Fset:    fset,
+		Tests:   tests,
+		Context: ctx,
 	}
 
 	pkgs, err := packages.Load(loadCfg, pkgPaths...)
@@ -133,12 +154,18 @@ func loadPackagesFull(dir string, fset *token.FileSet, pkgPaths []string, tests 
 
 // loadPackagesChunked loads packages in batches to control memory usage.
 // Each batch is loaded independently, allowing GC to reclaim memory between batches.
-func loadPackagesChunked(dir string, fset *token.FileSet, pkgPaths []string, chunkSize int, tests bool, onProgress func(int, int)) (*LoadResult, error) {
+// Checks for context cancellation between batches.
+func loadPackagesChunked(ctx context.Context, dir string, fset *token.FileSet, pkgPaths []string, chunkSize int, tests bool, onProgress func(int, int)) (*LoadResult, error) {
 	var allPkgs []*packages.Package
 	var allErrs []error
 	total := len(pkgPaths)
 
 	for i := 0; i < len(pkgPaths); i += chunkSize {
+		// Check for cancellation between batches
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("cancelled after %d/%d packages: %w", i, total, err)
+		}
+
 		end := i + chunkSize
 		if end > len(pkgPaths) {
 			end = len(pkgPaths)
@@ -152,9 +179,10 @@ func loadPackagesChunked(dir string, fset *token.FileSet, pkgPaths []string, chu
 				packages.NeedTypes |
 				packages.NeedTypesInfo |
 				packages.NeedImports,
-			Dir:   dir,
-			Fset:  fset,
-			Tests: tests,
+			Dir:     dir,
+			Fset:    fset,
+			Tests:   tests,
+			Context: ctx,
 		}
 
 		pkgs, err := packages.Load(loadCfg, chunk...)
