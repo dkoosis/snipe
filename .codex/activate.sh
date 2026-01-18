@@ -47,3 +47,4 @@ echo "snipe environment activated"
 echo "  GOCACHE=$GOCACHE"
 echo "  GOMODCACHE=$GOMODCACHE"
 echo "  PATH includes: $REPO_ROOT/bin"
+

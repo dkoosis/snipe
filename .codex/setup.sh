@@ -1,6 +1,6 @@
 #!/bin/bash
 # One-time environment setup for Codex sandbox
-set -e
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -32,13 +32,14 @@ if [[ -d "$BINDIR" ]]; then
     done
 fi
 
-# Set up caches
+# Set up caches (isolated)
 export GOCACHE="$REPO_ROOT/.codex/cache/go-build"
 export GOMODCACHE="$REPO_ROOT/.codex/cache/mod"
 export GOLANGCI_LINT_CACHE="$REPO_ROOT/.codex/cache/golangci-lint"
 mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOLANGCI_LINT_CACHE"
 
 export PATH="$REPO_ROOT/bin:$BINDIR:$PATH"
+export GOTOOLCHAIN=auto
 
 # Check/install Go (if not present)
 if ! command -v go &>/dev/null; then
@@ -55,7 +56,6 @@ if ! command -v golangci-lint &>/dev/null; then
     echo "Installing golangci-lint..."
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$REPO_ROOT/bin" v1.64.2
 fi
-
 echo "golangci-lint: $(golangci-lint --version 2>&1 | head -1)"
 
 # Install mage if not linked
@@ -64,7 +64,6 @@ if ! command -v mage &>/dev/null; then
     go install github.com/magefile/mage@latest
     cp "$(go env GOPATH)/bin/mage" "$REPO_ROOT/bin/"
 fi
-
 echo "mage: $(mage -version 2>&1 | head -1)"
 
 # Check for ripgrep (required for snipe search)
@@ -81,23 +80,23 @@ else
     echo "Warning: ripgrep not available (snipe search may not work)"
 fi
 
-# Download Go modules
 echo ""
 echo "Downloading Go modules..."
 go mod download
+go mod verify
 
 # Build snipe if not linked
 if [[ ! -x "$REPO_ROOT/bin/snipe" ]]; then
-    echo "Building snipe..."
-    go build -o "$REPO_ROOT/bin/snipe" .
+    echo "Building snipe (low peak RAM)..."
+    # -p 1 reduces parallel compile RAM spikes in constrained sandboxes
+    go build -p 1 -o "$REPO_ROOT/bin/snipe" .
 fi
 
-# Verify snipe works
 echo ""
 echo "Verifying snipe..."
 "$REPO_ROOT/bin/snipe" version
 
-# Index the codebase if index exists
+# Build the codebase index if missing
 if [[ -f "$REPO_ROOT/.snipe/index.db" ]]; then
     echo "Snipe index found: .snipe/index.db"
 else
@@ -110,3 +109,4 @@ echo "=== Setup Complete ==="
 echo ""
 echo "To validate: bash .codex/validate.sh"
 echo "To activate: source .codex/activate.sh"
+
