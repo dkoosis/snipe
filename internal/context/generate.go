@@ -479,13 +479,20 @@ func inferPurpose(dir string) string {
 
 func generateFiles(db *sql.DB, repoRoot string) Files {
 	files := Files{
-		ByConcern: make(map[string]map[string]string),
+		ByConcern: make(map[string][]FileInfo),
 	}
 
-	// Query for files grouped by directory
+	// Query files with exported symbols (key files only)
 	rows, err := db.Query(`
-		SELECT DISTINCT file_path FROM symbols
+		SELECT
+			file_path,
+			GROUP_CONCAT(DISTINCT CASE WHEN name GLOB '[A-Z]*' THEN name END) as exports,
+			MIN(CASE WHEN doc != '' AND name GLOB '[A-Z]*' THEN doc END) as doc
+		FROM symbols
 		WHERE file_path LIKE ? || '/%'
+		  AND kind IN ('func', 'method', 'type', 'interface', 'struct')
+		GROUP BY file_path
+		HAVING exports IS NOT NULL
 		ORDER BY file_path
 	`, repoRoot)
 	if err != nil {
@@ -495,23 +502,63 @@ func generateFiles(db *sql.DB, repoRoot string) Files {
 
 	for rows.Next() {
 		var filePath string
-		if err := rows.Scan(&filePath); err != nil {
+		var exportsStr, doc sql.NullString
+		if err := rows.Scan(&filePath, &exportsStr, &doc); err != nil {
 			continue
 		}
 
 		relPath := strings.TrimPrefix(filePath, repoRoot+"/")
 		concern := categorizeByConcern(relPath)
 
-		if files.ByConcern[concern] == nil {
-			files.ByConcern[concern] = make(map[string]string)
+		// Build file info
+		info := FileInfo{
+			Path: relPath,
 		}
 
-		// Get a brief description based on file name
-		desc := describeFile(relPath)
-		files.ByConcern[concern][relPath] = desc
+		// Use doc comment if available, otherwise infer from file name
+		if doc.Valid && doc.String != "" {
+			info.Description = extractFirstSentence(doc.String)
+			info.Source = "doc"
+		} else {
+			info.Description = describeFile(relPath)
+			info.Source = "inferred"
+		}
+
+		// Extract top exports (limit to 5)
+		if exportsStr.Valid && exportsStr.String != "" {
+			exports := strings.Split(exportsStr.String, ",")
+			if len(exports) > 5 {
+				exports = exports[:5]
+			}
+			info.Exports = exports
+		}
+
+		files.ByConcern[concern] = append(files.ByConcern[concern], info)
 	}
 
 	return files
+}
+
+// extractFirstSentence returns the first sentence of a doc comment.
+func extractFirstSentence(doc string) string {
+	doc = strings.TrimSpace(doc)
+	// Find first period followed by space or end of string
+	for i, r := range doc {
+		if r == '.' {
+			if i+1 >= len(doc) || doc[i+1] == ' ' || doc[i+1] == '\n' {
+				return doc[:i+1]
+			}
+		}
+		// Stop at newline too
+		if r == '\n' {
+			return strings.TrimSpace(doc[:i])
+		}
+	}
+	// No period found, return first 100 chars
+	if len(doc) > 100 {
+		return doc[:100] + "..."
+	}
+	return doc
 }
 
 func categorizeByConcern(relPath string) string {
