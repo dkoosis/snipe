@@ -9,12 +9,13 @@ Go code nav CLI for LLMs. Static indexing, <50ms queries, JSON out.
 ## layout
 
 ```
-cmd/           CLI commands (def, refs, callers, callees, search)
+cmd/           CLI commands (def, refs, callers, callees, search, index)
 internal/
   index/       go/packages indexing
   query/       symbol lookup, position resolution
   store/       SQLite persistence
-  context/     boot context gen (#1685)
+  context/     boot context, roles, flows, enrichment
+  embed/       Voyage AI embeddings (batch + realtime)
 test/blackbox/ integration tests
 .snipe/        local index (gitignored)
 ```
@@ -22,12 +23,15 @@ test/blackbox/ integration tests
 ## usage
 
 ```
-snipe index                  # build index first
+snipe index                  # build index (embeddings + enrichment by default)
+snipe index --enrich=false   # skip LLM enrichment
+snipe index --embed-mode=off # skip embeddings
 snipe def Symbol             # definition by name
 snipe def --at file:L:C      # definition at position
 snipe refs/callers/callees   # graph traversal
 snipe show <hex-id>          # expand by 16-char ID
 snipe search "pattern"       # ripgrep fallback
+snipe context --boot         # LLM boot context with entry points, flows, boundaries
 ```
 
 ## focus
