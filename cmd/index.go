@@ -21,6 +21,9 @@ var indexCmd = &cobra.Command{
 	Short: "Build or update the code index",
 	Long: `Builds a SQLite index of symbols, references, and call graph for fast navigation.
 
+By default, generates embeddings (auto mode) and LLM-based symbol purposes (enrich).
+Use --embed-mode=off and --enrich=false to disable.
+
 Embedding modes:
   auto     - Use batch API for initial indexing (async), realtime for incremental
   batch    - Force batch API (async, up to 12h completion)
@@ -50,7 +53,7 @@ func init() {
 	defaultEmbed := embed.HasCredentials()
 	indexCmd.Flags().BoolVar(&withEmbed, "embed", defaultEmbed, "Generate embeddings (deprecated: use --embed-mode)")
 	indexCmd.Flags().StringVar(&embedMode, "embed-mode", "auto", "Embedding mode: auto, batch, realtime, off")
-	indexCmd.Flags().BoolVar(&withEnrich, "enrich", false, "Generate LLM-based symbol purposes (requires API key)")
+	indexCmd.Flags().BoolVar(&withEnrich, "enrich", true, "Generate LLM-based symbol purposes (use --enrich=false to disable)")
 	indexCmd.Flags().StringVar(&enrichModel, "enrich-model", "claude-3-5-haiku", "LLM model for enrichment")
 	rootCmd.AddCommand(indexCmd)
 }

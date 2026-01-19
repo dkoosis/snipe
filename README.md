@@ -24,10 +24,21 @@ snipe show a3f2c1de89ab0123     # Expand result by hex ID
 
 ### `snipe index`
 Build SQLite index from Go source. Run before other commands.
+
+By default, generates embeddings and LLM-based symbol purposes for enhanced context.
 ```bash
-snipe index              # Index current directory
-snipe index --embed      # Include semantic embeddings (requires VOYAGE_API_KEY)
+snipe index              # Index with embeddings + enrichment (default)
+snipe index /path/to/repo  # Index a different directory
+snipe index --enrich=false # Skip LLM enrichment
+snipe index --embed-mode=off  # Skip embeddings
+snipe index --embed-mode=off --enrich=false  # Minimal index (symbols only)
 ```
+
+Embedding modes:
+- `auto` (default): Batch API for initial index, realtime for incremental
+- `batch`: Force async batch API (up to 12h completion)
+- `realtime`: Force sync API (may timeout on large codebases)
+- `off`: Skip embeddings
 
 ### `snipe def [symbol|id]`
 Jump to symbol definition.
@@ -150,14 +161,16 @@ snipe CLI
     |
     +-- go/packages (static indexing)
     +-- ripgrep (text search)
-    +-- Voyage AI (optional embeddings)
+    +-- Voyage AI (embeddings)
+    +-- Anthropic API (LLM enrichment)
     |
     v
 SQLite (.snipe/index.db)
-    +-- symbols (id, name, kind, file, range, signature)
+    +-- symbols (id, name, kind, file, range, signature, doc)
     +-- refs (symbol_id, file, line, col, enclosing_id)
     +-- call_graph (caller_id, callee_id, file, line, col)
-    +-- embeddings (optional, for semantic search)
+    +-- embeddings (semantic vectors for similarity search)
+    +-- symbol_purposes (LLM-generated descriptions with content hashes)
 ```
 
 ## Configuration
@@ -167,10 +180,11 @@ Create `.snipe/config.json`:
 {
   "limit": 100,
   "context_lines": 5,
-  "embed_mode": "auto"
+  "embed_mode": "auto",
+  "enrich": true
 }
 ```
 
-Or use environment variables:
-- `VOYAGE_API_KEY`: Enable embeddings
-- `ANTHROPIC_API_KEY`: Future semantic features
+Environment variables:
+- `VOYAGE_API_KEY`: Enable embeddings (batch/realtime modes)
+- `ANTHROPIC_API_KEY`: Enable LLM enrichment (symbol purposes)
