@@ -1,0 +1,18 @@
+?   	github.com/dkoosis/snipe	[no test files]
+ok  	github.com/dkoosis/snipe/cmd	1.253s
+?   	github.com/dkoosis/snipe/internal	[no test files]
+ok  	github.com/dkoosis/snipe/internal/analyze	1.247s
+ok  	github.com/dkoosis/snipe/internal/config	1.087s
+ok  	github.com/dkoosis/snipe/internal/context	1.273s
+?   	github.com/dkoosis/snipe/internal/edit	[no test files]
+?   	github.com/dkoosis/snipe/internal/embed	[no test files]
+?   	github.com/dkoosis/snipe/internal/errors	[no test files]
+ok  	github.com/dkoosis/snipe/internal/index	1.645s
+?   	github.com/dkoosis/snipe/internal/kg	[no test files]
+?   	github.com/dkoosis/snipe/internal/metrics	[no test files]
+ok  	github.com/dkoosis/snipe/internal/output	1.227s
+ok  	github.com/dkoosis/snipe/internal/query	1.382s
+ok  	github.com/dkoosis/snipe/internal/search	1.620s
+ok  	github.com/dkoosis/snipe/internal/store	6.843s
+ok  	github.com/dkoosis/snipe/internal/util	1.267s
+ok  	github.com/dkoosis/snipe/test/bench	114.609s
