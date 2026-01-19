@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 11
+const schemaVersion = 12
 
 // migration represents a database migration.
 type migration struct {
@@ -180,6 +180,21 @@ var migrations = []migration{
 		version: 11,
 		name:    "add_pkg_path",
 		up:      ``, // Handled specially - need to add column and index
+	},
+	{
+		version: 12,
+		name:    "symbol_purposes_table",
+		up: `
+		CREATE TABLE IF NOT EXISTS symbol_purposes (
+			symbol_id TEXT PRIMARY KEY,
+			purpose TEXT NOT NULL,
+			content_hash TEXT NOT NULL,
+			model TEXT NOT NULL,
+			generated_at TEXT NOT NULL,
+			FOREIGN KEY (symbol_id) REFERENCES symbols(id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_symbol_purposes_hash ON symbol_purposes(content_hash);
+		`,
 	},
 }
 
@@ -425,4 +440,33 @@ func (s *Store) GetMigrationHistory() ([]struct {
 	}
 
 	return history, rows.Err()
+}
+
+// GetPurpose retrieves the stored purpose for a symbol.
+func (s *Store) GetPurpose(symbolID string) (string, error) {
+	var purpose string
+	err := s.db.QueryRow(`SELECT purpose FROM symbol_purposes WHERE symbol_id = ?`, symbolID).Scan(&purpose)
+	if err != nil {
+		return "", err
+	}
+	return purpose, nil
+}
+
+// SetPurpose stores a purpose for a symbol.
+func (s *Store) SetPurpose(symbolID, purpose, contentHash, model string) error {
+	_, err := s.db.Exec(
+		`INSERT OR REPLACE INTO symbol_purposes (symbol_id, purpose, content_hash, model, generated_at) VALUES (?, ?, ?, ?, ?)`,
+		symbolID, purpose, contentHash, model, time.Now().UTC().Format(time.RFC3339),
+	)
+	return err
+}
+
+// GetPurposeByHash retrieves a purpose by content hash.
+func (s *Store) GetPurposeByHash(contentHash string) (string, error) {
+	var purpose string
+	err := s.db.QueryRow(`SELECT purpose FROM symbol_purposes WHERE content_hash = ?`, contentHash).Scan(&purpose)
+	if err != nil {
+		return "", err
+	}
+	return purpose, nil
 }

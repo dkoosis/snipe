@@ -25,6 +25,8 @@ type GenerateConfig struct {
 	Full bool
 	// MaxSymbols is the maximum number of symbols to include per category (default: 20)
 	MaxSymbols int
+	// IncludeArchSummary includes architecture summary in boot context (Phase 4)
+	IncludeArchSummary bool
 }
 
 // Generate creates a ProjectContext from the snipe index.
@@ -49,11 +51,22 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 	proj := generateProject(cfg.RepoRoot)
 	meta := generateMeta(cfg.DB)
 
-	// Get entry points (cmd/* main.go files)
+	// Get entry points (cmd/* main.go files) - backward compatible
 	entryPoints := getEntryPoints(cfg.DB, cfg.RepoRoot)
 
-	// Get top symbols by reference count (most referenced = most important)
-	keySymbols := getKeySymbolsByRefCount(cfg.DB, cfg.RepoRoot, 10)
+	// Get top symbols by role-weighted ranking
+	rankedSymbols, err := RankSymbols(cfg.DB, cfg.RepoRoot, 15)
+	if err != nil {
+		// Fall back to ref-count based ranking if ranking fails
+		rankedSymbols = nil
+	}
+
+	// Convert ranked symbols to SymbolRef
+	keySymbols := rankedToSymbolRefs(rankedSymbols, cfg.RepoRoot)
+	if len(keySymbols) == 0 {
+		// Fall back to ref-count based if ranking produced no results
+		keySymbols = getKeySymbolsByRefCount(cfg.DB, cfg.RepoRoot, 10)
+	}
 
 	// Load session for active work context
 	var activeWork *ActiveWork
@@ -67,6 +80,15 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		lang = proj.Lang[0]
 	}
 
+	// Build boot views (Phase 2 enrichment)
+	bootViews := generateBootViews(cfg.DB, cfg.RepoRoot)
+
+	// Build architecture summary (Phase 4 enrichment) - only if explicitly requested
+	var archSummary *ArchSummary
+	if cfg.IncludeArchSummary {
+		archSummary, _ = GenerateArchitectureSummary(cfg.DB, cfg.RepoRoot)
+	}
+
 	return &BootContext{
 		Project:     proj.Name,
 		Lang:        lang,
@@ -76,7 +98,47 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		KeySymbols:  keySymbols,
 		ActiveWork:  activeWork,
 		Commit:      meta.GitCommit,
+		BootViews:   bootViews,
+		ArchSummary: archSummary,
 	}, nil
+}
+
+// generateBootViews creates the three orientation views for boot context.
+func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
+	// Get entry point details using batch queries
+	entryPointDetails, _ := GetEntryPointDetails(db, repoRoot)
+
+	// Get primary flows using batch queries
+	primaryFlows, _ := ExtractPrimaryFlows(db, repoRoot, 4)
+
+	// Get change boundaries using batch query
+	changeBoundaries, _ := GetChangeBoundaries(db, repoRoot)
+
+	// Only return BootViews if we have meaningful content
+	if len(entryPointDetails) == 0 && len(primaryFlows) == 0 && len(changeBoundaries) == 0 {
+		return nil
+	}
+
+	return &BootViews{
+		EntryPointDetails: entryPointDetails,
+		PrimaryFlows:      primaryFlows,
+		ChangeBoundaries:  changeBoundaries,
+	}
+}
+
+// rankedToSymbolRefs converts ranked symbols to SymbolRef with role information.
+func rankedToSymbolRefs(ranked []RankedSymbol, repoRoot string) []SymbolRef {
+	refs := make([]SymbolRef, 0, len(ranked))
+	for _, rs := range ranked {
+		ref := SymbolRef{
+			Name: rs.Name,
+			File: strings.TrimPrefix(rs.File, repoRoot+"/"),
+			Line: rs.Line,
+			Role: rs.Role,
+		}
+		refs = append(refs, ref)
+	}
+	return refs
 }
 
 // getEntryPoints finds main.go files in cmd/ directory

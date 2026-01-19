@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/output"
@@ -38,8 +39,10 @@ const (
 )
 
 var (
-	withEmbed bool   // Legacy flag, kept for compatibility
-	embedMode string // New flag: auto, batch, realtime, off
+	withEmbed   bool   // Legacy flag, kept for compatibility
+	embedMode   string // New flag: auto, batch, realtime, off
+	withEnrich  bool   // Generate LLM-based symbol purposes
+	enrichModel string // LLM model for enrichment
 )
 
 func init() {
@@ -47,6 +50,8 @@ func init() {
 	defaultEmbed := embed.HasCredentials()
 	indexCmd.Flags().BoolVar(&withEmbed, "embed", defaultEmbed, "Generate embeddings (deprecated: use --embed-mode)")
 	indexCmd.Flags().StringVar(&embedMode, "embed-mode", "auto", "Embedding mode: auto, batch, realtime, off")
+	indexCmd.Flags().BoolVar(&withEnrich, "enrich", false, "Generate LLM-based symbol purposes (requires API key)")
+	indexCmd.Flags().StringVar(&enrichModel, "enrich-model", "claude-3-5-haiku", "LLM model for enrichment")
 	rootCmd.AddCommand(indexCmd)
 }
 
@@ -221,6 +226,24 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Generated %d embeddings\n", embedCount)
 	} else if embedStatus == "batch_started" {
 		fmt.Fprintf(os.Stderr, "Batch embedding started (async). Use 'snipe embed-status' to check progress.\n")
+	}
+
+	// Run LLM enrichment if requested
+	if withEnrich {
+		fmt.Fprintf(os.Stderr, "Enriching symbols with LLM-generated purposes...\n")
+		enrichCfg := context.EnrichConfig{
+			DB:       s.DB(),
+			RepoRoot: absDir,
+			Model:    enrichModel,
+		}
+		enrichCount, err := context.EnrichSymbols(enrichCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: enrichment failed: %v\n", err)
+		} else if enrichCount > 0 {
+			fmt.Fprintf(os.Stderr, "Enriched %d symbols\n", enrichCount)
+		} else {
+			fmt.Fprintf(os.Stderr, "No symbols needed enrichment\n")
+		}
 	}
 
 	return w.WriteResponse(resp)

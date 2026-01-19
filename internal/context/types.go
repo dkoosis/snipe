@@ -20,6 +20,63 @@ type BootContext struct {
 	KeySymbols  []SymbolRef `json:"key_symbols" yaml:"key_symbols"`
 	ActiveWork  *ActiveWork `json:"active_work,omitempty" yaml:"active_work,omitempty"`
 	Commit      string      `json:"commit" yaml:"commit"`
+
+	// Enhanced fields (Phase 2)
+	BootViews *BootViews   `json:"boot_views,omitempty" yaml:"boot_views,omitempty"`
+	Packages  []PackageRef `json:"packages,omitempty" yaml:"packages,omitempty"`
+
+	// Phase 4: Architecture summary
+	ArchSummary *ArchSummary `json:"arch_summary,omitempty" yaml:"arch_summary,omitempty"`
+}
+
+// BootViews contains the three orientation views for LLM boot sequences.
+type BootViews struct {
+	EntryPointDetails []EntryPointRef     `json:"entry_point_details,omitempty" yaml:"entry_point_details,omitempty"`
+	PrimaryFlows      []string            `json:"primary_flows,omitempty" yaml:"primary_flows,omitempty"`
+	ChangeBoundaries  map[string][]string `json:"change_boundaries,omitempty" yaml:"change_boundaries,omitempty"`
+}
+
+// ArchSummary provides a high-level architecture overview grounded in call graph data.
+// This is used for Phase 4 context enrichment to help LLMs understand codebase structure.
+type ArchSummary struct {
+	// Spine contains primary call flows from entry points (from static analysis)
+	Spine []string `json:"spine" yaml:"spine"`
+	// Components lists packages with their purposes
+	Components []PackagePurpose `json:"components" yaml:"components"`
+	// Edges contains top cross-package call relationships with counts
+	Edges []CrossPackageEdge `json:"edges" yaml:"edges"`
+	// Description is LLM-generated prose describing the architecture (placeholder for now)
+	Description string `json:"description" yaml:"description"`
+}
+
+// PackagePurpose describes a package and its inferred purpose.
+type PackagePurpose struct {
+	Name    string `json:"name" yaml:"name"`
+	Purpose string `json:"purpose" yaml:"purpose"`
+}
+
+// CrossPackageEdge represents a cross-package call relationship.
+type CrossPackageEdge struct {
+	From  string `json:"from" yaml:"from"`
+	To    string `json:"to" yaml:"to"`
+	Count int    `json:"count" yaml:"count"`
+}
+
+// EntryPointRef describes an entry point with its purpose and immediate callees.
+type EntryPointRef struct {
+	Name    string   `json:"name" yaml:"name"`
+	File    string   `json:"file" yaml:"file"`
+	Line    int      `json:"line" yaml:"line"`
+	Purpose string   `json:"purpose,omitempty" yaml:"purpose,omitempty"`
+	Callees []string `json:"callees,omitempty" yaml:"callees,omitempty"`
+}
+
+// PackageRef describes a package with its purpose and role counts.
+type PackageRef struct {
+	Name       string         `json:"name" yaml:"name"`
+	Purpose    string         `json:"purpose" yaml:"purpose"`
+	Roles      map[string]int `json:"roles,omitempty" yaml:"roles,omitempty"`
+	TopSymbols []SymbolRef    `json:"top_symbols,omitempty" yaml:"top_symbols,omitempty"`
 }
 
 // Project contains basic project information.
@@ -94,9 +151,12 @@ type ExtensionPoint struct {
 
 // SymbolRef is a lightweight reference to a symbol.
 type SymbolRef struct {
-	Name string `json:"name" yaml:"name"`
-	File string `json:"file" yaml:"file"`
-	Line int    `json:"line" yaml:"line"`
+	Name       string `json:"name" yaml:"name"`
+	File       string `json:"file" yaml:"file"`
+	Line       int    `json:"line" yaml:"line"`
+	Role       string `json:"role,omitempty" yaml:"role,omitempty"`
+	Visibility string `json:"visibility,omitempty" yaml:"visibility,omitempty"`
+	Purpose    string `json:"purpose,omitempty" yaml:"purpose,omitempty"`
 }
 
 // Meta contains generation metadata.
