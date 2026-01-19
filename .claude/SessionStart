@@ -1,0 +1,24 @@
+#!/bin/bash
+# Claude Code SessionStart hook - runs automatically on web session start
+# This activates the snipe development environment for optimal Claude workflow
+
+# Note: Don't use 'set -e' since this script is sourced
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Activate the Claude environment
+if [[ -f "$REPO_ROOT/.claude/activate.sh" ]]; then
+    source "$REPO_ROOT/.claude/activate.sh"
+else
+    echo "Error: .claude/activate.sh not found"
+    return 1 2>/dev/null || exit 1
+fi
+
+# Quick environment check
+echo ""
+echo "Claude environment ready:"
+echo "  snipe: $(command -v snipe &>/dev/null && snipe version | head -1 || echo 'not found - run .claude/setup.sh')"
+echo "  Go: $(go version 2>/dev/null | cut -d' ' -f3 || echo 'not found')"
+echo "  Index: $(test -f .snipe/index.db && echo 'present (pre-built)' || echo 'MISSING - should be in repo')"
+echo ""

@@ -1,8 +1,14 @@
-# Binary
+# Binaries
 snipe
+bin/
 
-# Index database
-.snipe/
+# Index database (commit index.db but ignore other files)
+.snipe/*
+!.snipe/index.db
+
+# Sandbox caches
+.codex/cache/
+.claude/cache/
 
 # IDE
 .idea/
