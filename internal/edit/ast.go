@@ -2,7 +2,6 @@
 package edit
 
 import (
-	"bytes"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -10,6 +9,8 @@ import (
 	"go/token"
 	"os"
 	"strings"
+
+	"github.com/pmezard/go-difflib/difflib"
 )
 
 // Operation defines the type of edit operation
@@ -368,65 +369,24 @@ func ApplyAndWrite(req Request) (*Result, error) {
 	return result, nil
 }
 
-// computeDiff generates a simple unified diff
+// computeDiff generates a unified diff using proper LCS algorithm.
 func computeDiff(original, modified string) string {
-	oldLines := strings.Split(original, "\n")
-	newLines := strings.Split(modified, "\n")
-
-	var diff bytes.Buffer
-	diff.WriteString("--- original\n")
-	diff.WriteString("+++ modified\n")
-
-	// Simple line-by-line comparison (not a full diff algorithm)
-	maxLines := len(oldLines)
-	if len(newLines) > maxLines {
-		maxLines = len(newLines)
+	if original == modified {
+		return ""
 	}
 
-	inHunk := false
-	hunkStart := 0
-	var hunkBuf bytes.Buffer
-
-	for i := 0; i < maxLines; i++ {
-		var oldLine, newLine string
-		if i < len(oldLines) {
-			oldLine = oldLines[i]
-		}
-		if i < len(newLines) {
-			newLine = newLines[i]
-		}
-
-		if oldLine != newLine {
-			if !inHunk {
-				inHunk = true
-				hunkStart = i + 1
-				// Add context before
-				if i > 0 {
-					hunkBuf.WriteString(" " + oldLines[i-1] + "\n")
-				}
-			}
-			if i < len(oldLines) && oldLine != "" {
-				hunkBuf.WriteString("-" + oldLine + "\n")
-			}
-			if i < len(newLines) && newLine != "" {
-				hunkBuf.WriteString("+" + newLine + "\n")
-			}
-		} else if inHunk {
-			// Context line after change
-			hunkBuf.WriteString(" " + oldLine + "\n")
-			// Flush hunk
-			diff.WriteString(fmt.Sprintf("@@ -%d +%d @@\n", hunkStart, hunkStart))
-			diff.Write(hunkBuf.Bytes())
-			hunkBuf.Reset()
-			inHunk = false
-		}
+	diff := difflib.UnifiedDiff{
+		A:        strings.Split(original, "\n"),
+		B:        strings.Split(modified, "\n"),
+		FromFile: "original",
+		ToFile:   "modified",
+		Context:  3,
 	}
 
-	// Flush remaining hunk
-	if inHunk {
-		diff.WriteString(fmt.Sprintf("@@ -%d +%d @@\n", hunkStart, hunkStart))
-		diff.Write(hunkBuf.Bytes())
+	result, err := difflib.GetUnifiedDiffString(diff)
+	if err != nil {
+		return fmt.Sprintf("--- original\n+++ modified\n@@ error generating diff: %v @@\n", err)
 	}
 
-	return diff.String()
+	return result
 }
