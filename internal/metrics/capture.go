@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"runtime"
@@ -158,7 +160,12 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	baseline.Index.LoadMs = loadEnd.Sub(loadStart).Milliseconds()
 	baseline.Index.ExtractMs = extractEnd.Sub(extractStart).Milliseconds()
 	baseline.Index.PersistMs = persistEnd.Sub(persistStart).Milliseconds()
-	baseline.Index.PeakMemMB = int((memAfter.TotalAlloc - memBefore.TotalAlloc) / 1024 / 1024)
+
+	peakMemMB := (memAfter.TotalAlloc - memBefore.TotalAlloc) / 1024 / 1024
+	if peakMemMB > math.MaxInt {
+		return nil, fmt.Errorf("peak memory %d MB overflows int", peakMemMB)
+	}
+	baseline.Index.PeakMemMB = int(peakMemMB)
 
 	// Codebase stats
 	baseline.Codebase.Symbols = len(syms)

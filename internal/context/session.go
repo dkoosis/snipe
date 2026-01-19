@@ -49,7 +49,7 @@ func sessionPath(projectRoot string) string {
 func LoadSession(projectRoot string) (*Session, error) {
 	path := sessionPath(projectRoot)
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path derived from projectRoot (session file)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &Session{Project: projectRoot}, nil
@@ -87,7 +87,7 @@ func SaveSession(session *Session) error {
 
 	// Ensure directory exists
 	dir := filepath.Join(session.Project, sessionDir)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return err
 	}
 
@@ -96,7 +96,7 @@ func SaveSession(session *Session) error {
 		return err
 	}
 
-	return os.WriteFile(sessionPath(session.Project), data, 0644)
+	return os.WriteFile(sessionPath(session.Project), data, 0600)
 }
 
 // RecordQuery adds a query to the session.

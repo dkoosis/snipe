@@ -152,7 +152,7 @@ func (c *BatchClient) Model() string {
 
 // UploadFile uploads a JSONL file for batch processing.
 func (c *BatchClient) UploadFile(jsonlPath string) (*FileUploadResponse, error) {
-	file, err := os.Open(jsonlPath)
+	file, err := os.Open(jsonlPath) // #nosec G304 -- path from caller (batch embedding JSONL)
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
@@ -355,7 +355,7 @@ func (c *BatchClient) SaveState(state *BatchState) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(c.stateDir, 0755); err != nil {
+	if err := os.MkdirAll(c.stateDir, 0750); err != nil {
 		return fmt.Errorf("create state dir: %w", err)
 	}
 
@@ -365,7 +365,7 @@ func (c *BatchClient) SaveState(state *BatchState) error {
 		return fmt.Errorf("marshal state: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 // LoadState loads the batch state from disk.
@@ -375,7 +375,7 @@ func (c *BatchClient) LoadState() (*BatchState, error) {
 	}
 
 	path := filepath.Join(c.stateDir, "batch_state.json")
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path derived from stateDir (batch state)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -407,12 +407,12 @@ func (c *BatchClient) ClearState() error {
 // WriteJSONL writes symbols to a JSONL file for batch processing.
 // Returns the path to the created file.
 func (c *BatchClient) WriteJSONL(symbols []SymbolText, outputDir string) (string, error) {
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0750); err != nil {
 		return "", fmt.Errorf("create output dir: %w", err)
 	}
 
 	path := filepath.Join(outputDir, "embeddings.jsonl")
-	file, err := os.Create(path)
+	file, err := os.Create(path) // #nosec G304 -- path derived from outputDir (batch JSONL)
 	if err != nil {
 		return "", fmt.Errorf("create file: %w", err)
 	}

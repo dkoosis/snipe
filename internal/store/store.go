@@ -24,7 +24,7 @@ func DefaultIndexPath(repoRoot string) string {
 func Open(path string) (*Store, error) {
 	// Ensure directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return nil, fmt.Errorf("create index directory: %w", err)
 	}
 
@@ -35,31 +35,31 @@ func Open(path string) (*Store, error) {
 
 	// Enable WAL mode for better concurrent read performance
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("enable WAL mode: %w", err)
 	}
 
 	// Balance durability and latency for WAL workloads
 	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
-		db.Close()
+		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("set synchronous: %w", err)
 	}
 
 	// Keep temporary data in memory for speed
 	if _, err := db.Exec("PRAGMA temp_store=MEMORY"); err != nil {
-		db.Close()
+		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("set temp_store: %w", err)
 	}
 
 	// Set busy timeout to avoid "database is locked" errors during concurrent access
 	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		db.Close()
+		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("set busy_timeout: %w", err)
 	}
 
 	// Enable foreign keys
 	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		db.Close()
+		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
 	}
 
@@ -70,7 +70,7 @@ func Open(path string) (*Store, error) {
 
 	// Initialize schema
 	if err := s.initSchema(); err != nil {
-		db.Close()
+		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("initialize schema: %w", err)
 	}
 
@@ -113,10 +113,10 @@ func IsIndexing(dbPath string) bool {
 func AcquireLock(dbPath string) error {
 	lockPath := LockPath(dbPath)
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0750); err != nil {
 		return fmt.Errorf("create lock directory: %w", err)
 	}
-	f, err := os.Create(lockPath)
+	f, err := os.Create(lockPath) // #nosec G304 -- lockPath derived from dbPath (index lock)
 	if err != nil {
 		return fmt.Errorf("create lock file: %w", err)
 	}

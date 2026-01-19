@@ -33,7 +33,7 @@ type CompareConfig struct {
 
 // LoadBaseline loads a baseline from a JSON file
 func LoadBaseline(path string) (*Baseline, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path from caller (baseline JSON file)
 	if err != nil {
 		return nil, err
 	}

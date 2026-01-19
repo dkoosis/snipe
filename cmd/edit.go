@@ -107,7 +107,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	// Get new code
 	newCode := editNewCode
 	if editNewCodeFile != "" {
-		data, err := os.ReadFile(editNewCodeFile)
+		data, err := os.ReadFile(editNewCodeFile) // #nosec G304 -- CLI tool accepts user-specified file paths
 		if err != nil {
 			return w.WriteError("edit", &output.Error{
 				Code:    output.ErrInternal,

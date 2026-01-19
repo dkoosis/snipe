@@ -88,7 +88,7 @@ func runBaseline(cmd *cobra.Command, args []string) error {
 		outputFile = filepath.Join(dir, "BASELINE.json")
 	}
 
-	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
+	if err := os.WriteFile(outputFile, jsonData, 0600); err != nil { // #nosec G306 -- baseline is project data, not secrets
 		return w.WriteError("baseline", &output.Error{
 			Code:    output.ErrInternal,
 			Message: "failed to write baseline file: " + err.Error(),
@@ -97,13 +97,13 @@ func runBaseline(cmd *cobra.Command, args []string) error {
 
 	// Append to history
 	historyDir := filepath.Join(dir, ".snipe")
-	if err := os.MkdirAll(historyDir, 0755); err == nil {
+	if err := os.MkdirAll(historyDir, 0750); err == nil {
 		historyFile := filepath.Join(historyDir, "metrics.jsonl")
 		jsonl, _ := baseline.ToJSONL()
-		if f, err := os.OpenFile(historyFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-			f.Write(jsonl)
-			f.Write([]byte("\n"))
-			f.Close()
+		if f, err := os.OpenFile(historyFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600); err == nil { // #nosec G304 -- path derived from cwd
+			_, _ = f.Write(jsonl)        // G104: best-effort append to history
+			_, _ = f.Write([]byte("\n")) // G104: best-effort append
+			_ = f.Close()                // G104: close in cleanup path
 		}
 	}
 
@@ -117,8 +117,8 @@ func runBaseline(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "  Doc coverage: %.1f%%\n", baseline.Quality.DocCoverage)
 		fmt.Println(outputFile)
 	} else {
-		os.Stdout.Write(jsonData)
-		os.Stdout.Write([]byte("\n"))
+		_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
+		_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
 	}
 
 	return nil

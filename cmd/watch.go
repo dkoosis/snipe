@@ -216,7 +216,7 @@ func runReindex(dir string) error {
 		return fmt.Errorf("find executable: %w", err)
 	}
 
-	cmd := exec.Command(exe, "index")
+	cmd := exec.Command(exe, "index") // #nosec G204 -- exe from os.Executable(), trusted self-invocation
 	cmd.Dir = dir
 	cmd.Stdout = os.Stderr // Redirect index output to stderr
 	cmd.Stderr = os.Stderr

@@ -60,7 +60,7 @@ func HasCredentials() bool {
 	if path == "" {
 		return false
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path from CredentialsPath() (user config)
 	if err != nil {
 		return false
 	}
@@ -118,7 +118,7 @@ func loadCredentials() (map[string]string, error) {
 		return nil, fmt.Errorf("cannot determine home directory")
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path from CredentialsPath() (user config)
 	if err != nil {
 		return nil, err
 	}

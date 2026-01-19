@@ -104,7 +104,7 @@ func (fc *FileCache) Size() int {
 // LoadFileLines reads a file and returns its lines without caching.
 // This is useful for one-off reads during indexing.
 func LoadFileLines(path string) ([]string, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- path from caller (file cache, indexing)
 	if err != nil {
 		return nil, err
 	}

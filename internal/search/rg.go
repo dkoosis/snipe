@@ -66,7 +66,7 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 
 	args = append(args, pattern, dir)
 
-	cmd := exec.Command("rg", args...)
+	cmd := exec.Command("rg", args...) // #nosec G204 -- args constructed internally, rg is trusted CLI tool
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("create pipe: %w", err)
@@ -128,14 +128,14 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 
 	// Check for scanner errors (e.g., line too long even with increased buffer)
 	if err := scanner.Err(); err != nil {
-		stdout.Close()
-		cmd.Wait()
+		_ = stdout.Close() // G104: cleanup on error path
+		_ = cmd.Wait()     // G104: cleanup on error path
 		return results, fmt.Errorf("scan rg output: %w", err)
 	}
 
 	// Close pipe to signal rg we're done reading. This causes SIGPIPE on rg's
 	// next write, allowing clean shutdown (same as `rg | head -n 50` behavior).
-	stdout.Close()
+	_ = stdout.Close() // G104: intentional close to trigger SIGPIPE
 
 	// Wait for rg to finish and check exit code
 	// rg exit codes: 0 = matches found, 1 = no matches, 2 = error

@@ -50,7 +50,7 @@ func ComputeFingerprint(dir, version string) (*Fingerprint, error) {
 }
 
 func hashFile(path string) (string, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- path is go.mod/go.sum/go.work in repo
 	if err != nil {
 		return "", err
 	}

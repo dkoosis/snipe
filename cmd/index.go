@@ -422,7 +422,7 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 	}
 
 	// Clean up local JSONL file
-	os.Remove(jsonlPath)
+	_ = os.Remove(jsonlPath) // G104: best-effort cleanup of temporary file
 
 	return "batch_started", nil
 }

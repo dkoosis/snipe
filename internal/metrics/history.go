@@ -8,7 +8,7 @@ import (
 
 // LoadHistory loads baseline history from a JSONL file
 func LoadHistory(path string) ([]Baseline, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- path from caller (metrics history file)
 	if err != nil {
 		return nil, err
 	}

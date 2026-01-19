@@ -69,6 +69,7 @@ func BatchLookupByID(db *sql.DB, ids []string) (map[string]*SymbolRow, error) {
 		args[i] = id
 	}
 
+	// #nosec G201 -- placeholders[] contains only "?" literals, args[] holds actual values - parameterized query
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash

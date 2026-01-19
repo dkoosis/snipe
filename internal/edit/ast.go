@@ -52,7 +52,7 @@ type Result struct {
 
 // FindSymbol locates a symbol in the file and returns its position info
 func FindSymbol(filePath, symbolName string, optLine int) (*SymbolInfo, error) {
-	src, err := os.ReadFile(filePath)
+	src, err := os.ReadFile(filePath) // #nosec G304 -- filePath from symbol lookup
 	if err != nil {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
@@ -361,7 +361,7 @@ func ApplyAndWrite(req Request) (*Result, error) {
 	}
 
 	// Write to file
-	if err := os.WriteFile(req.File, formatted, 0644); err != nil {
+	if err := os.WriteFile(req.File, formatted, 0600); err != nil { // #nosec G306 -- preserving original Go source file permissions
 		return nil, fmt.Errorf("write file: %w", err)
 	}
 

@@ -332,7 +332,7 @@ func inferBoundaries(db *sql.DB, modulePath string) []Boundary {
 		seen[shortName] = true
 		packages = append(packages, pkgInfo{fullPath: pkgPath, shortName: shortName})
 	}
-	rows.Close()
+	_ = rows.Close() // G104: close after iteration (defer not used to avoid nested query issues)
 
 	// Now build boundaries with exports (safe to query now)
 	var boundaries []Boundary

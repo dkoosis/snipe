@@ -99,8 +99,8 @@ func runHistory(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		jsonData, _ := json.MarshalIndent(entries, "", "  ")
-		os.Stdout.Write(jsonData)
-		os.Stdout.Write([]byte("\n"))
+		_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
+		_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
 	}
 
 	return nil

@@ -69,7 +69,7 @@ func Load(projectRoot string) (*Config, error) {
 
 // loadFile loads a config from a JSON file. Returns nil if file doesn't exist.
 func loadFile(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path from GlobalConfigPath/ProjectConfigPath
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, err
