@@ -1,0 +1,3 @@
+{"timestamp":"2024-01-01T00:00:00Z","git_commit":"abc123","index":{"total_ms":100},"codebase":{"symbols":10},"query":{"def_by_name_ms":5},"quality":{"doc_coverage_pct":20}}
+{this is not valid json}
+{"timestamp":"2024-01-02T00:00:00Z","git_commit":"def456","index":{"total_ms":130},"codebase":{"symbols":12},"query":{"def_by_name_ms":7},"quality":{"doc_coverage_pct":25}}
