@@ -155,20 +155,37 @@ fi
 
 echo ""
 echo "--- Quick Validation ---"
-printf "%-16s " "go build:"
-if go build -o /tmp/snipe-diag-test . &>/dev/null; then
-    echo "OK"
-    rm -f /tmp/snipe-diag-test
-else
-    echo "FAILED"
-    ISSUES+=("BUILD_FAILED: go build - check go.mod and dependencies")
+
+# Skip go build if prebuilt snipe binary is available and working
+SKIP_BUILD=false
+if [[ -x "$BINDIR/snipe" ]] || [[ -x "$REPO_ROOT/bin/snipe" ]]; then
+    printf "%-16s " "go build:"
+    echo "SKIPPED (prebuilt snipe available)"
+    SKIP_BUILD=true
+fi
+
+if [[ "$SKIP_BUILD" == "false" ]]; then
+    printf "%-16s " "go build:"
+    BUILD_OUTPUT=$(go build -o /tmp/snipe-diag-test . 2>&1)
+    BUILD_EXIT=$?
+    if [[ $BUILD_EXIT -eq 0 ]]; then
+        echo "OK"
+        rm -f /tmp/snipe-diag-test
+    else
+        echo "FAILED (exit $BUILD_EXIT)"
+        echo "                 Error: ${BUILD_OUTPUT:0:200}"
+        ISSUES+=("BUILD_FAILED: go build failed - see error above")
+    fi
 fi
 
 printf "%-16s " "go vet:"
-if go vet ./... &>/dev/null; then
+VET_OUTPUT=$(go vet ./... 2>&1)
+if [[ $? -eq 0 ]]; then
     echo "OK"
 else
     echo "WARNINGS (non-blocking)"
+    # Show first line of vet output for context
+    [[ -n "$VET_OUTPUT" ]] && echo "                 ${VET_OUTPUT%%$'\n'*}"
 fi
 
 echo ""
@@ -182,6 +199,20 @@ if [[ ${#ISSUES[@]} -eq 0 ]]; then
 else
     echo "STATUS: ${#ISSUES[@]} ISSUE(S) FOUND"
     echo ""
+
+    # Check if this is just a PATH issue (binaries exist but not on PATH)
+    BINARIES_EXIST=true
+    for bin in snipe golangci-lint govulncheck mage rg; do
+        [[ ! -x "$BINDIR/$bin" ]] && BINARIES_EXIST=false
+    done
+
+    if [[ "$BINARIES_EXIST" == "true" ]] && [[ "$PATH" != *"$REPO_ROOT/bin"* ]]; then
+        echo "QUICK FIX: Binaries exist but PATH not set."
+        echo "Run: source .codex/activate.sh"
+        echo "Then re-run: bash .codex/diagnose.sh"
+        echo ""
+    fi
+
     echo "Issues to fix:"
     for issue in "${ISSUES[@]}"; do
         echo "  - $issue"
