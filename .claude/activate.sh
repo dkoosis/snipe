@@ -24,17 +24,8 @@ case "$PLATFORM" in
 esac
 
 # Add paths to PATH (share binaries from .codex)
+# Note: setup.sh handles symlinking binaries to ./bin
 export PATH="$REPO_ROOT/bin:$BINDIR:$PATH"
-
-# Link prebuilt binaries from .codex if available and bin directory doesn't have them
-if [[ -d "$BINDIR" ]]; then
-    mkdir -p "$REPO_ROOT/bin"
-    for tool in snipe golangci-lint mage rg; do
-        if [[ -x "$BINDIR/$tool" && ! -e "$REPO_ROOT/bin/$tool" ]]; then
-            ln -sf "$BINDIR/$tool" "$REPO_ROOT/bin/$tool"
-        fi
-    done
-fi
 
 # Performance tuning
 export GOMAXPROCS=${GOMAXPROCS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
@@ -43,8 +34,11 @@ export GOTOOLCHAIN=auto
 # Increase file descriptor limit if possible
 ulimit -n 65536 2>/dev/null || true
 
-echo "snipe environment activated for Claude"
-echo "  GOCACHE=$GOCACHE"
-echo "  GOMODCACHE=$GOMODCACHE"
-echo "  PATH includes: $REPO_ROOT/bin"
-echo "  Sharing binaries from: $BINDIR"
+# Output status unless quiet mode is enabled
+if [[ -z "${CLAUDE_ACTIVATE_QUIET:-}" ]]; then
+    echo "snipe environment activated for Claude"
+    echo "  GOCACHE=$GOCACHE"
+    echo "  GOMODCACHE=$GOMODCACHE"
+    echo "  PATH includes: $REPO_ROOT/bin"
+    echo "  Sharing binaries from: $BINDIR"
+fi

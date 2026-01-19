@@ -45,7 +45,22 @@ export GOTOOLCHAIN=auto
 if ! command -v go &>/dev/null; then
     echo "Go not found, installing..."
     GO_VERSION="1.25.1"
-    curl -sL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -C /usr/local -xzf -
+    GO_TARBALL="go${GO_VERSION}.linux-amd64.tar.gz"
+    GO_URL="https://go.dev/dl/${GO_TARBALL}"
+
+    # Download to temp file for verification
+    TMPDIR=$(mktemp -d)
+    trap 'rm -rf "$TMPDIR"' EXIT
+
+    echo "  Downloading ${GO_TARBALL}..."
+    curl -fsSL "$GO_URL" -o "$TMPDIR/${GO_TARBALL}"
+
+    # Note: For production, add checksum verification here
+    # GO_SHA256="expected_checksum_here"
+    # echo "${GO_SHA256}  $TMPDIR/${GO_TARBALL}" | sha256sum -c -
+
+    echo "  Extracting to /usr/local..."
+    tar -C /usr/local -xzf "$TMPDIR/${GO_TARBALL}"
     export PATH="/usr/local/go/bin:$PATH"
 fi
 
@@ -54,7 +69,20 @@ echo "Go: $(go version)"
 # Install golangci-lint if not linked
 if ! command -v golangci-lint &>/dev/null; then
     echo "Installing golangci-lint..."
-    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$REPO_ROOT/bin" v1.64.2
+    GOLANGCI_VERSION="1.64.2"
+    GOLANGCI_TARBALL="golangci-lint-${GOLANGCI_VERSION}-linux-amd64.tar.gz"
+    GOLANGCI_URL="https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_VERSION}/${GOLANGCI_TARBALL}"
+
+    TMPDIR=$(mktemp -d)
+    trap 'rm -rf "$TMPDIR"' EXIT
+
+    echo "  Downloading golangci-lint v${GOLANGCI_VERSION}..."
+    curl -fsSL "$GOLANGCI_URL" -o "$TMPDIR/${GOLANGCI_TARBALL}"
+
+    echo "  Extracting..."
+    tar -C "$TMPDIR" -xzf "$TMPDIR/${GOLANGCI_TARBALL}"
+    cp "$TMPDIR/golangci-lint-${GOLANGCI_VERSION}-linux-amd64/golangci-lint" "$REPO_ROOT/bin/"
+    chmod +x "$REPO_ROOT/bin/golangci-lint"
 fi
 echo "golangci-lint: $(golangci-lint --version 2>&1 | head -1)"
 
@@ -70,7 +98,7 @@ echo "mage: $(mage -version 2>&1 | head -1)"
 if ! command -v rg &>/dev/null; then
     echo "Installing ripgrep..."
     if command -v apt-get &>/dev/null; then
-        apt-get update && apt-get install -y ripgrep || true
+        sudo apt-get update && sudo apt-get install -y ripgrep || echo "  Note: ripgrep install requires sudo permissions"
     fi
 fi
 

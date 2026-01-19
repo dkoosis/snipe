@@ -112,9 +112,13 @@ bash .claude/quick-check.sh
 ```
 
 ### Full Validation (~60s)
-Complete QA before PR (uses shared `.codex/validate.sh`):
+Complete QA before PR (runs lint + tests + build):
 ```bash
+# Recommended: uses .codex/validate.sh (auto-activates environment)
 bash .codex/validate.sh
+
+# Or run directly:
+mage qa
 ```
 
 ### Custom Validation
@@ -126,7 +130,7 @@ golangci-lint run
 
 ## Environment Variables
 
-Set automatically by `activate.sh`:
+### Set automatically by `activate.sh`:
 
 - `GOCACHE` - Go build cache (`.claude/cache/go-build`)
 - `GOMODCACHE` - Go module cache (`.claude/cache/mod`)
@@ -134,6 +138,10 @@ Set automatically by `activate.sh`:
 - `GOMAXPROCS` - CPU count (auto-detected)
 - `GOTOOLCHAIN` - Auto toolchain management
 - `PATH` - Includes `./bin` and `.codex/bin/linux-amd64`
+
+### User-configurable:
+
+- `CLAUDE_ACTIVATE_QUIET` - Set to any value to suppress activation output (useful for automation)
 
 ## Directory Structure
 
@@ -195,8 +203,8 @@ snipe search "query"
 snipe index
 snipe doctor
 
-# Full QA
-mage qa
+# Full QA (lint + tests + build)
+bash .codex/validate.sh  # or: mage qa
 ```
 
 ## Troubleshooting
