@@ -55,6 +55,13 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 	// Get top symbols by reference count (most referenced = most important)
 	keySymbols := getKeySymbolsByRefCount(cfg.DB, cfg.RepoRoot, 10)
 
+	// Load session for active work context
+	var activeWork *ActiveWork
+	session, err := LoadSession(cfg.RepoRoot)
+	if err == nil && session != nil {
+		activeWork = session.GetActiveWork()
+	}
+
 	lang := "go"
 	if len(proj.Lang) > 0 {
 		lang = proj.Lang[0]
@@ -67,6 +74,7 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		Test:        proj.Test,
 		EntryPoints: entryPoints,
 		KeySymbols:  keySymbols,
+		ActiveWork:  activeWork,
 		Commit:      meta.GitCommit,
 	}, nil
 }

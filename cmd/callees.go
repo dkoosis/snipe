@@ -105,6 +105,11 @@ func runCallees(cmd *cobra.Command, args []string) error {
 
 findCallees:
 
+	// Record query in session for active work tracking
+	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
+		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "callees")
+	}
+
 	// Find callees
 	calls, err := query.FindCallees(s.DB(), symbolID, lim, off)
 	if err != nil {
