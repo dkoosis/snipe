@@ -65,6 +65,7 @@ func Open(path string) (*Store, error) {
 
 	// Limit connections to avoid lock contention
 	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
 	s := &Store{db: db, path: path}
 
