@@ -24,7 +24,7 @@ mkdir -p "$REPO_ROOT/bin"
 # Link prebuilt binaries if available
 if [[ -d "$BINDIR" ]]; then
     echo "Linking prebuilt binaries from $BINDIR..."
-    for tool in snipe golangci-lint mage rg; do
+    for tool in snipe golangci-lint mage rg govulncheck; do
         if [[ -x "$BINDIR/$tool" ]]; then
             ln -sf "$BINDIR/$tool" "$REPO_ROOT/bin/$tool"
             echo "  Linked: $tool"
@@ -78,6 +78,16 @@ if command -v rg &>/dev/null; then
     echo "ripgrep: $(rg --version | head -1)"
 else
     echo "Warning: ripgrep not available (snipe search may not work)"
+fi
+
+# Install govulncheck if not linked (required for mage qa)
+if ! command -v govulncheck &>/dev/null; then
+    echo "Installing govulncheck..."
+    go install golang.org/x/vuln/cmd/govulncheck@latest
+    cp "$(go env GOPATH)/bin/govulncheck" "$REPO_ROOT/bin/" 2>/dev/null || true
+fi
+if command -v govulncheck &>/dev/null; then
+    echo "govulncheck: $(govulncheck -version 2>&1 | head -1)"
 fi
 
 echo ""

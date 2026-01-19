@@ -11,6 +11,24 @@ bash .codex/validate.sh
 
 ## Scripts
 
+### `diagnose.sh` - Environment diagnostic
+Check tool availability, versions, and report issues.
+
+**Usage:**
+```bash
+bash .codex/diagnose.sh
+```
+
+**What it checks:**
+- Core tools (go, git)
+- QA tools (golangci-lint, govulncheck, mage)
+- Search tools (rg, snipe)
+- Environment variables (GOCACHE, GOMODCACHE, PATH)
+- Snipe index health
+- Prebuilt Linux binaries
+
+**If issues are found:** Copy the full output and report it so we can fix missing tools or binaries.
+
 ### `setup.sh` - Initial environment setup
 One-time setup run by Codex on first start.
 
@@ -69,8 +87,10 @@ bash .codex/smoke-tests.sh
 ├── bin/                   # Prebuilt Linux binaries
 │   └── linux-amd64/
 │       ├── golangci-lint
+│       ├── govulncheck
 │       ├── mage
-│       └── rg
+│       ├── rg
+│       └── snipe
 │
 └── cache/                 # Runtime caches (gitignored)
     ├── go-build/
@@ -84,6 +104,20 @@ bash .codex/smoke-tests.sh
 - `GOMODCACHE` - Go module cache location
 - `GOLANGCI_LINT_CACHE` - Linter cache location
 - `GOMAXPROCS` - CPU count (auto-detected)
+
+## Troubleshooting
+
+**Run diagnostics first:**
+```bash
+bash .codex/diagnose.sh
+```
+
+If issues are found, the output will list what's missing and how to fix it.
+
+**Reporting issues:** If you cannot resolve issues yourself, copy the full diagnostic output and report it. Include:
+1. Full output from `bash .codex/diagnose.sh`
+2. What command failed
+3. Any error messages
 
 ## See Also
 

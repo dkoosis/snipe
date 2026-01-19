@@ -75,6 +75,7 @@ The `.claude/` setup **shares binaries** from `.codex/bin/` to avoid duplication
 Shared resources:
   .codex/bin/linux-amd64/snipe          → ./bin/snipe
   .codex/bin/linux-amd64/golangci-lint  → ./bin/golangci-lint
+  .codex/bin/linux-amd64/govulncheck    → ./bin/govulncheck
   .codex/bin/linux-amd64/mage           → ./bin/mage
   .codex/bin/linux-amd64/rg             → ./bin/rg
 
@@ -208,6 +209,18 @@ bash .codex/validate.sh  # or: mage qa
 ```
 
 ## Troubleshooting
+
+**Run diagnostics first:**
+```bash
+bash .claude/diagnose.sh
+```
+
+This checks all tools, versions, and environment setup. If issues are found, the output will list what's missing and how to fix it.
+
+**Reporting issues:** If you cannot resolve issues yourself, copy the full diagnostic output and report it. Include:
+1. Full output from `bash .claude/diagnose.sh`
+2. What command failed
+3. Any error messages
 
 **Environment not activated:**
 ```bash

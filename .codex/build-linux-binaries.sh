@@ -45,6 +45,17 @@ if [[ ! -f "$BINDIR/rg" ]]; then
     echo "  Downloaded: $BINDIR/rg"
 fi
 
+# Build govulncheck for Linux (required for mage qa)
+echo "Building govulncheck for linux-amd64..."
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go install golang.org/x/vuln/cmd/govulncheck@latest
+GOVULN_BIN="$(go env GOPATH)/bin/linux_amd64/govulncheck"
+if [[ -f "$GOVULN_BIN" ]]; then
+    cp "$GOVULN_BIN" "$BINDIR/govulncheck"
+    echo "  Built: $BINDIR/govulncheck"
+else
+    echo "  Warning: govulncheck not found at $GOVULN_BIN"
+fi
+
 echo ""
 echo "=== Linux Binaries Ready ==="
 ls -la "$BINDIR/"

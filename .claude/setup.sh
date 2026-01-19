@@ -24,7 +24,7 @@ mkdir -p "$REPO_ROOT/bin"
 # Link prebuilt binaries from .codex if available (shared resources)
 if [[ -d "$BINDIR" ]]; then
     echo "Linking prebuilt binaries from .codex/bin/..."
-    for tool in snipe golangci-lint mage rg; do
+    for tool in snipe golangci-lint mage rg govulncheck; do
         if [[ -x "$BINDIR/$tool" ]]; then
             ln -sf "$BINDIR/$tool" "$REPO_ROOT/bin/$tool"
             echo "  Linked: $tool"
