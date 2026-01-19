@@ -7,6 +7,12 @@ set -u
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Auto-activate environment if not already done
+BINDIR="$REPO_ROOT/.codex/bin/linux-amd64"
+if [[ -d "$BINDIR" ]] && [[ "$PATH" != *"$BINDIR"* ]]; then
+    export PATH="$BINDIR:$REPO_ROOT/bin:$PATH"
+fi
+
 ISSUES=()
 
 echo "=== Snipe Sandbox Diagnostic ==="
@@ -179,13 +185,27 @@ if [[ "$SKIP_BUILD" == "false" ]]; then
 fi
 
 printf "%-16s " "go vet:"
-VET_OUTPUT=$(go vet ./... 2>&1)
-if [[ $? -eq 0 ]]; then
-    echo "OK"
+# Use timeout to prevent hanging in network-restricted environments
+if command -v timeout &>/dev/null; then
+    VET_OUTPUT=$(timeout 30 go vet ./... 2>&1)
+    VET_EXIT=$?
+    if [[ $VET_EXIT -eq 124 ]]; then
+        echo "TIMEOUT (skipped - network issues?)"
+    elif [[ $VET_EXIT -eq 0 ]]; then
+        echo "OK"
+    else
+        echo "WARNINGS (non-blocking)"
+        [[ -n "$VET_OUTPUT" ]] && echo "                 ${VET_OUTPUT%%$'\n'*}"
+    fi
 else
-    echo "WARNINGS (non-blocking)"
-    # Show first line of vet output for context
-    [[ -n "$VET_OUTPUT" ]] && echo "                 ${VET_OUTPUT%%$'\n'*}"
+    # No timeout command, try with short patience
+    VET_OUTPUT=$(go vet ./... 2>&1)
+    if [[ $? -eq 0 ]]; then
+        echo "OK"
+    else
+        echo "WARNINGS (non-blocking)"
+        [[ -n "$VET_OUTPUT" ]] && echo "                 ${VET_OUTPUT%%$'\n'*}"
+    fi
 fi
 
 echo ""
