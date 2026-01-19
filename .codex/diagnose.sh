@@ -214,7 +214,10 @@ if [[ ${#ISSUES[@]} -eq 0 ]]; then
     echo "STATUS: ALL CHECKS PASSED"
     echo ""
     echo "Environment is ready for QA/testing."
-    echo "Run: mage qa"
+    echo ""
+    echo "To run QA, use one of:"
+    echo "  source .codex/activate.sh && mage qa"
+    echo "  .codex/bin/linux-amd64/mage qa"
     exit 0
 else
     echo "STATUS: ${#ISSUES[@]} ISSUE(S) FOUND"
