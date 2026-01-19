@@ -18,6 +18,7 @@ type BootContext struct {
 	Test        string      `json:"test" yaml:"test"`
 	EntryPoints []string    `json:"entry_points" yaml:"entry_points"`
 	KeySymbols  []SymbolRef `json:"key_symbols" yaml:"key_symbols"`
+	ActiveWork  *ActiveWork `json:"active_work,omitempty" yaml:"active_work,omitempty"`
 	Commit      string      `json:"commit" yaml:"commit"`
 }
 

@@ -105,6 +105,11 @@ func runCallers(cmd *cobra.Command, args []string) error {
 
 findCallers:
 
+	// Record query in session for active work tracking
+	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
+		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "callers")
+	}
+
 	// Find callers
 	calls, err := query.FindCallers(s.DB(), symbolID, lim, off)
 	if err != nil {

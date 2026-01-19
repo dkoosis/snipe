@@ -12,6 +12,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/dkoosis/snipe/internal/config"
+	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -280,4 +281,15 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	}
 
 	return s, dir, nil
+}
+
+// recordSessionQuery records a symbol query in the session for active work tracking.
+// This is a best-effort operation - errors are silently ignored to not affect command execution.
+func recordSessionQuery(projectRoot, symbol, file string, line int, kind, command string) {
+	session, err := ctxpkg.LoadSession(projectRoot)
+	if err != nil {
+		return
+	}
+	session.RecordQuery(symbol, file, line, kind, command)
+	_ = ctxpkg.SaveSession(session)
 }

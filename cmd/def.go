@@ -187,6 +187,9 @@ lookup:
 	result := sym.ToResultWithHints(s.DB())
 	var degraded []string
 
+	// Record query in session for active work tracking
+	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "def")
+
 	// Add full body if requested
 	if withBody {
 		if err := output.AddBody(&result); err != nil {
