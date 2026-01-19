@@ -9,6 +9,12 @@
   },
   "results": [
     {
+      "analysis": {
+        "is_exported": true,
+        "line_count": 3,
+        "param_count": 0,
+        "result_count": 1
+      },
       "body": "func Callee() string {\n\treturn \"ok\"\n}",
       "edit_target": "\u003crepo\u003e/main.go:30:1-32:2@8b60bd8320e77b84",
       "file": "\u003crepo\u003e/main.go",

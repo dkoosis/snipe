@@ -56,6 +56,8 @@ func (w *Writer) writeHuman(resp any) error {
 		return w.writeHumanResults(r)
 	case Response[Summary]:
 		return w.writeHumanSummary(r)
+	case Response[SymResult]:
+		return w.writeSymHuman(r)
 	default:
 		// Fallback to JSON for unknown types
 		return w.writeJSON(resp)

@@ -5,10 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dkoosis/snipe/internal/metrics"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dkoosis/snipe/internal/metrics"
 )
 
 func TestComparison_SetsStatus_When_MetricsCompared(t *testing.T) {

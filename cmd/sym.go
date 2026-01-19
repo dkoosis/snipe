@@ -21,17 +21,6 @@ var (
 	symCalleesLimit int
 )
 
-// SymResponse is the combined response for the sym command
-type SymResponse struct {
-	Definition  *output.Result  `json:"definition"`
-	References  []output.Result `json:"references,omitempty"`
-	Callers     []output.Result `json:"callers,omitempty"`
-	Callees     []output.Result `json:"callees,omitempty"`
-	RefCount    int             `json:"ref_count"`
-	CallerCount int             `json:"caller_count"`
-	CalleeCount int             `json:"callee_count"`
-}
-
 var symCmd = &cobra.Command{
 	Use:   "sym [symbol]",
 	Short: "Combined symbol query (def + refs + callers + callees)",
@@ -350,7 +339,7 @@ lookup:
 	degraded = uniqueStrings(degraded)
 
 	// Build combined response
-	symResp := SymResponse{
+	symResp := output.SymResult{
 		Definition:  &defResult,
 		References:  refResults,
 		Callers:     callerResults,
@@ -372,8 +361,8 @@ lookup:
 		tokenEstimate += output.EstimateResultTokens(&calleeResults[i])
 	}
 
-	resp := output.Response[SymResponse]{
-		Results: []SymResponse{symResp},
+	resp := output.Response[output.SymResult]{
+		Results: []output.SymResult{symResp},
 		Meta: output.Meta{
 			Command:       "sym",
 			Query:         queryInfo,

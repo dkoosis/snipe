@@ -12,7 +12,12 @@ require (
 	modernc.org/sqlite v1.44.0
 )
 
-require github.com/fsnotify/fsnotify v1.9.0
+require (
+	github.com/fatih/color v1.18.0
+	github.com/fsnotify/fsnotify v1.9.0
+)
+
+require github.com/mattn/go-colorable v0.1.13 // indirect
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

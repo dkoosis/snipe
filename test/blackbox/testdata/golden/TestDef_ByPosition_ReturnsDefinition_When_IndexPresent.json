@@ -14,6 +14,12 @@
   },
   "results": [
     {
+      "analysis": {
+        "is_exported": true,
+        "line_count": 3,
+        "param_count": 0,
+        "result_count": 1
+      },
       "body": "func Callee() string {\n\treturn \"ok\"\n}",
       "callers_preview": [
         {

@@ -359,6 +359,18 @@ func SuggestionsForAmbiguous(candidates []Candidate) []Suggestion {
 // Explain types - structured function explanations for LLM consumption
 // ============================================================================
 
+// SymResult is the combined response for the sym command.
+// Contains definition, references, callers, and callees in a single result.
+type SymResult struct {
+	Definition  *Result  `json:"definition"`
+	References  []Result `json:"references,omitempty"`
+	Callers     []Result `json:"callers,omitempty"`
+	Callees     []Result `json:"callees,omitempty"`
+	RefCount    int      `json:"ref_count"`
+	CallerCount int      `json:"caller_count"`
+	CalleeCount int      `json:"callee_count"`
+}
+
 // ExplainResult contains structured explanation of a symbol.
 // Designed for LLM consumption with explicit confidence and source tracking.
 type ExplainResult struct {
