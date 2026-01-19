@@ -1,0 +1,96 @@
+# Claude Sandbox Configuration for snipe
+
+# Session initialization
+session:
+  # SessionStart hook automatically activates environment
+  hook: .claude/SessionStart
+  auto_activate: true
+
+# Quick reference commands for Claude
+commands:
+  setup: bash .claude/setup.sh
+  activate: source .claude/activate.sh
+  check: bash .claude/quick-check.sh
+  validate: bash .codex/validate.sh
+
+  test:
+    all: go test ./...
+    short: go test -short ./...
+    race: go test -race ./...
+    package: go test ./internal/{package}/...
+
+  build:
+    binary: go build -o bin/snipe .
+    all: mage build
+
+  lint:
+    run: golangci-lint run
+    fix: golangci-lint run --fix
+
+  snipe:
+    index: snipe index
+    doctor: snipe doctor
+    search: snipe search <query>
+    version: snipe version
+
+# Required tools (shared from .codex/bin)
+tools:
+  required:
+    - go         # Go 1.25+
+    - golangci-lint  # v1.64.2
+    - mage       # Build tool
+    - rg         # ripgrep for snipe search
+  shared_from: .codex/bin/linux-amd64
+
+# Environment configuration
+environment:
+  # Claude uses isolated caches
+  GOCACHE: .claude/cache/go-build
+  GOMODCACHE: .claude/cache/mod
+  GOLANGCI_LINT_CACHE: .claude/cache/golangci-lint
+  GOTOOLCHAIN: auto
+
+  # Binaries shared from .codex
+  bin_path:
+    - ./bin
+    - .codex/bin/linux-amd64
+
+# Validation workflows
+validation:
+  quick: |
+    # Fast check (<10s)
+    bash .claude/quick-check.sh
+
+  full: |
+    # Complete QA (~60s)
+    source .claude/activate.sh
+    mage qa
+
+  pre_commit: |
+    # Recommended before commit
+    source .claude/activate.sh
+    go vet ./...
+    go test -short ./...
+    golangci-lint run
+
+# Snipe index
+index:
+  location: .snipe/index.db
+  committed: true  # Pre-built index is committed to repo
+  rebuild: snipe index
+  verify: snipe doctor
+
+# Performance tuning for sandbox
+performance:
+  build_parallel: 1  # -p 1 for constrained RAM
+  test_parallel: auto
+  max_procs: auto  # Auto-detect CPU count
+
+# Notes for Claude
+notes:
+  - "Environment auto-activates via SessionStart hook"
+  - "Binaries shared from .codex/bin to avoid duplication"
+  - "Caches are isolated in .claude/cache for clean separation"
+  - "Pre-built snipe index is committed for instant startup"
+  - "Use quick-check.sh for fast validation (<10s)"
+  - "Use mage qa for full validation before PR (~60s)"
