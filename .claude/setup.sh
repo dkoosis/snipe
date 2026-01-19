@@ -96,14 +96,12 @@ echo ""
 echo "Verifying snipe..."
 "$REPO_ROOT/bin/snipe" version
 
-# Build/verify the codebase index
+# Check for pre-built index (committed to repo)
 if [[ -f "$REPO_ROOT/.snipe/index.db" ]]; then
-    echo "Snipe index found: .snipe/index.db"
-    # Verify index is up to date
-    "$REPO_ROOT/bin/snipe" doctor || echo "Note: Run 'snipe index' if index needs updating"
+    echo "Snipe index: .snipe/index.db (pre-built)"
 else
-    echo "Building snipe index for repository..."
-    "$REPO_ROOT/bin/snipe" index
+    echo "Warning: Snipe index not found. It should be committed in the repo."
+    echo "To rebuild: snipe index"
 fi
 
 echo ""
