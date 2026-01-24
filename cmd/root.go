@@ -53,10 +53,10 @@ var rootCmd = &cobra.Command{
 
   snipe              Show index status
   snipe index        Build index (run first)
-  snipe Store        Look up symbol
-  snipe def Store    Jump to definition
-  snipe refs Store   Find references
-  snipe search foo   Text search`,
+  snipe Open         Look up symbol "Open"
+  snipe def Open     Jump to definition
+  snipe refs Open    Find references
+  snipe search TODO  Text search`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set up context with signal handling for graceful cancellation
 		ctx := context.Background()
