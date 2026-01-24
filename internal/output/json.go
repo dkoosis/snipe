@@ -65,9 +65,48 @@ func (w *Writer) writeHuman(resp any) error {
 	case Response[SymResult]:
 		return w.writeSymHuman(r)
 	default:
+		// Try to extract Meta for generic command output
+		if meta := extractMeta(resp); meta != nil {
+			return writeHumanMeta(w.out, meta)
+		}
 		// Fallback to JSON for unknown types
 		return w.writeJSON(resp)
 	}
+}
+
+// extractMeta uses reflection to extract the Meta field from any Response type.
+func extractMeta(resp any) *Meta {
+	v := reflect.ValueOf(resp)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil
+		}
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+	metaField := v.FieldByName("Meta")
+	if !metaField.IsValid() {
+		return nil
+	}
+	if meta, ok := metaField.Interface().(Meta); ok {
+		return &meta
+	}
+	return nil
+}
+
+// writeHumanMeta writes a simple human-readable summary for commands without custom formatters.
+func writeHumanMeta(out io.Writer, meta *Meta) error {
+	g := newGummyWriter(out)
+	g.header(meta.Command, gummyFormatDuration(meta.Ms))
+	if meta.Total > 0 {
+		fmt.Fprintf(out, "  %s items\n", gummyCount.Sprintf("%d", meta.Total))
+	}
+	if meta.IndexState != "" {
+		fmt.Fprintf(out, "  index: %s\n", meta.IndexState)
+	}
+	return nil
 }
 
 // extractError uses reflection to extract the Error field from any Response type.
