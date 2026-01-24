@@ -222,6 +222,8 @@ func getStoredHash(db *sql.DB, symbolID string) (string, error) {
 
 // generatePurpose generates a 1-line purpose for a symbol.
 // NOTE: This is a placeholder. Actual LLM integration will be added later.
+//
+//nolint:unparam // error return reserved for future LLM integration
 func generatePurpose(sym SymbolInfo) (string, error) {
 	// TODO: Implement actual LLM API call here.
 	// The call should:

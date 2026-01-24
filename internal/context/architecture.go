@@ -337,17 +337,7 @@ func formatCount(count int) string {
 	if count == 1 {
 		return "1 call"
 	}
-	return strings.Replace(
-		strings.Replace(
-			"N calls",
-			"N",
-			intToString(count),
-			1,
-		),
-		"calls",
-		"calls",
-		1,
-	)
+	return strings.Replace("N calls", "N", intToString(count), 1)
 }
 
 // intToString converts an integer to string without fmt import overhead.
@@ -365,12 +355,4 @@ func intToString(n int) string {
 		n /= 10
 	}
 	return string(digits)
-}
-
-// min returns the smaller of two integers.
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

@@ -195,11 +195,6 @@ func (w *gummyWriter) matchLine(lineNum int, content string) {
 	fmt.Fprintf(w.out, "  %s  %s\n", gummyDim.Sprintf(":%d", lineNum), content)
 }
 
-// errorMsg writes an error message
-func (w *gummyWriter) errorMsg(msg string) {
-	fmt.Fprintln(w.out, gummyMissing.Sprint("Error: ")+msg)
-}
-
 // errorWithHint writes an error with a suggested action
 func (w *gummyWriter) errorWithHint(msg, hint string) {
 	fmt.Fprintln(w.out, gummyMissing.Sprint("Error: ")+msg)
@@ -265,16 +260,16 @@ func gummyFormatDuration(ms int64) string {
 	return fmt.Sprintf("%.1fs", float64(ms)/1000)
 }
 
-// gummyTruncateLines truncates a multi-line string to maxLines
-func gummyTruncateLines(s string, maxLines int) (string, bool) {
+// gummyTruncateLines truncates a multi-line string to maxLines.
+func gummyTruncateLines(s string, maxLines int) string {
 	if maxLines <= 0 {
-		return s, false
+		return s
 	}
 	lines := strings.Split(s, "\n")
 	if len(lines) <= maxLines {
-		return s, false
+		return s
 	}
-	return strings.Join(lines[:maxLines], "\n") + "\n" + gummyDim.Sprint("  // ..."), true
+	return strings.Join(lines[:maxLines], "\n") + "\n" + gummyDim.Sprint("  // ...")
 }
 
 // gummyFormatLocation formats file:start-end
@@ -285,7 +280,9 @@ func gummyFormatLocation(file string, start, end int) string {
 	return fmt.Sprintf("%s:%d-%d", file, start, end)
 }
 
-// gummyPadToWidth returns spaces to pad between left and right to fill width
+// gummyPadToWidth returns spaces to pad between left and right to fill width.
+//
+//nolint:unparam // width kept as param for flexibility
 func gummyPadToWidth(leftLen, rightLen, width int) string {
 	padding := width - leftLen - rightLen
 	if padding < 1 {
@@ -325,7 +322,7 @@ func writeDefHuman(out io.Writer, resp Response[Result]) error {
 
 	// Body (source code)
 	if def.Body != "" {
-		body, _ := gummyTruncateLines(def.Body, gummyBodyPreview)
+		body := gummyTruncateLines(def.Body, gummyBodyPreview)
 		w.body(body)
 		w.separator()
 	}
@@ -744,7 +741,7 @@ func writeShowHuman(out io.Writer, resp Response[Result]) error {
 
 	// Body (source code)
 	if r.Body != "" {
-		body, _ := gummyTruncateLines(r.Body, gummyBodyPreview)
+		body := gummyTruncateLines(r.Body, gummyBodyPreview)
 		w.body(body)
 		w.separator()
 	}
@@ -837,7 +834,7 @@ func writeSymHumanNew(out io.Writer, resp Response[SymResult]) error {
 
 	// Body (source code)
 	if def.Body != "" {
-		body, _ := gummyTruncateLines(def.Body, gummyBodyPreview)
+		body := gummyTruncateLines(def.Body, gummyBodyPreview)
 		w.body(body)
 		w.separator()
 	}
@@ -990,13 +987,7 @@ func WriteGummyStatus(out io.Writer, info GummyStatusInfo) {
 			humanize.Comma(int64(info.Embedded)),
 			humanize.Comma(int64(info.Symbols)),
 			pct)
-		if pct >= 90 {
-			w.keyValue("Embedded", gummyFresh.Sprint(coverage))
-		} else if pct >= 50 {
-			w.keyValue("Embedded", gummyStale.Sprint(coverage))
-		} else {
-			w.keyValue("Embedded", gummyDim.Sprint(coverage))
-		}
+		w.keyValue("Embedded", colorByPct(coverage, pct))
 	}
 
 	// Enrichment coverage
@@ -1006,13 +997,7 @@ func WriteGummyStatus(out io.Writer, info GummyStatusInfo) {
 			humanize.Comma(int64(info.Enriched)),
 			humanize.Comma(int64(info.Symbols)),
 			pct)
-		if pct >= 90 {
-			w.keyValue("Enriched", gummyFresh.Sprint(coverage))
-		} else if pct >= 50 {
-			w.keyValue("Enriched", gummyStale.Sprint(coverage))
-		} else {
-			w.keyValue("Enriched", gummyDim.Sprint(coverage))
-		}
+		w.keyValue("Enriched", colorByPct(coverage, pct))
 	}
 
 	// Staleness warning
@@ -1025,6 +1010,18 @@ func WriteGummyStatus(out io.Writer, info GummyStatusInfo) {
 // ============================================================================
 // Helper functions
 // ============================================================================
+
+// colorByPct returns a coverage string colored by percentage threshold.
+func colorByPct(s string, pct float64) string {
+	switch {
+	case pct >= 90:
+		return gummyFresh.Sprint(s)
+	case pct >= 50:
+		return gummyStale.Sprint(s)
+	default:
+		return gummyDim.Sprint(s)
+	}
+}
 
 // writeGummyError handles error display consistently
 func writeGummyError(w *gummyWriter, err *Error) error {
