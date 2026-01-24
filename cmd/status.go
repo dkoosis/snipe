@@ -58,8 +58,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	dbPath := store.DefaultIndexPath(dir)
 	if !store.Exists(dbPath) {
 		if human {
-			output.WriteStatusHuman(os.Stdout, output.StatusInfo{
-				State: output.IndexMissing,
+			output.WriteGummyStatus(os.Stdout, output.GummyStatusInfo{
+				State: string(output.IndexMissing),
 			})
 			return nil
 		}
@@ -108,9 +108,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Compute age description
 	ageDesc := formatAge(indexedAt)
 
+	// Get embedding and enrichment counts for enhanced status
+	embedded, _ := s.CountEmbeddings()
+	enriched := countEnrichedSymbols(s)
+
 	if human {
-		output.WriteStatusHuman(os.Stdout, output.StatusInfo{
-			State:       state,
+		output.WriteGummyStatus(os.Stdout, output.GummyStatusInfo{
+			State:       string(state),
 			Commit:      commit,
 			IndexedAt:   indexedAt,
 			Symbols:     symbols,
@@ -118,6 +122,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			Calls:       calls,
 			Fingerprint: fingerprint,
 			AgeDesc:     ageDesc,
+			Embedded:    embedded,
+			Enriched:    enriched,
 		})
 		return nil
 	}
@@ -184,4 +190,11 @@ func formatAge(timestamp string) string {
 
 func formatAgeUnit(n int, unit string) string {
 	return fmt.Sprintf("%d%s", n, unit)
+}
+
+// countEnrichedSymbols counts symbols with LLM-generated purposes.
+func countEnrichedSymbols(s *store.Store) int {
+	var count int
+	_ = s.DB().QueryRow(`SELECT COUNT(*) FROM symbol_purposes`).Scan(&count)
+	return count
 }

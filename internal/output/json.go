@@ -65,6 +65,42 @@ func (w *Writer) writeHuman(resp any) error {
 }
 
 func (w *Writer) writeHumanResults(resp Response[Result]) error {
+	// Dispatch to gummy formatters based on command
+	switch resp.Meta.Command {
+	case "def":
+		return writeDefHuman(w.out, resp)
+	case "refs":
+		symbol := resp.Meta.Query["symbol"]
+		if symbol == "" && len(resp.Results) > 0 {
+			symbol = resp.Results[0].Name
+		}
+		return writeRefsHuman(w.out, resp, symbol)
+	case "callers":
+		symbol := resp.Meta.Query["symbol"]
+		if symbol == "" && len(resp.Results) > 0 {
+			symbol = resp.Results[0].Name
+		}
+		targetID := resp.Meta.Query["id"]
+		return writeCallersHuman(w.out, resp, symbol, targetID)
+	case "callees":
+		symbol := resp.Meta.Query["symbol"]
+		if symbol == "" && len(resp.Results) > 0 {
+			symbol = resp.Results[0].Name
+		}
+		targetID := resp.Meta.Query["id"]
+		return writeCalleesHuman(w.out, resp, symbol, targetID)
+	case "search":
+		pattern := resp.Meta.Query["pattern"]
+		return writeSearchHuman(w.out, resp, pattern)
+	case "show":
+		return writeShowHuman(w.out, resp)
+	default:
+		// Fallback for unknown commands - simple table format
+		return w.writeHumanResultsFallback(resp)
+	}
+}
+
+func (w *Writer) writeHumanResultsFallback(resp Response[Result]) error {
 	if resp.Error != nil {
 		fmt.Fprintf(w.out, "Error: %s\n", resp.Error.Message)
 		if len(resp.Error.Candidates) > 0 {

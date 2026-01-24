@@ -240,11 +240,12 @@ func runIndex(cmd *cobra.Command, args []string) error {
 			Model:    enrichModel,
 		}
 		enrichCount, err := context.EnrichSymbols(enrichCfg)
-		if err != nil {
+		switch {
+		case err != nil:
 			fmt.Fprintf(os.Stderr, "Warning: enrichment failed: %v\n", err)
-		} else if enrichCount > 0 {
+		case enrichCount > 0:
 			fmt.Fprintf(os.Stderr, "Enriched %d symbols\n", enrichCount)
-		} else {
+		default:
 			fmt.Fprintf(os.Stderr, "No symbols needed enrichment\n")
 		}
 	}
