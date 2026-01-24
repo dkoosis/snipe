@@ -14,8 +14,9 @@ import (
 )
 
 var importersCmd = &cobra.Command{
-	Use:   "importers <package>",
-	Short: "Find files that import a package",
+	Use:    "importers <package>",
+	Short:  "Find files that import a package",
+	Hidden: true,
 	Long: `Shows all files that import a given package.
 
 Examples:

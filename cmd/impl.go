@@ -12,8 +12,9 @@ import (
 )
 
 var implCmd = &cobra.Command{
-	Use:   "impl [interface]",
-	Short: "Find types implementing an interface",
+	Use:    "impl [interface]",
+	Short:  "Find types implementing an interface",
+	Hidden: true,
 	Long: `Finds types that potentially implement a given interface.
 
 Since Go uses structural typing, this command finds types that reference

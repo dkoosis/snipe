@@ -12,8 +12,9 @@ import (
 )
 
 var pkgCmd = &cobra.Command{
-	Use:   "pkg <name>",
-	Short: "Show package overview with exported symbols",
+	Use:    "pkg <name>",
+	Short:  "Show package overview with exported symbols",
+	Hidden: true,
 	Long: `Shows an overview of a package including its exported symbols.
 
 Displays all exported types, functions, constants, and variables in a package,

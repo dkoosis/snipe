@@ -49,22 +49,14 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "snipe [symbol]",
 	Short: "Code navigation CLI for LLMs",
-	Long: `snipe: Fast, deterministic Go code navigation for LLMs.
+	Long: `snipe: Go code navigation for LLMs.
 
-Quick usage:
   snipe              Show index status
-  snipe Store        Look up symbol "Store" (same as: snipe sym Store)
-
-Core commands:
-  index     Build SQLite index from Go source (run first)
-  def       Jump to definition
-  refs      Find all references
-  callers   Find functions that call a symbol
-  callees   Find functions called by a symbol
-  search    Text search via ripgrep (no index needed)
-
-Output: JSON with {results, meta, error}. Use --human for debugging.
-Auto-compacts when piped. Each result has edit_target for file:line:col handoff.`,
+  snipe index        Build index (run first)
+  snipe Store        Look up symbol
+  snipe def Store    Jump to definition
+  snipe refs Store   Find references
+  snipe search foo   Text search`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set up context with signal handling for graceful cancellation
 		ctx := context.Background()
@@ -176,6 +168,9 @@ func isKnownSubcommandOrFlag(arg string) bool {
 }
 
 func init() {
+	// Hide completion command from help
+	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+
 	rootCmd.PersistentFlags().BoolVar(&humanOutput, "human", false, "Pretty-print for debugging")
 	rootCmd.PersistentFlags().IntVar(&limit, "limit", 50, "Cap results")
 	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Pagination offset")

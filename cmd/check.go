@@ -12,8 +12,9 @@ import (
 )
 
 var checkCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Check performance against baseline",
+	Use:    "check",
+	Short:  "Check performance against baseline",
+	Hidden: true,
 	Long: `Compares current performance against a saved baseline.
 
 Reports:

@@ -18,8 +18,9 @@ var (
 )
 
 var typesCmd = &cobra.Command{
-	Use:   "types [type-name]",
-	Short: "Show type relationships",
+	Use:    "types [type-name]",
+	Short:  "Show type relationships",
+	Hidden: true,
 	Long: `Displays type information including methods, embeds, and fields.
 
 Output includes:

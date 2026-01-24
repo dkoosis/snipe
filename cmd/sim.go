@@ -14,8 +14,9 @@ import (
 )
 
 var simCmd = &cobra.Command{
-	Use:   "sim <query>",
-	Short: "Semantic similarity search",
+	Use:    "sim <query>",
+	Short:  "Semantic similarity search",
+	Hidden: true,
 	Long: `Finds symbols semantically similar to the query using embeddings.
 
 Requires embeddings to be generated first with 'snipe index --embed'.

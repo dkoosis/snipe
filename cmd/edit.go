@@ -48,8 +48,9 @@ type BatchEditRequest struct {
 }
 
 var editCmd = &cobra.Command{
-	Use:   "edit [symbol]",
-	Short: "AST-aware code editing",
+	Use:    "edit [symbol]",
+	Short:  "AST-aware code editing",
+	Hidden: true,
 	Long: `Performs AST-aware edits on Go source code.
 
 Operations:

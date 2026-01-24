@@ -28,8 +28,9 @@ type WatchEvent struct {
 }
 
 var watchCmd = &cobra.Command{
-	Use:   "watch",
-	Short: "Watch for file changes and reindex",
+	Use:    "watch",
+	Short:  "Watch for file changes and reindex",
+	Hidden: true,
 	Long: `Watches the current directory for Go file changes and triggers reindexing.
 
 V1 Implementation:

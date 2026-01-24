@@ -13,8 +13,9 @@ import (
 )
 
 var showCmd = &cobra.Command{
-	Use:   "show <id>",
-	Short: "Show symbol details by ID",
+	Use:    "show <id>",
+	Short:  "Show symbol details by ID",
+	Hidden: true,
 	Long: `Shows full details for a symbol given its ID.
 
 Use this to expand deferred IDs from other command outputs.

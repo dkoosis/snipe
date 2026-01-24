@@ -13,8 +13,9 @@ import (
 )
 
 var historyCmd = &cobra.Command{
-	Use:   "history",
-	Short: "Show performance history over time",
+	Use:    "history",
+	Short:  "Show performance history over time",
+	Hidden: true,
 	Long: `Shows performance trends from baseline history.
 
 Reads from .snipe/metrics.jsonl to show how metrics have

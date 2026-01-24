@@ -12,8 +12,9 @@ import (
 )
 
 var baselineCmd = &cobra.Command{
-	Use:   "baseline",
-	Short: "Capture performance baseline for a codebase",
+	Use:    "baseline",
+	Short:  "Capture performance baseline for a codebase",
+	Hidden: true,
 	Long: `Captures performance and quality metrics as a baseline.
 
 The baseline includes:

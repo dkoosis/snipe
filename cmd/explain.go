@@ -20,8 +20,9 @@ var (
 )
 
 var explainCmd = &cobra.Command{
-	Use:   "explain [symbol]",
-	Short: "Structured function explanation for LLMs",
+	Use:    "explain [symbol]",
+	Short:  "Structured function explanation for LLMs",
+	Hidden: true,
 	Long: `Generates a structured explanation of a function or method.
 
 Output includes:

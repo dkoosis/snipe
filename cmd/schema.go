@@ -12,8 +12,9 @@ import (
 )
 
 var schemaCmd = &cobra.Command{
-	Use:   "schema [type]",
-	Short: "Output JSON Schema for snipe types",
+	Use:    "schema [type]",
+	Short:  "Output JSON Schema for snipe types",
+	Hidden: true,
 	Long: `Outputs JSON Schema for snipe response types.
 
 Types:

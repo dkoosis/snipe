@@ -14,8 +14,9 @@ import (
 )
 
 var embedCmd = &cobra.Command{
-	Use:   "embed-status",
-	Short: "Check status of batch embedding job",
+	Use:    "embed-status",
+	Short:  "Check status of batch embedding job",
+	Hidden: true,
 	Long: `Check the status of an async batch embedding job.
 
 If the batch is complete, downloads results and saves embeddings to the index.
