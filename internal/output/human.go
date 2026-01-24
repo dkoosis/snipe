@@ -8,7 +8,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// Color definitions
+// Color definitions (kept for backward compatibility)
 var (
 	colorKind     = color.New(color.FgCyan)
 	colorFile     = color.New(color.FgBlue)
@@ -24,55 +24,7 @@ var (
 
 // writeSymHuman writes a sym command result in human-readable format.
 func (w *Writer) writeSymHuman(resp Response[SymResult]) error {
-	if resp.Error != nil {
-		fmt.Fprintf(w.out, "Error: %s\n", resp.Error.Message)
-		if len(resp.Error.Candidates) > 0 {
-			fmt.Fprintln(w.out, "Candidates:")
-			for _, c := range resp.Error.Candidates {
-				fmt.Fprintf(w.out, "  %s (%s) in %s\n", c.Name, c.Kind, c.File)
-			}
-		}
-		return nil
-	}
-
-	if len(resp.Results) == 0 {
-		fmt.Fprintln(w.out, "No results")
-		return nil
-	}
-
-	sym := resp.Results[0]
-	def := sym.Definition
-	if def == nil {
-		fmt.Fprintln(w.out, "No definition found")
-		return nil
-	}
-
-	// Header: Name + Kind
-	writeSymHeader(w.out, def)
-
-	// Separator
-	writeSeparator(w.out)
-
-	// Body (source code)
-	if def.Body != "" {
-		fmt.Fprintln(w.out, def.Body)
-		writeSeparator(w.out)
-	}
-
-	// Stats line
-	writeSymStats(w.out, sym.RefCount, sym.CallerCount, sym.CalleeCount)
-
-	// Callers preview
-	if len(sym.Callers) > 0 {
-		writeCallersList(w.out, "Callers", sym.Callers, sym.CallerCount)
-	}
-
-	// Callees list
-	if len(sym.Callees) > 0 {
-		writeCalleesList(w.out, "Callees", sym.Callees, sym.CalleeCount)
-	}
-
-	return nil
+	return writeSymHumanNew(w.out, resp)
 }
 
 func writeSymHeader(out io.Writer, def *Result) {
