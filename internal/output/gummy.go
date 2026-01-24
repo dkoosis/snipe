@@ -1023,7 +1023,7 @@ func colorByPct(s string, pct float64) string {
 	}
 }
 
-// writeGummyError handles error display consistently
+// writeGummyError handles error display consistently (for internal use by formatters)
 func writeGummyError(w *gummyWriter, err *Error) error {
 	hint := ""
 	if err.Next != nil {
@@ -1035,6 +1035,13 @@ func writeGummyError(w *gummyWriter, err *Error) error {
 		w.candidates(err.Candidates)
 	}
 	return nil
+}
+
+// writeHumanError formats an error response for human output.
+// This is the top-level entry point called by Writer.writeHuman().
+func writeHumanError(out io.Writer, err *Error) error {
+	w := newGummyWriter(out)
+	return writeGummyError(w, err)
 }
 
 // gummyWriteHints displays analysis hints

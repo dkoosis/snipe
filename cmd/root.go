@@ -47,9 +47,13 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "snipe",
+	Use:   "snipe [symbol]",
 	Short: "Code navigation CLI for LLMs",
 	Long: `snipe: Fast, deterministic Go code navigation for LLMs.
+
+Quick usage:
+  snipe              Show index status
+  snipe Store        Look up symbol "Store" (same as: snipe sym Store)
 
 Core commands:
   index     Build SQLite index from Go source (run first)
@@ -107,7 +111,13 @@ Auto-compacts when piped. Each result has edit_target for file:line:col handoff.
 		}
 
 		// Auto-compact when output is piped (not a TTY)
-		autoCompact = !term.IsTerminal(int(os.Stdout.Fd()))
+		isTTY := term.IsTerminal(int(os.Stdout.Fd()))
+		autoCompact = !isTTY
+
+		// Auto-enable human output when in a terminal (unless explicitly set)
+		if !cmd.Flags().Changed("human") && isTTY {
+			humanOutput = true
+		}
 
 		return nil
 	},
@@ -117,17 +127,52 @@ Auto-compacts when piped. Each result has edit_target for file:line:col handoff.
 			cmdCancel()
 		}
 	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		// No subcommand specified, show help
-		return cmd.Help()
-	},
+	RunE: runStatus,
 }
 
 func Execute() {
+	// Check if first non-flag arg looks like a symbol (not a known subcommand)
+	// This allows "snipe Store" to work without "snipe sym Store"
+	args := os.Args[1:]
+	if len(args) > 0 && !isKnownSubcommandOrFlag(args[0]) {
+		// Rewrite args to use sym subcommand: "snipe Store" -> "snipe sym Store"
+		newArgs := append([]string{os.Args[0], "sym"}, args...)
+		os.Args = newArgs
+	}
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// knownSubcommands lists all registered snipe subcommands.
+// Updated when new commands are added.
+var knownSubcommands = map[string]bool{
+	"help": true, "completion": true,
+	// Core commands
+	"index": true, "def": true, "refs": true, "callers": true, "callees": true,
+	"search": true, "show": true, "sym": true, "status": true,
+	// Analysis commands
+	"impl": true, "types": true, "imports": true, "importers": true, "pkg": true,
+	// Edit and explain
+	"edit": true, "explain": true,
+	// Maintenance commands
+	"baseline": true, "context": true, "embed": true, "version": true,
+	"doctor": true, "schema": true, "check": true, "history": true,
+	// Semantic search
+	"sim": true,
+	// Watch mode
+	"watch": true,
+}
+
+// isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
+func isKnownSubcommandOrFlag(arg string) bool {
+	// Flags start with -
+	if len(arg) > 0 && arg[0] == '-' {
+		return true
+	}
+	return knownSubcommands[arg]
 }
 
 func init() {

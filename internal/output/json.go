@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -51,6 +52,11 @@ func (w *Writer) writeJSON(resp any) error {
 }
 
 func (w *Writer) writeHuman(resp any) error {
+	// Check for error in any response type using reflection
+	if err := extractError(resp); err != nil {
+		return writeHumanError(w.out, err)
+	}
+
 	switch r := resp.(type) {
 	case Response[Result]:
 		return w.writeHumanResults(r)
@@ -62,6 +68,43 @@ func (w *Writer) writeHuman(resp any) error {
 		// Fallback to JSON for unknown types
 		return w.writeJSON(resp)
 	}
+}
+
+// extractError uses reflection to extract the Error field from any Response type.
+// Returns nil if there is no error or the response type doesn't have an Error field.
+func extractError(resp any) *Error {
+	v := reflect.ValueOf(resp)
+
+	// Handle pointer types
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil
+		}
+		v = v.Elem()
+	}
+
+	// Must be a struct
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+
+	// Look for Error field
+	errField := v.FieldByName("Error")
+	if !errField.IsValid() {
+		return nil
+	}
+
+	// Error field should be *Error
+	if errField.Kind() != reflect.Ptr || errField.IsNil() {
+		return nil
+	}
+
+	// Type assert to *Error
+	if err, ok := errField.Interface().(*Error); ok {
+		return err
+	}
+
+	return nil
 }
 
 func (w *Writer) writeHumanResults(resp Response[Result]) error {
