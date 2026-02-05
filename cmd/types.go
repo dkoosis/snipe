@@ -221,6 +221,8 @@ getTypes:
 		})
 	}
 
+	staleFiles := query.CheckPathStaleness(s.DB(), dir, []string{typeInfo.Symbol.FilePath})
+
 	resp := output.Response[query.TypeResult]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
@@ -232,6 +234,7 @@ getTypes:
 			IndexState: query.CheckIndexState(s.DB(), dir, Version),
 			Ms:         time.Since(start).Milliseconds(),
 			Total:      1,
+			StaleFiles: staleFiles,
 		},
 	}
 

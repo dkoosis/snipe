@@ -120,6 +120,8 @@ func runImporters(cmd *cobra.Command, args []string) error {
 		tokenEstimate += output.EstimateResultTokens(&results[i])
 	}
 
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	resp := output.Response[output.Result]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
@@ -135,6 +137,7 @@ func runImporters(cmd *cobra.Command, args []string) error {
 			TokenEstimate: tokenEstimate,
 			Offset:        offset,
 			Limit:         lim,
+			StaleFiles:    staleFiles,
 		},
 	}
 

@@ -184,6 +184,8 @@ func runSim(cmd *cobra.Command, args []string) error {
 		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
 	}
 
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
@@ -201,6 +203,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 				Offset:     off,
 				Limit:      lim,
 				Truncated:  len(matches) >= lim,
+				StaleFiles: staleFiles,
 			},
 		}
 		return w.WriteResponse(summaryResp)
@@ -228,6 +231,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 			Limit:         lim,
 			Truncated:     len(matches) >= lim || tokenTruncated,
 			TokenEstimate: tokenEstimate,
+			StaleFiles:    staleFiles,
 		},
 	}
 

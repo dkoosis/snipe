@@ -38,6 +38,7 @@ type Meta struct {
 	Truncated     bool              `json:"truncated"`
 	TokenEstimate int               `json:"token_estimate,omitempty"`
 	DecisionPath  []string          `json:"decision_path,omitempty"` // Resolution strategy trace
+	StaleFiles    []string          `json:"stale_files,omitempty"`   // Files changed since last index
 }
 
 // IndexState represents the state of the index

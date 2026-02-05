@@ -1,21 +1,27 @@
-sha: 589f6c7
-updated: 2026-02-05T14:38:15Z
+sha: pending
+updated: 2026-02-05T23:00:00Z
 qa: pass
+intent: make go_symbol delegate find operations to snipe CLI
 
-ready: working tree has uncommitted stale batch recovery + purpose preservation changes
-- cmd/embed.go: stale batch age/staleness fields in EmbedStatusResult
-- cmd/index.go: smart stale batch recovery with Voyage API verification before clearing
-- cmd/root.go: fix embed -> embed-status in knownSubcommands
-- internal/store/write.go: preserveSymbolPurposes/restoreSymbolPurposes across reindex
-- internal/index/changes.go: nilerr lint fixes for PR #82's DetectChanges
-- all changes committed and pushed as 589f6c7
+ready: Phase 0 of peppy-singing-valley — version contract
+- plan at .claude/plans/peppy-singing-valley.md
+- Phase 0 deliverables: all complete (version --json, ProtocolVersion, busy_timeout, StaleFiles)
+- quality plan (phases 1-2) complete — all 8 commits landed on feat/version-contract
+- Phase 3 (context.Context in query layer) deferred to separate feat/query-context branch
+- next: merge feat/version-contract to main, begin Phase 1 (snipe-first delegation in orca)
 
 done:
-- reviewed open PRs (none open), synced main with origin (PR #82 incremental indexing)
-- fixed 5 nilerr lint violations from PR #82 @internal/index/changes.go @cmd/index.go:514
-- added stale batch detection with API verification @cmd/index.go:379
-- added symbol purpose preservation across reindex @internal/store/write.go:211
-- fixed embed-status subcommand name @cmd/root.go:153
-- dropped 6 stale stashes (dead branches, duplicate BASELINE noise)
-- cleaned up remote branches (already pruned)
-- committed and pushed 589f6c7
+- feat: per-result file staleness — Meta.StaleFiles in all 14 query commands + 9 unit tests
+- removed dead store.GetFileMtimes (duplicated by query.queryFileMtimes)
+- fix: exclusive lock file (O_CREATE|O_EXCL) prevents concurrent indexers @internal/store/store.go:120
+- feat: 3-tier command visibility — 12 commands moved from Hidden to "Advanced Commands:" group
+- feat: PRAGMA integrity_check in snipe doctor @cmd/doctor.go:134
+- test: 22 unit tests for internal/embed/ (vector, client, batch) — was 0% coverage
+- feat: NextAction.Description field + NewStaleIndexError constructor @internal/output/types.go:63
+- test: 4 golden tests for error envelopes (NOT_FOUND, AMBIGUOUS, MISSING_INDEX, STALE_INDEX)
+- fix: blackbox tests — allow protocol/ok keys, regenerate golden files
+- fix: WriteError missing Protocol/Ok fields @internal/output/json.go:237
+
+prior-session:
+- designed 5-phase plan (peppy-singing-valley), reviewed by 3 LLMs, GitHub issues #85-#88
+- baselines, snipe install, verified orca uses snipe from $PATH

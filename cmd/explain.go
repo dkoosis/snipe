@@ -205,6 +205,12 @@ explain:
 		})
 	}
 
+	// Look up symbol for staleness check (Explain does this internally too)
+	var staleFiles []string
+	if sym, lookupErr := query.LookupByID(s.DB(), symbolID); lookupErr == nil && sym != nil {
+		staleFiles = query.CheckPathStaleness(s.DB(), dir, []string{sym.FilePath})
+	}
+
 	// Run explain
 	result, err := query.Explain(s.DB(), symbolID, opts)
 	if err != nil {
@@ -225,6 +231,7 @@ explain:
 			IndexState: query.CheckIndexState(s.DB(), dir, Version),
 			Ms:         time.Since(start).Milliseconds(),
 			Total:      1,
+			StaleFiles: staleFiles,
 		},
 	}
 

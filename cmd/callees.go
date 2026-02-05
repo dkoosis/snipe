@@ -199,6 +199,8 @@ findCallees:
 		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
 	}
 
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	// If summary mode, return condensed output
 	if summary {
 		summaryData := output.BuildSummary(results)
@@ -217,6 +219,7 @@ findCallees:
 				Offset:     off,
 				Limit:      lim,
 				Truncated:  len(results) >= lim,
+				StaleFiles: staleFiles,
 			},
 		}
 		return w.WriteResponse(summaryResp)
@@ -244,6 +247,7 @@ findCallees:
 			Limit:         lim,
 			Truncated:     len(results) >= lim || tokenTruncated,
 			TokenEstimate: tokenEstimate,
+			StaleFiles:    staleFiles,
 		},
 	}
 

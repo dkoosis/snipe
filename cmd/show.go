@@ -125,10 +125,13 @@ func runShow(cmd *cobra.Command, args []string) error {
 		tokenEstimate = output.EstimateTokens(result.Body)
 	}
 
+	results := []output.Result{result}
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	resp := output.Response[output.Result]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.Result{result},
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "show",
 			Query:         map[string]string{"id": symbolID},
@@ -138,6 +141,7 @@ func runShow(cmd *cobra.Command, args []string) error {
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         1,
 			TokenEstimate: tokenEstimate,
+			StaleFiles:    staleFiles,
 		},
 	}
 

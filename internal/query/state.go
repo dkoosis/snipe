@@ -3,6 +3,10 @@ package query
 import (
 	"database/sql"
 	"errors"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/output"
@@ -31,4 +35,119 @@ func CheckIndexState(db *sql.DB, repoRoot, version string) output.IndexState {
 		return output.IndexFresh
 	}
 	return output.IndexStale
+}
+
+// CheckFileStaleness compares on-disk mtimes against stored mtimes for result files.
+// Returns relative paths of files that changed since indexing (sorted, deterministic).
+func CheckFileStaleness(db *sql.DB, repoRoot string, results []output.Result) []string {
+	if len(results) == 0 {
+		return nil
+	}
+
+	// Collect unique absolute file paths from results
+	seen := make(map[string]struct{})
+	var paths []string
+	for i := range results {
+		abs := results[i].FileAbs
+		if abs == "" {
+			continue
+		}
+		if _, ok := seen[abs]; ok {
+			continue
+		}
+		seen[abs] = struct{}{}
+		paths = append(paths, abs)
+	}
+
+	return checkPathStaleness(db, repoRoot, paths)
+}
+
+// CheckPathStaleness compares on-disk mtimes against stored mtimes for absolute file paths.
+// Use this when results aren't output.Result (e.g., explain, types commands).
+func CheckPathStaleness(db *sql.DB, repoRoot string, absPaths []string) []string {
+	return checkPathStaleness(db, repoRoot, absPaths)
+}
+
+func checkPathStaleness(db *sql.DB, repoRoot string, paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+
+	// Batch-query stored mtimes
+	storedMtimes, err := queryFileMtimes(db, paths)
+	if err != nil {
+		return nil // Don't block query on staleness check failure
+	}
+
+	// Compare with disk
+	var stale []string
+	for _, absPath := range paths {
+		storedMtime, ok := storedMtimes[absPath]
+		if !ok {
+			// File not in index — treat as stale
+			stale = append(stale, toRelPath(absPath, repoRoot))
+			continue
+		}
+
+		info, err := os.Stat(absPath)
+		if err != nil {
+			// File deleted or inaccessible — treat as stale
+			stale = append(stale, toRelPath(absPath, repoRoot))
+			continue
+		}
+
+		if info.ModTime().Unix() > storedMtime {
+			stale = append(stale, toRelPath(absPath, repoRoot))
+		}
+	}
+
+	sort.Strings(stale)
+	if len(stale) == 0 {
+		return nil
+	}
+	return stale
+}
+
+// queryFileMtimes queries the files table for stored mtimes.
+func queryFileMtimes(db *sql.DB, paths []string) (map[string]int64, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(paths))
+	args := make([]interface{}, len(paths))
+	for i, p := range paths {
+		placeholders[i] = "?"
+		args[i] = p
+	}
+
+	q := "SELECT path, mtime FROM files WHERE path IN (" + strings.Join(placeholders, ",") + ")"
+	rows, err := db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int64, len(paths))
+	for rows.Next() {
+		var path string
+		var mtime int64
+		if err := rows.Scan(&path, &mtime); err != nil {
+			continue
+		}
+		result[path] = mtime
+	}
+	return result, rows.Err()
+}
+
+// toRelPath converts an absolute file path to a repo-relative path.
+func toRelPath(absPath, repoRoot string) string {
+	if repoRoot == "" {
+		return absPath
+	}
+	rel, err := filepath.Rel(repoRoot, absPath)
+	if err != nil {
+		return absPath
+	}
+	return strings.ReplaceAll(rel, "\\", "/")
 }

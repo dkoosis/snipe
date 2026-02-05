@@ -249,10 +249,13 @@ lookup:
 		tokenEstimate = output.EstimateTokens(result.Body)
 	}
 
+	results := []output.Result{result}
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	resp := output.Response[output.Result]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.Result{result},
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "def",
 			Query:         queryInfo,
@@ -263,6 +266,7 @@ lookup:
 			Total:         1,
 			TokenEstimate: tokenEstimate,
 			DecisionPath:  decisionPath,
+			StaleFiles:    staleFiles,
 		},
 	}
 
