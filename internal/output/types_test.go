@@ -8,6 +8,8 @@ import (
 
 func TestResponseMarshal(t *testing.T) {
 	resp := Response[Result]{
+		Protocol: ProtocolVersion,
+		Ok:       true,
 		Results: []Result{
 			{
 				ID:   "abc123",
@@ -54,6 +56,8 @@ func TestResponseMarshal(t *testing.T) {
 
 func TestErrorMarshal(t *testing.T) {
 	resp := Response[any]{
+		Protocol: ProtocolVersion,
+		Ok:       false,
 		Results: nil,
 		Meta: Meta{
 			Command:    "def",
@@ -83,6 +87,38 @@ func TestErrorMarshal(t *testing.T) {
 	}
 	if got.Error.Next.Command != "snipe index" {
 		t.Errorf("Next command = %q, want %q", got.Error.Next.Command, "snipe index")
+	}
+	if got.Error.Next.Description == "" {
+		t.Error("Next description should not be empty")
+	}
+}
+
+func TestNewStaleIndexError(t *testing.T) {
+	err := NewStaleIndexError()
+	if err.Code != ErrStaleIndex {
+		t.Errorf("Code = %q, want %q", err.Code, ErrStaleIndex)
+	}
+	if err.Next == nil {
+		t.Fatal("Next should not be nil")
+	}
+	if err.Next.Command != "snipe index" {
+		t.Errorf("Next command = %q, want %q", err.Next.Command, "snipe index")
+	}
+	if err.Next.Description == "" {
+		t.Error("Next description should not be empty")
+	}
+}
+
+func TestNewIndexInProgressError(t *testing.T) {
+	err := NewIndexInProgressError()
+	if err.Code != ErrIndexInProgress {
+		t.Errorf("Code = %q, want %q", err.Code, ErrIndexInProgress)
+	}
+	if err.Next == nil {
+		t.Fatal("Next should not be nil for INDEX_IN_PROGRESS")
+	}
+	if err.Next.Description == "" {
+		t.Error("Next description should not be empty")
 	}
 }
 
@@ -706,6 +742,8 @@ func TestSuggestionsForAmbiguous(t *testing.T) {
 
 func TestSuggestionJSONFormat(t *testing.T) {
 	resp := Response[Result]{
+		Protocol: ProtocolVersion,
+		Ok:       true,
 		Results: []Result{{Name: "foo", Kind: "func", File: "a.go"}},
 		Meta:    Meta{Command: "def"},
 		Suggestions: []Suggestion{
