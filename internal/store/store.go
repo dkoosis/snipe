@@ -117,7 +117,7 @@ func AcquireLock(dbPath string) error {
 	if err := os.MkdirAll(filepath.Dir(lockPath), 0750); err != nil {
 		return fmt.Errorf("create lock directory: %w", err)
 	}
-	f, err := os.Create(lockPath) // #nosec G304 -- lockPath derived from dbPath (index lock)
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("create lock file: %w", err)
 	}

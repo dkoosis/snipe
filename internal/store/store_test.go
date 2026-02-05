@@ -237,6 +237,20 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 }
 
+func TestAcquireLockTwiceFails(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	if err := AcquireLock(dbPath); err != nil {
+		t.Fatalf("First AcquireLock failed: %v", err)
+	}
+	defer ReleaseLock(dbPath)
+
+	if err := AcquireLock(dbPath); err == nil {
+		t.Fatal("Second AcquireLock should fail, but got nil error")
+	}
+}
+
 func TestBusyTimeoutPragma(t *testing.T) {
 	// Verify busy_timeout is set
 	dir := t.TempDir()
