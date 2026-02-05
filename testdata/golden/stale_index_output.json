@@ -1,0 +1,37 @@
+{
+  "protocol": 1,
+  "ok": true,
+  "results": [
+    {
+      "id": "go#main.go#main",
+      "file": "main.go",
+      "range": {
+        "start": {
+          "line": 5,
+          "col": 1
+        },
+        "end": {
+          "line": 10,
+          "col": 2
+        }
+      },
+      "kind": "func",
+      "name": "main",
+      "match": "func main() {",
+      "ref_count": 0,
+      "edit_target": "main.go:5:1-10:2"
+    }
+  ],
+  "meta": {
+    "command": "def",
+    "index_state": "stale",
+    "degraded": [
+      "stale_index"
+    ],
+    "ms": 15,
+    "total": 1,
+    "limit": 50,
+    "truncated": false
+  },
+  "error": null
+}

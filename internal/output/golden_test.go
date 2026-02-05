@@ -12,16 +12,22 @@ var update = flag.Bool("update", false, "update golden files")
 
 // Golden file paths relative to testdata
 const (
-	goldenDir           = "../../testdata/golden"
-	goldenDefOutput     = "def_output.json"
-	goldenRefsOutput    = "refs_output.json"
-	goldenSearchOutput  = "search_output.json"
-	goldenCallersOutput = "callers_output.json"
+	goldenDir               = "../../testdata/golden"
+	goldenDefOutput         = "def_output.json"
+	goldenRefsOutput        = "refs_output.json"
+	goldenSearchOutput      = "search_output.json"
+	goldenCallersOutput     = "callers_output.json"
+	goldenNotFoundOutput    = "not_found_output.json"
+	goldenAmbiguousOutput   = "ambiguous_output.json"
+	goldenMissingIndexOut   = "missing_index_output.json"
+	goldenStaleIndexOutput  = "stale_index_output.json"
 )
 
 // TestGoldenDefOutput tests def command output against golden file
 func TestGoldenDefOutput(t *testing.T) {
 	resp := Response[Result]{
+		Protocol: ProtocolVersion,
+		Ok:       true,
 		Results: []Result{
 			{
 				ID:   "go#main.go#main",
@@ -51,6 +57,8 @@ func TestGoldenDefOutput(t *testing.T) {
 // TestGoldenRefsOutput tests refs command output against golden file
 func TestGoldenRefsOutput(t *testing.T) {
 	resp := Response[Result]{
+		Protocol: ProtocolVersion,
+		Ok:       true,
 		Results: []Result{
 			{
 				ID:   "ref:main.go:15:10",
@@ -97,6 +105,8 @@ func TestGoldenRefsOutput(t *testing.T) {
 // TestGoldenSearchOutput tests search command output against golden file
 func TestGoldenSearchOutput(t *testing.T) {
 	resp := Response[Result]{
+		Protocol: ProtocolVersion,
+		Ok:       true,
 		Results: []Result{
 			{
 				ID:   "s1510",
@@ -126,6 +136,8 @@ func TestGoldenSearchOutput(t *testing.T) {
 // TestGoldenCallersOutput tests callers command output against golden file
 func TestGoldenCallersOutput(t *testing.T) {
 	resp := Response[Result]{
+		Protocol: ProtocolVersion,
+		Ok:       true,
 		Results: []Result{
 			{
 				ID:   "caller:cmd/search.go:25",
@@ -156,6 +168,94 @@ func TestGoldenCallersOutput(t *testing.T) {
 	}
 
 	testGolden(t, goldenCallersOutput, resp)
+}
+
+// TestGoldenNotFoundOutput tests NOT_FOUND error envelope
+func TestGoldenNotFoundOutput(t *testing.T) {
+	resp := Response[any]{
+		Protocol: ProtocolVersion,
+		Ok:       false,
+		Results:  nil,
+		Meta: Meta{
+			Command:    "def",
+			IndexState: IndexFresh,
+			Ms:         5,
+		},
+		Error: NewNotFoundError("Foo", "FooBar", "FooHandler"),
+		Suggestions: []Suggestion{
+			{Command: "snipe search Foo", Description: "Try text search", Priority: 2},
+		},
+	}
+
+	testGolden(t, goldenNotFoundOutput, resp)
+}
+
+// TestGoldenAmbiguousOutput tests AMBIGUOUS_SYMBOL error envelope
+func TestGoldenAmbiguousOutput(t *testing.T) {
+	candidates := []Candidate{
+		{ID: "abc123def45601", Name: "Config", File: "config/config.go", Kind: "type"},
+		{ID: "abc123def45602", Name: "Config", File: "server/config.go", Kind: "type"},
+	}
+	resp := Response[any]{
+		Protocol: ProtocolVersion,
+		Ok:       false,
+		Results:  nil,
+		Meta: Meta{
+			Command:    "def",
+			IndexState: IndexFresh,
+			Ms:         8,
+		},
+		Error: NewAmbiguousError("Config", candidates),
+		Suggestions: SuggestionsForAmbiguous(candidates),
+	}
+
+	testGolden(t, goldenAmbiguousOutput, resp)
+}
+
+// TestGoldenMissingIndexOutput tests MISSING_INDEX error envelope with NextAction
+func TestGoldenMissingIndexOutput(t *testing.T) {
+	resp := Response[any]{
+		Protocol: ProtocolVersion,
+		Ok:       false,
+		Results:  nil,
+		Meta: Meta{
+			Command:    "def",
+			IndexState: IndexMissing,
+			Ms:         1,
+		},
+		Error: NewMissingIndexError(),
+	}
+
+	testGolden(t, goldenMissingIndexOut, resp)
+}
+
+// TestGoldenStaleIndexOutput tests STALE_INDEX warning (ok:true with degraded)
+func TestGoldenStaleIndexOutput(t *testing.T) {
+	resp := Response[Result]{
+		Protocol: ProtocolVersion,
+		Ok:       true,
+		Results: []Result{
+			{
+				ID:         "go#main.go#main",
+				File:       "main.go",
+				Range:      Range{Start: Position{Line: 5, Col: 1}, End: Position{Line: 10, Col: 2}},
+				Kind:       "func",
+				Name:       "main",
+				Match:      "func main() {",
+				EditTarget: "main.go:5:1-10:2",
+			},
+		},
+		Meta: Meta{
+			Command:    "def",
+			IndexState: IndexStale,
+			Degraded:   []string{"stale_index"},
+			Ms:         15,
+			Total:      1,
+			Limit:      50,
+		},
+	}
+
+	testGolden(t, goldenStaleIndexOutput, resp)
 }
 
 // testGolden compares a response against a golden file
@@ -196,6 +296,8 @@ func testGolden(t *testing.T, filename string, resp interface{}) {
 func TestGoldenSchemaConsistency(t *testing.T) {
 	// Verify Response[Result] JSON schema has required fields
 	resp := Response[Result]{
+		Protocol: ProtocolVersion,
+		Ok:       true,
 		Results: []Result{
 			{
 				ID:         "test",
@@ -224,7 +326,7 @@ func TestGoldenSchemaConsistency(t *testing.T) {
 		t.Fatalf("Unmarshal failed: %v", err)
 	}
 
-	requiredFields := []string{"results", "meta"}
+	requiredFields := []string{"protocol", "ok", "results", "meta"}
 	for _, field := range requiredFields {
 		if _, ok := raw[field]; !ok {
 			t.Errorf("Missing required field: %s", field)

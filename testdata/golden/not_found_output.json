@@ -1,0 +1,23 @@
+{
+  "protocol": 1,
+  "ok": false,
+  "results": null,
+  "meta": {
+    "command": "def",
+    "index_state": "fresh",
+    "ms": 5,
+    "total": 0,
+    "truncated": false
+  },
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Symbol not found: Foo. Did you mean: FooBar, or FooHandler?"
+  },
+  "suggestions": [
+    {
+      "command": "snipe search Foo",
+      "description": "Try text search",
+      "priority": 2
+    }
+  ]
+}
