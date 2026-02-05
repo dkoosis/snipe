@@ -32,7 +32,7 @@ func DetectChanges(dir string, stored map[string]FileInfo, exclude []string) (*C
 
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil // skip entries we can't read
+			return nil //nolint:nilerr // Skip unreadable entries rather than aborting walk
 		}
 
 		if d.IsDir() {
@@ -65,9 +65,10 @@ func DetectChanges(dir string, stored map[string]FileInfo, exclude []string) (*C
 		// Get file info for mtime check
 		info, infoErr := d.Info()
 		if infoErr != nil {
+			// Can't stat — conservatively treat as modified
 			result.Modified = append(result.Modified, path)
 			result.HasChanges = true
-			return nil
+			return nil //nolint:nilerr // Stat failure treated as change, not walk abort
 		}
 
 		// Fast path: mtime unchanged means content unchanged
@@ -79,9 +80,10 @@ func DetectChanges(dir string, stored map[string]FileInfo, exclude []string) (*C
 		// Mtime changed — verify with content hash
 		hash, hashErr := hashFileSHA256(path)
 		if hashErr != nil {
+			// Can't hash — conservatively treat as modified
 			result.Modified = append(result.Modified, path)
 			result.HasChanges = true
-			return nil
+			return nil //nolint:nilerr // Hash failure treated as change, not walk abort
 		}
 
 		if hash == prev.Hash {

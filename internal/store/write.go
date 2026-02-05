@@ -49,12 +49,15 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 		symbolIDs[sym.ID] = struct{}{}
 	}
 
-	// Preserve existing embeddings before clearing data
+	// Preserve existing embeddings and symbol purposes before clearing data
 	if _, err := preserveEmbeddings(tx); err != nil {
 		return err
 	}
+	if _, err := preserveSymbolPurposes(tx); err != nil {
+		return err
+	}
 
-	// Clear existing data (embeddings go to temp table, then get restored)
+	// Clear existing data (embeddings/purposes go to temp table, then get restored)
 	if err := truncateTables(tx); err != nil {
 		return err
 	}
@@ -64,8 +67,11 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 		return err
 	}
 
-	// Restore embeddings for symbols that still exist
+	// Restore embeddings and purposes for symbols that still exist
 	if _, err := restoreEmbeddings(tx); err != nil {
+		return err
+	}
+	if _, err := restoreSymbolPurposes(tx); err != nil {
 		return err
 	}
 
@@ -123,10 +129,10 @@ func filterCallEdges(edges []index.CallEdge, symbolIDs map[string]struct{}) []in
 }
 
 func truncateTables(tx *sql.Tx) error {
-	// Delete in order: child tables first (refs, call_graph, imports), then parent (symbols)
+	// Delete in order: child tables first (refs, call_graph, imports, embeddings, symbol_purposes),
+	// then parent (symbols). This respects foreign key constraints.
 	// Note: embeddings are preserved via temp table and restored by restoreEmbeddings()
-	// This respects foreign key constraints. Using explicit statements avoids
-	// string concatenation patterns that could be unsafe if copied with user input.
+	// Using explicit statements avoids string concatenation patterns that could be unsafe.
 	if _, err := tx.Exec("DELETE FROM refs"); err != nil {
 		return fmt.Errorf("truncate refs: %w", err)
 	}
@@ -139,6 +145,11 @@ func truncateTables(tx *sql.Tx) error {
 	}
 	// Delete embeddings (they'll be restored from temp table after symbols are inserted)
 	if _, err := tx.Exec("DELETE FROM embeddings"); err != nil {
+		// Ignore if table doesn't exist (backwards compatibility)
+		_ = err
+	}
+	// Delete symbol_purposes (enrichment data) - will be regenerated
+	if _, err := tx.Exec("DELETE FROM symbol_purposes"); err != nil {
 		// Ignore if table doesn't exist (backwards compatibility)
 		_ = err
 	}
@@ -193,6 +204,55 @@ func restoreEmbeddings(tx *sql.Tx) (int64, error) { //nolint:unparam // error ke
 
 	// Clean up temp table
 	_, _ = tx.Exec("DROP TABLE IF EXISTS preserved_embeddings")
+
+	return count, nil
+}
+
+// preserveSymbolPurposes copies existing symbol purposes to a temp table for restoration after reindex.
+// Returns the number of purposes preserved.
+func preserveSymbolPurposes(tx *sql.Tx) (int64, error) {
+	// Create temp table (if symbol_purposes table exists)
+	_, err := tx.Exec(`
+		CREATE TEMP TABLE IF NOT EXISTS preserved_purposes AS
+		SELECT symbol_id, purpose, content_hash, model, generated_at FROM symbol_purposes WHERE 1=0
+	`)
+	if err != nil {
+		// symbol_purposes table might not exist - that's OK
+		return 0, nil //nolint:nilerr // Graceful degradation when table doesn't exist
+	}
+
+	// Copy current purposes to temp table
+	result, err := tx.Exec(`
+		INSERT INTO preserved_purposes (symbol_id, purpose, content_hash, model, generated_at)
+		SELECT symbol_id, purpose, content_hash, model, generated_at FROM symbol_purposes
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("copy purposes to temp: %w", err)
+	}
+
+	count, _ := result.RowsAffected()
+	return count, nil
+}
+
+// restoreSymbolPurposes restores symbol purposes from temp table for symbols that still exist.
+// Returns the number of purposes restored.
+func restoreSymbolPurposes(tx *sql.Tx) (int64, error) { //nolint:unparam // error kept for API consistency
+	// Restore purposes for symbols that exist in the new index
+	result, err := tx.Exec(`
+		INSERT OR IGNORE INTO symbol_purposes (symbol_id, purpose, content_hash, model, generated_at)
+		SELECT p.symbol_id, p.purpose, p.content_hash, p.model, p.generated_at
+		FROM preserved_purposes p
+		WHERE p.symbol_id IN (SELECT id FROM symbols)
+	`)
+	if err != nil {
+		// Temp table might not exist (no purposes to preserve)
+		return 0, nil //nolint:nilerr // Graceful degradation when no purposes to restore
+	}
+
+	count, _ := result.RowsAffected()
+
+	// Clean up temp table
+	_, _ = tx.Exec("DROP TABLE IF EXISTS preserved_purposes")
 
 	return count, nil
 }

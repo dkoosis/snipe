@@ -210,7 +210,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		status, err := startBatchEmbeddings(absDir, symbols)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: batch embedding failed: %v\n", err)
-			embedStatus = "failed"
+			embedStatus = batchStatusFailed
 		} else {
 			embedStatus = status
 		}
@@ -218,7 +218,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		ec, err := generateEmbeddings(s, symbols)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: embedding generation failed: %v\n", err)
-			embedStatus = "failed"
+			embedStatus = batchStatusFailed
 		} else {
 			embedCount = ec
 			embedStatus = "completed"
@@ -373,6 +373,9 @@ func resolveEmbedMode(mode string, legacyEmbed bool, s *store.Store) string {
 	}
 }
 
+// batchStaleThreshold is how long a batch can be in validating/in_progress before considered stale.
+const batchStaleThreshold = 12 * time.Hour
+
 // startBatchEmbeddings initiates async batch embedding via Voyage API.
 func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, error) {
 	snipeDir := filepath.Join(repoRoot, ".snipe")
@@ -388,8 +391,47 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 	}
 
 	if state != nil && (state.Status == "validating" || state.Status == "in_progress") {
-		fmt.Fprintf(os.Stderr, "Batch embedding already in progress (batch_id: %s, status: %s)\n", state.BatchID, state.Status)
-		return "batch_in_progress", nil
+		// Check if batch is stale (stuck for too long)
+		age := time.Since(state.UpdatedAt)
+		if age > batchStaleThreshold {
+			// Try to verify actual status from Voyage API
+			fmt.Fprintf(os.Stderr, "Batch %s has been %q for %v, checking actual status...\n",
+				state.BatchID, state.Status, age.Round(time.Minute))
+
+			actualStatus, err := client.GetBatchStatus(state.BatchID)
+			if err != nil {
+				// Can't reach API or batch doesn't exist - clear stale state
+				fmt.Fprintf(os.Stderr, "  Could not verify batch status: %v\n", err)
+				fmt.Fprintf(os.Stderr, "  Clearing stale batch state and starting fresh...\n")
+				if clearErr := client.ClearState(); clearErr != nil {
+					return "", fmt.Errorf("clear stale state: %w", clearErr)
+				}
+				// Fall through to start new batch
+			} else {
+				switch actualStatus.Status {
+				case batchStatusFailed, batchStatusCancelled, "expired":
+					// Batch is dead, clear state
+					fmt.Fprintf(os.Stderr, "  Batch is %s, clearing state and starting fresh...\n", actualStatus.Status)
+					if clearErr := client.ClearState(); clearErr != nil {
+						return "", fmt.Errorf("clear dead batch state: %w", clearErr)
+					}
+					// Fall through to start new batch
+				case batchStatusCompleted:
+					// Batch completed but we never processed it - this shouldn't happen often
+					fmt.Fprintf(os.Stderr, "  Batch completed but results not processed. Clear .snipe/batch_state.json and re-run.\n")
+					return "batch_completed_unprocessed", nil
+				default:
+					// Batch is still running according to API, but very old - warn user
+					fmt.Fprintf(os.Stderr, "  Batch is still %q according to Voyage AI.\n", actualStatus.Status)
+					fmt.Fprintf(os.Stderr, "  This is unusual. To force restart: rm .snipe/batch_state.json\n")
+					return "batch_in_progress", nil
+				}
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "Batch embedding already in progress (batch_id: %s, status: %s, age: %v)\n",
+				state.BatchID, state.Status, age.Round(time.Minute))
+			return "batch_in_progress", nil
+		}
 	}
 
 	// Filter symbols worth embedding
@@ -471,7 +513,7 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start time.Time, w *output.Writer) (bool, error) {
 	storedFP, fpErr := s.GetMeta("fingerprint")
 	if fpErr != nil {
-		return false, nil // No previous index
+		return false, nil //nolint:nilerr // No stored fingerprint means first index — proceed with full build
 	}
 
 	if storedFP != fp.Combined {
@@ -482,7 +524,7 @@ func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start ti
 	// Fingerprint matches — check source file changes
 	storedFiles, filesErr := s.GetAllFiles()
 	if filesErr != nil || len(storedFiles) == 0 {
-		return false, nil // No stored file data
+		return false, nil //nolint:nilerr // No stored file data means fall through to full index
 	}
 
 	changes, detectErr := index.DetectChanges(absDir, storedFiles, index.DefaultExclude())

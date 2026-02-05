@@ -51,6 +51,8 @@ type EmbedStatusResult struct {
 	Failed     int       `json:"failed,omitempty"`
 	Model      string    `json:"model,omitempty"`
 	CreatedAt  time.Time `json:"created_at,omitempty"`
+	Age        string    `json:"age,omitempty"`
+	Stale      bool      `json:"stale,omitempty"`
 	EmbedCount int       `json:"embed_count,omitempty"`
 	Message    string    `json:"message,omitempty"`
 }
@@ -169,6 +171,12 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 
 		// If not waiting, return current status
 		if !embedWait {
+			age := time.Since(state.CreatedAt)
+			isStale := age > batchStaleThreshold
+			msg := "Batch job in progress"
+			if isStale {
+				msg = fmt.Sprintf("Batch job appears stale (no progress in %v). Run 'snipe index' to auto-recover or rm .snipe/batch_state.json to force restart.", age.Round(time.Hour))
+			}
 			result := EmbedStatusResult{
 				BatchID:   state.BatchID,
 				Status:    state.Status,
@@ -177,7 +185,9 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 				Failed:    state.Failed,
 				Model:     state.Model,
 				CreatedAt: state.CreatedAt,
-				Message:   "Batch job in progress",
+				Age:       age.Round(time.Minute).String(),
+				Stale:     isStale,
+				Message:   msg,
 			}
 			return w.WriteResponse(output.Response[EmbedStatusResult]{
 				Results: []EmbedStatusResult{result},

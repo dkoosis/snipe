@@ -150,7 +150,7 @@ var knownSubcommands = map[string]bool{
 	// Edit and explain
 	"edit": true, "explain": true,
 	// Maintenance commands
-	"baseline": true, "context": true, "embed": true, "version": true,
+	"baseline": true, "context": true, "embed-status": true, "version": true,
 	"doctor": true, "schema": true, "check": true, "history": true,
 	// Semantic search
 	"sim": true,
