@@ -12,8 +12,8 @@ import (
 )
 
 var implCmd = &cobra.Command{
-	Use:    "impl [interface]",
-	Short:  "Find types implementing an interface",
+	Use:     "impl [interface]",
+	Short:   "Find types implementing an interface",
 	GroupID: "advanced",
 	Long: `Finds types that potentially implement a given interface.
 
@@ -177,7 +177,7 @@ func runImpl(cmd *cobra.Command, args []string) error {
 		summaryResp := output.Response[output.Summary]{
 			Protocol: output.ProtocolVersion,
 			Ok:       true,
-			Results: []output.Summary{summaryData},
+			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "impl",
 				Query:      queryInfo,
@@ -203,7 +203,7 @@ func runImpl(cmd *cobra.Command, args []string) error {
 	resp := output.Response[output.Result]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
-		Results: results,
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "impl",
 			Query:         queryInfo,

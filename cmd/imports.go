@@ -13,8 +13,8 @@ import (
 )
 
 var importsCmd = &cobra.Command{
-	Use:    "imports <file>",
-	Short:  "Show packages imported by a file",
+	Use:     "imports <file>",
+	Short:   "Show packages imported by a file",
 	GroupID: "advanced",
 	Long: `Shows all packages imported by a given Go file.
 
@@ -123,7 +123,7 @@ func runImports(cmd *cobra.Command, args []string) error {
 	resp := output.Response[output.Result]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
-		Results: results,
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "imports",
 			Query:         map[string]string{"file": args[0]},

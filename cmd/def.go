@@ -250,7 +250,9 @@ lookup:
 	}
 
 	resp := output.Response[output.Result]{
-		Results: []output.Result{result},
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  []output.Result{result},
 		Meta: output.Meta{
 			Command:       "def",
 			Query:         queryInfo,

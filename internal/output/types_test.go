@@ -58,7 +58,7 @@ func TestErrorMarshal(t *testing.T) {
 	resp := Response[any]{
 		Protocol: ProtocolVersion,
 		Ok:       false,
-		Results: nil,
+		Results:  nil,
 		Meta: Meta{
 			Command:    "def",
 			IndexState: IndexMissing,
@@ -744,8 +744,8 @@ func TestSuggestionJSONFormat(t *testing.T) {
 	resp := Response[Result]{
 		Protocol: ProtocolVersion,
 		Ok:       true,
-		Results: []Result{{Name: "foo", Kind: "func", File: "a.go"}},
-		Meta:    Meta{Command: "def"},
+		Results:  []Result{{Name: "foo", Kind: "func", File: "a.go"}},
+		Meta:     Meta{Command: "def"},
 		Suggestions: []Suggestion{
 			{Command: "snipe refs foo", Description: "Find usages", Priority: 1},
 		},

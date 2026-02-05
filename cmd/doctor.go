@@ -29,8 +29,8 @@ type DoctorCheck struct {
 }
 
 var doctorCmd = &cobra.Command{
-	Use:    "doctor",
-	Short:  "Check snipe installation and configuration",
+	Use:     "doctor",
+	Short:   "Check snipe installation and configuration",
 	GroupID: "advanced",
 	Long: `Runs diagnostic checks to verify snipe is properly installed and configured.
 

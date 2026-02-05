@@ -14,8 +14,8 @@ import (
 )
 
 var simCmd = &cobra.Command{
-	Use:    "sim <query>",
-	Short:  "Semantic similarity search",
+	Use:     "sim <query>",
+	Short:   "Semantic similarity search",
 	GroupID: "advanced",
 	Long: `Finds symbols semantically similar to the query using embeddings.
 
@@ -189,7 +189,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 		summaryResp := output.Response[output.Summary]{
 			Protocol: output.ProtocolVersion,
 			Ok:       true,
-			Results: []output.Summary{summaryData},
+			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "sim",
 				Query:      map[string]string{"query": queryText, "threshold": cmd.Flag("threshold").Value.String()},
@@ -215,7 +215,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 	resp := output.Response[output.Result]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
-		Results: results,
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "sim",
 			Query:         map[string]string{"query": queryText, "threshold": cmd.Flag("threshold").Value.String()},

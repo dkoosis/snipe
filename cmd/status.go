@@ -64,6 +64,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 		resp := output.Response[StatusResponse]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
 			Results: []StatusResponse{{
 				State: output.IndexMissing,
 			}},
@@ -130,6 +132,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// JSON response
 	resp := output.Response[StatusResponse]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
 		Results: []StatusResponse{{
 			State:       state,
 			Commit:      commit,

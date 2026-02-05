@@ -240,7 +240,9 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
-			Results: []output.Summary{summaryData},
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "refs",
 				Query:      queryInfo,
@@ -264,7 +266,9 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
-		Results: results,
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "refs",
 			Query:         queryInfo,

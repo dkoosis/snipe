@@ -12,8 +12,8 @@ import (
 )
 
 var pkgCmd = &cobra.Command{
-	Use:    "pkg <name>",
-	Short:  "Show package overview with exported symbols",
+	Use:     "pkg <name>",
+	Short:   "Show package overview with exported symbols",
 	GroupID: "advanced",
 	Long: `Shows an overview of a package including its exported symbols.
 
@@ -131,7 +131,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 		summaryResp := output.Response[output.Summary]{
 			Protocol: output.ProtocolVersion,
 			Ok:       true,
-			Results: []output.Summary{summaryData},
+			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "pkg",
 				Query:      queryInfo,
@@ -157,7 +157,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	resp := output.Response[output.Result]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
-		Results: results,
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "pkg",
 			Query:         queryInfo,

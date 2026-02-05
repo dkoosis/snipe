@@ -227,7 +227,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 
 	// Output result
 	resp := output.Response[any]{
-		Results: nil,
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  nil,
 		Meta: output.Meta{
 			Command:    "index",
 			RepoRoot:   absDir,
@@ -541,7 +543,9 @@ func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start ti
 	fmt.Fprintf(os.Stderr, "Index up to date: %s\n", changes.Summary())
 	symCount, _, _, _ := s.GetStats()
 	resp := output.Response[any]{
-		Results: nil,
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  nil,
 		Meta: output.Meta{
 			Command:    "index",
 			RepoRoot:   absDir,

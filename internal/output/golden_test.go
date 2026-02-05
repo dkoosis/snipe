@@ -12,15 +12,15 @@ var update = flag.Bool("update", false, "update golden files")
 
 // Golden file paths relative to testdata
 const (
-	goldenDir               = "../../testdata/golden"
-	goldenDefOutput         = "def_output.json"
-	goldenRefsOutput        = "refs_output.json"
-	goldenSearchOutput      = "search_output.json"
-	goldenCallersOutput     = "callers_output.json"
-	goldenNotFoundOutput    = "not_found_output.json"
-	goldenAmbiguousOutput   = "ambiguous_output.json"
-	goldenMissingIndexOut   = "missing_index_output.json"
-	goldenStaleIndexOutput  = "stale_index_output.json"
+	goldenDir              = "../../testdata/golden"
+	goldenDefOutput        = "def_output.json"
+	goldenRefsOutput       = "refs_output.json"
+	goldenSearchOutput     = "search_output.json"
+	goldenCallersOutput    = "callers_output.json"
+	goldenNotFoundOutput   = "not_found_output.json"
+	goldenAmbiguousOutput  = "ambiguous_output.json"
+	goldenMissingIndexOut  = "missing_index_output.json"
+	goldenStaleIndexOutput = "stale_index_output.json"
 )
 
 // TestGoldenDefOutput tests def command output against golden file
@@ -205,7 +205,7 @@ func TestGoldenAmbiguousOutput(t *testing.T) {
 			IndexState: IndexFresh,
 			Ms:         8,
 		},
-		Error: NewAmbiguousError("Config", candidates),
+		Error:       NewAmbiguousError("Config", candidates),
 		Suggestions: SuggestionsForAmbiguous(candidates),
 	}
 

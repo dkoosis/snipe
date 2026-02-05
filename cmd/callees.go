@@ -203,7 +203,9 @@ findCallees:
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
-			Results: []output.Summary{summaryData},
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "callees",
 				Query:      queryInfo,
@@ -227,7 +229,9 @@ findCallees:
 	}
 
 	resp := output.Response[output.Result]{
-		Results: results,
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "callees",
 			Query:         queryInfo,

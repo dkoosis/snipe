@@ -362,7 +362,9 @@ lookup:
 	}
 
 	resp := output.Response[output.SymResult]{
-		Results: []output.SymResult{symResp},
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  []output.SymResult{symResp},
 		Meta: output.Meta{
 			Command:       "sym",
 			Query:         queryInfo,

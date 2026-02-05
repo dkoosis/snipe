@@ -20,8 +20,8 @@ var (
 )
 
 var explainCmd = &cobra.Command{
-	Use:    "explain [symbol]",
-	Short:  "Structured function explanation for LLMs",
+	Use:     "explain [symbol]",
+	Short:   "Structured function explanation for LLMs",
 	GroupID: "advanced",
 	Long: `Generates a structured explanation of a function or method.
 
@@ -217,7 +217,7 @@ explain:
 	resp := output.Response[output.ExplainResult]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
-		Results: []output.ExplainResult{*result},
+		Results:  []output.ExplainResult{*result},
 		Meta: output.Meta{
 			Command:    "explain",
 			Query:      queryInfo,

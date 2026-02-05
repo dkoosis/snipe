@@ -77,7 +77,8 @@ func TestParseBatchResults(t *testing.T) {
 	}
 
 	line, _ := json.Marshal(resp)
-	data := append(line, '\n')
+	line = append(line, '\n')
+	data := line
 
 	results, err := c.ParseBatchResults(data)
 	if err != nil {
@@ -106,7 +107,8 @@ func TestParseBatchResults_SkipsErrors(t *testing.T) {
 	}
 
 	line, _ := json.Marshal(resp)
-	data := append(line, '\n')
+	line = append(line, '\n')
+	data := line
 
 	results, err := c.ParseBatchResults(data)
 	if err != nil {
