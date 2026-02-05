@@ -146,6 +146,90 @@ func TestWriteIndexEmpty(t *testing.T) {
 	}
 }
 
+func TestGetAllFiles(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	// Empty initially
+	files, err := s.GetAllFiles()
+	if err != nil {
+		t.Fatalf("GetAllFiles (empty): %v", err)
+	}
+	if len(files) != 0 {
+		t.Errorf("expected 0 files initially, got %d", len(files))
+	}
+
+	// Write some files
+	testFiles := []index.FileInfo{
+		{Path: "/repo/main.go", Mtime: 1000, Hash: "abc123"},
+		{Path: "/repo/util.go", Mtime: 2000, Hash: "def456"},
+	}
+	if err := s.WriteFiles(testFiles); err != nil {
+		t.Fatalf("WriteFiles failed: %v", err)
+	}
+
+	// Read them back
+	files, err = s.GetAllFiles()
+	if err != nil {
+		t.Fatalf("GetAllFiles: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(files))
+	}
+
+	main := files["/repo/main.go"]
+	if main.Mtime != 1000 || main.Hash != "abc123" {
+		t.Errorf("main.go: mtime=%d hash=%s, want 1000/abc123", main.Mtime, main.Hash)
+	}
+	util := files["/repo/util.go"]
+	if util.Mtime != 2000 || util.Hash != "def456" {
+		t.Errorf("util.go: mtime=%d hash=%s, want 2000/def456", util.Mtime, util.Hash)
+	}
+}
+
+func TestGetAllFilesAfterRewrite(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	// First write
+	if err := s.WriteFiles([]index.FileInfo{
+		{Path: "/a.go", Mtime: 100, Hash: "aaa"},
+		{Path: "/b.go", Mtime: 200, Hash: "bbb"},
+	}); err != nil {
+		t.Fatalf("first WriteFiles: %v", err)
+	}
+
+	// Second write replaces all
+	if err := s.WriteFiles([]index.FileInfo{
+		{Path: "/c.go", Mtime: 300, Hash: "ccc"},
+	}); err != nil {
+		t.Fatalf("second WriteFiles: %v", err)
+	}
+
+	files, err := s.GetAllFiles()
+	if err != nil {
+		t.Fatalf("GetAllFiles: %v", err)
+	}
+	if len(files) != 1 {
+		t.Errorf("expected 1 file after rewrite, got %d", len(files))
+	}
+	if _, ok := files["/c.go"]; !ok {
+		t.Error("expected /c.go in results")
+	}
+}
+
 func TestWriteIndexPreservesEmbeddings(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
