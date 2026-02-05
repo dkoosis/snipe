@@ -384,6 +384,25 @@ func (s *Store) WriteFiles(files []index.FileInfo) error {
 	return nil
 }
 
+// GetAllFiles retrieves all stored file metadata for change detection.
+func (s *Store) GetAllFiles() (map[string]index.FileInfo, error) {
+	rows, err := s.db.Query(`SELECT path, mtime, COALESCE(hash, '') FROM files`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	files := make(map[string]index.FileInfo)
+	for rows.Next() {
+		var f index.FileInfo
+		if err := rows.Scan(&f.Path, &f.Mtime, &f.Hash); err != nil {
+			continue
+		}
+		files[f.Path] = f
+	}
+	return files, rows.Err()
+}
+
 // GetFileHash retrieves the content hash for a file path
 func (s *Store) GetFileHash(path string) (string, error) {
 	var hash string

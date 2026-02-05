@@ -46,6 +46,7 @@ var (
 	embedMode   string // New flag: auto, batch, realtime, off
 	withEnrich  bool   // Generate LLM-based symbol purposes
 	enrichModel string // LLM model for enrichment
+	forceIndex  bool   // Force full re-index even if no changes detected
 )
 
 func init() {
@@ -55,6 +56,7 @@ func init() {
 	indexCmd.Flags().StringVar(&embedMode, "embed-mode", "auto", "Embedding mode: auto, batch, realtime, off")
 	indexCmd.Flags().BoolVar(&withEnrich, "enrich", true, "Generate LLM-based symbol purposes (use --enrich=false to disable)")
 	indexCmd.Flags().StringVar(&enrichModel, "enrich-model", "claude-3-5-haiku", "LLM model for enrichment")
+	indexCmd.Flags().BoolVar(&forceIndex, "force", false, "Force full re-index even if no changes detected")
 	rootCmd.AddCommand(indexCmd)
 }
 
@@ -95,6 +97,16 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("open store: %w", err)
 	}
 	defer s.Close()
+
+	// Change detection fast-path: skip expensive work if nothing changed
+	if !forceIndex {
+		if skipped, err := trySkipIndex(s, fp, absDir, start, w); err != nil {
+			// Detection failed — fall through to full index
+			fmt.Fprintf(os.Stderr, "Change detection failed: %v (proceeding with full index)\n", err)
+		} else if skipped {
+			return nil
+		}
+	}
 
 	// Load packages
 	fmt.Fprintf(os.Stderr, "Loading packages from %s...\n", absDir)
@@ -452,4 +464,49 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 	_ = os.Remove(jsonlPath) // G104: best-effort cleanup of temporary file
 
 	return "batch_started", nil
+}
+
+// trySkipIndex checks whether the index is already up-to-date and can be skipped.
+// Returns (true, nil) if indexing was skipped, (false, nil) to proceed, or (false, err) on detection failure.
+func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start time.Time, w *output.Writer) (bool, error) {
+	storedFP, fpErr := s.GetMeta("fingerprint")
+	if fpErr != nil {
+		return false, nil // No previous index
+	}
+
+	if storedFP != fp.Combined {
+		fmt.Fprintf(os.Stderr, "Build config changed, full re-index required\n")
+		return false, nil
+	}
+
+	// Fingerprint matches — check source file changes
+	storedFiles, filesErr := s.GetAllFiles()
+	if filesErr != nil || len(storedFiles) == 0 {
+		return false, nil // No stored file data
+	}
+
+	changes, detectErr := index.DetectChanges(absDir, storedFiles, index.DefaultExclude())
+	if detectErr != nil {
+		return false, detectErr
+	}
+
+	if changes.HasChanges {
+		fmt.Fprintf(os.Stderr, "Changes detected: %s\n", changes.Summary())
+		return false, nil
+	}
+
+	// No changes — skip indexing
+	fmt.Fprintf(os.Stderr, "Index up to date: %s\n", changes.Summary())
+	symCount, _, _, _ := s.GetStats()
+	resp := output.Response[any]{
+		Results: nil,
+		Meta: output.Meta{
+			Command:    "index",
+			RepoRoot:   absDir,
+			IndexState: output.IndexFresh,
+			Ms:         time.Since(start).Milliseconds(),
+			Total:      symCount,
+		},
+	}
+	return true, w.WriteResponse(resp)
 }
