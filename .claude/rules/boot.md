@@ -11,6 +11,9 @@ ready: Phase 0 of peppy-singing-valley — version contract
 - next: merge feat/version-contract to main, begin Phase 1 (snipe-first delegation in orca)
 
 done:
+- feat: wire suggestions in 7 commands (def, show, refs, callers, callees, search) + SuggestionsForCallees
+- feat: token budget (--max-tokens) in def and show commands
+- feat: hex ID auto-detection in refs and impl commands
 - feat: per-result file staleness — Meta.StaleFiles in all 14 query commands + 9 unit tests
 - removed dead store.GetFileMtimes (duplicated by query.queryFileMtimes)
 - fix: exclusive lock file (O_CREATE|O_EXCL) prevents concurrent indexers @internal/store/store.go:120

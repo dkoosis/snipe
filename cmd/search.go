@@ -85,9 +85,10 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
-		Ok:       true,
-		Results:  results,
+		Protocol:    output.ProtocolVersion,
+		Ok:          true,
+		Results:     results,
+		Suggestions: output.SuggestionsForSearch(pattern, len(results)),
 		Meta: output.Meta{
 			Command:       "search",
 			Query:         map[string]string{"pattern": pattern},

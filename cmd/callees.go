@@ -106,7 +106,9 @@ func runCallees(cmd *cobra.Command, args []string) error {
 findCallees:
 
 	// Record query in session for active work tracking
+	var symName string
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
+		symName = sym.Name
 		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "callees")
 	}
 
@@ -232,9 +234,10 @@ findCallees:
 	}
 
 	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
-		Ok:       true,
-		Results:  results,
+		Protocol:    output.ProtocolVersion,
+		Ok:          true,
+		Results:     results,
+		Suggestions: output.SuggestionsForCallees(symName, len(results)),
 		Meta: output.Meta{
 			Command:       "callees",
 			Query:         queryInfo,

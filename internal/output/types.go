@@ -371,6 +371,22 @@ func SuggestionsForCallers(symbol string, resultCount int) []Suggestion {
 	return suggestions
 }
 
+// SuggestionsForCallees generates suggestions after a callees command
+func SuggestionsForCallees(symbol string, resultCount int) []Suggestion {
+	return []Suggestion{
+		{
+			Command:     "snipe def " + symbol,
+			Description: "View the function definition",
+			Priority:    1,
+		},
+		{
+			Command:     "snipe callers " + symbol,
+			Description: "See what calls this function",
+			Priority:    2,
+		},
+	}
+}
+
 // SuggestionsForAmbiguous generates suggestions when symbol is ambiguous
 func SuggestionsForAmbiguous(candidates []Candidate) []Suggestion {
 	if len(candidates) == 0 {

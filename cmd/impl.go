@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"os"
 	"time"
 
@@ -84,6 +85,16 @@ func runImpl(cmd *cobra.Command, args []string) error {
 		queryInfo = map[string]string{"id": implID}
 	} else {
 		name := args[0]
+
+		// Check if input looks like a symbol ID (16-char hex string)
+		if len(name) == 16 {
+			if _, err := hex.DecodeString(name); err == nil {
+				interfaceID = name
+				queryInfo = map[string]string{"id": name}
+				goto findImplementers
+			}
+		}
+
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
 			return w.WriteError("impl", &output.Error{
@@ -123,6 +134,7 @@ func runImpl(cmd *cobra.Command, args []string) error {
 		queryInfo = map[string]string{"interface": name}
 	}
 
+findImplementers:
 	// Find implementers
 	implementers, err := query.FindImplementers(s.DB(), interfaceID, lim, off)
 	if err != nil {

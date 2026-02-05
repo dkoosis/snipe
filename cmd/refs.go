@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"time"
@@ -89,8 +90,18 @@ func runRefs(cmd *cobra.Command, args []string) error {
 		}
 		queryInfo = map[string]string{"at": refsAt}
 	} else {
-		// Look up by name
 		name := args[0]
+
+		// Check if input looks like a symbol ID (16-char hex string)
+		if len(name) == 16 {
+			if _, err := hex.DecodeString(name); err == nil {
+				symbolID = name
+				queryInfo = map[string]string{"id": name}
+				goto findRefs
+			}
+		}
+
+		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
 			return w.WriteError("refs", &output.Error{
@@ -115,6 +126,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 		queryInfo = map[string]string{"symbol": name}
 	}
 
+findRefs:
 	// Look up symbol to get name length for accurate range
 	symbolName := ""
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
@@ -269,9 +281,10 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
-		Ok:       true,
-		Results:  results,
+		Protocol:    output.ProtocolVersion,
+		Ok:          true,
+		Results:     results,
+		Suggestions: output.SuggestionsForRefs(symbolName, len(results)),
 		Meta: output.Meta{
 			Command:       "refs",
 			Query:         queryInfo,

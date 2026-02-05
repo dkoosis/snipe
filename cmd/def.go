@@ -250,12 +250,26 @@ lookup:
 	}
 
 	results := []output.Result{result}
+
+	// Apply token budget truncation if specified
+	maxTok := GetMaxTokens()
+	tokenTruncated := false
+	if maxTok > 0 {
+		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		// Recalculate token estimate after truncation
+		tokenEstimate = 0
+		for i := range results {
+			tokenEstimate += output.EstimateResultTokens(&results[i])
+		}
+	}
+
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
 	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
-		Ok:       true,
-		Results:  results,
+		Protocol:    output.ProtocolVersion,
+		Ok:          true,
+		Results:     results,
+		Suggestions: output.SuggestionsForDef(&result),
 		Meta: output.Meta{
 			Command:       "def",
 			Query:         queryInfo,
@@ -263,10 +277,11 @@ lookup:
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
-			Total:         1,
+			Total:         len(results),
 			TokenEstimate: tokenEstimate,
 			DecisionPath:  decisionPath,
 			StaleFiles:    staleFiles,
+			Truncated:     tokenTruncated,
 		},
 	}
 
