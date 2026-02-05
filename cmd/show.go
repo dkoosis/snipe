@@ -15,7 +15,7 @@ import (
 var showCmd = &cobra.Command{
 	Use:    "show <id>",
 	Short:  "Show symbol details by ID",
-	Hidden: true,
+	GroupID: "advanced",
 	Long: `Shows full details for a symbol given its ID.
 
 Use this to expand deferred IDs from other command outputs.
@@ -126,6 +126,8 @@ func runShow(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
 		Results: []output.Result{result},
 		Meta: output.Meta{
 			Command:       "show",

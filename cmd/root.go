@@ -35,6 +35,10 @@ var (
 	// KG integration
 	withKGHints bool
 
+	// Caller passthrough for correlation
+	caller    string
+	requestID string
+
 	// Internal: auto-compact when piped
 	autoCompact bool
 
@@ -171,6 +175,9 @@ func init() {
 	// Hide completion command from help
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 
+	// Add command groups for 3-tier visibility
+	rootCmd.AddGroup(&cobra.Group{ID: "advanced", Title: "Advanced Commands:"})
+
 	rootCmd.PersistentFlags().BoolVar(&humanOutput, "human", false, "Pretty-print for debugging")
 	rootCmd.PersistentFlags().IntVar(&limit, "limit", 50, "Cap results")
 	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Pagination offset")
@@ -182,6 +189,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "", "concise | detailed | summary")
 	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for command (e.g., 30s, 5m)")
+	rootCmd.PersistentFlags().StringVar(&caller, "caller", "", "Caller identifier (e.g., 'orca')")
+	rootCmd.PersistentFlags().StringVar(&requestID, "request-id", "", "Request correlation ID")
 }
 
 // GetContext returns the command context (with timeout and signal handling).
@@ -276,6 +285,12 @@ func GetConfig() *config.Config {
 	}
 	return loadedConfig
 }
+
+// GetCaller returns the --caller flag value.
+func GetCaller() string { return caller }
+
+// GetRequestID returns the --request-id flag value.
+func GetRequestID() string { return requestID }
 
 // OpenStore opens the index for query commands.
 // Returns the store, working directory, and any error.

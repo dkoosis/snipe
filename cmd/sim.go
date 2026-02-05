@@ -16,7 +16,7 @@ import (
 var simCmd = &cobra.Command{
 	Use:    "sim <query>",
 	Short:  "Semantic similarity search",
-	Hidden: true,
+	GroupID: "advanced",
 	Long: `Finds symbols semantically similar to the query using embeddings.
 
 Requires embeddings to be generated first with 'snipe index --embed'.
@@ -187,6 +187,8 @@ func runSim(cmd *cobra.Command, args []string) error {
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
 			Results: []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "sim",
@@ -211,6 +213,8 @@ func runSim(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
 		Results: results,
 		Meta: output.Meta{
 			Command:       "sim",

@@ -31,7 +31,7 @@ type DoctorCheck struct {
 var doctorCmd = &cobra.Command{
 	Use:    "doctor",
 	Short:  "Check snipe installation and configuration",
-	Hidden: true,
+	GroupID: "advanced",
 	Long: `Runs diagnostic checks to verify snipe is properly installed and configured.
 
 Checks include:
@@ -128,6 +128,32 @@ func checkIndex() DoctorCheck {
 		check.OK = false
 		check.Message = "index not found"
 		check.Details = fmt.Sprintf("Expected at: %s\nRun 'snipe index' to create", indexPath)
+		return check
+	}
+
+	// Check integrity
+	s, err := store.Open(indexPath)
+	if err != nil {
+		check.OK = false
+		check.Message = "could not open index"
+		check.Details = fmt.Sprintf("Path: %s\nError: %v\nRun 'snipe index' to rebuild", indexPath, err)
+		return check
+	}
+
+	var integrityResult string
+	if err := s.DB().QueryRow("PRAGMA integrity_check").Scan(&integrityResult); err != nil {
+		s.Close()
+		check.OK = false
+		check.Message = "integrity check failed"
+		check.Details = fmt.Sprintf("Path: %s\nError: %v\nRun 'snipe index' to rebuild", indexPath, err)
+		return check
+	}
+	s.Close()
+
+	if integrityResult != "ok" {
+		check.OK = false
+		check.Message = "index is corrupt"
+		check.Details = fmt.Sprintf("Path: %s\nPRAGMA integrity_check: %s\nRun 'snipe index' to rebuild", indexPath, integrityResult)
 		return check
 	}
 

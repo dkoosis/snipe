@@ -16,7 +16,7 @@ import (
 var embedCmd = &cobra.Command{
 	Use:    "embed-status",
 	Short:  "Check status of batch embedding job",
-	Hidden: true,
+	GroupID: "advanced",
 	Long: `Check the status of an async batch embedding job.
 
 If the batch is complete, downloads results and saves embeddings to the index.
@@ -90,6 +90,8 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 			Message: "No batch embedding job found. Run 'snipe index' to start one.",
 		}
 		return w.WriteResponse(output.Response[EmbedStatusResult]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
 			Results: []EmbedStatusResult{result},
 			Meta:    output.Meta{Command: "embed-status"},
 		})
@@ -142,6 +144,8 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 				Message:    fmt.Sprintf("Downloaded and saved %d embeddings", embedCount),
 			}
 			return w.WriteResponse(output.Response[EmbedStatusResult]{
+				Protocol: output.ProtocolVersion,
+				Ok:       true,
 				Results: []EmbedStatusResult{result},
 				Meta:    output.Meta{Command: "embed-status"},
 			})
@@ -164,6 +168,8 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 				Message:   "Batch job failed or was cancelled",
 			}
 			return w.WriteResponse(output.Response[EmbedStatusResult]{
+				Protocol: output.ProtocolVersion,
+				Ok:       true,
 				Results: []EmbedStatusResult{result},
 				Meta:    output.Meta{Command: "embed-status"},
 			})
@@ -190,6 +196,8 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 				Message:   msg,
 			}
 			return w.WriteResponse(output.Response[EmbedStatusResult]{
+				Protocol: output.ProtocolVersion,
+				Ok:       true,
 				Results: []EmbedStatusResult{result},
 				Meta:    output.Meta{Command: "embed-status"},
 			})

@@ -15,7 +15,7 @@ import (
 var importsCmd = &cobra.Command{
 	Use:    "imports <file>",
 	Short:  "Show packages imported by a file",
-	Hidden: true,
+	GroupID: "advanced",
 	Long: `Shows all packages imported by a given Go file.
 
 Examples:
@@ -121,6 +121,8 @@ func runImports(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
 		Results: results,
 		Meta: output.Meta{
 			Command:       "imports",

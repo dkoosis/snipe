@@ -14,7 +14,7 @@ import (
 var pkgCmd = &cobra.Command{
 	Use:    "pkg <name>",
 	Short:  "Show package overview with exported symbols",
-	Hidden: true,
+	GroupID: "advanced",
 	Long: `Shows an overview of a package including its exported symbols.
 
 Displays all exported types, functions, constants, and variables in a package,
@@ -129,6 +129,8 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
 			Results: []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "pkg",
@@ -153,6 +155,8 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
 		Results: results,
 		Meta: output.Meta{
 			Command:       "pkg",

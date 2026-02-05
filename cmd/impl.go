@@ -14,7 +14,7 @@ import (
 var implCmd = &cobra.Command{
 	Use:    "impl [interface]",
 	Short:  "Find types implementing an interface",
-	Hidden: true,
+	GroupID: "advanced",
 	Long: `Finds types that potentially implement a given interface.
 
 Since Go uses structural typing, this command finds types that reference
@@ -175,6 +175,8 @@ func runImpl(cmd *cobra.Command, args []string) error {
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
 			Results: []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "impl",
@@ -199,6 +201,8 @@ func runImpl(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
 		Results: results,
 		Meta: output.Meta{
 			Command:       "impl",

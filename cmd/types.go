@@ -20,7 +20,7 @@ var (
 var typesCmd = &cobra.Command{
 	Use:    "types [type-name]",
 	Short:  "Show type relationships",
-	Hidden: true,
+	GroupID: "advanced",
 	Long: `Displays type information including methods, embeds, and fields.
 
 Output includes:
@@ -222,6 +222,8 @@ getTypes:
 	}
 
 	resp := output.Response[query.TypeResult]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
 		Results: []query.TypeResult{result},
 		Meta: output.Meta{
 			Command:    "types",

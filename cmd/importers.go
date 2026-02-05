@@ -16,7 +16,7 @@ import (
 var importersCmd = &cobra.Command{
 	Use:    "importers <package>",
 	Short:  "Find files that import a package",
-	Hidden: true,
+	GroupID: "advanced",
 	Long: `Shows all files that import a given package.
 
 Examples:
@@ -121,6 +121,8 @@ func runImporters(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
 		Results: results,
 		Meta: output.Meta{
 			Command:       "importers",
