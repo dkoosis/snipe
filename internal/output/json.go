@@ -235,7 +235,9 @@ func (w *Writer) writeHumanSummary(resp Response[Summary]) error {
 // WriteError writes an error response
 func (w *Writer) WriteError(command string, err *Error) error {
 	resp := Response[any]{
-		Results: nil,
+		Protocol: ProtocolVersion,
+		Ok:       false,
+		Results:  nil,
 		Meta: Meta{
 			Command: command,
 			Ms:      time.Since(w.start).Milliseconds(),

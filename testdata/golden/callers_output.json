@@ -1,4 +1,6 @@
 {
+  "protocol": 1,
+  "ok": true,
   "results": [
     {
       "id": "caller:cmd/search.go:25",
