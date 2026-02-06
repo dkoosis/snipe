@@ -186,6 +186,7 @@ type FileSummary struct {
 const (
 	ErrNotFound        = "NOT_FOUND"
 	ErrAmbiguousSymbol = "AMBIGUOUS_SYMBOL"
+	ErrFileListing     = "FILE_LISTING"
 	ErrMissingIndex    = "MISSING_INDEX"
 	ErrIndexInProgress = "INDEX_IN_PROGRESS"
 	ErrStaleIndex      = "STALE_INDEX"

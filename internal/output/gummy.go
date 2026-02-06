@@ -1034,6 +1034,22 @@ func colorByPct(s string, pct float64) string {
 
 // writeGummyError handles error display consistently (for internal use by formatters)
 func writeGummyError(w *gummyWriter, err *Error) error {
+	// File listing gets a clean header, not an error
+	if err.Code == ErrFileListing && len(err.Candidates) > 0 {
+		fmt.Fprintln(w.out, gummyLabel.Sprint(err.Message))
+		for _, c := range err.Candidates {
+			name := c.Name
+			if c.Receiver != "" {
+				name = c.Receiver + "." + c.Name
+			}
+			fmt.Fprintf(w.out, "  %s %s  %s\n",
+				gummyName.Sprint(name),
+				gummyKind.Sprint(c.Kind),
+				gummyFile.Sprint(c.File))
+		}
+		return nil
+	}
+
 	hint := ""
 	if err.Next != nil {
 		hint = err.Next.Command

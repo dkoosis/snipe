@@ -120,8 +120,8 @@ func runSym(cmd *cobra.Command, args []string) error {
 					candidates[i] = sym.ToCandidate()
 				}
 				return w.WriteError("sym", &output.Error{
-					Code:       output.ErrAmbiguousSymbol,
-					Message:    fmt.Sprintf("Symbols in %s", name),
+					Code:       output.ErrFileListing,
+					Message:    fmt.Sprintf("%s (%d symbols)", name, len(candidates)),
 					Candidates: candidates,
 				})
 			}
