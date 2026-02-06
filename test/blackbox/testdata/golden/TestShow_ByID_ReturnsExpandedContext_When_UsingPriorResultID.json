@@ -58,5 +58,22 @@
         }
       ]
     }
+  ],
+  "suggestions": [
+    {
+      "command": "snipe refs Callee",
+      "description": "Find all usages of this symbol",
+      "priority": 1
+    },
+    {
+      "command": "snipe callers Callee",
+      "description": "Find functions that call this",
+      "priority": 2
+    },
+    {
+      "command": "snipe callees Callee",
+      "description": "Find functions called by this",
+      "priority": 2
+    }
   ]
 }
