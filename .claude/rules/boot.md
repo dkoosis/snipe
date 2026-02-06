@@ -1,25 +1,24 @@
-sha: ae492c9
-updated: 2026-02-06T03:55:00Z
+sha: 9547a4b
+updated: 2026-02-06T14:00:00Z
 qa: pass
 intent: make go_symbol delegate find operations to snipe CLI
 
-ready: snipe-side Phase 0 complete — next work is in orca or new snipe features
+ready: snipe-side usability complete — next work is orca delegation polish or new snipe features
 - orca delegation already wired (go_symbol + index_handler) in prior orca session
 - orca still has dead `internal/kits/code/gosym/` (3 files, zero imports) — delete it
 - orca polish: surface Meta.StaleFiles, pass --max-tokens, forward suggestions
 - snipe roadmap: context.Context in query layer (feat/query-context), issues #85-#88
-- open issues: #85 M1 trust-the-index, #86 M2 harder-queries, #87 M3 LLM-output, #88 M4 distribution
-- incremental indexing now works — test with real edits in orca repo
+- issues #85-#87 closed (delivered), #88 (distribution) open
+- incremental indexing works — test with real edits in orca repo
 
 done:
-- feat: incremental indexing (WriteIndexIncremental, filtered extraction, 50% threshold)
-- ExtractRefsFiltered, ExtractCallGraphFiltered, ExtractImportsFiltered in index/
-- incremental path in cmd/index.go: trySkipIndex returns changeDetection, runIncrementalIndex
-- rg stderr capture for actionable error messages
-- search.go error code fix: ErrRgNotFound vs ErrInternal
-- scanner buffer in enrich.go for long lines
-- 3 incremental store tests + 1 rg stderr test, mage qa passes
+- --help grouping: Core/Index/Advanced command groups in root.go + 10 cmd files
+- README rewrite: architecture diagram, embeddings rationale, full config reference, command tiers
+- first-run UX: improved missing-index error message, quickstart guide in status when no index
+- show.go moved from advanced to core group, improved help text for hex-ID chaining
+- golden test + SPEC.md updated for new error message
+- mage qa passes (all 7 stages green)
 
 prior-session:
+- incremental indexing, rg stderr capture, scanner buffer fix
 - Phase 0 version contract, suggestions, token budget, hex IDs, per-result staleness
-- designed 5-phase plan (peppy-singing-valley), GitHub issues #85-#88
