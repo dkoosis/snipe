@@ -48,9 +48,9 @@ type BatchEditRequest struct {
 }
 
 var editCmd = &cobra.Command{
-	Use:    "edit [symbol]",
-	Short:  "AST-aware code editing",
-	Hidden: true,
+	Use:     "edit [symbol]",
+	Short:   "AST-aware code editing",
+	GroupID: "advanced",
 	Long: `Performs AST-aware edits on Go source code.
 
 Operations:
@@ -279,7 +279,9 @@ doEdit:
 	}
 
 	resp := output.Response[EditResponse]{
-		Results: []EditResponse{editResp},
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  []EditResponse{editResp},
 		Meta: output.Meta{
 			Command:  "edit",
 			Query:    map[string]string{"symbol": symbolName, "operation": editOperation},
@@ -391,7 +393,9 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 	}
 
 	resp := output.Response[EditResponse]{
-		Results: results,
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  results,
 		Meta: output.Meta{
 			Command:  "edit",
 			Query:    map[string]string{"mode": "batch"},

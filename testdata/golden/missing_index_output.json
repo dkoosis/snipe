@@ -1,0 +1,20 @@
+{
+  "protocol": 1,
+  "ok": false,
+  "results": null,
+  "meta": {
+    "command": "def",
+    "index_state": "missing",
+    "ms": 1,
+    "total": 0,
+    "truncated": false
+  },
+  "error": {
+    "code": "MISSING_INDEX",
+    "message": "No index found. Run: snipe index",
+    "next": {
+      "command": "snipe index",
+      "description": "Build the symbol index for this repository"
+    }
+  }
+}

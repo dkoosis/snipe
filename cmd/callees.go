@@ -106,7 +106,9 @@ func runCallees(cmd *cobra.Command, args []string) error {
 findCallees:
 
 	// Record query in session for active work tracking
+	var symName string
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
+		symName = sym.Name
 		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "callees")
 	}
 
@@ -199,11 +201,15 @@ findCallees:
 		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
 	}
 
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	// If summary mode, return condensed output
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
-			Results: []output.Summary{summaryData},
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "callees",
 				Query:      queryInfo,
@@ -215,6 +221,7 @@ findCallees:
 				Offset:     off,
 				Limit:      lim,
 				Truncated:  len(results) >= lim,
+				StaleFiles: staleFiles,
 			},
 		}
 		return w.WriteResponse(summaryResp)
@@ -227,7 +234,10 @@ findCallees:
 	}
 
 	resp := output.Response[output.Result]{
-		Results: results,
+		Protocol:    output.ProtocolVersion,
+		Ok:          true,
+		Results:     results,
+		Suggestions: output.SuggestionsForCallees(symName, len(results)),
 		Meta: output.Meta{
 			Command:       "callees",
 			Query:         queryInfo,
@@ -240,6 +250,7 @@ findCallees:
 			Limit:         lim,
 			Truncated:     len(results) >= lim || tokenTruncated,
 			TokenEstimate: tokenEstimate,
+			StaleFiles:    staleFiles,
 		},
 	}
 

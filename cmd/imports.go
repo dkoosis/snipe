@@ -13,9 +13,9 @@ import (
 )
 
 var importsCmd = &cobra.Command{
-	Use:    "imports <file>",
-	Short:  "Show packages imported by a file",
-	Hidden: true,
+	Use:     "imports <file>",
+	Short:   "Show packages imported by a file",
+	GroupID: "advanced",
 	Long: `Shows all packages imported by a given Go file.
 
 Examples:
@@ -120,8 +120,12 @@ func runImports(cmd *cobra.Command, args []string) error {
 		tokenEstimate += output.EstimateResultTokens(&results[i])
 	}
 
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	resp := output.Response[output.Result]{
-		Results: results,
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "imports",
 			Query:         map[string]string{"file": args[0]},
@@ -133,6 +137,7 @@ func runImports(cmd *cobra.Command, args []string) error {
 			TokenEstimate: tokenEstimate,
 			Offset:        offset,
 			Limit:         lim,
+			StaleFiles:    staleFiles,
 		},
 	}
 

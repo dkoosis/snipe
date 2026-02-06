@@ -1,0 +1,42 @@
+{
+  "protocol": 1,
+  "ok": false,
+  "results": null,
+  "meta": {
+    "command": "def",
+    "index_state": "fresh",
+    "ms": 8,
+    "total": 0,
+    "truncated": false
+  },
+  "error": {
+    "code": "AMBIGUOUS_SYMBOL",
+    "message": "Multiple definitions found for 'Config'",
+    "candidates": [
+      {
+        "id": "abc123def45601",
+        "name": "Config",
+        "file": "config/config.go",
+        "kind": "type"
+      },
+      {
+        "id": "abc123def45602",
+        "name": "Config",
+        "file": "server/config.go",
+        "kind": "type"
+      }
+    ]
+  },
+  "suggestions": [
+    {
+      "command": "snipe def --at config/config.go:1:1",
+      "description": "Use position to specify Config in config/config.go",
+      "priority": 1
+    },
+    {
+      "command": "snipe def --at server/config.go:1:1",
+      "description": "Use position to specify Config in server/config.go",
+      "priority": 1
+    }
+  ]
+}

@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/store"
 )
 
 func TestCheckRipgrep_Available(t *testing.T) {
@@ -94,6 +96,65 @@ func TestDoctorResult_JSON(t *testing.T) {
 	}
 	if decoded.Checks[0].Name != "test" {
 		t.Errorf("decoded.Checks[0].Name = %q, want 'test'", decoded.Checks[0].Name)
+	}
+}
+
+func TestCheckIndex_ValidDB(t *testing.T) {
+	// Create a temp dir with .git and a valid snipe index
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+
+	tmpDir := t.TempDir()
+	// Create .git marker
+	if err := os.Mkdir(tmpDir+"/.git", 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create valid index
+	snipeDir := tmpDir + "/.snipe"
+	if err := os.MkdirAll(snipeDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := store.Open(tmpDir + "/.snipe/index.db")
+	if err != nil {
+		t.Fatalf("store.Open failed: %v", err)
+	}
+	s.Close()
+
+	os.Chdir(tmpDir)
+	check := checkIndex()
+
+	if !check.OK {
+		t.Errorf("checkIndex().OK = false for valid DB, message: %s, details: %s", check.Message, check.Details)
+	}
+}
+
+func TestCheckIndex_CorruptDB(t *testing.T) {
+	// Create a temp dir with .git and a corrupt index
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+
+	tmpDir := t.TempDir()
+	if err := os.Mkdir(tmpDir+"/.git", 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	snipeDir := tmpDir + "/.snipe"
+	if err := os.MkdirAll(snipeDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write garbage as index file
+	if err := os.WriteFile(tmpDir+"/.snipe/index.db", []byte("not a sqlite database"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	os.Chdir(tmpDir)
+	check := checkIndex()
+
+	if check.OK {
+		t.Error("checkIndex().OK = true for corrupt DB, want false")
 	}
 }
 

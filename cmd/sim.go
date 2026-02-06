@@ -14,9 +14,9 @@ import (
 )
 
 var simCmd = &cobra.Command{
-	Use:    "sim <query>",
-	Short:  "Semantic similarity search",
-	Hidden: true,
+	Use:     "sim <query>",
+	Short:   "Semantic similarity search",
+	GroupID: "advanced",
 	Long: `Finds symbols semantically similar to the query using embeddings.
 
 Requires embeddings to be generated first with 'snipe index --embed'.
@@ -184,10 +184,14 @@ func runSim(cmd *cobra.Command, args []string) error {
 		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
 	}
 
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
-			Results: []output.Summary{summaryData},
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "sim",
 				Query:      map[string]string{"query": queryText, "threshold": cmd.Flag("threshold").Value.String()},
@@ -199,6 +203,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 				Offset:     off,
 				Limit:      lim,
 				Truncated:  len(matches) >= lim,
+				StaleFiles: staleFiles,
 			},
 		}
 		return w.WriteResponse(summaryResp)
@@ -211,7 +216,9 @@ func runSim(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
-		Results: results,
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "sim",
 			Query:         map[string]string{"query": queryText, "threshold": cmd.Flag("threshold").Value.String()},
@@ -224,6 +231,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 			Limit:         lim,
 			Truncated:     len(matches) >= lim || tokenTruncated,
 			TokenEstimate: tokenEstimate,
+			StaleFiles:    staleFiles,
 		},
 	}
 

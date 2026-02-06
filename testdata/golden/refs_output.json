@@ -1,4 +1,6 @@
 {
+  "protocol": 1,
+  "ok": true,
   "results": [
     {
       "id": "ref:main.go:15:10",

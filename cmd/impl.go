@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"os"
 	"time"
 
@@ -12,9 +13,9 @@ import (
 )
 
 var implCmd = &cobra.Command{
-	Use:    "impl [interface]",
-	Short:  "Find types implementing an interface",
-	Hidden: true,
+	Use:     "impl [interface]",
+	Short:   "Find types implementing an interface",
+	GroupID: "advanced",
 	Long: `Finds types that potentially implement a given interface.
 
 Since Go uses structural typing, this command finds types that reference
@@ -84,6 +85,16 @@ func runImpl(cmd *cobra.Command, args []string) error {
 		queryInfo = map[string]string{"id": implID}
 	} else {
 		name := args[0]
+
+		// Check if input looks like a symbol ID (16-char hex string)
+		if len(name) == 16 {
+			if _, err := hex.DecodeString(name); err == nil {
+				interfaceID = name
+				queryInfo = map[string]string{"id": name}
+				goto findImplementers
+			}
+		}
+
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
 			return w.WriteError("impl", &output.Error{
@@ -123,6 +134,7 @@ func runImpl(cmd *cobra.Command, args []string) error {
 		queryInfo = map[string]string{"interface": name}
 	}
 
+findImplementers:
 	// Find implementers
 	implementers, err := query.FindImplementers(s.DB(), interfaceID, lim, off)
 	if err != nil {
@@ -171,11 +183,15 @@ func runImpl(cmd *cobra.Command, args []string) error {
 		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
 	}
 
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	// If summary mode, return condensed output
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
-			Results: []output.Summary{summaryData},
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "impl",
 				Query:      queryInfo,
@@ -187,6 +203,7 @@ func runImpl(cmd *cobra.Command, args []string) error {
 				Offset:     off,
 				Limit:      lim,
 				Truncated:  len(results) >= lim,
+				StaleFiles: staleFiles,
 			},
 		}
 		return w.WriteResponse(summaryResp)
@@ -199,7 +216,9 @@ func runImpl(cmd *cobra.Command, args []string) error {
 	}
 
 	resp := output.Response[output.Result]{
-		Results: results,
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  results,
 		Meta: output.Meta{
 			Command:       "impl",
 			Query:         queryInfo,
@@ -212,6 +231,7 @@ func runImpl(cmd *cobra.Command, args []string) error {
 			Limit:         lim,
 			Truncated:     len(results) >= lim || tokenTruncated,
 			TokenEstimate: tokenEstimate,
+			StaleFiles:    staleFiles,
 		},
 	}
 

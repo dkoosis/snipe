@@ -361,8 +361,18 @@ lookup:
 		tokenEstimate += output.EstimateResultTokens(&calleeResults[i])
 	}
 
+	// Collect all results for staleness check
+	var allResults []output.Result
+	allResults = append(allResults, defResult)
+	allResults = append(allResults, refResults...)
+	allResults = append(allResults, callerResults...)
+	allResults = append(allResults, calleeResults...)
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, allResults)
+
 	resp := output.Response[output.SymResult]{
-		Results: []output.SymResult{symResp},
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  []output.SymResult{symResp},
 		Meta: output.Meta{
 			Command:       "sym",
 			Query:         queryInfo,
@@ -372,6 +382,7 @@ lookup:
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         1,
 			TokenEstimate: tokenEstimate,
+			StaleFiles:    staleFiles,
 		},
 	}
 

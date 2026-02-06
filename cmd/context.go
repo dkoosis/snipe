@@ -21,9 +21,9 @@ var (
 )
 
 var contextCmd = &cobra.Command{
-	Use:    "context [path]",
-	Short:  "Generate Claude-optimized project context",
-	Hidden: true,
+	Use:     "context [path]",
+	Short:   "Generate Claude-optimized project context",
+	GroupID: "advanced",
 	Long: `Generates a structured JSON/YAML output describing the project architecture,
 files, and key symbols - optimized for providing context to Claude.
 

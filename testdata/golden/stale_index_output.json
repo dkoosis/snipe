@@ -24,7 +24,10 @@
   ],
   "meta": {
     "command": "def",
-    "index_state": "fresh",
+    "index_state": "stale",
+    "degraded": [
+      "stale_index"
+    ],
     "ms": 15,
     "total": 1,
     "limit": 50,

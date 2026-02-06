@@ -18,9 +18,9 @@ var (
 )
 
 var typesCmd = &cobra.Command{
-	Use:    "types [type-name]",
-	Short:  "Show type relationships",
-	Hidden: true,
+	Use:     "types [type-name]",
+	Short:   "Show type relationships",
+	GroupID: "advanced",
 	Long: `Displays type information including methods, embeds, and fields.
 
 Output includes:
@@ -221,8 +221,12 @@ getTypes:
 		})
 	}
 
+	staleFiles := query.CheckPathStaleness(s.DB(), dir, []string{typeInfo.Symbol.FilePath})
+
 	resp := output.Response[query.TypeResult]{
-		Results: []query.TypeResult{result},
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  []query.TypeResult{result},
 		Meta: output.Meta{
 			Command:    "types",
 			Query:      queryInfo,
@@ -230,6 +234,7 @@ getTypes:
 			IndexState: query.CheckIndexState(s.DB(), dir, Version),
 			Ms:         time.Since(start).Milliseconds(),
 			Total:      1,
+			StaleFiles: staleFiles,
 		},
 	}
 

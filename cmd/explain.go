@@ -20,9 +20,9 @@ var (
 )
 
 var explainCmd = &cobra.Command{
-	Use:    "explain [symbol]",
-	Short:  "Structured function explanation for LLMs",
-	Hidden: true,
+	Use:     "explain [symbol]",
+	Short:   "Structured function explanation for LLMs",
+	GroupID: "advanced",
 	Long: `Generates a structured explanation of a function or method.
 
 Output includes:
@@ -205,6 +205,12 @@ explain:
 		})
 	}
 
+	// Look up symbol for staleness check (Explain does this internally too)
+	var staleFiles []string
+	if sym, lookupErr := query.LookupByID(s.DB(), symbolID); lookupErr == nil && sym != nil {
+		staleFiles = query.CheckPathStaleness(s.DB(), dir, []string{sym.FilePath})
+	}
+
 	// Run explain
 	result, err := query.Explain(s.DB(), symbolID, opts)
 	if err != nil {
@@ -215,7 +221,9 @@ explain:
 	}
 
 	resp := output.Response[output.ExplainResult]{
-		Results: []output.ExplainResult{*result},
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  []output.ExplainResult{*result},
 		Meta: output.Meta{
 			Command:    "explain",
 			Query:      queryInfo,
@@ -223,6 +231,7 @@ explain:
 			IndexState: query.CheckIndexState(s.DB(), dir, Version),
 			Ms:         time.Since(start).Milliseconds(),
 			Total:      1,
+			StaleFiles: staleFiles,
 		},
 	}
 

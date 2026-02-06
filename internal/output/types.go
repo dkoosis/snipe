@@ -1,7 +1,13 @@
 package output
 
+// ProtocolVersion is the snipe wire protocol version.
+// Bump when the response envelope schema changes in a breaking way.
+const ProtocolVersion = 1
+
 // Response is the top-level response structure for all commands
 type Response[T any] struct {
+	Protocol    int          `json:"protocol"`
+	Ok          bool         `json:"ok"`
 	Results     []T          `json:"results"`
 	Meta        Meta         `json:"meta"`
 	Error       *Error       `json:"error"`
@@ -23,6 +29,8 @@ type Meta struct {
 	RepoRoot      string            `json:"repo_root,omitempty"`
 	IndexState    IndexState        `json:"index_state"`
 	Degraded      []string          `json:"degraded,omitempty"`
+	Caller        string            `json:"caller,omitempty"`
+	RequestID     string            `json:"request_id,omitempty"`
 	Ms            int64             `json:"ms"`
 	Total         int               `json:"total"`
 	Offset        int               `json:"offset,omitempty"`
@@ -30,6 +38,7 @@ type Meta struct {
 	Truncated     bool              `json:"truncated"`
 	TokenEstimate int               `json:"token_estimate,omitempty"`
 	DecisionPath  []string          `json:"decision_path,omitempty"` // Resolution strategy trace
+	StaleFiles    []string          `json:"stale_files,omitempty"`   // Files changed since last index
 }
 
 // IndexState represents the state of the index
@@ -52,7 +61,8 @@ type Error struct {
 
 // NextAction suggests the next command to run
 type NextAction struct {
-	Command string `json:"command"`
+	Command     string `json:"command"`
+	Description string `json:"description,omitempty"`
 }
 
 // Candidate represents an ambiguous symbol match
@@ -181,6 +191,14 @@ const (
 	ErrInternal        = "INTERNAL_ERROR"
 )
 
+// VersionInfo is the JSON output for the version command with --json.
+type VersionInfo struct {
+	Version  string   `json:"version"`
+	Protocol int      `json:"protocol"`
+	Features []string `json:"features"`
+	Commit   string   `json:"commit,omitempty"`
+}
+
 // NewNotFoundError creates a NOT_FOUND error with optional similar symbol suggestions.
 func NewNotFoundError(symbol string, suggestions ...string) *Error {
 	msg := "Symbol not found: " + symbol
@@ -227,7 +245,10 @@ func NewMissingIndexError() *Error {
 	return &Error{
 		Code:    ErrMissingIndex,
 		Message: "No index found. Run: snipe index",
-		Next:    &NextAction{Command: "snipe index"},
+		Next: &NextAction{
+			Command:     "snipe index",
+			Description: "Build the symbol index for this repository",
+		},
 	}
 }
 
@@ -236,6 +257,22 @@ func NewIndexInProgressError() *Error {
 	return &Error{
 		Code:    ErrIndexInProgress,
 		Message: "Indexing in progress. Wait for 'snipe index' to complete, then retry.",
+		Next: &NextAction{
+			Command:     "snipe status",
+			Description: "Check indexing progress",
+		},
+	}
+}
+
+// NewStaleIndexError creates a STALE_INDEX warning (ok:true, with degraded note)
+func NewStaleIndexError() *Error {
+	return &Error{
+		Code:    ErrStaleIndex,
+		Message: "Index is stale. Results may be incomplete or outdated.",
+		Next: &NextAction{
+			Command:     "snipe index",
+			Description: "Rebuild the index to reflect recent changes",
+		},
 	}
 }
 
@@ -332,6 +369,22 @@ func SuggestionsForCallers(symbol string, resultCount int) []Suggestion {
 	}
 
 	return suggestions
+}
+
+// SuggestionsForCallees generates suggestions after a callees command
+func SuggestionsForCallees(symbol string, resultCount int) []Suggestion {
+	return []Suggestion{
+		{
+			Command:     "snipe def " + symbol,
+			Description: "View the function definition",
+			Priority:    1,
+		},
+		{
+			Command:     "snipe callers " + symbol,
+			Description: "See what calls this function",
+			Priority:    2,
+		},
+	}
 }
 
 // SuggestionsForAmbiguous generates suggestions when symbol is ambiguous

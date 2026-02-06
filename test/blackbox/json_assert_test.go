@@ -30,7 +30,7 @@ func parseJSON(t *testing.T, data []byte) map[string]any {
 func assertResponseContract(t *testing.T, resp map[string]any, expect responseExpectations) {
 	t.Helper()
 
-	allowedKeys := map[string]bool{"results": true, "meta": true, "error": true, "suggestions": true}
+	allowedKeys := map[string]bool{"protocol": true, "ok": true, "results": true, "meta": true, "error": true, "suggestions": true}
 	for key := range resp {
 		if !allowedKeys[key] {
 			t.Fatalf("unexpected top-level key %q", key)
@@ -172,7 +172,7 @@ func normalize(value any, repoRoot string) any {
 
 func isUnstableKey(key string) bool {
 	switch key {
-	case "ms", "token_estimate", "indexed_at", "generated_at", "fingerprint", "git_commit", "id", "index_state":
+	case "ms", "token_estimate", "indexed_at", "generated_at", "fingerprint", "git_commit", "id", "index_state", "stale_files":
 		return true
 	default:
 		return false

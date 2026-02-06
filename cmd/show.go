@@ -13,9 +13,9 @@ import (
 )
 
 var showCmd = &cobra.Command{
-	Use:    "show <id>",
-	Short:  "Show symbol details by ID",
-	Hidden: true,
+	Use:     "show <id>",
+	Short:   "Show symbol details by ID",
+	GroupID: "advanced",
 	Long: `Shows full details for a symbol given its ID.
 
 Use this to expand deferred IDs from other command outputs.
@@ -125,8 +125,26 @@ func runShow(cmd *cobra.Command, args []string) error {
 		tokenEstimate = output.EstimateTokens(result.Body)
 	}
 
+	results := []output.Result{result}
+
+	// Apply token budget truncation if specified
+	maxTok := GetMaxTokens()
+	tokenTruncated := false
+	if maxTok > 0 {
+		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		tokenEstimate = 0
+		for i := range results {
+			tokenEstimate += output.EstimateResultTokens(&results[i])
+		}
+	}
+
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
 	resp := output.Response[output.Result]{
-		Results: []output.Result{result},
+		Protocol:    output.ProtocolVersion,
+		Ok:          true,
+		Results:     results,
+		Suggestions: output.SuggestionsForDef(&result),
 		Meta: output.Meta{
 			Command:       "show",
 			Query:         map[string]string{"id": symbolID},
@@ -134,8 +152,10 @@ func runShow(cmd *cobra.Command, args []string) error {
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
-			Total:         1,
+			Total:         len(results),
 			TokenEstimate: tokenEstimate,
+			StaleFiles:    staleFiles,
+			Truncated:     tokenTruncated,
 		},
 	}
 
