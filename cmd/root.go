@@ -58,12 +58,15 @@ var rootCmd = &cobra.Command{
 	Short: "Code navigation CLI for LLMs",
 	Long: `snipe: Go code navigation for LLMs.
 
-  snipe              Show index status
-  snipe index        Build index (run first)
-  snipe Open         Look up symbol "Open"
-  snipe def Open     Jump to definition
-  snipe refs Open    Find references
-  snipe search TODO  Text search`,
+  snipe index              Build index (run first)
+  snipe def ProcessOrder   Jump to definition
+  snipe refs ProcessOrder  Find all references
+  snipe callers Handler    Who calls this?
+  snipe pack ProcessOrder  Everything about a symbol
+  snipe search "TODO"      Text search (no index needed)
+
+  snipe doctor             Check index health
+  snipe context --boot     LLM boot context`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set up context with signal handling for graceful cancellation
 		ctx := context.Background()
@@ -179,7 +182,11 @@ func init() {
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 
 	// Add command groups for 3-tier visibility
-	rootCmd.AddGroup(&cobra.Group{ID: "advanced", Title: "Advanced Commands:"})
+	rootCmd.AddGroup(
+		&cobra.Group{ID: "core", Title: "Core Commands:"},
+		&cobra.Group{ID: "index", Title: "Index Commands:"},
+		&cobra.Group{ID: "advanced", Title: "Advanced Commands:"},
+	)
 
 	rootCmd.PersistentFlags().BoolVar(&humanOutput, "human", false, "Pretty-print for debugging")
 	rootCmd.PersistentFlags().IntVar(&limit, "limit", 50, "Cap results")

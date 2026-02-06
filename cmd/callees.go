@@ -12,8 +12,9 @@ import (
 )
 
 var calleesCmd = &cobra.Command{
-	Use:   "callees [symbol|id]",
-	Short: "Find functions that a symbol calls",
+	Use:     "callees [symbol|id]",
+	Short:   "Find functions that a symbol calls",
+	GroupID: "core",
 	Long: `Finds all functions called by a given symbol.
 
 Accepts symbol name or 16-char hex ID (auto-detected).

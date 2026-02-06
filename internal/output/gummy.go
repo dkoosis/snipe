@@ -947,10 +947,15 @@ func WriteGummyStatus(out io.Writer, info GummyStatusInfo) {
 		stateColor.Sprint(info.State),
 		stateColor.Sprint(stateSymbol))
 
-	// If missing, show hint and return
+	// If missing, show quickstart and return
 	if info.State == "missing" {
 		w.blank()
-		fmt.Fprintf(out, "  %s Run: snipe index\n", gummyDim.Sprint(gummyArrow))
+		fmt.Fprintf(out, "  No index found. Get started:\n")
+		w.blank()
+		fmt.Fprintf(out, "    snipe index              %s\n", gummyDim.Sprint("Build index (~5s)"))
+		fmt.Fprintf(out, "    snipe def MyFunc         %s\n", gummyDim.Sprint("Jump to definition"))
+		fmt.Fprintf(out, "    snipe refs MyFunc        %s\n", gummyDim.Sprint("Find references"))
+		fmt.Fprintf(out, "    snipe search \"TODO\"      %s\n", gummyDim.Sprint("Text search (no index needed)"))
 		return
 	}
 

@@ -286,7 +286,7 @@ On error:
   "meta": { ... },
   "error": {
     "code": "MISSING_INDEX",
-    "message": "No index found. Run: snipe index",
+    "message": "No index found. Run 'snipe index' first to build it (takes ~5 seconds for most Go projects).",
     "next": { "command": "snipe index" }
   }
 }

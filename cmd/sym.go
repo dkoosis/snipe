@@ -23,8 +23,9 @@ var (
 )
 
 var symCmd = &cobra.Command{
-	Use:   "sym [symbol]",
-	Short: "Combined symbol query (def + refs + callers + callees)",
+	Use:     "sym [symbol]",
+	Short:   "Combined symbol query (def + refs + callers + callees)",
+	GroupID: "core",
 	Long: `Returns definition, references, callers, and callees in a single query.
 Matches go_symbol's single-call pattern for LLM integration.
 

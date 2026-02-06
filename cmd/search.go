@@ -14,8 +14,9 @@ import (
 var searchFile string
 
 var searchCmd = &cobra.Command{
-	Use:   "search <pattern>",
-	Short: "Text search via ripgrep",
+	Use:     "search <pattern>",
+	Short:   "Text search via ripgrep",
+	GroupID: "core",
 	Long: `Searches for a pattern using ripgrep. Works without an index.
 
 Examples:

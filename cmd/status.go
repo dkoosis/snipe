@@ -13,8 +13,9 @@ import (
 )
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show index status and statistics",
+	Use:     "status",
+	Short:   "Show index status and statistics",
+	GroupID: "index",
 	Long: `Shows the current state of the snipe index including:
 - Whether the index is fresh, stale, or missing
 - Git commit at time of indexing

@@ -25,8 +25,9 @@ var (
 )
 
 var packCmd = &cobra.Command{
-	Use:   "pack [symbol...]",
-	Short: "Full symbol profile: def + refs + callers + callees + role + purpose",
+	Use:     "pack [symbol...]",
+	Short:   "Full symbol profile: def + refs + callers + callees + role + purpose",
+	GroupID: "core",
 	Long: `Returns everything an LLM needs about a symbol in a single query.
 Combines definition, references, callers, callees, architectural role,
 relevance score, and purpose summary.

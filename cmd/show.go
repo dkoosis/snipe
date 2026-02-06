@@ -16,13 +16,15 @@ import (
 var showCmd = &cobra.Command{
 	Use:     "show <id>",
 	Short:   "Show symbol details by ID",
-	GroupID: "advanced",
-	Long: `Shows full details for a symbol given its ID.
+	GroupID: "core",
+	Long: `Shows full details for a symbol given its 16-char hex ID.
 
-Use this to expand deferred IDs from other command outputs.
+Use this to expand IDs from other command outputs — part of the
+hex-ID chaining workflow (def -> callers -> show).
 
 Examples:
-  snipe show abc123def456`,
+  snipe show a3f2c1de89ab0123              # Expand a result by ID
+  snipe show a3f2c1de89ab0123 --with-body  # Include function body`,
 	Args: cobra.ExactArgs(1),
 	RunE: runShow,
 }

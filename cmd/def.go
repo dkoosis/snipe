@@ -23,8 +23,9 @@ var (
 )
 
 var defCmd = &cobra.Command{
-	Use:   "def [symbol]",
-	Short: "Jump to symbol definition",
+	Use:     "def [symbol]",
+	Short:   "Jump to symbol definition",
+	GroupID: "core",
 	Long: `Finds the definition of a symbol by name or position.
 
 Scoped queries:
