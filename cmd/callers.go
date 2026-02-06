@@ -163,6 +163,7 @@ findCallers:
 			Range:      callRange,
 			Kind:       call.CallerKind,
 			Name:       call.CallerName,
+			Receiver:   call.CallerReceiver,
 			Match:      call.CallerSignature.String,
 			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callRange),
 		}

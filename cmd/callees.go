@@ -164,6 +164,7 @@ findCallees:
 			Range:      callSiteRange,
 			Kind:       call.CalleeKind,
 			Name:       call.CalleeName,
+			Receiver:   call.CalleeReceiver,
 			Match:      call.CalleeSignature.String,
 			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callSiteRange),
 		}

@@ -1,0 +1,588 @@
+# Snipe Localization Benchmark
+#
+# Measures: can snipe get an LLM agent to the right code in minimal calls?
+# Baseline: Grep + Glob + Read (the fallback stack)
+#
+# Scoring:
+#   hit@1:    first result contains a target symbol
+#   recall@N: all target symbols appear within top N results
+#   calls:    number of snipe invocations to find all targets
+#   baseline: number of Grep/Glob calls to achieve the same
+#
+# ============================================================
+# Related work / existing benchmarks
+# ============================================================
+#
+# Agentless (ICML 2024) — arxiv.org/abs/2407.01489
+#   Hierarchical localization: file → class/function → line.
+#   Evaluated on SWE-bench Lite (300 Python tasks from GitHub issues).
+#   Metrics: Top-N, MAP, MRR at each granularity level.
+#   Key finding: localization quality determines end-to-end fix rate.
+#   Limitation for us: Python only, SWE-bench tasks, no Go.
+#
+# LocAgent (ACL 2025) — aclanthology.org/2025.acl-long.426
+#   Graph-guided LLM agents for code localization.
+#   Introduced Loc-Bench: 660 tasks (282 bugs, 203 features, 31 security, 144 perf).
+#   Metrics: file-level accuracy (92.7%), function-level accuracy, NDCG.
+#   Uses directed heterogeneous code graph (files, classes, functions + deps).
+#   Closest to what we're doing — but evaluates the agent, not the tool.
+#
+# DeepCodeBench (Qodo, 2025) — qodo.ai/blog/deepcodebench
+#   Q&A benchmark from real PRs requiring multi-file retrieval.
+#   Metrics: "fact recall" (discrete verifiable facts in answer).
+#   Tests retrieval depth, not just localization.
+#   Best scores: ~76-80% fact recall. Claude ~64%.
+#
+# Jarmak (2026) — "Rethinking Coding Agent Benchmarks"
+#   Key insight: current benchmarks containerize full repos, so
+#   "grep is all you need" — doesn't test realistic retrieval.
+#   Proposes: stripped-docs Kubernetes as harder target, ablation
+#   studies with/without code intelligence tools (MCP).
+#   Metrics: IR metrics (MRR, precision, recall, NDCG) + pass@k.
+#   Pipeline: Harbor framework → SQLite metrics DB → analyzers.
+#
+# CrossCodeEval (NeurIPS 2023) — amazon-science/cceval
+#   Cross-file code completion requiring cross-file context.
+#   10k examples, 1k repos, 4 languages (no Go).
+#   Metrics: exact match, edit similarity, identifier match.
+#
+# How this benchmark differs:
+#   - Measures the TOOL (snipe), not the agent or LLM
+#   - Go-specific, uses real symbol resolution not text search
+#   - Baseline is grep+glob (the actual fallback), not "no tool"
+#   - Focuses on call efficiency (fewer round-trips = faster agent)
+#   - Reproducible without LLM: script snipe commands, check output
+
+# ============================================================
+# ORCA (medium codebase, ~30k LOC, MCP server + knowledge graph)
+# repo: github.com/anthropics/orca (or local)
+# ============================================================
+orca:
+  # --- def tasks (direct symbol lookup) ---
+
+  - id: orca-def-01
+    category: def
+    task: "Find the function that saves a nugget to the database"
+    commands: ["def Store.Save"]
+    expected_symbols:
+      - "Store.Save"  # internal/kg/sqlite/store.go:310
+    expected_files:
+      - "internal/kg/sqlite/store.go"
+    max_calls: 1
+    difficulty: easy
+    notes: "Exact symbol name. Should be a single call."
+
+  - id: orca-def-02
+    category: def
+    task: "Find how nugget IDs are generated"
+    commands: ["def nug.GenerateID"]
+    expected_symbols:
+      - "GenerateID"  # internal/kg/nug/id.go:16
+    expected_files:
+      - "internal/kg/nug/id.go"
+    max_calls: 1
+    difficulty: easy
+
+  - id: orca-def-03
+    category: def
+    task: "Find the nugget deduplication logic"
+    commands: ["def Deduplicator.CheckDuplicate"]
+    expected_symbols:
+      - "Deduplicator.CheckDuplicate"  # internal/kg/linker/dedup.go:67
+    expected_files:
+      - "internal/kg/linker/dedup.go"
+    max_calls: 1
+    difficulty: easy
+
+  # --- callers tasks (impact analysis) ---
+
+  - id: orca-callers-01
+    category: callers
+    task: "Find all code paths that save nuggets"
+    commands: ["callers Store.Save"]
+    expected_symbols:
+      - "Linker.Process"     # linker calls Save at end of pipeline
+      - "Service.SetNug"     # mgmt service calls Save
+    expected_files:
+      - "internal/kg/linker/linker.go"
+      - "internal/kg/mgmt/service.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Single callers call should surface all call sites."
+
+  - id: orca-callers-02
+    category: callers
+    task: "Find what triggers embedding computation"
+    commands: ["callers Embed"]
+    expected_symbols: []
+    expected_files:
+      - "internal/kg/"
+    max_calls: 2
+    difficulty: medium
+    notes: "Interface method — callers depend on how Embed is resolved. Expect any caller in kg."
+
+  - id: orca-callers-03
+    category: callers
+    task: "Find all places that call the LLM"
+    commands: ["callers Client.Reflect"]
+    expected_symbols: []
+    expected_files:
+      - "internal/kg/linker/"  # uses LLM for classification/enrichment
+      - "internal/kg/ner/"     # uses LLM for extraction
+    max_calls: 1
+    difficulty: medium
+    notes: "Critical for cost analysis — callers command returns calling functions, not the callee itself."
+
+  # --- pkg tasks (orientation / exploration) ---
+
+  - id: orca-pkg-01
+    category: pkg
+    task: "Understand the sqlite store's API surface"
+    commands: ["pkg internal/kg/sqlite"]
+    expected_symbols:
+      - "Store.Save"
+      - "Store.Delete"
+      - "Store.Get"
+      - "Store.Search"
+    expected_files:
+      - "internal/kg/sqlite/store.go"
+    max_calls: 1
+    difficulty: easy
+    notes: "Should return all exported methods grouped logically."
+
+  - id: orca-pkg-02
+    category: pkg
+    task: "Understand the MCP server's handler structure"
+    commands: ["pkg internal/mcp/server"]
+    expected_symbols:
+      - "Router"
+      - "RegisterKitTools"
+      - "registerTool"
+    expected_files:
+      - "internal/mcp/server/router.go"
+      - "internal/mcp/server/tool_registry.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Large package. Quality = can I identify the handler registration pattern?"
+
+  - id: orca-pkg-03
+    category: pkg
+    task: "Understand the linker pipeline architecture"
+    commands: ["pkg internal/kg/linker"]
+    expected_symbols:
+      - "Linker.Process"
+      - "Deduplicator.CheckDuplicate"
+      - "Classifier"
+    expected_files:
+      - "internal/kg/linker/linker.go"
+      - "internal/kg/linker/dedup.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Quality = do I understand the pipeline stages from the output?"
+
+  # --- search tasks (concept → symbol, hardest category) ---
+
+  - id: orca-search-01
+    category: search
+    task: "Find where FTS search queries are constructed"
+    commands: ["search 'FTS'", "search 'searchFTS'"]
+    expected_symbols:
+      - "Store.searchFTS"  # internal/kg/sqlite/store.go:457
+    expected_files:
+      - "internal/kg/sqlite/store.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "Agent knows the concept but not the symbol name."
+
+  - id: orca-search-02
+    category: search
+    task: "Find the mnemd daemon's processing loop"
+    commands: ["search 'processCycle'", "search 'mnemd'"]
+    expected_symbols:
+      - "Daemon.processCycle"  # internal/proc/mnemd/daemon.go:144
+      - "Daemon.Run"           # internal/proc/mnemd/daemon.go:95
+    expected_files:
+      - "internal/proc/mnemd/daemon.go"
+    max_calls: 2
+    difficulty: medium
+
+  - id: orca-search-03
+    category: search
+    task: "Find where vault markdown files are scanned and parsed"
+    commands: ["search 'ScanAll'", "search 'vault scan'"]
+    expected_symbols:
+      - "Scanner.ScanAll"      # internal/kg/vault/scanner.go:20
+      - "Scanner.ScanWithMeta" # internal/kg/vault/scanner.go:48
+    expected_files:
+      - "internal/kg/vault/scanner.go"
+    max_calls: 2
+    difficulty: medium
+
+  - id: orca-search-04
+    category: search
+    task: "Find the staleness/curation logic for nuggets"
+    commands: ["search 'staleness'", "search 'curation'"]
+    expected_symbols:
+      - "Checker.GetCurationHints"  # internal/kg/staleness/staleness.go:83
+      - "Checker.findStaleNuggets"  # internal/kg/staleness/staleness.go:121
+    expected_files:
+      - "internal/kg/staleness/staleness.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "Concept is vague — 'stale nuggets' could match many things."
+
+  # --- cross-cutting tasks (multi-step localization) ---
+
+  - id: orca-cross-01
+    category: cross-cutting
+    task: "Change the embedding dimension — find all places that need updating"
+    commands: ["def Embedder", "search 'dimension'", "search '1024'"]
+    expected_symbols:
+      - "Embedder"             # interface definition
+      - "VoyageEmbedder"       # implementation
+      - "maxEmbeddingTextLen"  # related constant
+    expected_files:
+      - "internal/kg/embedder/embedder.go"
+      - "internal/kg/embedder/voyage.go"
+    max_calls: 3
+    difficulty: hard
+    notes: "Requires finding interface + implementations + config constants."
+
+  - id: orca-cross-02
+    category: cross-cutting
+    task: "Trace a nugget through the full save pipeline: API → linker → store"
+    commands: ["def Service.SetNug", "callers Store.Save", "def Linker.Process"]
+    expected_symbols:
+      - "Service.SetNug"
+      - "Linker.Process"
+      - "Store.Save"
+    expected_files:
+      - "internal/kg/mgmt/service.go"
+      - "internal/kg/linker/linker.go"
+      - "internal/kg/sqlite/store.go"
+    max_calls: 3
+    difficulty: hard
+    notes: "End-to-end trace. Quality = can the agent reconstruct the data flow?"
+
+# ============================================================
+# CHI (small codebase, ~5k LOC, HTTP router)
+# repo: github.com/go-chi/chi
+# ============================================================
+chi:
+  - id: chi-def-01
+    category: def
+    task: "Find the main route matching logic"
+    commands: ["def Mux.routeHTTP"]
+    expected_symbols:
+      - "Mux.routeHTTP"
+    max_calls: 1
+    difficulty: easy
+
+  - id: chi-def-02
+    category: def
+    task: "Find how URL parameters are extracted from requests"
+    commands: ["def URLParam"]
+    expected_symbols:
+      - "URLParam"
+    max_calls: 1
+    difficulty: easy
+
+  - id: chi-callers-01
+    category: callers
+    task: "Find all places that add middleware to a router"
+    commands: ["callers Mux.Use"]
+    expected_symbols: []
+    expected_files:
+      - "mux.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Callers returns functions that call Use, not Use itself."
+
+  - id: chi-pkg-01
+    category: pkg
+    task: "Understand chi's public API surface"
+    commands: ["pkg chi"]
+    expected_symbols:
+      - "NewRouter"
+      - "Mux"
+      - "Route"
+      - "Get"
+      - "Post"
+      - "Use"
+      - "URLParam"
+    max_calls: 1
+    difficulty: easy
+    notes: "Small package. All exports should fit in one call."
+
+  - id: chi-search-01
+    category: search
+    task: "Find how chi builds its radix tree for route matching"
+    commands: ["search 'radix'", "search 'trie'", "search 'addChild'"]
+    expected_symbols:
+      - "node"           # tree node type
+      - "addChild"       # or insertRoute
+    expected_files:
+      - "tree.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "Concept-to-symbol. Agent knows 'radix tree' but not chi's internal names."
+
+  - id: chi-cross-01
+    category: cross-cutting
+    task: "Trace an HTTP request from ServeHTTP through route matching to handler execution"
+    commands: ["def Mux.ServeHTTP", "def Mux.routeHTTP", "callers routeHTTP"]
+    expected_symbols:
+      - "Mux.ServeHTTP"
+      - "Mux.routeHTTP"
+    max_calls: 3
+    difficulty: hard
+
+# ============================================================
+# COBRA (medium codebase, ~10k LOC, CLI framework)
+# repo: github.com/spf13/cobra
+# ============================================================
+cobra:
+  - id: cobra-def-01
+    category: def
+    task: "Find how a command is executed"
+    commands: ["def Command.Execute"]
+    expected_symbols:
+      - "Command.Execute"
+    max_calls: 1
+    difficulty: easy
+
+  - id: cobra-def-02
+    category: def
+    task: "Find how flags are parsed from arguments"
+    commands: ["def Command.ParseFlags"]
+    expected_symbols:
+      - "Command.ParseFlags"
+    max_calls: 1
+    difficulty: easy
+
+  - id: cobra-callers-01
+    category: callers
+    task: "Find all internal callers of command execution"
+    commands: ["callers Command.execute"]
+    expected_symbols:
+      - "Command.ExecuteC"  # public wrapper that calls execute
+    max_calls: 1
+    difficulty: medium
+
+  - id: cobra-search-01
+    category: search
+    task: "Find how shell completions are generated"
+    commands: ["search 'completion'", "search 'bash completion'"]
+    expected_symbols:
+      - "GenBashCompletion"
+      - "GenZshCompletion"
+    expected_files:
+      - "completions.go"
+      - "bash_completions.go"
+      - "zsh_completions.go"
+    max_calls: 2
+    difficulty: medium
+    notes: "Multiple files involved. Quality = does the agent find all completion backends?"
+
+  - id: cobra-search-02
+    category: search
+    task: "Find how help text is generated and customized"
+    commands: ["search 'HelpFunc'", "search 'UsageFunc'"]
+    expected_symbols:
+      - "Command.Help"
+      - "Command.HelpFunc"
+      - "Command.SetHelpFunc"
+      - "Command.UsageFunc"
+    max_calls: 2
+    difficulty: medium
+
+  - id: cobra-cross-01
+    category: cross-cutting
+    task: "Trace argument validation from user input to error"
+    commands: ["def Command.ValidateArgs", "search 'Args'", "def PositionalArgs"]
+    expected_symbols:
+      - "Command.ValidateArgs"
+      - "PositionalArgs"       # type for arg validators
+      - "MinimumNArgs"
+      - "ExactArgs"
+    max_calls: 3
+    difficulty: hard
+
+# ============================================================
+# BBOLT (small codebase, ~8k LOC, embedded key/value store)
+# repo: go.etcd.io/bbolt
+# ============================================================
+bbolt:
+  - id: bbolt-def-01
+    category: def
+    task: "Find how transactions are committed"
+    commands: ["def Tx.Commit"]
+    expected_symbols:
+      - "Tx.Commit"
+    max_calls: 1
+    difficulty: easy
+
+  - id: bbolt-def-02
+    category: def
+    task: "Find how buckets are created"
+    commands: ["def Bucket.CreateBucket"]
+    expected_symbols:
+      - "Bucket.CreateBucket"
+    max_calls: 1
+    difficulty: easy
+
+  - id: bbolt-callers-01
+    category: callers
+    task: "Find all code that allocates new pages"
+    commands: ["callers DB.allocate"]
+    expected_symbols:
+      - "Tx.Commit"     # triggers page allocation
+    max_calls: 1
+    difficulty: hard
+    notes: "Internal function. Tests whether callers resolves private methods."
+
+  - id: bbolt-search-01
+    category: search
+    task: "Find the B+ tree node splitting logic"
+    commands: ["search 'split'", "def node.split"]
+    expected_symbols:
+      - "node.split"
+      - "node.splitIndex"
+    expected_files:
+      - "node.go"
+    max_calls: 2
+    difficulty: medium
+    known_gap: true
+    notes: "Unexported methods on unexported types not resolvable by def."
+
+  - id: bbolt-search-02
+    category: search
+    task: "Find how the freelist tracks available pages"
+    commands: ["search 'freelist'", "def freelist.free"]
+    expected_symbols:
+      - "freelist"
+      - "freelist.free"
+      - "freelist.allocate"
+    expected_files:
+      - "freelist.go"
+    max_calls: 2
+    difficulty: medium
+    known_gap: true
+    notes: "Unexported methods on unexported types not resolvable by def."
+
+  - id: bbolt-cross-01
+    category: cross-cutting
+    task: "Trace a Put operation from API through B+ tree to disk write"
+    commands: ["def Bucket.Put", "def node.put", "callers node.spill"]
+    expected_symbols:
+      - "Bucket.Put"
+      - "node.put"
+      - "node.spill"
+      - "Tx.Commit"
+    max_calls: 3
+    difficulty: hard
+    known_gap: true
+    notes: "Full write path. node.put and node.spill are unexported methods on unexported types."
+
+# ============================================================
+# FZF (large codebase, ~20k LOC, fuzzy finder)
+# repo: github.com/junegunn/fzf
+# ============================================================
+fzf:
+  - id: fzf-def-01
+    category: def
+    task: "Find the core fuzzy matching algorithm"
+    commands: ["search 'FuzzyMatch'", "def FuzzyMatchV2"]
+    expected_symbols:
+      - "FuzzyMatchV2"
+    expected_files:
+      - "src/algo/algo.go"
+    max_calls: 2
+    difficulty: medium
+    notes: "Agent may not know the exact function name."
+
+  - id: fzf-search-01
+    category: search
+    task: "Find how terminal input events are processed"
+    commands: ["search 'Terminal'", "search 'Loop'"]
+    expected_symbols:
+      - "Terminal.Loop"
+    expected_files:
+      - "src/terminal.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "Large file, many methods. Quality = finding the main event loop."
+
+  - id: fzf-search-02
+    category: search
+    task: "Find how results are ranked and sorted"
+    commands: ["search 'rank'", "search 'byRelevance'"]
+    expected_symbols:
+      - "byRelevance"
+      - "Result"
+    max_calls: 2
+    difficulty: hard
+
+  - id: fzf-cross-01
+    category: cross-cutting
+    task: "Trace user input from keypress through matching to display"
+    commands: ["def Terminal.Loop", "search 'matcher'", "search 'printList'"]
+    expected_symbols:
+      - "Terminal.Loop"
+      - "FuzzyMatchV2"
+    max_calls: 4
+    difficulty: hard
+    notes: "End-to-end data flow across packages. Hardest localization task."
+
+# ============================================================
+# Scoring rubric
+# ============================================================
+#
+# Aligned with Agentless (ref:#379d10c): binary hit metrics at
+# file and symbol granularity predict downstream success better
+# than continuous metrics like MAP/MRR.
+#
+scoring:
+  # Primary metrics (binary, per-task)
+  file_accuracy:
+    description: "Did snipe output contain at least one expected_file? (binary)"
+    notes: "Maps to Agentless file-level % Correct Location"
+
+  symbol_accuracy:
+    description: "Did snipe output contain all expected_symbols? (binary)"
+    notes: "Maps to Agentless function-level % Correct Location"
+
+  call_efficiency:
+    description: "actual_calls <= max_calls (binary pass/fail)"
+    notes: "Unique to us — measures tool value vs grep baseline"
+
+  # Optional / secondary (compute but don't optimize for)
+  mrr:
+    description: "1/rank of first expected symbol in output"
+    notes: "Fine to report, but binary metrics are what correlate with solve rate"
+
+  # Aggregates
+  aggregates:
+    - name: "file_acc"
+      formula: "% of tasks where file_accuracy = true"
+      target: "> 90% (LocAgent achieves 92.7%)"
+    - name: "symbol_acc"
+      formula: "% of tasks where symbol_accuracy = true"
+      target: "> 75%"
+    - name: "efficiency"
+      formula: "% of tasks completed within max_calls"
+      target: "> 80%"
+    - name: "baseline_ratio"
+      formula: "avg(snipe_calls) / avg(grep_calls) for same localization"
+      target: "< 0.5 (snipe should be 2x fewer calls than grep)"
+
+# ============================================================
+# Task distribution (mirrors real usage)
+# ============================================================
+distribution:
+  def: 6          # ~25% — most common single call
+  callers: 5      # ~20% — impact analysis
+  pkg: 3          # ~12% — orientation
+  search: 8       # ~33% — concept-to-symbol, hardest
+  cross-cutting: 5 # ~20% — multi-step traces
+  # Total: 27 tasks across 5 codebases

@@ -655,6 +655,7 @@ type CallRow struct {
 	CallerFile      string // Absolute path
 	CallerFileRel   string // Relative path
 	CallerSignature sql.NullString
+	CallerReceiver  string // Receiver type for caller (e.g., "(*Server)")
 	CallerFileHash  string // Content hash for caller file
 	CalleeID        string
 	CalleeName      string
@@ -662,6 +663,7 @@ type CallRow struct {
 	CalleeFile      string // Absolute path
 	CalleeFileRel   string // Relative path
 	CalleeSignature sql.NullString
+	CalleeReceiver  string // Receiver type for callee (e.g., "(*Store)")
 	CalleeFileHash  string // Content hash for callee file
 	CallLine        int
 	CallCol         int
@@ -671,8 +673,8 @@ type CallRow struct {
 func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, error) {
 	rows, err := db.Query(`
 		SELECT
-			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, fc.hash,
-			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, fe.hash,
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, caller.receiver, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, callee.receiver, fe.hash,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -695,8 +697,8 @@ func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, error) {
 	rows, err := db.Query(`
 		SELECT
-			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, fc.hash,
-			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, fe.hash,
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, caller.receiver, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, callee.receiver, fe.hash,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -723,8 +725,8 @@ func FindCallersForType(db *sql.DB, typeName string, limit, offset int) ([]CallR
 
 	rows, err := db.Query(`
 		SELECT
-			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, fc.hash,
-			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, fe.hash,
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, caller.receiver, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, callee.receiver, fe.hash,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -753,8 +755,8 @@ func FindCalleesForType(db *sql.DB, typeName string, limit, offset int) ([]CallR
 
 	rows, err := db.Query(`
 		SELECT
-			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, fc.hash,
-			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, fe.hash,
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, caller.receiver, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, callee.receiver, fe.hash,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -813,10 +815,10 @@ func scanCallRows(rows *sql.Rows) ([]CallRow, error) {
 	var results []CallRow
 	for rows.Next() {
 		var r CallRow
-		var callerHash, calleeHash, callerFileRel, calleeFileRel sql.NullString
+		var callerHash, calleeHash, callerFileRel, calleeFileRel, callerReceiver, calleeReceiver sql.NullString
 		err := rows.Scan(
-			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &callerFileRel, &r.CallerSignature, &callerHash,
-			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &calleeFileRel, &r.CalleeSignature, &calleeHash,
+			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &callerFileRel, &r.CallerSignature, &callerReceiver, &callerHash,
+			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &calleeFileRel, &r.CalleeSignature, &calleeReceiver, &calleeHash,
 			&r.CallLine, &r.CallCol,
 		)
 		if err != nil {
@@ -824,6 +826,8 @@ func scanCallRows(rows *sql.Rows) ([]CallRow, error) {
 		}
 		r.CallerFileRel = callerFileRel.String
 		r.CalleeFileRel = calleeFileRel.String
+		r.CallerReceiver = callerReceiver.String
+		r.CalleeReceiver = calleeReceiver.String
 		r.CallerFileHash = callerHash.String
 		r.CalleeFileHash = calleeHash.String
 		results = append(results, r)

@@ -487,6 +487,7 @@ func buildCallerResults(db *sql.DB, symbolID string) ([]output.Result, []string)
 			Range:      callRange,
 			Kind:       call.CallerKind,
 			Name:       call.CallerName,
+			Receiver:   call.CallerReceiver,
 			Match:      call.CallerSignature.String,
 			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callRange),
 		})
@@ -523,6 +524,7 @@ func buildCalleeResults(db *sql.DB, symbolID string) ([]output.Result, []string)
 			Range:      callSiteRange,
 			Kind:       call.CalleeKind,
 			Name:       call.CalleeName,
+			Receiver:   call.CalleeReceiver,
 			Match:      call.CalleeSignature.String,
 			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callSiteRange),
 		})
@@ -559,6 +561,7 @@ func buildCallerResultsForType(db *sql.DB, typeName string) ([]output.Result, []
 			Range:      callRange,
 			Kind:       call.CallerKind,
 			Name:       call.CallerName,
+			Receiver:   call.CallerReceiver,
 			Match:      call.CallerSignature.String,
 			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callRange),
 		})
@@ -595,6 +598,7 @@ func buildCalleeResultsForType(db *sql.DB, typeName string) ([]output.Result, []
 			Range:      callSiteRange,
 			Kind:       call.CalleeKind,
 			Name:       call.CalleeName,
+			Receiver:   call.CalleeReceiver,
 			Match:      call.CalleeSignature.String,
 			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callSiteRange),
 		})
