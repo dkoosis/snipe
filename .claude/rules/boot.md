@@ -1,52 +1,44 @@
-sha: 3ac0dd0
-updated: 2026-02-06T21:00:00Z
-qa: skipped
-intent: fix snipe's presentation and synthesis layers — wave 1 first
+sha: 9fc3861
+updated: 2026-02-06T18:15:00Z
+qa: pass
+intent: fix snipe correctness for Claude — wave 2 first, presentation removed
 
-ready: implement wave 1 (presentation fixes) from docs/feedback/BENCHMARK.md
-- 3 rounds of LLM testing (fzf, vhs, chi) produced quality benchmark with scores
-- wave 1 is highest ROI — mechanical fixes that lift 3 commands from "broken" to 8-9/10
+ready: implement wave 2 (correctness fixes) from docs/feedback/BENCHMARK.md
+- wave 1 (presentation) eliminated — gummy.go deleted, --human removed, JSON-only now
+- wave 2 is now highest priority — these directly affect Claude's answers
 - plan first, then implement, then `mage qa`, then re-test with docs/feedback/TESTING_PROMPT.md
 
-wave 1 (presentation — do these first, in order):
-  1. human formatters for ExplainResult, TypesResult, EditResponse
-     - gummy.go has ZERO handling for these types — all show "1 items"
-     - ExplainResult: render purpose, mechanism steps, warnings, caller_context
-     - TypesResult: render method table with signatures
-     - EditResponse: render colored unified diff
-     - key file: internal/output/gummy.go (search for gummyBodyPreview to find existing renderers)
-     - types defined at: internal/output/types.go:468 (ExplainResult), types.go (TypesResult, EditResponse in cmd/edit.go)
-  2. body truncation threshold
-     - gummyBodyPreview = 15 at internal/output/gummy.go:26 — raise to 80
-     - no truncation when total results == 1
-     - ~20 LOC change
-  3. --human as TTY default
-     - isatty check on stdout in cmd/root.go GetOutputConfig
-     - JSON when piped, human when interactive
-     - ~15 LOC change
+north star: optimize snipe for Claude, not humans. JSON-only output.
 
-wave 2 (correctness — after wave 1):
-  4. pack on structs: aggregate method call graphs (cmd/pack.go:278, need FindMethodsOfType query)
-  5. pkg main resolution: resolve "main" and "." to correct pkg_path (internal/query/lookup.go:782)
-  6. boot context: type-aware scoring + exclude examples/ (internal/context/ranking.go, roles.go:179)
-  7. importers short name resolution (same pkg_path fix as #5)
+wave 2 (correctness — do these first, in order):
+  1. pkg main resolution: resolve "main" and "." to correct pkg_path
+     - avg score 3.3, lowest scoring command
+     - internal/query/lookup.go:782
+  2. pack on structs: aggregate method call graphs
+     - avg score 6.7, returns 0 callers/callees for types
+     - cmd/pack.go:278, need FindMethodsOfType query
+  3. boot context: type-aware scoring + exclude examples/
+     - avg score 6.0, Claude's orientation misses key types
+     - internal/context/ranking.go, roles.go:179
+  4. importers short name resolution (same pkg_path fix as #1)
 
 wave 3 (quality — after wave 2):
-  8. impl method-set matching (internal/query/lookup.go:756)
-  9. pkg grouping by kind (cmd/pkg.go)
-  10. --no-body struct fields (kind-aware flag behavior)
-  11. explain/types empty fallback
+  5. impl method-set matching (internal/query/lookup.go:756) — avg 5.5
+  6. pkg grouping by kind (cmd/pkg.go)
+  7. --no-body struct fields (kind-aware flag behavior)
+  8. explain/types empty fallback
 
 key docs:
-- docs/feedback/BENCHMARK.md — full benchmark with scores, dimensions, test proposals, telemetry design
+- docs/feedback/BENCHMARK.md — full benchmark with scores, dimensions, test proposals
 - docs/feedback/TESTING_PROMPT.md — structured testing prompt for next round
 
 done:
-- 3 rounds of LLM testing (fzf, vhs, chi) with structured testing prompt
-- analyzed all feedback, identified 12 issues, organized into 4 waves
-- created benchmark with command scores, quality dimensions, regression guards
-- designed passive telemetry (session.json extensions) and active feedback options
+- removed entire human output layer: gummy.go (1285 LOC), human.go (100 LOC)
+- removed --human flag, TTY auto-detect, fatih/color, golang.org/x/term deps
+- simplified Writer (2 params), GetOutputConfig (6 returns), JSON-only WriteResponse
+- reprioritized waves: correctness before presentation (Claude is the customer)
+- mage qa pass, 75 files changed, -7991 LOC
 
 prior-session:
-- --help grouping, README rewrite, first-run UX
-- incremental indexing, version contract, suggestions, token budget, hex IDs
+- 3 rounds LLM testing, benchmark with scores, wave plan
+- --help grouping, README rewrite, incremental indexing, hex IDs
