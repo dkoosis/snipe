@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/index"
+
 	"modernc.org/sqlite"
 )
 
@@ -188,7 +189,7 @@ func preserveEmbeddings(tx *sql.Tx) (int64, error) {
 
 // restoreEmbeddings restores embeddings from temp table for symbols that still exist.
 // Returns the number of embeddings restored.
-func restoreEmbeddings(tx *sql.Tx) (int64, error) { //nolint:unparam // error kept for API consistency with preserveEmbeddings
+func restoreEmbeddings(tx *sql.Tx) (int64, error) {
 	// Restore embeddings for symbols that exist in the new index
 	result, err := tx.Exec(`
 		INSERT OR IGNORE INTO embeddings (symbol_id, embedding, model, created_at)
@@ -243,7 +244,7 @@ func preserveSymbolPurposes(tx *sql.Tx) (int64, error) {
 
 // restoreSymbolPurposes restores symbol purposes from temp table for symbols that still exist.
 // Returns the number of purposes restored.
-func restoreSymbolPurposes(tx *sql.Tx) (int64, error) { //nolint:unparam // error kept for API consistency
+func restoreSymbolPurposes(tx *sql.Tx) (int64, error) {
 	// Restore purposes for symbols that exist in the new index
 	result, err := tx.Exec(`
 		INSERT OR IGNORE INTO symbol_purposes (symbol_id, purpose, content_hash, model, generated_at)

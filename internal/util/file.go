@@ -36,15 +36,15 @@ func NewFileCache(maxFiles int) *FileCache {
 
 // LoadLines reads a file and returns its lines, using cache if available.
 func (fc *FileCache) LoadLines(path string) ([]string, error) {
-	// Check cache first
-	fc.mu.RLock()
+	// Check cache first (write lock needed to update accessTime)
+	fc.mu.Lock()
 	if cached, ok := fc.cache[path]; ok {
 		cached.accessTime = time.Now()
 		lines := cached.lines
-		fc.mu.RUnlock()
+		fc.mu.Unlock()
 		return lines, nil
 	}
-	fc.mu.RUnlock()
+	fc.mu.Unlock()
 
 	// Read file
 	lines, err := LoadFileLines(path)

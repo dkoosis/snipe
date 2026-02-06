@@ -15,5 +15,12 @@ bin/
 .vscode/
 *.swp
 
+# macOS
+.DS_Store
+
 # Test artifacts
 coverage.out
+
+# Eval benchmark repos and results
+.eval-repos/
+docs/eval/EVAL_RESULTS.json

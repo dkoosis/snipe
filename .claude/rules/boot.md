@@ -1,44 +1,37 @@
-sha: 9fc3861
-updated: 2026-02-06T18:15:00Z
-qa: pass
-intent: fix snipe correctness for Claude — wave 2 first, presentation removed
+sha: 3bdd0fa
+updated: 2026-02-07T00:35:00Z
+qa: pass (@ 3bdd0fa + local fixes)
+intent: use trustworthy benchmark to improve snipe's localization accuracy
 
-ready: implement wave 2 (correctness fixes) from docs/feedback/BENCHMARK.md
-- wave 1 (presentation) eliminated — gummy.go deleted, --human removed, JSON-only now
-- wave 2 is now highest priority — these directly affect Claude's answers
-- plan first, then implement, then `mage qa`, then re-test with docs/feedback/TESTING_PROMPT.md
+ready: analyze benchmark failures and improve snipe output quality
+  - harness is now trustworthy: every FAIL = real snipe limitation
+  - baseline: 55.9% symbol accuracy on 34 scored tasks, 3 known gaps excluded
+  - targets: file >90%, symbol >75%, efficiency >80% (currently 85/56/97)
+  - run: `mage Eval` to benchmark, results in docs/eval/EVAL_RESULTS.json
+  - diff: docs/eval/task_status.txt tracks PASS/FAIL changes between runs
+  - failure categories to investigate:
+    - callers: file-miss on orca callers (3/6 fail) — check symbol resolution
+    - search: qualified symbol matching misses (Daemon.Run, Scanner.ScanWithMeta)
+    - pkg: orca pkg tasks missing symbols (Router, registerTool, Classifier)
+    - cross-cutting: multi-step trace gaps (VoyageEmbedder, maxEmbeddingTextLen)
+  - approach: pick highest-impact category, fix snipe, re-benchmark, iterate
 
-north star: optimize snipe for Claude, not humans. JSON-only output.
+key context:
+  - benchmark YAML: docs/eval/benchmark.yaml (37 tasks, 5 repos)
+  - scoring logic: test/eval/score.go (known_gap, candidate promotion, two-pronged matching)
+  - task status: docs/eval/task_status.txt (per-task PASS/FAIL/SKIP)
+  - eval results: docs/eval/EVAL_RESULTS.json (full JSON report)
+  - Agentless paper: https://arxiv.org/abs/2407.01489 (localization metrics)
 
-wave 2 (correctness — do these first, in order):
-  1. pkg main resolution: resolve "main" and "." to correct pkg_path
-     - avg score 3.3, lowest scoring command
-     - internal/query/lookup.go:782
-  2. pack on structs: aggregate method call graphs
-     - avg score 6.7, returns 0 callers/callees for types
-     - cmd/pack.go:278, need FindMethodsOfType query
-  3. boot context: type-aware scoring + exclude examples/
-     - avg score 6.0, Claude's orientation misses key types
-     - internal/context/ranking.go, roles.go:179
-  4. importers short name resolution (same pkg_path fix as #1)
-
-wave 3 (quality — after wave 2):
-  5. impl method-set matching (internal/query/lookup.go:756) — avg 5.5
-  6. pkg grouping by kind (cmd/pkg.go)
-  7. --no-body struct fields (kind-aware flag behavior)
-  8. explain/types empty fallback
-
-key docs:
-- docs/feedback/BENCHMARK.md — full benchmark with scores, dimensions, test proposals
-- docs/feedback/TESTING_PROMPT.md — structured testing prompt for next round
-
-done:
-- removed entire human output layer: gummy.go (1285 LOC), human.go (100 LOC)
-- removed --human flag, TTY auto-detect, fatih/color, golang.org/x/term deps
-- simplified Writer (2 params), GetOutputConfig (6 returns), JSON-only WriteResponse
-- reprioritized waves: correctness before presentation (Claude is the customer)
-- mage qa pass, 75 files changed, -7991 LOC
+done (this session):
+- merged PRs #89 (concurrency review), #90 (KG hint tests), #91 (SQLite hardening)
+- fixed race condition: RLock -> Lock for accessTime write in internal/util/file.go
+- fixed lint: import grouping and stale nolint directives in internal/store/write.go
+- added eval harness targets (mage EvalSetup, mage Eval)
+- cleanup: stale docs, .DS_Store in gitignore, remote branch prune
+- mage qa: all green (370 tests, 0 races, 0 vulns, 0 lint issues)
 
 prior-session:
-- 3 rounds LLM testing, benchmark with scores, wave plan
-- --help grouping, README rewrite, incremental indexing, hex IDs
+- eval harness: receiver on callers/callees, scoring fixes, YAML corrections
+- established quality direction, researched Agentless/SWE-bench benchmarks
+- wave 2 correctness fixes, removed human output layer (-7991 LOC)

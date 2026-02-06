@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -254,6 +255,67 @@ func Trend() error {
 	}
 
 	return nil
+}
+
+// EvalSetup clones benchmark repos and indexes them for eval.
+func EvalSetup() error {
+	fmt.Println("→ Setting up eval repos...")
+
+	// Build snipe first
+	if err := os.MkdirAll("bin", 0o755); err != nil {
+		return err
+	}
+	if err := sh.Run("go", "build", "-o", "bin/snipe", "."); err != nil {
+		return fmt.Errorf("build snipe: %w", err)
+	}
+	snipeBin, _ := filepath.Abs("bin/snipe")
+
+	evalDir := ".eval-repos"
+	if err := os.MkdirAll(evalDir, 0o755); err != nil {
+		return err
+	}
+
+	repos := []struct {
+		Name string
+		URL  string
+	}{
+		{"chi", "https://github.com/go-chi/chi"},
+		{"cobra", "https://github.com/spf13/cobra"},
+		{"bbolt", "https://github.com/etcd-io/bbolt"},
+		{"fzf", "https://github.com/junegunn/fzf"},
+	}
+
+	for _, r := range repos {
+		dir := filepath.Join(evalDir, r.Name)
+		if _, err := os.Stat(dir); err == nil {
+			fmt.Printf("  %s: already cloned\n", r.Name)
+		} else {
+			fmt.Printf("  %s: cloning...\n", r.Name)
+			if err := sh.Run("git", "clone", "--depth=1", r.URL, dir); err != nil {
+				fmt.Printf("  %s: clone failed: %v\n", r.Name, err)
+				continue
+			}
+		}
+
+		// Index with snipe
+		fmt.Printf("  %s: indexing...\n", r.Name)
+		absDir, _ := filepath.Abs(dir)
+		cmd := exec.Command(snipeBin, "index", absDir, "--enrich=false", "--embed-mode=off")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("  %s: index failed: %v\n", r.Name, err)
+			continue
+		}
+		fmt.Printf("  %s: ready\n", r.Name)
+	}
+
+	return nil
+}
+
+// Eval runs the localization benchmark.
+func Eval() error {
+	return sh.RunV("go", "test", "-v", "-tags=eval", "-run", "TestEval", "-timeout=10m", "./test/eval/")
 }
 
 // Metrics shows 30-day performance and quality metrics with sparklines.
