@@ -1,16 +1,17 @@
-sha: pending
-updated: 2026-02-05T23:00:00Z
+sha: 3dbad39
+updated: 2026-02-06T00:30:00Z
 qa: pass
 intent: make go_symbol delegate find operations to snipe CLI
 
-ready: Phase 0 of peppy-singing-valley — version contract
+ready: Phase 0 complete, merged to main
 - plan at .claude/plans/peppy-singing-valley.md
 - Phase 0 deliverables: all complete (version --json, ProtocolVersion, busy_timeout, StaleFiles)
-- quality plan (phases 1-2) complete — all 8 commits landed on feat/version-contract
+- quality plan (phases 1-2) complete — 10 commits merged to main via feat/version-contract
 - Phase 3 (context.Context in query layer) deferred to separate feat/query-context branch
-- next: merge feat/version-contract to main, begin Phase 1 (snipe-first delegation in orca)
+- next: begin Phase 1 (snipe-first delegation in orca)
 
 done:
+- merged feat/version-contract to main (10 commits), deleted branch
 - feat: wire suggestions in 7 commands (def, show, refs, callers, callees, search) + SuggestionsForCallees
 - feat: token budget (--max-tokens) in def and show commands
 - feat: hex ID auto-detection in refs and impl commands
