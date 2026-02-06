@@ -2,6 +2,7 @@ package query
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -88,7 +89,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 		return symbolID, nil
 	}
 
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("query symbols by name position: %w", err)
 	}
 
@@ -104,7 +105,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 		return symbolID, nil
 	}
 
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("query refs: %w", err)
 	}
 
@@ -120,7 +121,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 		return symbolID, nil
 	}
 
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("query symbols by name line: %w", err)
 	}
 
@@ -136,7 +137,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 		return symbolID, nil
 	}
 
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("query refs by line: %w", err)
 	}
 
@@ -152,7 +153,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 		return symbolID, nil
 	}
 
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("query symbols: %w", err)
 	}
 
@@ -165,7 +166,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 		LIMIT 1
 	`, pos.File, pos.Line, pos.Line).Scan(&symbolID)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("no symbol found at %s:%d:%d", pos.File, pos.Line, pos.Col)
 	}
 

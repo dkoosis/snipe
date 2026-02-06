@@ -2,6 +2,7 @@ package query
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,7 +43,7 @@ func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 	`, id).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &filePathRel, &pkgPath, &s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
 		&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

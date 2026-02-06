@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/index"
+	"modernc.org/sqlite"
 )
 
 // toRelPath converts an absolute file path to a repo-relative path.
@@ -139,19 +141,16 @@ func truncateTables(tx *sql.Tx) error {
 	if _, err := tx.Exec("DELETE FROM call_graph"); err != nil {
 		return fmt.Errorf("truncate call_graph: %w", err)
 	}
-	if _, err := tx.Exec("DELETE FROM imports"); err != nil {
-		// Ignore if table doesn't exist (backwards compatibility)
-		_ = err
+	if err := deleteOptionalTable(tx, "imports"); err != nil {
+		return err
 	}
 	// Delete embeddings (they'll be restored from temp table after symbols are inserted)
-	if _, err := tx.Exec("DELETE FROM embeddings"); err != nil {
-		// Ignore if table doesn't exist (backwards compatibility)
-		_ = err
+	if err := deleteOptionalTable(tx, "embeddings"); err != nil {
+		return err
 	}
 	// Delete symbol_purposes (enrichment data) - will be regenerated
-	if _, err := tx.Exec("DELETE FROM symbol_purposes"); err != nil {
-		// Ignore if table doesn't exist (backwards compatibility)
-		_ = err
+	if err := deleteOptionalTable(tx, "symbol_purposes"); err != nil {
+		return err
 	}
 	if _, err := tx.Exec("DELETE FROM symbols"); err != nil {
 		return fmt.Errorf("truncate symbols: %w", err)
@@ -168,8 +167,10 @@ func preserveEmbeddings(tx *sql.Tx) (int64, error) {
 		SELECT symbol_id, embedding, model, created_at FROM embeddings WHERE 1=0
 	`)
 	if err != nil {
-		// embeddings table might not exist - that's OK
-		return 0, nil //nolint:nilerr // Graceful degradation when embeddings table doesn't exist
+		if isNoSuchTableErr(err, "embeddings") {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("create preserved_embeddings temp table: %w", err)
 	}
 
 	// Copy current embeddings to temp table
@@ -196,14 +197,18 @@ func restoreEmbeddings(tx *sql.Tx) (int64, error) { //nolint:unparam // error ke
 		WHERE p.symbol_id IN (SELECT id FROM symbols)
 	`)
 	if err != nil {
-		// Temp table might not exist (no embeddings to preserve)
-		return 0, nil //nolint:nilerr // Graceful degradation when no embeddings to restore
+		if isNoSuchTableErr(err, "preserved_embeddings") {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("restore embeddings: %w", err)
 	}
 
 	count, _ := result.RowsAffected()
 
 	// Clean up temp table
-	_, _ = tx.Exec("DROP TABLE IF EXISTS preserved_embeddings")
+	if _, err := tx.Exec("DROP TABLE IF EXISTS preserved_embeddings"); err != nil {
+		return 0, fmt.Errorf("drop preserved_embeddings temp table: %w", err)
+	}
 
 	return count, nil
 }
@@ -217,8 +222,10 @@ func preserveSymbolPurposes(tx *sql.Tx) (int64, error) {
 		SELECT symbol_id, purpose, content_hash, model, generated_at FROM symbol_purposes WHERE 1=0
 	`)
 	if err != nil {
-		// symbol_purposes table might not exist - that's OK
-		return 0, nil //nolint:nilerr // Graceful degradation when table doesn't exist
+		if isNoSuchTableErr(err, "symbol_purposes") {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("create preserved_purposes temp table: %w", err)
 	}
 
 	// Copy current purposes to temp table
@@ -245,14 +252,18 @@ func restoreSymbolPurposes(tx *sql.Tx) (int64, error) { //nolint:unparam // erro
 		WHERE p.symbol_id IN (SELECT id FROM symbols)
 	`)
 	if err != nil {
-		// Temp table might not exist (no purposes to preserve)
-		return 0, nil //nolint:nilerr // Graceful degradation when no purposes to restore
+		if isNoSuchTableErr(err, "preserved_purposes") {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("restore symbol purposes: %w", err)
 	}
 
 	count, _ := result.RowsAffected()
 
 	// Clean up temp table
-	_, _ = tx.Exec("DROP TABLE IF EXISTS preserved_purposes")
+	if _, err := tx.Exec("DROP TABLE IF EXISTS preserved_purposes"); err != nil {
+		return 0, fmt.Errorf("drop preserved_purposes temp table: %w", err)
+	}
 
 	return count, nil
 }
@@ -456,7 +467,7 @@ func (s *Store) GetAllFiles() (map[string]index.FileInfo, error) {
 	for rows.Next() {
 		var f index.FileInfo
 		if err := rows.Scan(&f.Path, &f.Mtime, &f.Hash); err != nil {
-			continue
+			return nil, fmt.Errorf("scan file row: %w", err)
 		}
 		files[f.Path] = f
 	}
@@ -467,7 +478,7 @@ func (s *Store) GetAllFiles() (map[string]index.FileInfo, error) {
 func (s *Store) GetFileHash(path string) (string, error) {
 	var hash string
 	err := s.db.QueryRow(`SELECT hash FROM files WHERE path = ?`, path).Scan(&hash)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	if err != nil {
@@ -504,15 +515,22 @@ func (s *Store) WriteIndexIncremental(
 	}
 	incCount++
 
+	conn, err := s.db.Conn(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("acquire connection: %w", err)
+	}
+	defer conn.Close()
+
 	// Disable FK constraints (must be outside transaction in SQLite)
-	if _, err := s.db.Exec("PRAGMA foreign_keys=OFF"); err != nil {
+	if _, err := conn.ExecContext(context.Background(), "PRAGMA foreign_keys=OFF"); err != nil {
 		return nil, fmt.Errorf("disable FK: %w", err)
 	}
+	defer func() {
+		_, _ = conn.ExecContext(context.Background(), "PRAGMA foreign_keys=ON")
+	}()
 
-	tx, err := s.db.Begin()
+	tx, err := conn.BeginTx(context.Background(), nil)
 	if err != nil {
-		// Re-enable FK on error
-		_, _ = s.db.Exec("PRAGMA foreign_keys=ON")
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() {
@@ -574,20 +592,22 @@ func (s *Store) WriteIndexIncremental(
 	}
 
 	if err := tx.Commit(); err != nil {
-		_, _ = s.db.Exec("PRAGMA foreign_keys=ON")
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	// Re-enable FK constraints (outside transaction)
-	_, _ = s.db.Exec("PRAGMA foreign_keys=ON")
-
 	// Count orphaned refs (outside transaction)
 	var orphanCount int
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`).Scan(&orphanCount)
+	if err := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`).Scan(&orphanCount); err != nil {
+		return nil, fmt.Errorf("count orphaned refs: %w", err)
+	}
 
 	// Store incremental metadata
-	_ = s.SetMeta("orphaned_refs", fmt.Sprintf("%d", orphanCount))
-	_ = s.SetMeta("incremental_count", fmt.Sprintf("%d", incCount))
+	if _, err := conn.ExecContext(context.Background(), `INSERT OR REPLACE INTO meta (key, value) VALUES ('orphaned_refs', ?)`, fmt.Sprintf("%d", orphanCount)); err != nil {
+		return nil, fmt.Errorf("set orphaned_refs: %w", err)
+	}
+	if _, err := conn.ExecContext(context.Background(), `INSERT OR REPLACE INTO meta (key, value) VALUES ('incremental_count', ?)`, fmt.Sprintf("%d", incCount)); err != nil {
+		return nil, fmt.Errorf("set incremental_count: %w", err)
+	}
 
 	return &IncrementalResult{
 		OrphanedRefs:     orphanCount,
@@ -634,7 +654,7 @@ func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []stri
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			continue
+			return fmt.Errorf("scan symbol id: %w", err)
 		}
 		ids = append(ids, id)
 	}
@@ -657,7 +677,7 @@ func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []stri
 		for rows2.Next() {
 			var id string
 			if err := rows2.Scan(&id); err != nil {
-				continue
+				return fmt.Errorf("scan relative symbol id: %w", err)
 			}
 			ids = append(ids, id)
 		}
@@ -680,6 +700,25 @@ func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []stri
 	delQuery := fmt.Sprintf("%s (%s)", deleteQuery, strings.Join(idPlaceholders, ",")) // #nosec G201 -- query parts are hardcoded
 	_, err = tx.Exec(delQuery, idArgs...)
 	return err
+}
+
+func deleteOptionalTable(tx *sql.Tx, table string) error {
+	_, err := tx.Exec("DELETE FROM " + table)
+	if err == nil {
+		return nil
+	}
+	if isNoSuchTableErr(err, table) {
+		return nil
+	}
+	return fmt.Errorf("truncate %s: %w", table, err)
+}
+
+func isNoSuchTableErr(err error, table string) bool {
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+	return strings.Contains(strings.ToLower(sqliteErr.Error()), "no such table: "+strings.ToLower(table))
 }
 
 // GetStats returns index statistics

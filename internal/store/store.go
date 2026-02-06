@@ -38,11 +38,19 @@ func Open(path string) (*Store, error) {
 		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("enable WAL mode: %w", err)
 	}
+	if err := verifyPragmaString(db, "journal_mode", "wal"); err != nil {
+		_ = db.Close() // G104: cleanup on error path
+		return nil, err
+	}
 
 	// Balance durability and latency for WAL workloads
 	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
 		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("set synchronous: %w", err)
+	}
+	if err := verifyPragmaInt(db, "synchronous", 1); err != nil {
+		_ = db.Close() // G104: cleanup on error path
+		return nil, err
 	}
 
 	// Keep temporary data in memory for speed
@@ -50,17 +58,29 @@ func Open(path string) (*Store, error) {
 		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("set temp_store: %w", err)
 	}
+	if err := verifyPragmaInt(db, "temp_store", 2); err != nil {
+		_ = db.Close() // G104: cleanup on error path
+		return nil, err
+	}
 
 	// Set busy timeout to avoid "database is locked" errors during concurrent access
 	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
 		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("set busy_timeout: %w", err)
 	}
+	if err := verifyPragmaInt(db, "busy_timeout", 5000); err != nil {
+		_ = db.Close() // G104: cleanup on error path
+		return nil, err
+	}
 
 	// Enable foreign keys
 	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
+	}
+	if err := verifyPragmaInt(db, "foreign_keys", 1); err != nil {
+		_ = db.Close() // G104: cleanup on error path
+		return nil, err
 	}
 
 	// Limit connections to avoid lock contention
@@ -127,4 +147,26 @@ func AcquireLock(dbPath string) error {
 // ReleaseLock removes the lock file
 func ReleaseLock(dbPath string) error {
 	return os.Remove(LockPath(dbPath))
+}
+
+func verifyPragmaString(db *sql.DB, pragma, want string) error {
+	var got string
+	if err := db.QueryRow("PRAGMA " + pragma).Scan(&got); err != nil {
+		return fmt.Errorf("verify %s pragma: %w", pragma, err)
+	}
+	if got != want {
+		return fmt.Errorf("verify %s pragma: got %q, want %q", pragma, got, want)
+	}
+	return nil
+}
+
+func verifyPragmaInt(db *sql.DB, pragma string, want int) error {
+	var got int
+	if err := db.QueryRow("PRAGMA " + pragma).Scan(&got); err != nil {
+		return fmt.Errorf("verify %s pragma: %w", pragma, err)
+	}
+	if got != want {
+		return fmt.Errorf("verify %s pragma: got %d, want %d", pragma, got, want)
+	}
+	return nil
 }

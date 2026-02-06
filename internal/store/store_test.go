@@ -251,6 +251,49 @@ func TestAcquireLockTwiceFails(t *testing.T) {
 	}
 }
 
+func TestOpenSetsPragmas(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "pragmas.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	var mode string
+	if err := s.DB().QueryRow("PRAGMA journal_mode").Scan(&mode); err != nil {
+		t.Fatalf("PRAGMA journal_mode query failed: %v", err)
+	}
+	if mode != "wal" {
+		t.Errorf("journal_mode = %q, want wal", mode)
+	}
+
+	var synchronous int
+	if err := s.DB().QueryRow("PRAGMA synchronous").Scan(&synchronous); err != nil {
+		t.Fatalf("PRAGMA synchronous query failed: %v", err)
+	}
+	if synchronous != 1 {
+		t.Errorf("synchronous = %d, want 1", synchronous)
+	}
+
+	var tempStore int
+	if err := s.DB().QueryRow("PRAGMA temp_store").Scan(&tempStore); err != nil {
+		t.Fatalf("PRAGMA temp_store query failed: %v", err)
+	}
+	if tempStore != 2 {
+		t.Errorf("temp_store = %d, want 2", tempStore)
+	}
+
+	var foreignKeys int
+	if err := s.DB().QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+		t.Fatalf("PRAGMA foreign_keys query failed: %v", err)
+	}
+	if foreignKeys != 1 {
+		t.Errorf("foreign_keys = %d, want 1", foreignKeys)
+	}
+}
+
 func TestBusyTimeoutPragma(t *testing.T) {
 	// Verify busy_timeout is set
 	dir := t.TempDir()
