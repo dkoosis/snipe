@@ -29,6 +29,12 @@ const (
 	RoleInternal Role = "internal"
 )
 
+// Symbol kind constants used for role inference.
+const (
+	kindFunc   = "func"
+	kindMethod = "method"
+)
+
 // Visibility represents the export status of a symbol.
 type Visibility string
 
@@ -177,7 +183,7 @@ func isEntryPoint(db *sql.DB, symbolID, name, kind, pkgPath string) bool {
 	}
 
 	// Check if this is a RunE method (cobra command)
-	if name == "RunE" && kind == "method" {
+	if name == "RunE" && kind == kindMethod {
 		return true
 	}
 
@@ -200,7 +206,7 @@ func isEntryPoint(db *sql.DB, symbolID, name, kind, pkgPath string) bool {
 	}
 
 	// Check for cobra Execute patterns (often called from main)
-	if name == "Execute" && kind == "method" {
+	if name == "Execute" && kind == kindMethod {
 		return true
 	}
 
@@ -380,6 +386,18 @@ func isInternal(db *sql.DB, symbolID, name, pkgPath string) bool {
 
 	// Internal if all callers are from same package
 	return samePkgCallers == totalCallers
+}
+
+// InferRoleForSymbol returns the role for a single symbol without scanning the entire DB.
+func InferRoleForSymbol(db *sql.DB, symbolID, name, kind, signature, pkgPath, filePath string) Role {
+	// Only classify funcs and methods; types/vars don't have meaningful roles yet
+	if kind != kindFunc && kind != kindMethod {
+		if inferVisibility(name) == VisibilityPackagePrivate {
+			return RoleInternal
+		}
+		return RoleAPIBoundary
+	}
+	return inferRole(db, symbolID, name, kind, signature, pkgPath)
 }
 
 // InferRolesSummary returns a summary of role counts for the repository.

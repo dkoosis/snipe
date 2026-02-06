@@ -21,6 +21,32 @@ func (w *Writer) writeSymHuman(resp Response[SymResult]) error {
 	return writeSymHumanNew(w.out, resp)
 }
 
+// writePackHuman writes a pack command result in human-readable format.
+// Reuses sym human output since PackResult embeds the same structure.
+func (w *Writer) writePackHuman(resp Response[PackResult]) error {
+	if len(resp.Results) == 0 || resp.Results[0].Definition == nil {
+		return w.writeJSON(resp)
+	}
+	pack := resp.Results[0]
+	symResp := Response[SymResult]{
+		Protocol: resp.Protocol,
+		Ok:       resp.Ok,
+		Results: []SymResult{{
+			Definition:  pack.Definition,
+			References:  pack.References,
+			Callers:     pack.Callers,
+			Callees:     pack.Callees,
+			RefCount:    pack.RefCount,
+			CallerCount: pack.CallerCount,
+			CalleeCount: pack.CalleeCount,
+		}},
+		Meta:        resp.Meta,
+		Error:       resp.Error,
+		Suggestions: resp.Suggestions,
+	}
+	return writeSymHumanNew(w.out, symResp)
+}
+
 // StatusInfo holds information for the status command.
 type StatusInfo struct {
 	State       IndexState

@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
@@ -108,6 +109,13 @@ func runShow(cmd *cobra.Command, args []string) error {
 		if err := output.AddContext(&result, contextLines); err != nil {
 			degraded = append(degraded, "context_extraction_failed")
 		}
+	}
+
+	// Add role classification in detailed format
+	if GetResponseFormat() == FormatDetailed {
+		role := ctxpkg.InferRoleForSymbol(s.DB(), sym.ID, sym.Name, sym.Kind,
+			sym.Signature.String, sym.PkgPath, sym.FilePath)
+		result.Role = string(role)
 	}
 
 	// Add sibling declarations if requested

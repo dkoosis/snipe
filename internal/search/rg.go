@@ -41,8 +41,9 @@ type RgSubmatch struct {
 	End   int `json:"end"`
 }
 
-// Search runs ripgrep and returns formatted results
-func Search(dir, pattern string, limit, contextLines int) ([]output.Result, error) {
+// Search runs ripgrep and returns formatted results.
+// Optional globs are passed as --glob flags to rg (e.g., "*.go", "store.go").
+func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]output.Result, error) {
 	// Check if rg is available
 	if _, err := exec.LookPath("rg"); err != nil {
 		return nil, fmt.Errorf("ripgrep (rg) not found: install from https://github.com/BurntSushi/ripgrep")
@@ -63,6 +64,13 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 	excludes := []string{"vendor", "node_modules", ".git", "testdata"}
 	for _, ex := range excludes {
 		args = append(args, "--glob", "!"+ex)
+	}
+
+	// Add include globs if specified
+	for _, g := range globs {
+		if g != "" {
+			args = append(args, "--glob", g)
+		}
 	}
 
 	args = append(args, pattern, dir)

@@ -194,6 +194,10 @@ findCallees:
 	// Deduplicate degraded messages
 	degraded = uniqueStrings(degraded)
 
+	// Score, sort, and apply selection
+	output.ScoreAndSort(results, symName)
+	results = ApplySelection(results)
+
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false

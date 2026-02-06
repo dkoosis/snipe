@@ -35,6 +35,9 @@ var (
 	// KG integration
 	withKGHints bool
 
+	// Selection mode for multi-result commands
+	selectMode string
+
 	// Caller passthrough for correlation
 	caller    string
 	requestID string
@@ -151,8 +154,8 @@ var knownSubcommands = map[string]bool{
 	"search": true, "show": true, "sym": true, "status": true,
 	// Analysis commands
 	"impl": true, "types": true, "imports": true, "importers": true, "pkg": true,
-	// Edit and explain
-	"edit": true, "explain": true,
+	// Edit, explain, and pack
+	"edit": true, "explain": true, "pack": true,
 	// Maintenance commands
 	"baseline": true, "context": true, "embed-status": true, "version": true,
 	"doctor": true, "schema": true, "check": true, "history": true,
@@ -189,6 +192,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "", "concise | detailed | summary")
 	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for command (e.g., 30s, 5m)")
+	rootCmd.PersistentFlags().StringVar(&selectMode, "select", "all", "Result selection: all, best, top3, top5")
 	rootCmd.PersistentFlags().StringVar(&caller, "caller", "", "Caller identifier (e.g., 'orca')")
 	rootCmd.PersistentFlags().StringVar(&requestID, "request-id", "", "Request correlation ID")
 }
@@ -284,6 +288,30 @@ func GetConfig() *config.Config {
 		return config.DefaultConfig()
 	}
 	return loadedConfig
+}
+
+// GetSelectMode returns the --select flag value.
+func GetSelectMode() string { return selectMode }
+
+// ApplySelection truncates results based on the --select flag.
+// Should be called after ScoreAndSort.
+func ApplySelection(results []output.Result) []output.Result {
+	switch selectMode {
+	case "best":
+		if len(results) > 1 {
+			return results[:1]
+		}
+	case "top3":
+		if len(results) > 3 {
+			return results[:3]
+		}
+	case "top5":
+		if len(results) > 5 {
+			return results[:5]
+		}
+	}
+	// "all" or unrecognized: return everything
+	return results
 }
 
 // GetCaller returns the --caller flag value.

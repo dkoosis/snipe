@@ -240,6 +240,28 @@ func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error) {
 	return scanSymbolRows(rows)
 }
 
+// FindSymbolsInFile finds all symbols in files matching a file pattern.
+// Returns symbols ordered by line position.
+func FindSymbolsInFile(db *sql.DB, filePattern string, limit, offset int) ([]SymbolRow, error) {
+	pattern := "%" + filePattern + "%"
+	rows, err := db.Query(`
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE (s.file_path LIKE ? OR s.file_path_rel LIKE ?)
+		  AND s.kind NOT IN ('field')
+		ORDER BY s.file_path, s.line_start
+		LIMIT ? OFFSET ?
+	`, pattern, pattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query symbols in file: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSymbolRows(rows)
+}
+
 func scanSymbolRows(rows *sql.Rows) ([]SymbolRow, error) {
 	var symbols []SymbolRow
 	for rows.Next() {

@@ -87,6 +87,7 @@ type Result struct {
 	Match          string          `json:"match,omitempty"`
 	Body           string          `json:"body,omitempty"`
 	Score          float64         `json:"score,omitempty"`
+	Role           string          `json:"role,omitempty"`
 	RefCount       int             `json:"ref_count"`                 // Number of references to this symbol (-1 = unavailable)
 	Hints          []string        `json:"hints,omitempty"`           // Static analysis hints: deprecated, unused, etc.
 	CallersPreview []CallerPreview `json:"callers_preview,omitempty"` // Top callers for func/method
@@ -422,6 +423,40 @@ type SymResult struct {
 	RefCount    int      `json:"ref_count"`
 	CallerCount int      `json:"caller_count"`
 	CalleeCount int      `json:"callee_count"`
+}
+
+// PackResult is the combined response for the pack command.
+// Contains everything an LLM needs: definition, graph, role, score, purpose.
+type PackResult struct {
+	Definition   *Result  `json:"definition"`
+	References   []Result `json:"references,omitempty"`
+	Callers      []Result `json:"callers,omitempty"`
+	Callees      []Result `json:"callees,omitempty"`
+	RefCount     int      `json:"ref_count"`
+	CallerCount  int      `json:"caller_count"`
+	CalleeCount  int      `json:"callee_count"`
+	Role         string   `json:"role,omitempty"`
+	Purpose      string   `json:"purpose,omitempty"`
+	RelatedTypes []string `json:"related_types,omitempty"`
+}
+
+// SuggestionsForPack generates suggestions after a pack command.
+func SuggestionsForPack(result *Result) []Suggestion {
+	if result == nil {
+		return nil
+	}
+	return []Suggestion{
+		{
+			Command:     "snipe explain " + result.Name,
+			Description: "Get detailed explanation with mechanism steps",
+			Priority:    1,
+		},
+		{
+			Command:     "snipe context --boot",
+			Description: "Get project-level boot context",
+			Priority:    2,
+		},
+	}
 }
 
 // ExplainResult contains structured explanation of a symbol.

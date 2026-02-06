@@ -10,19 +10,26 @@ import (
 
 	"github.com/spf13/cobra"
 
+	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/kg"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
 var (
-	defAt string
+	defAt   string
+	defFile string
+	defPkg  string
 )
 
 var defCmd = &cobra.Command{
 	Use:   "def [symbol]",
 	Short: "Jump to symbol definition",
 	Long: `Finds the definition of a symbol by name or position.
+
+Scoped queries:
+  snipe def --file store.go        # All symbols in file
+  snipe def --pkg query            # Exported symbols in package
 
 Examples:
   snipe def ProcessOrder           # Find by name
@@ -35,6 +42,8 @@ Examples:
 
 func init() {
 	defCmd.Flags().StringVar(&defAt, "at", "", "Position to look up (file:line:col)")
+	defCmd.Flags().StringVar(&defFile, "file", "", "List all symbols in file")
+	defCmd.Flags().StringVar(&defPkg, "pkg", "", "List exported symbols in package")
 	rootCmd.AddCommand(defCmd)
 }
 
@@ -48,6 +57,11 @@ func runDef(cmd *cobra.Command, args []string) error {
 	withBody, withSiblings, contextLines = ApplyFormatOverrides(format, withBody, withSiblings, contextLines)
 
 	w := output.NewWriter(os.Stdout, human, compact)
+
+	// Handle --file and --pkg scoped queries
+	if defFile != "" || defPkg != "" {
+		return runDefScoped(w, start, withBody, contextLines)
+	}
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && defAt == "" {
@@ -214,6 +228,13 @@ lookup:
 		}
 	}
 
+	// Add role classification in detailed format
+	if format == FormatDetailed {
+		role := ctxpkg.InferRoleForSymbol(s.DB(), sym.ID, sym.Name, sym.Kind,
+			sym.Signature.String, sym.PkgPath, sym.FilePath)
+		result.Role = string(role)
+	}
+
 	// Add callers_preview for func/method kinds (always include top 3)
 	if sym.Kind == "func" || sym.Kind == "method" {
 		callers, err := query.GetCallersPreview(s.DB(), sym.ID, 3)
@@ -251,6 +272,9 @@ lookup:
 
 	results := []output.Result{result}
 
+	// Apply score-based selection if specified
+	results = ApplySelection(results)
+
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
@@ -280,6 +304,115 @@ lookup:
 			Total:         len(results),
 			TokenEstimate: tokenEstimate,
 			DecisionPath:  decisionPath,
+			StaleFiles:    staleFiles,
+			Truncated:     tokenTruncated,
+		},
+	}
+
+	return w.WriteResponse(resp)
+}
+
+// runDefScoped handles --file and --pkg scoped queries.
+func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines int) error {
+	_, _, lim, off, _, _, _ := GetOutputConfig()
+
+	s, dir, err := OpenStore(w, "def")
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	var symbols []query.SymbolRow
+	var queryInfo map[string]string
+
+	if defFile != "" && defPkg != "" {
+		return w.WriteError("def", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "--file and --pkg are mutually exclusive",
+		})
+	}
+
+	if defFile != "" {
+		symbols, err = query.FindSymbolsInFile(s.DB(), defFile, lim, off)
+		queryInfo = map[string]string{"file": defFile}
+	} else {
+		symbols, err = query.FindPackageSymbols(s.DB(), defPkg, lim, off)
+		queryInfo = map[string]string{"pkg": defPkg}
+	}
+
+	if err != nil {
+		return w.WriteError("def", &output.Error{
+			Code:    output.ErrInternal,
+			Message: err.Error(),
+		})
+	}
+
+	if len(symbols) == 0 {
+		scope := defFile
+		if scope == "" {
+			scope = defPkg
+		}
+		return w.WriteError("def", &output.Error{
+			Code:    output.ErrNotFound,
+			Message: "no symbols found in " + scope,
+		})
+	}
+
+	// Convert to results
+	results := make([]output.Result, len(symbols))
+	var degraded []string
+	for i, sym := range symbols {
+		results[i] = sym.ToResult()
+		if withBody {
+			if err := output.AddBody(&results[i]); err != nil {
+				degraded = append(degraded, "body_extraction_failed")
+			}
+		}
+		if contextLines > 0 && !withBody {
+			if err := output.AddContext(&results[i], contextLines); err != nil {
+				degraded = append(degraded, "context_extraction_failed")
+			}
+		}
+	}
+	degraded = uniqueStrings(degraded)
+
+	// Score, sort, and apply selection
+	scope := defFile
+	if scope == "" {
+		scope = defPkg
+	}
+	output.ScoreAndSort(results, scope)
+	results = ApplySelection(results)
+
+	// Apply token budget truncation
+	maxTok := GetMaxTokens()
+	tokenTruncated := false
+	if maxTok > 0 {
+		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+	}
+
+	tokenEstimate := 0
+	for i := range results {
+		tokenEstimate += output.EstimateResultTokens(&results[i])
+	}
+
+	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+
+	resp := output.Response[output.Result]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  results,
+		Meta: output.Meta{
+			Command:       "def",
+			Query:         queryInfo,
+			RepoRoot:      dir,
+			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			Degraded:      degraded,
+			Ms:            time.Since(start).Milliseconds(),
+			Total:         len(results),
+			Offset:        off,
+			Limit:         lim,
+			TokenEstimate: tokenEstimate,
 			StaleFiles:    staleFiles,
 			Truncated:     tokenTruncated,
 		},

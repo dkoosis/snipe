@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,12 +16,18 @@ import (
 var (
 	refsAt   string
 	refsKind string
+	refsFile string
+	refsPkg  string
 )
 
 var refsCmd = &cobra.Command{
 	Use:   "refs [symbol]",
 	Short: "Find all references to a symbol",
 	Long: `Finds all references to a symbol by name or position.
+
+Scoped queries:
+  snipe refs Open --file store.go     # Refs in matching file
+  snipe refs Open --pkg internal/query # Refs in matching package
 
 Examples:
   snipe refs ProcessOrder          # Find by name
@@ -33,6 +40,8 @@ Examples:
 func init() {
 	refsCmd.Flags().StringVar(&refsAt, "at", "", "Position to look up (file:line:col)")
 	refsCmd.Flags().StringVar(&refsKind, "kind", "", "Filter by enclosing kind (func, method, etc.)")
+	refsCmd.Flags().StringVar(&refsFile, "file", "", "Filter references to those in matching file")
+	refsCmd.Flags().StringVar(&refsPkg, "pkg", "", "Filter references to those in matching package path")
 	rootCmd.AddCommand(refsCmd)
 }
 
@@ -159,6 +168,35 @@ findRefs:
 		refs = filtered
 	}
 
+	// Filter by file if specified
+	if refsFile != "" {
+		filtered := refs[:0]
+		for _, ref := range refs {
+			if strings.Contains(ref.FilePathRel, refsFile) || strings.Contains(ref.FilePath, refsFile) {
+				filtered = append(filtered, ref)
+			}
+		}
+		refs = filtered
+		queryInfo["file"] = refsFile
+	}
+
+	// Filter by package if specified
+	if refsPkg != "" {
+		filtered := refs[:0]
+		for _, ref := range refs {
+			// Match against directory components of the file path
+			refDir := filepath.Dir(ref.FilePathRel)
+			if refDir == "" {
+				refDir = filepath.Dir(ref.FilePath)
+			}
+			if strings.Contains(refDir, refsPkg) {
+				filtered = append(filtered, ref)
+			}
+		}
+		refs = filtered
+		queryInfo["pkg"] = refsPkg
+	}
+
 	// Convert to results
 	results := make([]output.Result, len(refs))
 	tokenEstimate := 0
@@ -240,6 +278,10 @@ findRefs:
 
 	// Deduplicate degraded messages
 	degraded = uniqueStrings(degraded)
+
+	// Score, sort, and apply selection
+	output.ScoreAndSort(results, symbolName)
+	results = ApplySelection(results)
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()

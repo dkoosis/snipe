@@ -176,6 +176,14 @@ findImplementers:
 	// Deduplicate degraded messages
 	degraded = uniqueStrings(degraded)
 
+	// Score, sort, and apply selection
+	queryName := args[0]
+	if implID != "" {
+		queryName = implID
+	}
+	output.ScoreAndSort(results, queryName)
+	results = ApplySelection(results)
+
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false

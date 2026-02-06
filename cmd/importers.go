@@ -107,6 +107,10 @@ func runImporters(cmd *cobra.Command, args []string) error {
 		tokenEstimate += output.EstimateTokens(imp.FilePath)
 	}
 
+	// Score, sort, and apply selection
+	output.ScoreAndSort(results, pkgPath)
+	results = ApplySelection(results)
+
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false

@@ -11,6 +11,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dkoosis/snipe/internal/embed"
+	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -62,6 +65,29 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	result.Checks = append(result.Checks, indexCheck)
 	if !indexCheck.OK {
 		result.OK = false
+	}
+
+	// Check Go toolchain
+	goCheck := checkGoToolchain()
+	result.Checks = append(result.Checks, goCheck)
+	if !goCheck.OK {
+		result.OK = false
+	}
+
+	// Check embeddings credentials
+	embedCheck := checkEmbeddings()
+	result.Checks = append(result.Checks, embedCheck)
+
+	// Check orphaned references (only if index exists)
+	if indexCheck.OK {
+		orphanCheck := checkOrphans()
+		result.Checks = append(result.Checks, orphanCheck)
+	}
+
+	// Check index staleness
+	if indexCheck.OK {
+		staleCheck := checkStaleness()
+		result.Checks = append(result.Checks, staleCheck)
 	}
 
 	// Output as JSON
@@ -175,6 +201,141 @@ func checkIndex() DoctorCheck {
 	} else {
 		check.Details = fmt.Sprintf("Path: %s\nLast updated: %s ago",
 			indexPath, formatDuration(age))
+	}
+
+	return check
+}
+
+func checkGoToolchain() DoctorCheck {
+	check := DoctorCheck{
+		Name: "go_toolchain",
+	}
+
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		check.OK = false
+		check.Message = "Go toolchain not found"
+		check.Details = "Install from https://go.dev/dl/"
+		return check
+	}
+
+	out, err := exec.Command("go", "version").Output()
+	if err != nil {
+		check.OK = true
+		check.Message = fmt.Sprintf("go found at %s (version unknown)", goPath)
+		return check
+	}
+
+	version := strings.TrimSpace(string(out))
+	check.OK = true
+	check.Message = version
+	check.Details = fmt.Sprintf("Path: %s", goPath)
+	return check
+}
+
+func checkEmbeddings() DoctorCheck {
+	check := DoctorCheck{
+		Name: "embeddings",
+	}
+
+	if embed.HasCredentials() {
+		check.OK = true
+		check.Message = "embedding credentials available"
+	} else {
+		check.OK = true // Not a failure, just informational
+		check.Message = "no embedding credentials (embeddings disabled)"
+		check.Details = "Set VOYAGE_API_KEY environment variable or create ~/.config/snipe/credentials to enable semantic search"
+	}
+
+	return check
+}
+
+func checkOrphans() DoctorCheck {
+	check := DoctorCheck{
+		Name: "orphaned_refs",
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		check.OK = true
+		check.Message = "skipped (no working directory)"
+		return check
+	}
+
+	projectRoot := findProjectRoot(cwd)
+	if projectRoot == "" {
+		check.OK = true
+		check.Message = "skipped (not in git repo)"
+		return check
+	}
+
+	indexPath := store.DefaultIndexPath(projectRoot)
+	s, err := store.Open(indexPath)
+	if err != nil {
+		check.OK = true
+		check.Message = "skipped (could not open index)"
+		return check
+	}
+	defer s.Close()
+
+	var orphanCount int
+	err = s.DB().QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`).Scan(&orphanCount)
+	if err != nil {
+		check.OK = true
+		check.Message = "skipped (query failed)"
+		return check
+	}
+
+	check.OK = true
+	if orphanCount > 0 {
+		check.Message = fmt.Sprintf("%d orphaned references found", orphanCount)
+		check.Details = "Run 'snipe index --force' to rebuild and clean up orphaned references"
+	} else {
+		check.Message = "no orphaned references"
+	}
+
+	return check
+}
+
+func checkStaleness() DoctorCheck {
+	check := DoctorCheck{
+		Name: "staleness",
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		check.OK = true
+		check.Message = "skipped (no working directory)"
+		return check
+	}
+
+	projectRoot := findProjectRoot(cwd)
+	if projectRoot == "" {
+		check.OK = true
+		check.Message = "skipped (not in git repo)"
+		return check
+	}
+
+	indexPath := store.DefaultIndexPath(projectRoot)
+	s, err := store.Open(indexPath)
+	if err != nil {
+		check.OK = true
+		check.Message = "skipped (could not open index)"
+		return check
+	}
+	defer s.Close()
+
+	state := query.CheckIndexState(s.DB(), projectRoot, Version)
+	check.OK = true
+
+	switch state {
+	case output.IndexFresh:
+		check.Message = "index is fresh"
+	case output.IndexStale:
+		check.Message = "index is stale"
+		check.Details = "Run 'snipe index' to refresh. Queries still work but results may be incomplete."
+	case output.IndexMissing, output.IndexNotUsed:
+		check.Message = fmt.Sprintf("index state: %s", state)
 	}
 
 	return check

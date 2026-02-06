@@ -23,7 +23,7 @@ var Features = []string{
 	"def", "refs", "callers", "callees", "search",
 	"context", "explain", "sym", "index", "show",
 	"sim", "types", "impl", "imports", "importers",
-	"pkg", "edit",
+	"pkg", "edit", "pack",
 }
 
 var versionCmd = &cobra.Command{

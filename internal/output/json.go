@@ -64,6 +64,8 @@ func (w *Writer) writeHuman(resp any) error {
 		return w.writeHumanSummary(r)
 	case Response[SymResult]:
 		return w.writeSymHuman(r)
+	case Response[PackResult]:
+		return w.writePackHuman(r)
 	default:
 		// Try to extract Meta for generic command output
 		if meta := extractMeta(resp); meta != nil {

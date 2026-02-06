@@ -11,15 +11,23 @@ import (
 	"github.com/dkoosis/snipe/internal/search"
 )
 
+var searchFile string
+
 var searchCmd = &cobra.Command{
 	Use:   "search <pattern>",
 	Short: "Text search via ripgrep",
-	Long:  `Searches for a pattern using ripgrep. Works without an index.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  runSearch,
+	Long: `Searches for a pattern using ripgrep. Works without an index.
+
+Examples:
+  snipe search "func.*Error"              # Search all files
+  snipe search "TODO" --file "*.go"       # Search only Go files
+  snipe search "Handler" --file store.go  # Search in specific file`,
+	Args: cobra.ExactArgs(1),
+	RunE: runSearch,
 }
 
 func init() {
+	searchCmd.Flags().StringVar(&searchFile, "file", "", "Glob pattern to filter files (e.g., \"*.go\", \"store.go\")")
 	rootCmd.AddCommand(searchCmd)
 }
 
@@ -45,7 +53,11 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	results, err := search.Search(dir, pattern, lim, ctx)
+	var globs []string
+	if searchFile != "" {
+		globs = append(globs, searchFile)
+	}
+	results, err := search.Search(dir, pattern, lim, ctx, globs...)
 	if err != nil {
 		code := output.ErrInternal
 		if strings.Contains(err.Error(), "not found") {
@@ -56,6 +68,10 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			Message: err.Error(),
 		})
 	}
+
+	// Score, sort, and apply selection
+	output.ScoreAndSort(results, pattern)
+	results = ApplySelection(results)
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
@@ -73,7 +89,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    "search",
-				Query:      map[string]string{"pattern": pattern},
+				Query:      searchQueryInfo(pattern),
 				IndexState: output.IndexNotUsed,
 				Ms:         time.Since(start).Milliseconds(),
 				Total:      summaryData.Total,
@@ -96,7 +112,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		Suggestions: output.SuggestionsForSearch(pattern, len(results)),
 		Meta: output.Meta{
 			Command:       "search",
-			Query:         map[string]string{"pattern": pattern},
+			Query:         searchQueryInfo(pattern),
 			IndexState:    output.IndexNotUsed, // search doesn't use index
 			Degraded:      []string{"no_index"},
 			Ms:            time.Since(start).Milliseconds(),
@@ -107,4 +123,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	}
 
 	return w.WriteResponse(resp)
+}
+
+func searchQueryInfo(pattern string) map[string]string {
+	q := map[string]string{"pattern": pattern}
+	if searchFile != "" {
+		q["file"] = searchFile
+	}
+	return q
 }
