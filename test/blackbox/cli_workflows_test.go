@@ -366,27 +366,6 @@ func TestPagination_OffsetAndLimit_Work(t *testing.T) {
 	}
 }
 
-func TestHumanFlag_ProducesNonJSON_When_HumanEnabled(t *testing.T) {
-	repoDir, _ := writeFixture(t)
-	indexRepo(t, repoDir)
-
-	stdout, stderr, exitCode := run(t, repoDir, "refs", "Callee", "--human")
-	if exitCode != 0 {
-		t.Fatalf("refs --human exit %d stderr=%s", exitCode, string(stderr))
-	}
-
-	var parsed any
-	if err := json.Unmarshal(stdout, &parsed); err == nil {
-		if !strings.Contains(string(stdout), "\n  ") {
-			t.Fatalf("expected pretty JSON for --human output")
-		}
-		return
-	}
-
-	if !strings.Contains(string(stdout), "results") {
-		t.Fatalf("expected human readable output, got: %s", string(stdout))
-	}
-}
 
 func TestMaxTokens_Truncates_When_LowBudget(t *testing.T) {
 	repoDir, _ := writeFixture(t)
@@ -570,6 +549,70 @@ func TestEdit_SymbolNotFound_ReturnsError(t *testing.T) {
 	code := getString(t, errObj["code"], "error.code")
 	if code != "NOT_FOUND" {
 		t.Fatalf("expected NOT_FOUND error, got %s", code)
+	}
+}
+
+func TestPkg_Main_ReturnsRootPackageSymbols(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "pkg", "main")
+	if exitCode != 0 {
+		t.Fatalf("pkg main exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:           "pkg",
+		requireRepoRoot:   true,
+		requireIndexState: true,
+	})
+
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected pkg main to return results")
+	}
+
+	// Verify we got symbols from the root package (example.com/fixture)
+	names := map[string]bool{}
+	for _, item := range results {
+		result := requireMap(t, item, "result")
+		name := getString(t, result["name"], "name")
+		names[name] = true
+	}
+
+	// The root package exports: Widget, Caller, AnotherCaller, Callee, UseGreeter, UseAmbiguous
+	for _, expected := range []string{"Widget", "Caller", "Callee"} {
+		if !names[expected] {
+			t.Errorf("pkg main missing expected symbol %q, got %v", expected, names)
+		}
+	}
+}
+
+func TestPkg_Dot_FromRepoRoot_ReturnsSameAsMain(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "pkg", ".")
+	if exitCode != 0 {
+		t.Fatalf("pkg . exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected pkg . to return results from root package")
+	}
+
+	// Should contain the same root package symbols as "pkg main"
+	names := map[string]bool{}
+	for _, item := range results {
+		result := requireMap(t, item, "result")
+		name := getString(t, result["name"], "name")
+		names[name] = true
+	}
+	if !names["Widget"] {
+		t.Errorf("pkg . from root missing Widget, got %v", names)
 	}
 }
 

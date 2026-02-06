@@ -64,6 +64,9 @@ func runImporters(cmd *cobra.Command, args []string) error {
 	}
 	defer s.Close()
 
+	repoRoot, _ := s.GetMeta("repo_root")
+	pkgPath = query.ResolvePkgPattern(s.DB(), pkgPath, dir, repoRoot)
+
 	// Use directory matching if it looks like a local path
 	var imports []query.ImportRow
 	if strings.Contains(pkgPath, "/") && !strings.Contains(pkgPath, ".") {

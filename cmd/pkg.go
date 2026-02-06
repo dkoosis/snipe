@@ -68,6 +68,9 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	}
 	defer s.Close()
 
+	repoRoot, _ := s.GetMeta("repo_root")
+	pkgPattern = query.ResolvePkgPattern(s.DB(), pkgPattern, dir, repoRoot)
+
 	queryInfo := map[string]string{"package": pkgPattern}
 
 	// Find package symbols
