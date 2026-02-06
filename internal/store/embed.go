@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/dkoosis/snipe/internal/embed"
@@ -13,7 +14,10 @@ func (s *Store) SaveEmbedding(symbolID string, embedding []float32, model string
 		`INSERT OR REPLACE INTO embeddings (symbol_id, embedding, model, created_at) VALUES (?, ?, ?, ?)`,
 		symbolID, data, model, time.Now().UTC().Format(time.RFC3339),
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("save embedding for symbol %s: %w", symbolID, err)
+	}
+	return nil
 }
 
 // GetEmbedding retrieves an embedding for a symbol.
@@ -77,5 +81,8 @@ func (s *Store) CountEmbeddings() (int, error) {
 // DeleteEmbeddings removes all embeddings (for re-indexing).
 func (s *Store) DeleteEmbeddings() error {
 	_, err := s.db.Exec(`DELETE FROM embeddings`)
-	return err
+	if err != nil {
+		return fmt.Errorf("delete embeddings: %w", err)
+	}
+	return nil
 }
