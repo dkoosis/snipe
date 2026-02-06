@@ -82,8 +82,8 @@ func init() {
 func runEdit(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	human, compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	// Handle batch mode
 	if editBatch {

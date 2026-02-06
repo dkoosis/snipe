@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -43,8 +41,8 @@ type StatusResponse struct {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	human, compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	// Find repo root
 	dir := findProjectRoot(".")
@@ -58,12 +56,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Check if index exists
 	dbPath := store.DefaultIndexPath(dir)
 	if !store.Exists(dbPath) {
-		if human {
-			output.WriteGummyStatus(os.Stdout, output.GummyStatusInfo{
-				State: string(output.IndexMissing),
-			})
-			return nil
-		}
 		resp := output.Response[StatusResponse]{
 			Protocol: output.ProtocolVersion,
 			Ok:       true,
@@ -108,29 +100,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Check index state
 	state := query.CheckIndexState(s.DB(), dir, Version)
 
-	// Compute age description
-	ageDesc := formatAge(indexedAt)
-
-	// Get embedding and enrichment counts for enhanced status
-	embedded, _ := s.CountEmbeddings()
-	enriched := countEnrichedSymbols(s)
-
-	if human {
-		output.WriteGummyStatus(os.Stdout, output.GummyStatusInfo{
-			State:       string(state),
-			Commit:      commit,
-			IndexedAt:   indexedAt,
-			Symbols:     symbols,
-			Refs:        refs,
-			Calls:       calls,
-			Fingerprint: fingerprint,
-			AgeDesc:     ageDesc,
-			Embedded:    embedded,
-			Enriched:    enriched,
-		})
-		return nil
-	}
-
 	// JSON response
 	resp := output.Response[StatusResponse]{
 		Protocol: output.ProtocolVersion,
@@ -154,52 +123,4 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	return w.WriteResponse(resp)
-}
-
-// formatAge returns a human-readable age string from an RFC3339 timestamp.
-func formatAge(timestamp string) string {
-	if timestamp == "" {
-		return ""
-	}
-
-	t, err := time.Parse(time.RFC3339, timestamp)
-	if err != nil {
-		return ""
-	}
-
-	age := time.Since(t)
-
-	switch {
-	case age < time.Minute:
-		return "just now"
-	case age < time.Hour:
-		mins := int(age.Minutes())
-		if mins == 1 {
-			return "1m ago"
-		}
-		return formatAgeUnit(mins, "m") + " ago"
-	case age < 24*time.Hour:
-		hours := int(age.Hours())
-		if hours == 1 {
-			return "1h ago"
-		}
-		return formatAgeUnit(hours, "h") + " ago"
-	default:
-		days := int(age.Hours() / 24)
-		if days == 1 {
-			return "1d ago"
-		}
-		return formatAgeUnit(days, "d") + " ago"
-	}
-}
-
-func formatAgeUnit(n int, unit string) string {
-	return fmt.Sprintf("%d%s", n, unit)
-}
-
-// countEnrichedSymbols counts symbols with LLM-generated purposes.
-func countEnrichedSymbols(s *store.Store) int {
-	var count int
-	_ = s.DB().QueryRow(`SELECT COUNT(*) FROM symbol_purposes`).Scan(&count)
-	return count
 }

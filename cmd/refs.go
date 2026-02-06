@@ -49,14 +49,14 @@ func init() {
 func runRefs(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	human, compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
+	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
 	format := GetResponseFormat()
 
 	// Apply format overrides
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
 
-	w := output.NewWriter(os.Stdout, human, compact)
+	w := output.NewWriter(os.Stdout, compact)
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && refsAt == "" {

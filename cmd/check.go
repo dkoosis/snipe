@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -43,8 +42,8 @@ func init() {
 }
 
 func runCheck(cmd *cobra.Command, args []string) error {
-	human, compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	dir, err := os.Getwd()
 	if err != nil {
@@ -68,10 +67,6 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	if human {
-		fmt.Fprintf(os.Stderr, "Capturing current metrics...\n")
-	}
-
 	// Capture current metrics
 	current, err := metrics.Capture(metrics.CaptureConfig{
 		Dir:  dir,
@@ -89,39 +84,9 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		Threshold: checkThreshold,
 	})
 
-	if human {
-		fmt.Fprintf(os.Stderr, "\nPerformance Check Results:\n")
-		fmt.Fprintf(os.Stderr, "Reference: %s (%s)\n", reference.GitCommit, reference.Timestamp)
-		fmt.Fprintf(os.Stderr, "Current:   %s (%s)\n\n", current.GitCommit, current.Timestamp)
-
-		for _, check := range comparison.Checks {
-			var icon string
-			switch check.Status {
-			case "pass":
-				icon = "✅"
-			case "warn":
-				icon = "⚠️ "
-			case "fail":
-				icon = "❌"
-			}
-
-			fmt.Fprintf(os.Stderr, "%s %s", icon, check.Name)
-			if check.Message != "" {
-				fmt.Fprintf(os.Stderr, ": %s", check.Message)
-			}
-			fmt.Fprintln(os.Stderr)
-		}
-
-		if comparison.HasFailure {
-			fmt.Fprintf(os.Stderr, "\n❌ Some metrics regressed beyond %.0f%% threshold\n", checkThreshold)
-		} else {
-			fmt.Fprintf(os.Stderr, "\n✅ All metrics within acceptable range\n")
-		}
-	} else {
-		jsonData, _ := comparison.ToJSON()
-		_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
-		_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
-	}
+	jsonData, _ := comparison.ToJSON()
+	_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
+	_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
 
 	if checkFailOnReg && comparison.HasFailure {
 		os.Exit(1)

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
 	"github.com/dkoosis/snipe/internal/config"
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
@@ -19,7 +18,6 @@ import (
 
 var (
 	// Global flags
-	humanOutput   bool
 	limit         int
 	offset        int
 	contextLines  int
@@ -113,13 +111,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Auto-compact when output is piped (not a TTY)
-		isTTY := term.IsTerminal(int(os.Stdout.Fd()))
-		autoCompact = !isTTY
-
-		// Auto-enable human output when in a terminal (unless explicitly set)
-		if !cmd.Flags().Changed("human") && isTTY {
-			humanOutput = true
-		}
+		autoCompact = true
 
 		return nil
 	},
@@ -188,7 +180,6 @@ func init() {
 		&cobra.Group{ID: "advanced", Title: "Advanced Commands:"},
 	)
 
-	rootCmd.PersistentFlags().BoolVar(&humanOutput, "human", false, "Pretty-print for debugging")
 	rootCmd.PersistentFlags().IntVar(&limit, "limit", 50, "Cap results")
 	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Pagination offset")
 	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 3, "Context lines around match")
@@ -228,13 +219,13 @@ const (
 )
 
 // GetOutputConfig returns the current output configuration.
-// Returns: human, compact, limit, offset, contextLines, withBody, withSiblings
-func GetOutputConfig() (human bool, compact bool, lim int, off int, ctx int, body bool, siblings bool) {
+// Returns: compact, limit, offset, contextLines, withBody, withSiblings
+func GetOutputConfig() (compact bool, lim int, off int, ctx int, body bool, siblings bool) {
 	// Apply signature-only override
 	if signatureOnly {
-		return humanOutput, autoCompact, limit, offset, 0, false, false
+		return autoCompact, limit, offset, 0, false, false
 	}
-	return humanOutput, autoCompact, limit, offset, contextLines, !noBody, !noSiblings
+	return autoCompact, limit, offset, contextLines, !noBody, !noSiblings
 }
 
 // GetResponseFormat returns the response format mode.

@@ -76,8 +76,8 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 
 	// Setup output writer
-	human, compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	// Acquire lock to signal indexing in progress
 	dbPath := store.DefaultIndexPath(absDir)

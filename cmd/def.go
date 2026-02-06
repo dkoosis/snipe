@@ -51,13 +51,13 @@ func init() {
 func runDef(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	human, compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
+	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
 	format := GetResponseFormat()
 
 	// Apply format overrides
 	withBody, withSiblings, contextLines = ApplyFormatOverrides(format, withBody, withSiblings, contextLines)
 
-	w := output.NewWriter(os.Stdout, human, compact)
+	w := output.NewWriter(os.Stdout, compact)
 
 	// Handle --file and --pkg scoped queries
 	if defFile != "" || defPkg != "" {
@@ -315,7 +315,7 @@ lookup:
 
 // runDefScoped handles --file and --pkg scoped queries.
 func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines int) error {
-	_, _, lim, off, _, _, _ := GetOutputConfig()
+	_, lim, off, _, _, _ := GetOutputConfig()
 
 	s, dir, err := OpenStore(w, "def")
 	if err != nil {

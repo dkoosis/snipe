@@ -39,11 +39,11 @@ func init() {
 func runImpl(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	human, compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
+	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
 	format := GetResponseFormat()
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
-	w := output.NewWriter(os.Stdout, human, compact)
+	w := output.NewWriter(os.Stdout, compact)
 
 	if len(args) == 0 && implID == "" {
 		return w.WriteError("impl", &output.Error{

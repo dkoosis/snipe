@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -37,8 +36,8 @@ func init() {
 }
 
 func runHistory(cmd *cobra.Command, args []string) error {
-	human, compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	dir, err := os.Getwd()
 	if err != nil {
@@ -71,38 +70,9 @@ func runHistory(cmd *cobra.Command, args []string) error {
 
 	entries := metrics.ToHistoryEntries(baselines)
 
-	if human {
-		// Print table header
-		fmt.Printf("%-20s %-8s %10s %8s %10s %10s\n",
-			"Date", "Commit", "Index(ms)", "Symbols", "QueryP95", "DocCov")
-		fmt.Println("─────────────────────────────────────────────────────────────────────────")
-
-		for _, e := range entries {
-			date := e.Timestamp[:10] // Just date part
-			commit := e.GitCommit
-			if len(commit) > 7 {
-				commit = commit[:7]
-			}
-
-			// Format with deltas
-			indexStr := fmt.Sprintf("%d", e.IndexMs)
-			if e.IndexDelta != "" {
-				indexStr = fmt.Sprintf("%d %s", e.IndexMs, e.IndexDelta)
-			}
-
-			queryStr := fmt.Sprintf("%.2fms", e.QueryP95Ms)
-			if e.QueryDelta != "" {
-				queryStr = fmt.Sprintf("%.2fms %s", e.QueryP95Ms, e.QueryDelta)
-			}
-
-			fmt.Printf("%-20s %-8s %10s %8d %10s %9.1f%%\n",
-				date, commit, indexStr, e.Symbols, queryStr, e.DocCoverage)
-		}
-	} else {
-		jsonData, _ := json.MarshalIndent(entries, "", "  ")
-		_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
-		_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
-	}
+	jsonData, _ := json.MarshalIndent(entries, "", "  ")
+	_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
+	_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
 
 	return nil
 }

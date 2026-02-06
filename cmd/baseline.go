@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -42,8 +41,8 @@ func init() {
 }
 
 func runBaseline(cmd *cobra.Command, args []string) error {
-	human, compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	dir, err := os.Getwd()
 	if err != nil {
@@ -57,10 +56,6 @@ func runBaseline(cmd *cobra.Command, args []string) error {
 	name := baselineName
 	if name == "" {
 		name = filepath.Base(dir)
-	}
-
-	if human {
-		fmt.Fprintf(os.Stderr, "Capturing baseline for %s...\n", dir)
 	}
 
 	baseline, err := metrics.Capture(metrics.CaptureConfig{
@@ -108,19 +103,8 @@ func runBaseline(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if human {
-		fmt.Fprintf(os.Stderr, "Baseline written to: %s\n", outputFile)
-		fmt.Fprintf(os.Stderr, "\nSummary:\n")
-		fmt.Fprintf(os.Stderr, "  Symbols:      %d\n", baseline.Codebase.Symbols)
-		fmt.Fprintf(os.Stderr, "  Refs:         %d\n", baseline.Codebase.Refs)
-		fmt.Fprintf(os.Stderr, "  Index time:   %dms\n", baseline.Index.TotalMs)
-		fmt.Fprintf(os.Stderr, "  Query p95:    %.2fms\n", baseline.Query.DefByNameMs)
-		fmt.Fprintf(os.Stderr, "  Doc coverage: %.1f%%\n", baseline.Quality.DocCoverage)
-		fmt.Println(outputFile)
-	} else {
-		_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
-		_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
-	}
+	_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
+	_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
 
 	return nil
 }

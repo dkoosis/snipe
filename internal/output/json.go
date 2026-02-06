@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -17,225 +16,29 @@ import (
 // globalFileCache is the default file cache for output operations.
 var globalFileCache = util.NewFileCache(util.DefaultMaxCachedFiles)
 
-// Writer handles output formatting
+// Writer handles JSON output formatting for LLM consumers.
 type Writer struct {
 	out     io.Writer
-	human   bool
 	compact bool
 	start   time.Time
 }
 
-// NewWriter creates a new output writer
-func NewWriter(out io.Writer, human, compact bool) *Writer {
+// NewWriter creates a new JSON output writer.
+func NewWriter(out io.Writer, compact bool) *Writer {
 	return &Writer{
 		out:     out,
-		human:   human,
 		compact: compact,
 		start:   time.Now(),
 	}
 }
 
-// WriteResponse writes a response in JSON format
+// WriteResponse writes a response as JSON.
 func (w *Writer) WriteResponse(resp any) error {
-	if w.human {
-		return w.writeHuman(resp)
-	}
-	return w.writeJSON(resp)
-}
-
-func (w *Writer) writeJSON(resp any) error {
 	enc := json.NewEncoder(w.out)
 	if !w.compact {
 		enc.SetIndent("", "  ")
 	}
 	return enc.Encode(resp)
-}
-
-func (w *Writer) writeHuman(resp any) error {
-	// Check for error in any response type using reflection
-	if err := extractError(resp); err != nil {
-		return writeHumanError(w.out, err)
-	}
-
-	switch r := resp.(type) {
-	case Response[Result]:
-		return w.writeHumanResults(r)
-	case Response[Summary]:
-		return w.writeHumanSummary(r)
-	case Response[SymResult]:
-		return w.writeSymHuman(r)
-	case Response[PackResult]:
-		return w.writePackHuman(r)
-	default:
-		// Try to extract Meta for generic command output
-		if meta := extractMeta(resp); meta != nil {
-			return writeHumanMeta(w.out, meta)
-		}
-		// Fallback to JSON for unknown types
-		return w.writeJSON(resp)
-	}
-}
-
-// extractMeta uses reflection to extract the Meta field from any Response type.
-func extractMeta(resp any) *Meta {
-	v := reflect.ValueOf(resp)
-	if v.Kind() == reflect.Ptr {
-		if v.IsNil() {
-			return nil
-		}
-		v = v.Elem()
-	}
-	if v.Kind() != reflect.Struct {
-		return nil
-	}
-	metaField := v.FieldByName("Meta")
-	if !metaField.IsValid() {
-		return nil
-	}
-	if meta, ok := metaField.Interface().(Meta); ok {
-		return &meta
-	}
-	return nil
-}
-
-// writeHumanMeta writes a simple human-readable summary for commands without custom formatters.
-func writeHumanMeta(out io.Writer, meta *Meta) error {
-	g := newGummyWriter(out)
-	g.header(meta.Command, gummyFormatDuration(meta.Ms))
-	if meta.Total > 0 {
-		fmt.Fprintf(out, "  %s items\n", gummyCount.Sprintf("%d", meta.Total))
-	}
-	if meta.IndexState != "" {
-		fmt.Fprintf(out, "  index: %s\n", meta.IndexState)
-	}
-	return nil
-}
-
-// extractError uses reflection to extract the Error field from any Response type.
-// Returns nil if there is no error or the response type doesn't have an Error field.
-func extractError(resp any) *Error {
-	v := reflect.ValueOf(resp)
-
-	// Handle pointer types
-	if v.Kind() == reflect.Ptr {
-		if v.IsNil() {
-			return nil
-		}
-		v = v.Elem()
-	}
-
-	// Must be a struct
-	if v.Kind() != reflect.Struct {
-		return nil
-	}
-
-	// Look for Error field
-	errField := v.FieldByName("Error")
-	if !errField.IsValid() {
-		return nil
-	}
-
-	// Error field should be *Error
-	if errField.Kind() != reflect.Ptr || errField.IsNil() {
-		return nil
-	}
-
-	// Type assert to *Error
-	if err, ok := errField.Interface().(*Error); ok {
-		return err
-	}
-
-	return nil
-}
-
-func (w *Writer) writeHumanResults(resp Response[Result]) error {
-	// Dispatch to gummy formatters based on command
-	switch resp.Meta.Command {
-	case "def":
-		return writeDefHuman(w.out, resp)
-	case "refs":
-		symbol := resp.Meta.Query["symbol"]
-		if symbol == "" && len(resp.Results) > 0 {
-			symbol = resp.Results[0].Name
-		}
-		return writeRefsHuman(w.out, resp, symbol)
-	case "callers":
-		symbol := resp.Meta.Query["symbol"]
-		if symbol == "" && len(resp.Results) > 0 {
-			symbol = resp.Results[0].Name
-		}
-		targetID := resp.Meta.Query["id"]
-		return writeCallersHuman(w.out, resp, symbol, targetID)
-	case "callees":
-		symbol := resp.Meta.Query["symbol"]
-		if symbol == "" && len(resp.Results) > 0 {
-			symbol = resp.Results[0].Name
-		}
-		targetID := resp.Meta.Query["id"]
-		return writeCalleesHuman(w.out, resp, symbol, targetID)
-	case "search":
-		pattern := resp.Meta.Query["pattern"]
-		return writeSearchHuman(w.out, resp, pattern)
-	case "show":
-		return writeShowHuman(w.out, resp)
-	default:
-		// Fallback for unknown commands - simple table format
-		return w.writeHumanResultsFallback(resp)
-	}
-}
-
-func (w *Writer) writeHumanResultsFallback(resp Response[Result]) error {
-	if resp.Error != nil {
-		fmt.Fprintf(w.out, "Error: %s\n", resp.Error.Message)
-		if len(resp.Error.Candidates) > 0 {
-			fmt.Fprintln(w.out, "Candidates:")
-			for _, c := range resp.Error.Candidates {
-				name := c.Name
-				if c.Receiver != "" {
-					name = c.Receiver + "." + c.Name
-				}
-				fmt.Fprintf(w.out, "  %s (%s) in %s\n", name, c.Kind, c.File)
-			}
-		}
-		return nil
-	}
-
-	for _, r := range resp.Results {
-		loc := fmt.Sprintf("%s:%d:%d", r.File, r.Range.Start.Line, r.Range.Start.Col)
-		if r.Match != "" {
-			fmt.Fprintf(w.out, "%s\t%s\t%s\n", loc, r.Kind, r.Match)
-		} else {
-			fmt.Fprintf(w.out, "%s\t%s\t%s\n", loc, r.Kind, r.Name)
-		}
-	}
-
-	fmt.Fprintf(w.out, "\n%d results in %dms\n", resp.Meta.Total, resp.Meta.Ms)
-	return nil
-}
-
-func (w *Writer) writeHumanSummary(resp Response[Summary]) error {
-	if len(resp.Results) == 0 {
-		fmt.Fprintln(w.out, "No results")
-		return nil
-	}
-
-	s := resp.Results[0]
-	fmt.Fprintf(w.out, "Total: %d results\n\n", s.Total)
-
-	if len(s.Kinds) > 0 {
-		fmt.Fprintln(w.out, "By kind:")
-		for kind, count := range s.Kinds {
-			fmt.Fprintf(w.out, "  %s: %d\n", kind, count)
-		}
-		fmt.Fprintln(w.out)
-	}
-
-	fmt.Fprintln(w.out, "By file:")
-	for _, f := range s.Files {
-		fmt.Fprintf(w.out, "  %s: %d\n", f.File, f.Count)
-	}
-
-	return nil
 }
 
 // WriteError writes an error response

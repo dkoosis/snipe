@@ -47,11 +47,11 @@ func runSim(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 	queryText := args[0]
 
-	human, compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
+	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
 	format := GetResponseFormat()
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
-	w := output.NewWriter(os.Stdout, human, compact)
+	w := output.NewWriter(os.Stdout, compact)
 
 	dir, err := os.Getwd()
 	if err != nil {

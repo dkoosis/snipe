@@ -61,8 +61,8 @@ func init() {
 func runExplain(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	human, compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && explainAt == "" {

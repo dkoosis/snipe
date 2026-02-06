@@ -48,8 +48,8 @@ func init() {
 func runTypes(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	human, compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	if len(args) == 0 && typesAt == "" {
 		return w.WriteError("types", &output.Error{

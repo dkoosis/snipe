@@ -49,8 +49,8 @@ func init() {
 func runSym(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	human, compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && symAt == "" {
@@ -106,7 +106,7 @@ func runSym(cmd *cobra.Command, args []string) error {
 
 		// If arg looks like a filename, list symbols in that file
 		if strings.HasSuffix(name, ".go") {
-			_, _, lim, off, _, _, _ := GetOutputConfig()
+			_, lim, off, _, _, _ := GetOutputConfig()
 			symbols, err := query.FindSymbolsInFile(s.DB(), name, lim, off)
 			if err != nil {
 				return w.WriteError("sym", &output.Error{

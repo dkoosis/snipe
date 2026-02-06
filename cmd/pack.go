@@ -53,8 +53,8 @@ func init() {
 func runPack(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	human, compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, human, compact)
+	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
 
 	if len(args) == 0 && packAt == "" {
 		return w.WriteError("pack", &output.Error{

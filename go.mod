@@ -6,18 +6,12 @@ require (
 	github.com/magefile/mage v1.15.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.8.1
-	golang.org/x/term v0.39.0
 	golang.org/x/tools v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.44.0
 )
 
-require (
-	github.com/fatih/color v1.18.0
-	github.com/fsnotify/fsnotify v1.9.0
-)
-
-require github.com/mattn/go-colorable v0.1.13 // indirect
+require github.com/fsnotify/fsnotify v1.9.0
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
