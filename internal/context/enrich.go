@@ -177,6 +177,7 @@ func loadSymbolBody(db *sql.DB, symbolID string) (string, error) {
 
 	var lines []string
 	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	lineNum := 0
 	for scanner.Scan() {
 		lineNum++

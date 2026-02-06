@@ -91,6 +91,26 @@ func TestSearch_LongLine(t *testing.T) {
 	}
 }
 
+func TestSearch_StderrCapture(t *testing.T) {
+	// Search with invalid regex should include rg's error message
+	dir := t.TempDir()
+	testFile := filepath.Join(dir, "test.go")
+	if err := os.WriteFile(testFile, []byte("package main\n"), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	_, err := Search(dir, "[invalid(regex", 10, 0)
+	if err == nil {
+		t.Fatal("Expected error for invalid regex")
+	}
+
+	errMsg := err.Error()
+	// rg exit code 2 should include stderr content
+	if !strings.Contains(errMsg, "rg error") && !strings.Contains(errMsg, "rg failed") {
+		t.Errorf("Error should mention rg error, got: %s", errMsg)
+	}
+}
+
 func TestSearch_Limit(t *testing.T) {
 	dir := t.TempDir()
 	testFile := filepath.Join(dir, "test.txt")

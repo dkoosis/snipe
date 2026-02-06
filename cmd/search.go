@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -46,8 +47,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
 	results, err := search.Search(dir, pattern, lim, ctx)
 	if err != nil {
+		code := output.ErrInternal
+		if strings.Contains(err.Error(), "not found") {
+			code = output.ErrRgNotFound
+		}
 		return w.WriteError("search", &output.Error{
-			Code:    output.ErrRgNotFound,
+			Code:    code,
 			Message: err.Error(),
 		})
 	}

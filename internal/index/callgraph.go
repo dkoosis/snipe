@@ -20,6 +20,12 @@ type CallEdge struct {
 // Uses an optimized approach: single AST pass with function stack tracking
 // for O(1) enclosing function lookup per call.
 func ExtractCallGraph(result *LoadResult, symbols []Symbol) ([]CallEdge, error) {
+	return ExtractCallGraphFiltered(result, symbols, nil)
+}
+
+// ExtractCallGraphFiltered extracts the call graph, optionally limited to specific files.
+// When onlyFiles is non-nil, only edges from those files are extracted.
+func ExtractCallGraphFiltered(result *LoadResult, symbols []Symbol, onlyFiles map[string]bool) ([]CallEdge, error) {
 	// Build symbol lookup by definition position (with fallback for chunked loading)
 	symbolIndex := buildSymbolPosIndex(symbols)
 
@@ -35,6 +41,11 @@ func ExtractCallGraph(result *LoadResult, symbols []Symbol) ([]CallEdge, error) 
 				continue
 			}
 			filePath := pkg.GoFiles[i]
+
+			// Skip files not in the filter set (if filtering)
+			if onlyFiles != nil && !onlyFiles[filePath] {
+				continue
+			}
 
 			// Extract call edges using AST walker with function stack tracking.
 			// This avoids the separate buildEnclosingMap + findEnclosing passes.

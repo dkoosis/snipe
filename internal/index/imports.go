@@ -20,6 +20,12 @@ type Import struct {
 
 // ExtractImports extracts all imports from loaded packages
 func ExtractImports(result *LoadResult) ([]Import, error) {
+	return ExtractImportsFiltered(result, nil)
+}
+
+// ExtractImportsFiltered extracts imports, optionally limited to specific files.
+// When onlyFiles is non-nil, only imports from those files are extracted.
+func ExtractImportsFiltered(result *LoadResult, onlyFiles map[string]bool) ([]Import, error) {
 	var imports []Import
 
 	for _, pkg := range result.Packages {
@@ -28,6 +34,11 @@ func ExtractImports(result *LoadResult) ([]Import, error) {
 				continue
 			}
 			filePath := pkg.GoFiles[i]
+
+			// Skip files not in the filter set (if filtering)
+			if onlyFiles != nil && !onlyFiles[filePath] {
+				continue
+			}
 
 			fileImports := extractFileImports(pkg, file, filePath, result)
 			imports = append(imports, fileImports...)

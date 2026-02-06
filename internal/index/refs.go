@@ -24,13 +24,20 @@ type Ref struct {
 // ExtractRefs extracts all references from loaded packages.
 // For better performance during indexing, use ExtractRefsWithCache.
 func ExtractRefs(result *LoadResult, symbols []Symbol) ([]Ref, error) {
-	return ExtractRefsWithCache(result, symbols, nil)
+	return ExtractRefsFiltered(result, symbols, nil, nil)
 }
 
 // ExtractRefsWithCache extracts all references from loaded packages.
 // If cache is provided, file contents are cached to avoid repeated disk reads.
 // The cache should be cleared after indexing completes to free memory.
 func ExtractRefsWithCache(result *LoadResult, symbols []Symbol, cache *util.FileCache) ([]Ref, error) {
+	return ExtractRefsFiltered(result, symbols, cache, nil)
+}
+
+// ExtractRefsFiltered extracts references, optionally limited to specific files.
+// When onlyFiles is non-nil, only refs in those files are extracted.
+// Symbols are still indexed from all files for cross-file ref resolution.
+func ExtractRefsFiltered(result *LoadResult, symbols []Symbol, cache *util.FileCache, onlyFiles map[string]bool) ([]Ref, error) {
 	// Build symbol lookup by definition position
 	symbolByPos := buildSymbolPosIndex(symbols)
 
@@ -46,6 +53,11 @@ func ExtractRefsWithCache(result *LoadResult, symbols []Symbol, cache *util.File
 				continue
 			}
 			filePath := pkg.GoFiles[i]
+
+			// Skip files not in the filter set (if filtering)
+			if onlyFiles != nil && !onlyFiles[filePath] {
+				continue
+			}
 
 			// Load file content for snippets (with optional caching)
 			var lines []string

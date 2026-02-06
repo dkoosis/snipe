@@ -99,16 +99,23 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	defer s.Close()
 
 	// Change detection fast-path: skip expensive work if nothing changed
+	var detection *changeDetection
 	if !forceIndex {
-		if skipped, err := trySkipIndex(s, fp, absDir, start, w); err != nil {
+		var detectErr error
+		detection, detectErr = trySkipIndex(s, fp, absDir, start, w)
+		if detectErr != nil {
 			// Detection failed — fall through to full index
-			fmt.Fprintf(os.Stderr, "Change detection failed: %v (proceeding with full index)\n", err)
-		} else if skipped {
+			fmt.Fprintf(os.Stderr, "Change detection failed: %v (proceeding with full index)\n", detectErr)
+			detection = &changeDetection{result: skipResultProceedFull}
+		}
+		if detection.result == skipResultSkipped {
 			return nil
 		}
+	} else {
+		detection = &changeDetection{result: skipResultProceedFull}
 	}
 
-	// Load packages
+	// Load packages (always needed — go/packages needs full type context)
 	fmt.Fprintf(os.Stderr, "Loading packages from %s...\n", absDir)
 	loadStart := time.Now()
 
@@ -129,7 +136,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: %v\n", e)
 	}
 
-	// Extract symbols
+	// Extract ALL symbols (cheap, needed for position index in both paths)
 	fmt.Fprintf(os.Stderr, "Extracting symbols...\n")
 	symbols, err := index.ExtractSymbols(result)
 	if err != nil {
@@ -137,6 +144,12 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "Found %d symbols\n", len(symbols))
 
+	// Branch: incremental vs full
+	if detection.result == skipResultProceedIncremental {
+		return runIncrementalIndex(cmd, s, result, symbols, detection.changes, absDir, start, w)
+	}
+
+	// Full reindex path
 	// Extract refs with file caching for performance
 	fmt.Fprintf(os.Stderr, "Extracting references...\n")
 	fileCache := util.NewFileCache(util.DefaultMaxCachedFiles)
@@ -186,7 +199,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("write files: %w", err)
 	}
 
-	// Store fingerprint
+	// Store fingerprint and metadata
 	if err := s.SetMeta("fingerprint", fp.Combined); err != nil {
 		return fmt.Errorf("store fingerprint: %w", err)
 	}
@@ -196,6 +209,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	if err := s.SetMeta("repo_root", absDir); err != nil {
 		return fmt.Errorf("store repo root: %w", err)
 	}
+	// Reset incremental counter on full reindex
+	_ = s.SetMeta("incremental_count", "0")
+	_ = s.SetMeta("orphaned_refs", "0")
 
 	// Determine effective embedding mode
 	effectiveMode := resolveEmbedMode(embedMode, withEmbed, s)
@@ -510,42 +526,98 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 	return "batch_started", nil
 }
 
-// trySkipIndex checks whether the index is already up-to-date and can be skipped.
-// Returns (true, nil) if indexing was skipped, (false, nil) to proceed, or (false, err) on detection failure.
-func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start time.Time, w *output.Writer) (bool, error) {
-	storedFP, fpErr := s.GetMeta("fingerprint")
-	if fpErr != nil {
-		return false, nil //nolint:nilerr // No stored fingerprint means first index — proceed with full build
+// runIncrementalIndex performs an incremental index update for changed files only.
+func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadResult, allSymbols []index.Symbol, changes *index.ChangeResult, absDir string, start time.Time, w *output.Writer) error {
+	// Build file filter set (modified + added files only)
+	changedFiles := make([]string, 0, len(changes.Modified)+len(changes.Added))
+	changedFiles = append(changedFiles, changes.Modified...)
+	changedFiles = append(changedFiles, changes.Added...)
+
+	onlyFiles := make(map[string]bool, len(changedFiles))
+	for _, f := range changedFiles {
+		onlyFiles[f] = true
 	}
 
-	if storedFP != fp.Combined {
-		fmt.Fprintf(os.Stderr, "Build config changed, full re-index required\n")
-		return false, nil
+	// Filter symbols: only those from changed files
+	var changedSymbols []index.Symbol
+	for _, sym := range allSymbols {
+		if onlyFiles[sym.FilePath] {
+			changedSymbols = append(changedSymbols, sym)
+		}
 	}
 
-	// Fingerprint matches — check source file changes
-	storedFiles, filesErr := s.GetAllFiles()
-	if filesErr != nil || len(storedFiles) == 0 {
-		return false, nil //nolint:nilerr // No stored file data means fall through to full index
+	// Extract refs ONLY for changed files (main savings)
+	fmt.Fprintf(os.Stderr, "Extracting references for %d changed files...\n", len(changedFiles))
+	fileCache := util.NewFileCache(util.DefaultMaxCachedFiles)
+	refs, err := index.ExtractRefsFiltered(result, allSymbols, fileCache, onlyFiles)
+	if err != nil {
+		return fmt.Errorf("extract refs: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Found %d references\n", len(refs))
+
+	// Extract call edges ONLY for changed files
+	fmt.Fprintf(os.Stderr, "Building call graph for changed files...\n")
+	edges, err := index.ExtractCallGraphFiltered(result, allSymbols, onlyFiles)
+	if err != nil {
+		return fmt.Errorf("extract call graph: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Found %d call edges\n", len(edges))
+
+	// Extract imports ONLY for changed files
+	fmt.Fprintf(os.Stderr, "Extracting imports for changed files...\n")
+	imports, err := index.ExtractImportsFiltered(result, onlyFiles)
+	if err != nil {
+		return fmt.Errorf("extract imports: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Found %d imports\n", len(imports))
+
+	// Write incremental update
+	fmt.Fprintf(os.Stderr, "Writing incremental index...\n")
+	incResult, err := s.WriteIndexIncremental(changedSymbols, refs, edges, imports, changedFiles, changes.Deleted)
+	if err != nil {
+		return fmt.Errorf("write incremental index: %w", err)
 	}
 
-	changes, detectErr := index.DetectChanges(absDir, storedFiles, index.DefaultExclude())
-	if detectErr != nil {
-		return false, detectErr
+	// Update file hashes for ALL files (cheap stat calls)
+	fmt.Fprintf(os.Stderr, "Computing file hashes...\n")
+	files, err := index.ExtractFileInfo(result)
+	if err != nil {
+		return fmt.Errorf("extract file info: %w", err)
+	}
+	if err := s.WriteFiles(files); err != nil {
+		return fmt.Errorf("write files: %w", err)
 	}
 
-	if changes.HasChanges {
-		fmt.Fprintf(os.Stderr, "Changes detected: %s\n", changes.Summary())
-		return false, nil
+	// Update metadata
+	if err := s.SetMeta("indexed_at", time.Now().Format(time.RFC3339)); err != nil {
+		return fmt.Errorf("store timestamp: %w", err)
 	}
 
-	// No changes — skip indexing
-	fmt.Fprintf(os.Stderr, "Index up to date: %s\n", changes.Summary())
+	// Build summary
+	nMod := len(changes.Modified)
+	nAdd := len(changes.Added)
+	nDel := len(changes.Deleted)
+	fmt.Fprintf(os.Stderr, "Incremental: updated %d files (%d modified, %d added, %d deleted)\n",
+		nMod+nAdd+nDel, nMod, nAdd, nDel)
+
+	// Build suggestions
+	var suggestions []output.Suggestion
+	if incResult.OrphanedRefs > 0 {
+		suggestions = append(suggestions, output.Suggestion{
+			Command:     "snipe index --force",
+			Description: fmt.Sprintf("Full rebuild to clear %d orphaned refs", incResult.OrphanedRefs),
+			Priority:    3,
+			Condition:   "incremental_orphans",
+		})
+	}
+
+	// Output result
 	symCount, _, _, _ := s.GetStats()
 	resp := output.Response[any]{
-		Protocol: output.ProtocolVersion,
-		Ok:       true,
-		Results:  nil,
+		Protocol:    output.ProtocolVersion,
+		Ok:          true,
+		Results:     nil,
+		Suggestions: suggestions,
 		Meta: output.Meta{
 			Command:    "index",
 			RepoRoot:   absDir,
@@ -554,5 +626,76 @@ func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start ti
 			Total:      symCount,
 		},
 	}
-	return true, w.WriteResponse(resp)
+
+	return w.WriteResponse(resp)
+}
+
+// skipResult describes the outcome of change detection.
+type skipResult int
+
+const (
+	skipResultProceedFull        skipResult = iota // full reindex needed
+	skipResultSkipped                              // no changes, skip entirely
+	skipResultProceedIncremental                   // incremental update possible
+)
+
+// changeDetection holds the result of change detection for use by runIndex.
+type changeDetection struct {
+	result  skipResult
+	changes *index.ChangeResult
+}
+
+// trySkipIndex checks whether the index is already up-to-date and can be skipped.
+// Returns changeDetection describing what action to take.
+func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start time.Time, w *output.Writer) (*changeDetection, error) {
+	storedFP, fpErr := s.GetMeta("fingerprint")
+	if fpErr != nil {
+		return &changeDetection{result: skipResultProceedFull}, nil //nolint:nilerr // No stored fingerprint means first index — proceed with full build
+	}
+
+	if storedFP != fp.Combined {
+		fmt.Fprintf(os.Stderr, "Build config changed, full re-index required\n")
+		return &changeDetection{result: skipResultProceedFull}, nil
+	}
+
+	// Fingerprint matches — check source file changes
+	storedFiles, filesErr := s.GetAllFiles()
+	if filesErr != nil || len(storedFiles) == 0 {
+		return &changeDetection{result: skipResultProceedFull}, nil //nolint:nilerr // No stored file data means fall through to full index
+	}
+
+	changes, detectErr := index.DetectChanges(absDir, storedFiles, index.DefaultExclude())
+	if detectErr != nil {
+		return nil, detectErr
+	}
+
+	if !changes.HasChanges {
+		// No changes — skip indexing
+		fmt.Fprintf(os.Stderr, "Index up to date: %s\n", changes.Summary())
+		symCount, _, _, _ := s.GetStats()
+		resp := output.Response[any]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  nil,
+			Meta: output.Meta{
+				Command:    "index",
+				RepoRoot:   absDir,
+				IndexState: output.IndexFresh,
+				Ms:         time.Since(start).Milliseconds(),
+				Total:      symCount,
+			},
+		}
+		return &changeDetection{result: skipResultSkipped}, w.WriteResponse(resp)
+	}
+
+	// Changes detected — decide between incremental and full reindex
+	totalFiles := changes.TotalChanged() + changes.Unchanged
+	if totalFiles > 0 && changes.TotalChanged()*100/totalFiles > 50 {
+		// >50% files changed — full reindex is more efficient
+		fmt.Fprintf(os.Stderr, "Changes detected (%s), >50%% files changed — full re-index\n", changes.Summary())
+		return &changeDetection{result: skipResultProceedFull}, nil
+	}
+
+	fmt.Fprintf(os.Stderr, "Changes detected: %s\n", changes.Summary())
+	return &changeDetection{result: skipResultProceedIncremental, changes: changes}, nil
 }

@@ -305,3 +305,165 @@ func TestWriteIndexPreservesEmbeddings(t *testing.T) {
 		t.Errorf("sym4 has no embedding yet (new symbol), got err=%v emb=%v", err, emb4)
 	}
 }
+
+func TestWriteIndexIncremental(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	// Set repo_root for relative path computation
+	_ = s.SetMeta("repo_root", "/repo")
+
+	// Initial full index: 3 files, 3 symbols
+	symbols := []index.Symbol{
+		{ID: "sym1", Name: "Func1", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+		{ID: "sym2", Name: "Func2", Kind: index.KindFunc, FilePath: "/repo/b.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+		{ID: "sym3", Name: "Func3", Kind: index.KindFunc, FilePath: "/repo/c.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+	}
+	refs := []index.Ref{
+		{ID: "ref1", SymbolID: "sym1", FilePath: "/repo/b.go", Line: 5, Col: 1, Snippet: "Func1()"},
+		{ID: "ref2", SymbolID: "sym2", FilePath: "/repo/c.go", Line: 5, Col: 1, Snippet: "Func2()"},
+	}
+	edges := []index.CallEdge{
+		{CallerID: "sym2", CalleeID: "sym1", FilePath: "/repo/b.go", Line: 5, Col: 1},
+	}
+	if err := s.WriteIndex(symbols, refs, edges); err != nil {
+		t.Fatalf("Full WriteIndex failed: %v", err)
+	}
+
+	// Verify initial state
+	symCount, refCount, callCount, _ := s.GetStats()
+	if symCount != 3 || refCount != 2 || callCount != 1 {
+		t.Fatalf("Initial state: sym=%d ref=%d call=%d, want 3/2/1", symCount, refCount, callCount)
+	}
+
+	// Incremental update: modify b.go (sym2 gets new ID because position changed)
+	changedSymbols := []index.Symbol{
+		{ID: "sym2v2", Name: "Func2", Kind: index.KindFunc, FilePath: "/repo/b.go", LineStart: 2, ColStart: 1, LineEnd: 12, ColEnd: 1},
+	}
+	newRefs := []index.Ref{
+		{ID: "ref1v2", SymbolID: "sym1", FilePath: "/repo/b.go", Line: 6, Col: 1, Snippet: "Func1()"},
+	}
+	newEdges := []index.CallEdge{
+		{CallerID: "sym2v2", CalleeID: "sym1", FilePath: "/repo/b.go", Line: 6, Col: 1},
+	}
+
+	result, err := s.WriteIndexIncremental(changedSymbols, newRefs, newEdges, nil,
+		[]string{"/repo/b.go"}, nil)
+	if err != nil {
+		t.Fatalf("WriteIndexIncremental failed: %v", err)
+	}
+
+	// Verify: 3 symbols (sym1, sym2v2, sym3), old sym2 deleted
+	symCount, refCount, callCount, _ = s.GetStats()
+	if symCount != 3 {
+		t.Errorf("After incremental: sym=%d, want 3", symCount)
+	}
+	// ref2 from c.go still exists + ref1v2 from b.go
+	if refCount != 2 {
+		t.Errorf("After incremental: ref=%d, want 2", refCount)
+	}
+	if callCount != 1 {
+		t.Errorf("After incremental: call=%d, want 1", callCount)
+	}
+
+	// ref2 still references sym2 which no longer exists — it's orphaned
+	// The orphan count should reflect this
+	if result.OrphanedRefs < 1 {
+		t.Errorf("Expected at least 1 orphaned ref, got %d", result.OrphanedRefs)
+	}
+	if result.IncrementalCount != 1 {
+		t.Errorf("IncrementalCount = %d, want 1", result.IncrementalCount)
+	}
+}
+
+func TestWriteIndexIncremental_DeletedFiles(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	_ = s.SetMeta("repo_root", "/repo")
+
+	// Initial: 2 files
+	symbols := []index.Symbol{
+		{ID: "sym1", Name: "Func1", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+		{ID: "sym2", Name: "Func2", Kind: index.KindFunc, FilePath: "/repo/b.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+	}
+	if err := s.WriteIndex(symbols, nil, nil); err != nil {
+		t.Fatalf("Full WriteIndex failed: %v", err)
+	}
+
+	symCount, _, _, _ := s.GetStats()
+	if symCount != 2 {
+		t.Fatalf("Initial sym=%d, want 2", symCount)
+	}
+
+	// Delete b.go
+	_, err = s.WriteIndexIncremental(nil, nil, nil, nil, nil, []string{"/repo/b.go"})
+	if err != nil {
+		t.Fatalf("WriteIndexIncremental (delete) failed: %v", err)
+	}
+
+	symCount, _, _, _ = s.GetStats()
+	if symCount != 1 {
+		t.Errorf("After delete: sym=%d, want 1", symCount)
+	}
+}
+
+func TestWriteIndexIncremental_OrphanedRefs(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	_ = s.SetMeta("repo_root", "/repo")
+
+	// Setup: sym1 in a.go, ref to sym1 from b.go
+	symbols := []index.Symbol{
+		{ID: "sym1", Name: "Func1", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+		{ID: "sym2", Name: "Func2", Kind: index.KindFunc, FilePath: "/repo/b.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+	}
+	refs := []index.Ref{
+		// ref in b.go pointing to sym1
+		{ID: "ref1", SymbolID: "sym1", FilePath: "/repo/b.go", Line: 5, Col: 1, Snippet: "Func1()"},
+	}
+	if err := s.WriteIndex(symbols, refs, nil); err != nil {
+		t.Fatalf("Full WriteIndex failed: %v", err)
+	}
+
+	// Now modify a.go: sym1 changes position, gets new ID
+	changedSymbols := []index.Symbol{
+		{ID: "sym1v2", Name: "Func1", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 5, ColStart: 1, LineEnd: 15, ColEnd: 1},
+	}
+
+	result, err := s.WriteIndexIncremental(changedSymbols, nil, nil, nil,
+		[]string{"/repo/a.go"}, nil)
+	if err != nil {
+		t.Fatalf("WriteIndexIncremental failed: %v", err)
+	}
+
+	// ref1 in b.go still points to "sym1" which no longer exists
+	if result.OrphanedRefs != 1 {
+		t.Errorf("OrphanedRefs = %d, want 1", result.OrphanedRefs)
+	}
+
+	// Verify sym1v2 exists and sym1 is gone
+	symCount, _, _, _ := s.GetStats()
+	if symCount != 2 {
+		t.Errorf("sym count = %d, want 2 (sym1v2 + sym2)", symCount)
+	}
+}

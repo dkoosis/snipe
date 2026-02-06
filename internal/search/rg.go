@@ -2,6 +2,7 @@ package search
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,6 +72,9 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 	if err != nil {
 		return nil, fmt.Errorf("create pipe: %w", err)
 	}
+
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start rg: %w", err)
@@ -146,7 +150,11 @@ func Search(dir, pattern string, limit, contextLines int) ([]output.Result, erro
 			if exitErr.ExitCode() == 1 {
 				return results, nil
 			}
-			// Exit code 2+ means actual error
+			// Exit code 2+ means actual error — include stderr for actionable message
+			stderr := strings.TrimSpace(stderrBuf.String())
+			if stderr != "" {
+				return results, fmt.Errorf("rg error (exit %d): %s", exitErr.ExitCode(), stderr)
+			}
 			return results, fmt.Errorf("rg failed with exit code %d", exitErr.ExitCode())
 		}
 		// Other errors (not exit errors) are unexpected

@@ -476,6 +476,212 @@ func (s *Store) GetFileHash(path string) (string, error) {
 	return hash, nil
 }
 
+// IncrementalResult holds stats from an incremental index write.
+type IncrementalResult struct {
+	OrphanedRefs     int
+	IncrementalCount int // how many incremental writes since last full reindex
+}
+
+// WriteIndexIncremental updates the index for changed/deleted files only.
+// Symbols for changed files are replaced; refs, call edges, and imports from
+// changed files are deleted and re-inserted. Unchanged files are left in place.
+// FK constraints are disabled during the write; orphaned refs are counted afterward.
+func (s *Store) WriteIndexIncremental(
+	changedSymbols []index.Symbol,
+	newRefs []index.Ref,
+	newEdges []index.CallEdge,
+	newImports []index.Import,
+	changedFiles []string,
+	deletedFiles []string,
+) (*IncrementalResult, error) {
+	repoRoot, _ := s.GetMeta("repo_root")
+
+	// Read current incremental count
+	countStr, _ := s.GetMeta("incremental_count")
+	incCount := 0
+	if countStr != "" {
+		fmt.Sscanf(countStr, "%d", &incCount) //nolint:errcheck // best-effort parse
+	}
+	incCount++
+
+	// Disable FK constraints (must be outside transaction in SQLite)
+	if _, err := s.db.Exec("PRAGMA foreign_keys=OFF"); err != nil {
+		return nil, fmt.Errorf("disable FK: %w", err)
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		// Re-enable FK on error
+		_, _ = s.db.Exec("PRAGMA foreign_keys=ON")
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+
+	// Build set of all affected files (changed + deleted)
+	allAffected := make([]string, 0, len(changedFiles)+len(deletedFiles))
+	allAffected = append(allAffected, changedFiles...)
+	allAffected = append(allAffected, deletedFiles...)
+
+	if len(allAffected) > 0 {
+		// Delete embeddings + purposes for symbols in affected files
+		if err := deleteByFilePaths(tx, "SELECT id FROM symbols", "DELETE FROM embeddings WHERE symbol_id IN", allAffected, repoRoot); err != nil {
+			// Ignore if embeddings table doesn't exist
+			_ = err
+		}
+		if err := deleteByFilePaths(tx, "SELECT id FROM symbols", "DELETE FROM symbol_purposes WHERE symbol_id IN", allAffected, repoRoot); err != nil {
+			// Ignore if symbol_purposes table doesn't exist
+			_ = err
+		}
+
+		// Delete data from affected files
+		if err := deleteFromFileSet(tx, "refs", allAffected); err != nil {
+			return nil, fmt.Errorf("delete refs: %w", err)
+		}
+		if err := deleteFromFileSet(tx, "call_graph", allAffected); err != nil {
+			return nil, fmt.Errorf("delete call_graph: %w", err)
+		}
+		if err := deleteFromFileSet(tx, "imports", allAffected); err != nil {
+			// Ignore if table doesn't exist
+			_ = err
+		}
+		if err := deleteFromFileSet(tx, "symbols", allAffected); err != nil {
+			return nil, fmt.Errorf("delete symbols: %w", err)
+		}
+	}
+
+	// Insert new symbols for changed files
+	if err := writeSymbols(tx, changedSymbols, repoRoot); err != nil {
+		return nil, fmt.Errorf("write symbols: %w", err)
+	}
+
+	// Insert new refs
+	if err := writeRefs(tx, newRefs, repoRoot); err != nil {
+		return nil, fmt.Errorf("write refs: %w", err)
+	}
+
+	// Insert new call edges
+	if err := writeCallEdges(tx, newEdges); err != nil {
+		return nil, fmt.Errorf("write call edges: %w", err)
+	}
+
+	// Insert new imports
+	if err := writeImports(tx, newImports); err != nil {
+		return nil, fmt.Errorf("write imports: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		_, _ = s.db.Exec("PRAGMA foreign_keys=ON")
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	// Re-enable FK constraints (outside transaction)
+	_, _ = s.db.Exec("PRAGMA foreign_keys=ON")
+
+	// Count orphaned refs (outside transaction)
+	var orphanCount int
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`).Scan(&orphanCount)
+
+	// Store incremental metadata
+	_ = s.SetMeta("orphaned_refs", fmt.Sprintf("%d", orphanCount))
+	_ = s.SetMeta("incremental_count", fmt.Sprintf("%d", incCount))
+
+	return &IncrementalResult{
+		OrphanedRefs:     orphanCount,
+		IncrementalCount: incCount,
+	}, nil
+}
+
+// deleteFromFileSet deletes rows from a table where file_path matches any of the given paths.
+func deleteFromFileSet(tx *sql.Tx, table string, files []string) error {
+	if len(files) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(files))
+	args := make([]interface{}, len(files))
+	for i, f := range files {
+		placeholders[i] = "?"
+		args[i] = f
+	}
+	query := fmt.Sprintf("DELETE FROM %s WHERE file_path IN (%s)", table, strings.Join(placeholders, ",")) // #nosec G201 -- table name is hardcoded constant
+	_, err := tx.Exec(query, args...)
+	return err
+}
+
+// deleteByFilePaths finds symbol IDs in affected files, then deletes from a target table.
+func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []string, repoRoot string) error {
+	if len(files) == 0 {
+		return nil
+	}
+	// Find symbol IDs in affected files (by absolute path)
+	placeholders := make([]string, len(files))
+	args := make([]interface{}, len(files))
+	for i, f := range files {
+		placeholders[i] = "?"
+		args[i] = f
+	}
+	query := fmt.Sprintf("%s WHERE file_path IN (%s)", selectQuery, strings.Join(placeholders, ",")) // #nosec G201 -- query parts are hardcoded
+	rows, err := tx.Query(query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if len(ids) == 0 {
+		// Also try relative paths
+		relArgs := make([]interface{}, len(files))
+		for i, f := range files {
+			relArgs[i] = toRelPath(f, repoRoot)
+		}
+		query = fmt.Sprintf("%s WHERE file_path_rel IN (%s)", selectQuery, strings.Join(placeholders, ",")) // #nosec G201 -- query parts are hardcoded
+		rows2, err := tx.Query(query, relArgs...)
+		if err != nil {
+			return err
+		}
+		defer rows2.Close()
+		for rows2.Next() {
+			var id string
+			if err := rows2.Scan(&id); err != nil {
+				continue
+			}
+			ids = append(ids, id)
+		}
+		if err := rows2.Err(); err != nil {
+			return err
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// Delete from target table
+	idPlaceholders := make([]string, len(ids))
+	idArgs := make([]interface{}, len(ids))
+	for i, id := range ids {
+		idPlaceholders[i] = "?"
+		idArgs[i] = id
+	}
+	delQuery := fmt.Sprintf("%s (%s)", deleteQuery, strings.Join(idPlaceholders, ",")) // #nosec G201 -- query parts are hardcoded
+	_, err = tx.Exec(delQuery, idArgs...)
+	return err
+}
+
 // GetStats returns index statistics
 func (s *Store) GetStats() (symbols, refs, calls int, err error) {
 	err = s.db.QueryRow("SELECT COUNT(*) FROM symbols").Scan(&symbols)
