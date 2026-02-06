@@ -99,8 +99,10 @@ func getGoEnvHash(dir string) string {
 }
 
 func computeCombinedHash(fp *Fingerprint) string {
+	// Version intentionally excluded — a snipe rebuild should not
+	// invalidate the index of every target repo.  Only dependency
+	// and toolchain changes (go.mod, go.sum, go.work, go env) matter.
 	data := strings.Join([]string{
-		fp.Version,
 		fp.GoMod,
 		fp.GoSum,
 		fp.GoWork,

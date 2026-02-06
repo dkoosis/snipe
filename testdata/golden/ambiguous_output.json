@@ -29,13 +29,13 @@
   },
   "suggestions": [
     {
-      "command": "snipe def --at config/config.go:1:1",
-      "description": "Use position to specify Config in config/config.go",
+      "command": "snipe show abc123def45601",
+      "description": "Config in config/config.go",
       "priority": 1
     },
     {
-      "command": "snipe def --at server/config.go:1:1",
-      "description": "Use position to specify Config in server/config.go",
+      "command": "snipe show abc123def45602",
+      "description": "Config in server/config.go",
       "priority": 1
     }
   ]

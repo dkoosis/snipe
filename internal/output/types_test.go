@@ -708,8 +708,8 @@ func TestSuggestionsForAmbiguous(t *testing.T) {
 
 	t.Run("multiple candidates", func(t *testing.T) {
 		candidates := []Candidate{
-			{Name: "Config", File: "a/config.go", Kind: "type"},
-			{Name: "Config", File: "b/config.go", Kind: "type"},
+			{ID: "abc123def45601", Name: "Config", File: "a/config.go", Kind: "type"},
+			{ID: "abc123def45602", Name: "Config", File: "b/config.go", Kind: "type"},
 		}
 		suggestions := SuggestionsForAmbiguous(candidates)
 
@@ -718,8 +718,8 @@ func TestSuggestionsForAmbiguous(t *testing.T) {
 		}
 
 		for _, s := range suggestions {
-			if !strings.Contains(s.Command, "--at") {
-				t.Error("suggestions should use --at flag")
+			if !strings.Contains(s.Command, "snipe show ") {
+				t.Error("suggestions should use snipe show <id>")
 			}
 		}
 	})

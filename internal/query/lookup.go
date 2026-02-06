@@ -160,6 +160,7 @@ func LookupByNameInFile(db *sql.DB, name, filePattern string) ([]SymbolRow, erro
 }
 
 func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
+	// Exact match first (uses idx_symbols_name index)
 	rows, err := db.Query(`
 		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
@@ -173,7 +174,29 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 	}
 	defer rows.Close()
 
-	return scanSymbolRows(rows)
+	results, err := scanSymbolRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) > 0 {
+		return results, nil
+	}
+
+	// Case-insensitive fallback (table scan, but only on miss)
+	rows2, err := db.Query(`
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.name = ? COLLATE NOCASE
+		ORDER BY s.kind, s.file_path
+	`, name)
+	if err != nil {
+		return nil, fmt.Errorf("query symbols by name (case-insensitive): %w", err)
+	}
+	defer rows2.Close()
+
+	return scanSymbolRows(rows2)
 }
 
 func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
@@ -584,12 +607,17 @@ func (s *SymbolRow) ToCandidate() output.Candidate {
 			docSnippet = docSnippet[:77] + "..."
 		}
 	}
+	receiver := ""
+	if s.Receiver.Valid {
+		receiver = s.Receiver.String
+	}
 	return output.Candidate{
-		ID:   s.ID,
-		Name: s.Name,
-		File: filePath,
-		Kind: s.Kind,
-		Doc:  docSnippet,
+		ID:       s.ID,
+		Name:     s.Name,
+		File:     filePath,
+		Kind:     s.Kind,
+		Receiver: receiver,
+		Doc:      docSnippet,
 	}
 }
 

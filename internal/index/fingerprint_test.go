@@ -45,7 +45,7 @@ func TestFingerprintDeterminism(t *testing.T) {
 	}
 }
 
-func TestFingerprintChangesWithVersion(t *testing.T) {
+func TestFingerprintStableAcrossVersions(t *testing.T) {
 	dir := t.TempDir()
 	goMod := filepath.Join(dir, "go.mod")
 	if err := os.WriteFile(goMod, []byte("module test\n"), 0644); err != nil {
@@ -55,8 +55,8 @@ func TestFingerprintChangesWithVersion(t *testing.T) {
 	fp1, _ := ComputeFingerprint(dir, "1.0.0")
 	fp2, _ := ComputeFingerprint(dir, "2.0.0")
 
-	if fp1.Combined == fp2.Combined {
-		t.Error("Different versions should produce different fingerprints")
+	if fp1.Combined != fp2.Combined {
+		t.Error("Version change should not invalidate fingerprint")
 	}
 }
 

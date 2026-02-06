@@ -104,6 +104,33 @@ func runSym(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		// If arg looks like a filename, list symbols in that file
+		if strings.HasSuffix(name, ".go") {
+			_, _, lim, off, _, _, _ := GetOutputConfig()
+			symbols, err := query.FindSymbolsInFile(s.DB(), name, lim, off)
+			if err != nil {
+				return w.WriteError("sym", &output.Error{
+					Code:    output.ErrInternal,
+					Message: err.Error(),
+				})
+			}
+			if len(symbols) > 0 {
+				candidates := make([]output.Candidate, len(symbols))
+				for i, sym := range symbols {
+					candidates[i] = sym.ToCandidate()
+				}
+				return w.WriteError("sym", &output.Error{
+					Code:       output.ErrAmbiguousSymbol,
+					Message:    fmt.Sprintf("Symbols in %s", name),
+					Candidates: candidates,
+				})
+			}
+			return w.WriteError("sym", &output.Error{
+				Code:    output.ErrNotFound,
+				Message: "no symbols found in " + name,
+			})
+		}
+
 		// Check for file-qualified syntax: file.go:SymbolName
 		if idx := strings.LastIndex(name, ":"); idx > 0 && !strings.Contains(name[idx:], "/") {
 			filePart := name[:idx]

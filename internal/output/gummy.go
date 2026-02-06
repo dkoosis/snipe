@@ -211,8 +211,12 @@ func (w *gummyWriter) candidates(candidates []Candidate) {
 	w.blank()
 	fmt.Fprintln(w.out, gummyLabel.Sprint("Did you mean:"))
 	for _, c := range candidates {
+		name := c.Name
+		if c.Receiver != "" {
+			name = c.Receiver + "." + c.Name
+		}
 		fmt.Fprintf(w.out, "  %s %s  %s\n",
-			gummyName.Sprint(c.Name),
+			gummyName.Sprint(name),
 			gummyKind.Sprint(c.Kind),
 			gummyFile.Sprint(c.File))
 	}

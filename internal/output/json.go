@@ -190,7 +190,11 @@ func (w *Writer) writeHumanResultsFallback(resp Response[Result]) error {
 		if len(resp.Error.Candidates) > 0 {
 			fmt.Fprintln(w.out, "Candidates:")
 			for _, c := range resp.Error.Candidates {
-				fmt.Fprintf(w.out, "  %s (%s) in %s\n", c.Name, c.Kind, c.File)
+				name := c.Name
+				if c.Receiver != "" {
+					name = c.Receiver + "." + c.Name
+				}
+				fmt.Fprintf(w.out, "  %s (%s) in %s\n", name, c.Kind, c.File)
 			}
 		}
 		return nil

@@ -67,11 +67,12 @@ type NextAction struct {
 
 // Candidate represents an ambiguous symbol match
 type Candidate struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	File string `json:"file"`
-	Kind string `json:"kind"`
-	Doc  string `json:"doc,omitempty"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	File     string `json:"file"`
+	Kind     string `json:"kind"`
+	Receiver string `json:"receiver,omitempty"`
+	Doc      string `json:"doc,omitempty"`
 }
 
 // Result represents a single navigation result
@@ -399,9 +400,13 @@ func SuggestionsForAmbiguous(candidates []Candidate) []Suggestion {
 		if i >= 3 {
 			break // Limit to 3 suggestions
 		}
+		desc := c.Name
+		if c.Receiver != "" {
+			desc = c.Receiver + "." + c.Name
+		}
 		suggestions = append(suggestions, Suggestion{
-			Command:     "snipe def --at " + c.File + ":1:1",
-			Description: "Use position to specify " + c.Name + " in " + c.File,
+			Command:     "snipe show " + c.ID,
+			Description: desc + " in " + c.File,
 			Priority:    1,
 		})
 	}
