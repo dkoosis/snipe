@@ -616,6 +616,63 @@ func TestPkg_Dot_FromRepoRoot_ReturnsSameAsMain(t *testing.T) {
 	}
 }
 
+func TestPack_StructType_AggregatesMethodCallGraph(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "pack", "Widget")
+	if exitCode != 0 {
+		t.Fatalf("pack Widget exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:           "pack",
+		requireQuery:      true,
+		requireRepoRoot:   true,
+		requireIndexState: true,
+	})
+
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected pack results")
+	}
+
+	pack := requireMap(t, results[0], "results[0]")
+
+	// Definition should exist and be a struct
+	def := requireMap(t, pack["definition"], "definition")
+	if kind := getString(t, def["kind"], "kind"); kind != "struct" {
+		t.Fatalf("expected struct kind, got %s", kind)
+	}
+
+	// Methods should be populated (Widget has Do())
+	methodsRaw, ok := pack["methods"]
+	if !ok || methodsRaw == nil {
+		t.Fatalf("expected methods field for struct pack")
+	}
+	methods := requireSlice(t, methodsRaw, "methods")
+	if len(methods) == 0 {
+		t.Fatalf("expected at least one method for Widget")
+	}
+	firstMethod := requireMap(t, methods[0], "methods[0]")
+	if getString(t, firstMethod["name"], "name") != "Do" {
+		t.Fatalf("expected method name Do, got %s", getString(t, firstMethod["name"], "name"))
+	}
+
+	// Callers should be aggregated from Widget.Do()'s callers (UseWidget calls Do)
+	callerCount := int(getFloat(t, pack["caller_count"], "caller_count"))
+	if callerCount == 0 {
+		t.Fatalf("expected caller_count > 0 for struct with called methods")
+	}
+
+	// Callees should be aggregated from Widget.Do()'s callees
+	calleeCount := int(getFloat(t, pack["callee_count"], "callee_count"))
+	if calleeCount == 0 {
+		t.Fatalf("expected callee_count > 0 for struct with methods that call other functions")
+	}
+}
+
 func indexRepo(t *testing.T, repoDir string) {
 	t.Helper()
 

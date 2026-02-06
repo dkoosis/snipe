@@ -19,6 +19,12 @@ func ResolvePkgPattern(db *sql.DB, pattern string, cwd string, repoRoot string) 
 	case ".":
 		return resolveDot(db, cwd, repoRoot)
 	default:
+		// Try resolving short package names (no "/" or ".") via suffix matching
+		if !strings.Contains(pattern, "/") && !strings.Contains(pattern, ".") {
+			if resolved := resolveShortName(db, pattern); resolved != "" {
+				return resolved
+			}
+		}
 		return pattern
 	}
 }
@@ -33,6 +39,25 @@ func resolveMain(db *sql.DB) string {
 	`).Scan(&pkgPath)
 	if err != nil {
 		return pkgMain // fallback to original if DB query fails
+	}
+	return pkgPath
+}
+
+// resolveShortName resolves a short package name (e.g., "store") to a full
+// pkg_path by suffix-matching against indexed symbols. Returns empty string
+// if no unique match found.
+func resolveShortName(db *sql.DB, name string) string {
+	var pkgPath string
+	// Find shortest pkg_path ending with /<name>. Using shortest ensures
+	// we pick the most local match (e.g., "internal/store" over "vendor/x/store").
+	err := db.QueryRow(`
+		SELECT DISTINCT pkg_path FROM symbols
+		WHERE pkg_path LIKE '%/' || ?
+		ORDER BY LENGTH(pkg_path)
+		LIMIT 1
+	`, name).Scan(&pkgPath)
+	if err != nil {
+		return ""
 	}
 	return pkgPath
 }

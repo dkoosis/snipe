@@ -147,7 +147,7 @@ func runTypes(cmd *cobra.Command, args []string) error {
 		// Filter to type-like symbols
 		var typeSymbols []query.SymbolRow
 		for _, sym := range symbols {
-			if sym.Kind == "struct" || sym.Kind == "interface" || sym.Kind == "type" {
+			if isTypeKind(sym.Kind) {
 				typeSymbols = append(typeSymbols, sym)
 			}
 		}

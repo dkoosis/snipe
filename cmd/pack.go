@@ -333,25 +333,58 @@ func buildPackForSymbol(s *store.Store, dir, symbolID string, opts packOpts) (ou
 		refCount = -1
 	}
 
-	// Build callers
-	callerResults, callerDegraded := buildCallerResults(db, symbolID)
+	// Build callers/callees — branch on symbol kind
+	var callerResults, calleeResults []output.Result
+	var callerDegraded, calleeDegraded []string
+	var callerCount, calleeCount int
+	var methods []output.MethodSummary
+
+	isType := isTypeKind(sym.Kind)
+	if isType {
+		// Aggregate callers/callees across all methods of this type
+		methodInfos, mErr := query.GetMethodsForType(db, sym.Name, "")
+		if mErr != nil {
+			degraded = append(degraded, "methods_query_failed")
+		}
+		for _, m := range methodInfos {
+			methods = append(methods, output.MethodSummary{
+				ID:        m.ID,
+				Name:      m.Name,
+				Signature: m.Signature,
+			})
+		}
+
+		callerResults, callerDegraded = buildCallerResultsForType(db, sym.Name)
+		calleeResults, calleeDegraded = buildCalleeResultsForType(db, sym.Name)
+
+		var cErr error
+		callerCount, cErr = query.CountCallersForType(db, sym.Name)
+		if cErr != nil {
+			degraded = append(degraded, "caller_count_query_failed")
+			callerCount = -1
+		}
+		calleeCount, cErr = query.CountCalleesForType(db, sym.Name)
+		if cErr != nil {
+			degraded = append(degraded, "callee_count_query_failed")
+			calleeCount = -1
+		}
+	} else {
+		callerResults, callerDegraded = buildCallerResults(db, symbolID)
+
+		if err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE callee_id = ?`, symbolID).Scan(&callerCount); err != nil {
+			degraded = append(degraded, "caller_count_query_failed")
+			callerCount = -1
+		}
+
+		calleeResults, calleeDegraded = buildCalleeResults(db, symbolID)
+
+		if err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE caller_id = ?`, symbolID).Scan(&calleeCount); err != nil {
+			degraded = append(degraded, "callee_count_query_failed")
+			calleeCount = -1
+		}
+	}
 	degraded = append(degraded, callerDegraded...)
-
-	var callerCount int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE callee_id = ?`, symbolID).Scan(&callerCount); err != nil {
-		degraded = append(degraded, "caller_count_query_failed")
-		callerCount = -1
-	}
-
-	// Build callees
-	calleeResults, calleeDegraded := buildCalleeResults(db, symbolID)
 	degraded = append(degraded, calleeDegraded...)
-
-	var calleeCount int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE caller_id = ?`, symbolID).Scan(&calleeCount); err != nil {
-		degraded = append(degraded, "callee_count_query_failed")
-		calleeCount = -1
-	}
 
 	relatedTypes := extractRelatedTypes(sym.Signature.String)
 	degraded = uniqueStrings(degraded)
@@ -361,6 +394,7 @@ func buildPackForSymbol(s *store.Store, dir, symbolID string, opts packOpts) (ou
 		References:   refResults,
 		Callers:      callerResults,
 		Callees:      calleeResults,
+		Methods:      methods,
 		RefCount:     refCount,
 		CallerCount:  callerCount,
 		CalleeCount:  calleeCount,
@@ -497,6 +531,78 @@ func buildCalleeResults(db *sql.DB, symbolID string) ([]output.Result, []string)
 	return results, degraded
 }
 
+func buildCallerResultsForType(db *sql.DB, typeName string) ([]output.Result, []string) {
+	var degraded []string
+	callerRows, err := query.FindCallersForType(db, typeName, packCallersLimit, 0)
+	if err != nil {
+		degraded = append(degraded, "callers_query_failed")
+	}
+
+	results := make([]output.Result, 0, len(callerRows))
+	for _, call := range callerRows {
+		callNameLen := len(call.CalleeName)
+		if callNameLen == 0 {
+			callNameLen = 1
+		}
+		callRange := output.Range{
+			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
+			End:   output.Position{Line: call.CallLine, Col: call.CallCol + callNameLen},
+		}
+		filePath := call.CallerFileRel
+		if filePath == "" {
+			filePath = call.CallerFile
+		}
+		results = append(results, output.Result{
+			ID:         call.CallerID,
+			File:       filePath,
+			FileAbs:    call.CallerFile,
+			Range:      callRange,
+			Kind:       call.CallerKind,
+			Name:       call.CallerName,
+			Match:      call.CallerSignature.String,
+			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callRange),
+		})
+	}
+
+	return results, degraded
+}
+
+func buildCalleeResultsForType(db *sql.DB, typeName string) ([]output.Result, []string) {
+	var degraded []string
+	calleeRows, err := query.FindCalleesForType(db, typeName, packCalleesLimit, 0)
+	if err != nil {
+		degraded = append(degraded, "callees_query_failed")
+	}
+
+	results := make([]output.Result, 0, len(calleeRows))
+	for _, call := range calleeRows {
+		callNameLen := len(call.CalleeName)
+		if callNameLen == 0 {
+			callNameLen = 1
+		}
+		callSiteRange := output.Range{
+			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
+			End:   output.Position{Line: call.CallLine, Col: call.CallCol + callNameLen},
+		}
+		filePath := call.CallerFileRel
+		if filePath == "" {
+			filePath = call.CallerFile
+		}
+		results = append(results, output.Result{
+			ID:         call.CalleeID,
+			File:       filePath,
+			FileAbs:    call.CallerFile,
+			Range:      callSiteRange,
+			Kind:       call.CalleeKind,
+			Name:       call.CalleeName,
+			Match:      call.CalleeSignature.String,
+			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callSiteRange),
+		})
+	}
+
+	return results, degraded
+}
+
 func estimatePackTokens(pr output.PackResult) int {
 	estimate := 0
 	if pr.Definition != nil {
@@ -573,4 +679,9 @@ func extractRelatedTypes(signature string) []string {
 	}
 
 	return types
+}
+
+// isTypeKind returns true for symbol kinds that represent Go types.
+func isTypeKind(kind string) bool {
+	return kind == "struct" || kind == "interface" || kind == "type"
 }

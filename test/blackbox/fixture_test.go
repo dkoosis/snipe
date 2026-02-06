@@ -60,6 +60,11 @@ func UseAmbiguous() {
 	alpha.Ambiguous()
 	beta.Ambiguous()
 }
+
+func UseWidget() string {
+	w := &Widget{Name: "test"}
+	return w.Do()
+}
 `
 
 	mainPath := filepath.Join(repoDir, "main.go")

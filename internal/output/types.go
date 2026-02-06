@@ -431,19 +431,27 @@ type SymResult struct {
 	CalleeCount int      `json:"callee_count"`
 }
 
+// MethodSummary describes a method aggregated in a type's pack result.
+type MethodSummary struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Signature string `json:"signature,omitempty"`
+}
+
 // PackResult is the combined response for the pack command.
 // Contains everything an LLM needs: definition, graph, role, score, purpose.
 type PackResult struct {
-	Definition   *Result  `json:"definition"`
-	References   []Result `json:"references,omitempty"`
-	Callers      []Result `json:"callers,omitempty"`
-	Callees      []Result `json:"callees,omitempty"`
-	RefCount     int      `json:"ref_count"`
-	CallerCount  int      `json:"caller_count"`
-	CalleeCount  int      `json:"callee_count"`
-	Role         string   `json:"role,omitempty"`
-	Purpose      string   `json:"purpose,omitempty"`
-	RelatedTypes []string `json:"related_types,omitempty"`
+	Definition   *Result         `json:"definition"`
+	References   []Result        `json:"references,omitempty"`
+	Callers      []Result        `json:"callers,omitempty"`
+	Callees      []Result        `json:"callees,omitempty"`
+	Methods      []MethodSummary `json:"methods,omitempty"` // populated for struct/interface types
+	RefCount     int             `json:"ref_count"`
+	CallerCount  int             `json:"caller_count"`
+	CalleeCount  int             `json:"callee_count"`
+	Role         string          `json:"role,omitempty"`
+	Purpose      string          `json:"purpose,omitempty"`
+	RelatedTypes []string        `json:"related_types,omitempty"`
 }
 
 // SuggestionsForPack generates suggestions after a pack command.

@@ -119,7 +119,7 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 	}
 
 	// Get methods
-	methods, err := getMethodsForType(db, sym.Name, sym.PkgPath)
+	methods, err := GetMethodsForType(db, sym.Name, sym.PkgPath)
 	if err == nil {
 		info.Methods = methods
 	}
@@ -139,8 +139,8 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 	return info, nil
 }
 
-// getMethodsForType finds all methods for a type by receiver matching.
-func getMethodsForType(db *sql.DB, typeName, _ string) ([]MethodInfo, error) {
+// GetMethodsForType finds all methods for a type by receiver matching.
+func GetMethodsForType(db *sql.DB, typeName, _ string) ([]MethodInfo, error) {
 	// Match both value and pointer receivers
 	valueRecv := "(" + typeName + ")"
 	ptrRecv := "(*" + typeName + ")"

@@ -687,25 +687,7 @@ func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 	}
 	defer rows.Close()
 
-	var results []CallRow
-	for rows.Next() {
-		var r CallRow
-		var callerHash, calleeHash, callerFileRel, calleeFileRel sql.NullString
-		err := rows.Scan(
-			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &callerFileRel, &r.CallerSignature, &callerHash,
-			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &calleeFileRel, &r.CalleeSignature, &calleeHash,
-			&r.CallLine, &r.CallCol,
-		)
-		if err != nil {
-			return nil, err
-		}
-		r.CallerFileRel = callerFileRel.String
-		r.CalleeFileRel = calleeFileRel.String
-		r.CallerFileHash = callerHash.String
-		r.CalleeFileHash = calleeHash.String
-		results = append(results, r)
-	}
-	return results, rows.Err()
+	return scanCallRows(rows)
 }
 
 // FindCallees returns all functions that the given symbol calls
@@ -729,6 +711,104 @@ func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 	}
 	defer rows.Close()
 
+	return scanCallRows(rows)
+}
+
+// FindCallersForType aggregates callers across all methods of a type.
+// Uses a subquery to find method IDs by receiver, avoiding a round-trip.
+func FindCallersForType(db *sql.DB, typeName string, limit, offset int) ([]CallRow, error) {
+	valueRecv := "(" + typeName + ")"
+	ptrRecv := "(*" + typeName + ")"
+
+	rows, err := db.Query(`
+		SELECT
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, fe.hash,
+			cg.line, cg.col
+		FROM call_graph cg
+		JOIN symbols caller ON cg.caller_id = caller.id
+		JOIN symbols callee ON cg.callee_id = callee.id
+		LEFT JOIN files fc ON caller.file_path = fc.path
+		LEFT JOIN files fe ON callee.file_path = fe.path
+		WHERE cg.callee_id IN (
+			SELECT id FROM symbols WHERE kind = 'method'
+			AND (receiver = ? OR receiver = ?)
+		)
+		ORDER BY caller.file_path, cg.line
+		LIMIT ? OFFSET ?
+	`, valueRecv, ptrRecv, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanCallRows(rows)
+}
+
+// FindCalleesForType aggregates callees across all methods of a type.
+func FindCalleesForType(db *sql.DB, typeName string, limit, offset int) ([]CallRow, error) {
+	valueRecv := "(" + typeName + ")"
+	ptrRecv := "(*" + typeName + ")"
+
+	rows, err := db.Query(`
+		SELECT
+			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, fc.hash,
+			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, fe.hash,
+			cg.line, cg.col
+		FROM call_graph cg
+		JOIN symbols caller ON cg.caller_id = caller.id
+		JOIN symbols callee ON cg.callee_id = callee.id
+		LEFT JOIN files fc ON caller.file_path = fc.path
+		LEFT JOIN files fe ON callee.file_path = fe.path
+		WHERE cg.caller_id IN (
+			SELECT id FROM symbols WHERE kind = 'method'
+			AND (receiver = ? OR receiver = ?)
+		)
+		ORDER BY cg.line, cg.col
+		LIMIT ? OFFSET ?
+	`, valueRecv, ptrRecv, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanCallRows(rows)
+}
+
+// CountCallersForType returns total caller count across all methods of a type.
+func CountCallersForType(db *sql.DB, typeName string) (int, error) {
+	valueRecv := "(" + typeName + ")"
+	ptrRecv := "(*" + typeName + ")"
+
+	var count int
+	err := db.QueryRow(`
+		SELECT COUNT(*) FROM call_graph
+		WHERE callee_id IN (
+			SELECT id FROM symbols WHERE kind = 'method'
+			AND (receiver = ? OR receiver = ?)
+		)
+	`, valueRecv, ptrRecv).Scan(&count)
+	return count, err
+}
+
+// CountCalleesForType returns total callee count across all methods of a type.
+func CountCalleesForType(db *sql.DB, typeName string) (int, error) {
+	valueRecv := "(" + typeName + ")"
+	ptrRecv := "(*" + typeName + ")"
+
+	var count int
+	err := db.QueryRow(`
+		SELECT COUNT(*) FROM call_graph
+		WHERE caller_id IN (
+			SELECT id FROM symbols WHERE kind = 'method'
+			AND (receiver = ? OR receiver = ?)
+		)
+	`, valueRecv, ptrRecv).Scan(&count)
+	return count, err
+}
+
+// scanCallRows scans rows into CallRow slices (shared by FindCallers/FindCallees/ForType variants).
+func scanCallRows(rows *sql.Rows) ([]CallRow, error) {
 	var results []CallRow
 	for rows.Next() {
 		var r CallRow

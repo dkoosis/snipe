@@ -31,8 +31,11 @@ const (
 
 // Symbol kind constants used for role inference.
 const (
-	kindFunc   = "func"
-	kindMethod = "method"
+	kindFunc      = "func"
+	kindMethod    = "method"
+	kindStruct    = "struct"
+	kindInterface = "interface"
+	kindType      = "type"
 )
 
 // Visibility represents the export status of a symbol.
@@ -60,12 +63,15 @@ type SymbolRole struct {
 func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 	var results []SymbolRole
 
-	// Query all functions and methods with their metadata
+	// Query all functions, methods, and types with their metadata
 	rows, err := db.Query(`
 		SELECT id, name, kind, signature, pkg_path, file_path
 		FROM symbols
-		WHERE kind IN ('func', 'method')
+		WHERE kind IN ('func', 'method', 'struct', 'interface', 'type')
 		  AND file_path LIKE ? || '/%'
+		  AND file_path NOT LIKE '%/example%'
+		  AND file_path NOT LIKE '%/testdata%'
+		  AND file_path NOT LIKE '%_test.go'
 	`, repoRoot)
 	if err != nil {
 		return nil, err
@@ -105,8 +111,16 @@ func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 			sr.PkgPath = s.pkgPath.String
 		}
 
-		// Determine role (check in priority order)
-		role := inferRole(db, s.id, s.name, s.kind, s.signature.String, s.pkgPath.String)
+		// Determine role based on kind
+		var role Role
+		switch s.kind {
+		case kindFunc, kindMethod:
+			role = inferRole(db, s.id, s.name, s.kind, s.signature.String, s.pkgPath.String)
+		case kindStruct, kindInterface, kindType:
+			role = inferRoleForType(db, s.id, s.name, s.pkgPath.String)
+		default:
+			role = RoleInternal
+		}
 		sr.Role = role
 
 		results = append(results, sr)
@@ -388,16 +402,40 @@ func isInternal(db *sql.DB, symbolID, name, pkgPath string) bool {
 	return samePkgCallers == totalCallers
 }
 
-// InferRoleForSymbol returns the role for a single symbol without scanning the entire DB.
-func InferRoleForSymbol(db *sql.DB, symbolID, name, kind, signature, pkgPath, filePath string) Role {
-	// Only classify funcs and methods; types/vars don't have meaningful roles yet
-	if kind != kindFunc && kind != kindMethod {
-		if inferVisibility(name) == VisibilityPackagePrivate {
-			return RoleInternal
-		}
+// inferRoleForType determines the architectural role of a type symbol.
+// Types are classified by their package context and usage patterns.
+func inferRoleForType(_ *sql.DB, _, name, pkgPath string) Role {
+	// Persistence: type in a store-like package
+	if strings.Contains(strings.ToLower(pkgPath), "store") {
+		return RolePersistence
+	}
+
+	// IO: type names suggesting I/O (Reader, Writer, etc.)
+	nameLower := strings.ToLower(name)
+	if strings.Contains(nameLower, "reader") || strings.Contains(nameLower, "writer") {
+		return RoleIO
+	}
+
+	// Default: exported types are API boundaries, unexported are internal
+	if inferVisibility(name) == VisibilityExported {
 		return RoleAPIBoundary
 	}
-	return inferRole(db, symbolID, name, kind, signature, pkgPath)
+	return RoleInternal
+}
+
+// InferRoleForSymbol returns the role for a single symbol without scanning the entire DB.
+func InferRoleForSymbol(db *sql.DB, symbolID, name, kind, signature, pkgPath, _ string) Role {
+	if kind == kindFunc || kind == kindMethod {
+		return inferRole(db, symbolID, name, kind, signature, pkgPath)
+	}
+	// Types: use inferRoleForType for meaningful classification
+	if kind == kindStruct || kind == kindInterface || kind == kindType {
+		return inferRoleForType(db, symbolID, name, pkgPath)
+	}
+	if inferVisibility(name) == VisibilityPackagePrivate {
+		return RoleInternal
+	}
+	return RoleAPIBoundary
 }
 
 // InferRolesSummary returns a summary of role counts for the repository.

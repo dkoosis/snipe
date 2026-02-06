@@ -55,6 +55,11 @@
           "kind": "func",
           "line": 38,
           "name": "UseAmbiguous"
+        },
+        {
+          "kind": "func",
+          "line": 43,
+          "name": "UseWidget"
         }
       ]
     }

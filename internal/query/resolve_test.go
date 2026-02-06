@@ -9,6 +9,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const testPkgStore = "github.com/example/myproject/internal/store"
+
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -46,7 +48,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		{"a2", "Caller", "function", "github.com/example/myproject"},
 		{"b1", "Lookup", "function", "github.com/example/myproject/internal/query"},
 		{"b2", "SymbolRow", "struct", "github.com/example/myproject/internal/query"},
-		{"c1", "Open", "function", "github.com/example/myproject/internal/store"},
+		{"c1", "Open", "function", testPkgStore},
 	}
 	for _, s := range symbols {
 		_, err := db.Exec(`INSERT INTO symbols (id, name, kind, pkg_path, file_path, file_path_rel, line_start, col_start, line_end, col_end)
@@ -89,13 +91,24 @@ func TestResolvePkgPattern_Dot_InSubdir(t *testing.T) {
 	}
 }
 
-func TestResolvePkgPattern_Passthrough_ShortName(t *testing.T) {
+func TestResolvePkgPattern_ShortName_Resolves(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
 	got := ResolvePkgPattern(db, "store", "/tmp", "/tmp")
-	if got != "store" {
-		t.Errorf("passthrough: got %q, want %q", got, "store")
+	want := testPkgStore
+	if got != want {
+		t.Errorf("short name: got %q, want %q", got, want)
+	}
+}
+
+func TestResolvePkgPattern_ShortName_NoMatch(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	got := ResolvePkgPattern(db, "nonexistent", "/tmp", "/tmp")
+	if got != "nonexistent" {
+		t.Errorf("no match passthrough: got %q, want %q", got, "nonexistent")
 	}
 }
 
@@ -113,9 +126,9 @@ func TestResolvePkgPattern_Passthrough_FullModulePath(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	got := ResolvePkgPattern(db, "github.com/example/myproject/internal/store", "/tmp", "/tmp")
-	if got != "github.com/example/myproject/internal/store" {
-		t.Errorf("passthrough: got %q, want %q", got, "github.com/example/myproject/internal/store")
+	got := ResolvePkgPattern(db, testPkgStore, "/tmp", "/tmp")
+	if got != testPkgStore {
+		t.Errorf("passthrough: got %q, want %q", got, testPkgStore)
 	}
 }
 
@@ -131,7 +144,7 @@ func TestResolvePkgPattern_Dot_WithRealPaths(t *testing.T) {
 	}
 
 	got := ResolvePkgPattern(db, ".", subdir, root)
-	if got != "github.com/example/myproject/internal/store" {
-		t.Errorf("dot with real paths: got %q, want %q", got, "github.com/example/myproject/internal/store")
+	if got != testPkgStore {
+		t.Errorf("dot with real paths: got %q, want %q", got, testPkgStore)
 	}
 }

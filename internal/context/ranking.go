@@ -76,8 +76,11 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 			COUNT(r.id) as ref_count
 		FROM symbols s
 		LEFT JOIN refs r ON r.symbol_id = s.id
-		WHERE s.kind IN ('func', 'method', 'type', 'interface')
+		WHERE s.kind IN ('func', 'method', 'type', 'interface', 'struct')
 		  AND s.file_path LIKE ? || '/%'
+		  AND s.file_path NOT LIKE '%/example%'
+		  AND s.file_path NOT LIKE '%/testdata%'
+		  AND s.file_path NOT LIKE '%_test.go'
 		GROUP BY s.id
 	`, repoRoot)
 	if err != nil {
