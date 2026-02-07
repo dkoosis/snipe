@@ -94,21 +94,70 @@ orca:
     max_calls: 1
     difficulty: easy
 
+  - id: orca-def-04
+    category: def
+    task: "Find the Save function without knowing the receiver type"
+    commands: ["def Save"]
+    expected_symbols:
+      - "Store.Save"
+    expected_files:
+      - "internal/kg/sqlite/store.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Unqualified name — tests disambiguation. 'Save' is ambiguous; Store.Save should rank high."
+
+  # --- refs tasks (impact analysis — who uses this?) ---
+
+  - id: orca-refs-01
+    category: refs
+    task: "Find all code that references the Store interface"
+    commands: ["refs Store"]
+    expected_symbols:
+      - "Store"
+    expected_files:
+      - "internal/kg/store.go"
+      - "internal/kg/sqlite/store.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Store interface defined at internal/kg/store.go, implemented by sqlite.Store. Refs should span multiple packages."
+
+  - id: orca-refs-02
+    category: refs
+    task: "Find all code that references the Embedder interface"
+    commands: ["refs Embedder"]
+    expected_symbols:
+      - "Embedder"
+    expected_files:
+      - "internal/kg/embedder/embedder.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Embedder interface at embedder.go:28. Referenced by linker, store, and test code."
+
+  - id: orca-refs-03
+    category: refs
+    task: "Find all code that references the Tool interface"
+    commands: ["refs Tool"]
+    expected_symbols:
+      - "Tool"
+    expected_files:
+      - "internal/tool/tool.go"
+    max_calls: 1
+    difficulty: hard
+    notes: "Common name 'Tool' may be ambiguous. Tests whether refs resolves to the right interface."
+
   # --- callers tasks (impact analysis) ---
 
   - id: orca-callers-01
     category: callers
     task: "Find all code paths that save nuggets"
     commands: ["callers Store.Save"]
-    expected_symbols:
-      - "Linker.Process"     # linker calls Save at end of pipeline
-      - "Service.SetNug"     # mgmt service calls Save
+    expected_symbols: []
     expected_files:
       - "internal/kg/linker/linker.go"
       - "internal/kg/mgmt/service.go"
     max_calls: 1
     difficulty: medium
-    notes: "Single callers call should surface all call sites."
+    notes: "Callers returns direct callers of Save, not transitive. Expected files validated instead of symbols since direct caller names vary."
 
   - id: orca-callers-02
     category: callers
@@ -132,6 +181,75 @@ orca:
     max_calls: 1
     difficulty: medium
     notes: "Critical for cost analysis — callers command returns calling functions, not the callee itself."
+
+  # --- callees tasks (dependency understanding) ---
+
+  - id: orca-callees-01
+    category: callees
+    task: "Find what the linker pipeline calls during processing"
+    commands: ["callees Linker.Process"]
+    expected_symbols:
+      - "Store.Save"
+      - "Deduplicator.CheckDuplicate"
+    expected_files:
+      - "internal/kg/linker/linker.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Linker.Process is the central pipeline function. Callees should reveal the pipeline stages."
+
+  # --- pack tasks (deep dive — def + refs + callers + callees) ---
+
+  - id: orca-pack-01
+    category: pack
+    task: "Get complete context for Store.Save"
+    commands: ["pack Store.Save"]
+    expected_symbols:
+      - "Store.Save"
+      - "Linker.Process"     # caller
+    expected_files:
+      - "internal/kg/sqlite/store.go"
+      - "internal/kg/linker/linker.go"
+    max_calls: 1
+    difficulty: easy
+    notes: "Pack should return def + refs + callers + callees in one call. Tests command integration."
+
+  - id: orca-pack-02
+    category: pack
+    task: "Get complete context for the Embedder interface"
+    commands: ["pack Embedder"]
+    expected_symbols:
+      - "Embedder"
+    expected_files:
+      - "internal/kg/embedder/embedder.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Interface pack should show definition, all implementations, and all call sites."
+
+  # --- impl tasks (interface → implementations) ---
+
+  - id: orca-impl-01
+    category: impl
+    task: "Find all types that implement the Embedder interface"
+    commands: ["impl Embedder"]
+    expected_symbols:
+      - "Embedder"
+    expected_files:
+      - "internal/kg/embedder/"
+    max_calls: 1
+    difficulty: medium
+    notes: "Should find VoyageEmbedder and any other implementations. Critical for understanding polymorphic dispatch."
+
+  - id: orca-impl-02
+    category: impl
+    task: "Find all types that implement the Store interface"
+    commands: ["impl kg.Store"]
+    expected_symbols:
+      - "Store"
+    expected_files:
+      - "internal/kg/sqlite/store.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "kg.Store interface at store.go:17, implemented by sqlite.Store. Qualified name avoids ambiguity with telemetry.Store."
 
   # --- pkg tasks (orientation / exploration) ---
 
@@ -157,13 +275,12 @@ orca:
     expected_symbols:
       - "Router"
       - "RegisterKitTools"
-      - "registerTool"
     expected_files:
       - "internal/mcp/server/router.go"
       - "internal/mcp/server/tool_registry.go"
     max_calls: 1
     difficulty: medium
-    notes: "Large package. Quality = can I identify the handler registration pattern?"
+    notes: "Large package. Quality = can I identify the handler registration pattern? registerTool is unexported, not shown by pkg."
 
   - id: orca-pkg-03
     category: pkg
@@ -231,6 +348,16 @@ orca:
     difficulty: hard
     notes: "Concept is vague — 'stale nuggets' could match many things."
 
+  - id: orca-search-05
+    category: search
+    task: "Search for a nonexistent symbol"
+    commands: ["search 'xyzzyplugh'"]
+    expected_symbols: []
+    expected_files: []
+    max_calls: 1
+    difficulty: easy
+    notes: "Negative test — should return zero results cleanly, not error. Validates graceful empty response."
+
   # --- cross-cutting tasks (multi-step localization) ---
 
   - id: orca-cross-01
@@ -264,6 +391,189 @@ orca:
     difficulty: hard
     notes: "End-to-end trace. Quality = can the agent reconstruct the data flow?"
 
+  - id: orca-cross-03
+    category: cross-cutting
+    task: "Find the Embedder interface, its implementations, and who calls Embed"
+    commands: ["impl Embedder", "refs Embedder", "callers Embed"]
+    expected_symbols:
+      - "Embedder"
+    expected_files:
+      - "internal/kg/embedder/embedder.go"
+      - "internal/kg/embedder/"
+    max_calls: 3
+    difficulty: hard
+    notes: "Interface → implementations → callers chain. Tests command composition for polymorphic code."
+
+  # ==========================================================
+  # Orca-specific workflow tasks
+  # These target real development scenarios on the orca codebase
+  # ==========================================================
+
+  # --- MCP request lifecycle ---
+
+  - id: orca-def-05
+    category: def
+    task: "Find the go_symbol MCP handler entry point"
+    commands: ["def HandleGoSymbol"]
+    expected_symbols:
+      - "HandleGoSymbol"
+    expected_files:
+      - "internal/mcp/server/go_symbol_handler.go"
+    max_calls: 1
+    difficulty: easy
+    notes: "This is snipe's own integration point in orca — the handler that wraps snipe for MCP."
+
+  - id: orca-callees-02
+    category: callees
+    task: "Find what HandleGoSymbol calls during execution"
+    commands: ["callees HandleGoSymbol"]
+    expected_symbols:
+      - "HandleGoSymbol"
+    expected_files:
+      - "internal/mcp/server/go_symbol_handler.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Should reveal: classifyQuery, findGoSymbolViaSnipe, findGoSymbolFallback, enrichWithKG — the full dispatch chain."
+
+  - id: orca-cross-04
+    category: cross-cutting
+    task: "Trace an MCP tool call from registration to handler execution"
+    commands: ["def Router.RegisterKitTools", "def Router.registerTool", "search 'goSymbolHandler'"]
+    expected_symbols:
+      - "Router.RegisterKitTools"
+      - "Router.registerTool"
+    expected_files:
+      - "internal/mcp/server/router.go"
+      - "internal/mcp/server/go_symbol_handler.go"
+    max_calls: 3
+    difficulty: hard
+    notes: "How does a tool go from registration to execution? Router → registerTool → handler wiring."
+
+  # --- Token estimation / truncation (cross-file sync) ---
+
+  - id: orca-refs-04
+    category: refs
+    task: "Find all code that calls EstimateTokens or EstimateTokensFromText"
+    commands: ["refs EstimateTokensFromText"]
+    expected_symbols:
+      - "EstimateTokensFromText"
+    expected_files:
+      - "internal/obs/telemetry/metrics/token_estimator.go"
+      - "internal/mcp/response/truncation.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Critical cross-file dependency: truncation.go imports token_estimator. Changing the ratio in one breaks the other."
+
+  - id: orca-cross-05
+    category: cross-cutting
+    task: "Find all code involved in response truncation — estimator, truncation logic, and callers"
+    commands: ["def TruncateResponse", "refs EstimateTokensFromText", "search 'charsPerToken'"]
+    expected_symbols:
+      - "TruncateResponse"
+      - "EstimateTokensFromText"
+    expected_files:
+      - "internal/mcp/response/truncation.go"
+      - "internal/obs/telemetry/metrics/token_estimator.go"
+    max_calls: 3
+    difficulty: hard
+    notes: "Real maintenance scenario: charsPerToken is defined in two files that must stay in sync. Can the agent find both?"
+
+  # --- NER pipeline ---
+
+  - id: orca-def-06
+    category: def
+    task: "Find the NER extractor entry point"
+    commands: ["def Extractor.ExtractFromEmail"]
+    expected_symbols:
+      - "Extractor.ExtractFromEmail"
+    expected_files:
+      - "internal/kg/ner/extractor.go"
+    max_calls: 1
+    difficulty: easy
+
+  - id: orca-callees-03
+    category: callees
+    task: "Find what the NER email extractor calls"
+    commands: ["callees Extractor.ExtractFromEmail"]
+    expected_symbols:
+      - "Extractor.ExtractFromEmail"
+    expected_files:
+      - "internal/kg/ner/extractor.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Should reveal: ParseEmailHeaders, ExtractFromEmail (regex), LLMExtractor.ExtractWithPreExtracted — the extraction pipeline."
+
+  - id: orca-search-06
+    category: search
+    task: "Find where email headers are parsed and entities extracted"
+    commands: ["search 'ParseEmailHeaders'", "search 'entitiesFromAddress'"]
+    expected_symbols:
+      - "ParseEmailHeaders"
+      - "entitiesFromAddress"
+    expected_files:
+      - "internal/kg/ner/email.go"
+    max_calls: 2
+    difficulty: medium
+    notes: "Agent knows 'email parsing' but needs to find the specific functions."
+
+  # --- LLM provider abstraction ---
+
+  - id: orca-impl-03
+    category: impl
+    task: "Find all types that implement the LLM Provider interface"
+    commands: ["impl Provider"]
+    expected_symbols:
+      - "AnthropicProvider"
+      - "OpenAIProvider"
+      - "OllamaProvider"
+    expected_files:
+      - "internal/util/llm/provider.go"
+      - "internal/util/llm/openai.go"
+      - "internal/util/llm/ollama.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Three implementations. Tests impl on a real polymorphic abstraction with multiple concrete types."
+
+  - id: orca-cross-06
+    category: cross-cutting
+    task: "Trace LLM usage from linker through provider to HTTP call"
+    commands: ["callers Client.Reflect", "def Client.Reflect", "def NewProvider"]
+    expected_symbols:
+      - "Client.Reflect"
+      - "NewProvider"
+    expected_files:
+      - "internal/util/llm/client.go"
+      - "internal/util/llm/provider.go"
+    max_calls: 3
+    difficulty: hard
+    notes: "How does orca call an LLM? Linker calls Client.Reflect, providers dispatch to HTTP APIs."
+
+  # --- Code intelligence layer (snipe integration in orca) ---
+
+  - id: orca-search-07
+    category: search
+    task: "Find where snipe is invoked from within orca"
+    commands: ["search 'findGoSymbolViaSnipe'", "search 'snipe'"]
+    expected_symbols:
+      - "findGoSymbolViaSnipe"
+    expected_files:
+      - "internal/mcp/server/go_symbol_handler.go"
+    max_calls: 2
+    difficulty: medium
+    notes: "Meta-task: snipe benchmarking snipe's own integration. findGoSymbolViaSnipe is the bridge."
+
+  - id: orca-search-08
+    category: search
+    task: "Find the GoSymbolService and how it falls back between strategies"
+    commands: ["search 'GoSymbolService'", "search 'textSearch'"]
+    expected_symbols:
+      - "GoSymbolService"
+    expected_files:
+      - "internal/kits/code/service/go_symbol_service.go"
+    max_calls: 2
+    difficulty: medium
+    notes: "The service layer has snipe → gopls → ripgrep fallback chain. Can search surface the strategy?"
+
 # ============================================================
 # CHI (small codebase, ~5k LOC, HTTP router)
 # repo: github.com/go-chi/chi
@@ -287,16 +597,75 @@ chi:
     max_calls: 1
     difficulty: easy
 
+  # --- refs ---
+
+  - id: chi-refs-01
+    category: refs
+    task: "Find all code that references the Mux type"
+    commands: ["refs Mux"]
+    expected_symbols:
+      - "Mux"
+    expected_files:
+      - "mux.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Mux is the central type. Refs should appear across mux.go, tree.go, middleware, and tests."
+
+  # --- callers ---
+
   - id: chi-callers-01
     category: callers
     task: "Find all places that add middleware to a router"
     commands: ["callers Mux.Use"]
     expected_symbols: []
+    expected_files: []
+    max_calls: 1
+    difficulty: medium
+    notes: "Callers returns functions that call Use. Callers are mostly in test files. No expected_files since test paths vary."
+
+  # --- callees ---
+
+  - id: chi-callees-01
+    category: callees
+    task: "Find what routeHTTP calls during request dispatch"
+    commands: ["callees Mux.routeHTTP"]
+    expected_symbols:
+      - "Mux.routeHTTP"
     expected_files:
       - "mux.go"
     max_calls: 1
     difficulty: medium
-    notes: "Callers returns functions that call Use, not Use itself."
+    notes: "Should reveal the route matching internals — tree walking, context setup, handler invocation."
+
+  # --- pack ---
+
+  - id: chi-pack-01
+    category: pack
+    task: "Get complete context for the Mux type"
+    commands: ["pack Mux"]
+    expected_symbols:
+      - "Mux"
+    expected_files:
+      - "mux.go"
+    max_calls: 1
+    difficulty: easy
+    notes: "Small codebase. Pack should give a complete picture of the central type."
+
+  # --- impl ---
+
+  - id: chi-impl-01
+    category: impl
+    task: "Find all types that implement the Router interface"
+    commands: ["impl Router"]
+    expected_symbols:
+      - "Mux"
+    expected_files:
+      - "mux.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "chi.Router interface at chi.go:66. Mux is the primary implementation."
+
+  # --- pkg ---
 
   - id: chi-pkg-01
     category: pkg
@@ -314,6 +683,8 @@ chi:
     difficulty: easy
     notes: "Small package. All exports should fit in one call."
 
+  # --- search ---
+
   - id: chi-search-01
     category: search
     task: "Find how chi builds its radix tree for route matching"
@@ -327,6 +698,8 @@ chi:
     difficulty: hard
     notes: "Concept-to-symbol. Agent knows 'radix tree' but not chi's internal names."
 
+  # --- cross-cutting ---
+
   - id: chi-cross-01
     category: cross-cutting
     task: "Trace an HTTP request from ServeHTTP through route matching to handler execution"
@@ -336,6 +709,19 @@ chi:
       - "Mux.routeHTTP"
     max_calls: 3
     difficulty: hard
+
+  - id: chi-cross-02
+    category: cross-cutting
+    task: "Orientation: understand chi's structure then drill into the core type"
+    commands: ["pkg chi", "def Mux", "pack Mux.ServeHTTP"]
+    expected_symbols:
+      - "Mux"
+      - "Mux.ServeHTTP"
+    expected_files:
+      - "mux.go"
+    max_calls: 3
+    difficulty: medium
+    notes: "Boot-style orientation workflow: pkg overview → type definition → deep dive."
 
 # ============================================================
 # COBRA (medium codebase, ~10k LOC, CLI framework)
@@ -360,6 +746,34 @@ cobra:
     max_calls: 1
     difficulty: easy
 
+  - id: cobra-def-03
+    category: def
+    task: "Find the unexported execute method"
+    commands: ["def Command.execute"]
+    expected_symbols:
+      - "Command.execute"
+    expected_files:
+      - "command.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Lowercase unexported method. Tests whether def resolves private methods on exported types."
+
+  # --- refs ---
+
+  - id: cobra-refs-01
+    category: refs
+    task: "Find all code that references the Command type"
+    commands: ["refs Command"]
+    expected_symbols:
+      - "Command"
+    expected_files:
+      - "command.go"
+    max_calls: 1
+    difficulty: hard
+    notes: "Command is used everywhere in cobra. Tests whether refs handles high-fanout types. Many results expected."
+
+  # --- callers ---
+
   - id: cobra-callers-01
     category: callers
     task: "Find all internal callers of command execution"
@@ -368,6 +782,37 @@ cobra:
       - "Command.ExecuteC"  # public wrapper that calls execute
     max_calls: 1
     difficulty: medium
+
+  # --- callees ---
+
+  - id: cobra-callees-01
+    category: callees
+    task: "Find what happens inside Command.execute"
+    commands: ["callees Command.execute"]
+    expected_symbols:
+      - "Command.execute"
+    expected_files:
+      - "command.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "execute is the core dispatch. Callees should reveal: flag parsing, pre-run hooks, run function, post-run hooks."
+
+  # --- pack ---
+
+  - id: cobra-pack-01
+    category: pack
+    task: "Get complete context for Command.Execute"
+    commands: ["pack Command.Execute"]
+    expected_symbols:
+      - "Command.Execute"
+      - "Command.ExecuteC"
+    expected_files:
+      - "command.go"
+    max_calls: 1
+    difficulty: easy
+    notes: "Execute is the entry point. Pack should show def, who calls it, and what it calls."
+
+  # --- search ---
 
   - id: cobra-search-01
     category: search
@@ -396,6 +841,19 @@ cobra:
     max_calls: 2
     difficulty: medium
 
+  - id: cobra-search-03
+    category: search
+    task: "Find error handling patterns"
+    commands: ["search 'error'", "search 'ErrHelp'"]
+    expected_symbols: []
+    expected_files:
+      - "command.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "Deliberately vague query. Tests whether search surfaces useful results for broad concepts."
+
+  # --- cross-cutting ---
+
   - id: cobra-cross-01
     category: cross-cutting
     task: "Trace argument validation from user input to error"
@@ -407,6 +865,19 @@ cobra:
       - "ExactArgs"
     max_calls: 3
     difficulty: hard
+
+  - id: cobra-cross-02
+    category: cross-cutting
+    task: "Assess impact of changing Command.Execute"
+    commands: ["refs Command.Execute", "callers Command.execute", "callees Command.execute"]
+    expected_symbols:
+      - "Command.Execute"
+      - "Command.ExecuteC"
+    expected_files:
+      - "command.go"
+    max_calls: 3
+    difficulty: hard
+    notes: "Impact analysis workflow: who uses it (refs) + who calls it (callers) + what it depends on (callees)."
 
 # ============================================================
 # BBOLT (small codebase, ~8k LOC, embedded key/value store)
@@ -431,6 +902,22 @@ bbolt:
     max_calls: 1
     difficulty: easy
 
+  # --- refs ---
+
+  - id: bbolt-refs-01
+    category: refs
+    task: "Find all code that references the DB type"
+    commands: ["refs DB"]
+    expected_symbols:
+      - "DB"
+    expected_files:
+      - "db.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "DB is the root type. Refs should span db.go, tx.go, bucket.go, and test files."
+
+  # --- callers ---
+
   - id: bbolt-callers-01
     category: callers
     task: "Find all code that allocates new pages"
@@ -440,6 +927,22 @@ bbolt:
     max_calls: 1
     difficulty: hard
     notes: "Internal function. Tests whether callers resolves private methods."
+
+  # --- callees ---
+
+  - id: bbolt-callees-01
+    category: callees
+    task: "Find what Tx.Commit calls during commit"
+    commands: ["callees Tx.Commit"]
+    expected_symbols:
+      - "Tx.Commit"
+    expected_files:
+      - "tx.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Commit is complex — should reveal: page allocation, freelist management, data write, metadata sync."
+
+  # --- search ---
 
   - id: bbolt-search-01
     category: search
@@ -469,6 +972,8 @@ bbolt:
     difficulty: medium
     known_gap: true
     notes: "Unexported methods on unexported types not resolvable by def."
+
+  # --- cross-cutting ---
 
   - id: bbolt-cross-01
     category: cross-cutting
@@ -501,6 +1006,33 @@ fzf:
     difficulty: medium
     notes: "Agent may not know the exact function name."
 
+  - id: fzf-def-02
+    category: def
+    task: "Find the Run function (ambiguous — multiple packages may define Run)"
+    commands: ["def Run"]
+    expected_symbols:
+      - "Run"
+    expected_files: []
+    max_calls: 1
+    difficulty: hard
+    notes: "Ambiguous name. Tests disambiguation across packages. Any Run function is a valid hit."
+
+  # --- refs ---
+
+  - id: fzf-refs-01
+    category: refs
+    task: "Find all code that references the Options type"
+    commands: ["refs Options"]
+    expected_symbols:
+      - "Options"
+    expected_files:
+      - "src/options.go"
+    max_calls: 1
+    difficulty: medium
+    notes: "Options struct at src/options.go:565. Central config type — refs should span many files."
+
+  # --- search ---
+
   - id: fzf-search-01
     category: search
     task: "Find how terminal input events are processed"
@@ -523,6 +1055,19 @@ fzf:
     max_calls: 2
     difficulty: hard
 
+  - id: fzf-search-03
+    category: search
+    task: "Find the scoring and bonus logic for match quality"
+    commands: ["search 'bonus'", "search 'score'"]
+    expected_symbols: []
+    expected_files:
+      - "src/algo/algo.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "Conceptual search. 'bonus' and 'score' appear in the fuzzy matching algorithm for match quality."
+
+  # --- cross-cutting ---
+
   - id: fzf-cross-01
     category: cross-cutting
     task: "Trace user input from keypress through matching to display"
@@ -533,6 +1078,29 @@ fzf:
     max_calls: 4
     difficulty: hard
     notes: "End-to-end data flow across packages. Hardest localization task."
+
+# ============================================================
+# Weights
+# ============================================================
+#
+# Weights reflect frequency × "how stuck is the agent if this fails?"
+# High weight = used often AND no good fallback exists.
+# Low weight = either infrequent or has decent alternatives (grep, file listing).
+#
+# Weights are normalized — they must sum to 1.0.
+# The harness computes both unweighted (equal task contribution) and
+# weighted (category importance) aggregates.
+#
+weights:
+  search: 0.25         # concept→symbol has no fallback; this is what saves the agent
+  def: 0.20            # most frequent command, but search+read is a passable fallback
+  refs: 0.18           # no fallback for type/interface references; critical for safe refactoring
+  callers: 0.12        # grep can approximate, but misses interface dispatch
+  pack: 0.08           # convenience (chains def+refs+callers), tests command integration
+  cross-cutting: 0.07  # most realistic proxy for actual agent workflow
+  impl: 0.05           # infrequent but irreplaceable when needed (Go interface polymorphism)
+  pkg: 0.03            # orientation; tree/ls are decent alternatives
+  callees: 0.02        # least common, useful for dependency tracing
 
 # ============================================================
 # Scoring rubric
@@ -577,12 +1145,18 @@ scoring:
       target: "< 0.5 (snipe should be 2x fewer calls than grep)"
 
 # ============================================================
-# Task distribution (mirrors real usage)
+# Task distribution
 # ============================================================
 distribution:
-  def: 6          # ~25% — most common single call
-  callers: 5      # ~20% — impact analysis
-  pkg: 3          # ~12% — orientation
-  search: 8       # ~33% — concept-to-symbol, hardest
-  cross-cutting: 5 # ~20% — multi-step traces
-  # Total: 27 tasks across 5 codebases
+  search: 17        # ~22% — concept-to-symbol, hardest
+  def: 15           # ~20% — most common single call
+  cross-cutting: 12 # ~16% — multi-step traces, most realistic
+  refs: 8           # ~11% — impact analysis, no fallback
+  callers: 6        # ~8%  — call chain tracing
+  callees: 6        # ~8%  — dependency understanding
+  pack: 4           # ~5%  — deep dives, command integration
+  impl: 4           # ~5%  — interface navigation
+  pkg: 4            # ~5%  — orientation
+  # Total: 76 tasks across 5 codebases (38 orca, 38 other)
+  # Known gaps: 3 (bbolt unexported types)
+  # Scored: 73

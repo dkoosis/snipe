@@ -12,11 +12,12 @@ import (
 
 // BenchmarkFile is the top-level YAML structure.
 type BenchmarkFile struct {
-	Orca  []Task `yaml:"orca"`
-	Chi   []Task `yaml:"chi"`
-	Cobra []Task `yaml:"cobra"`
-	Bbolt []Task `yaml:"bbolt"`
-	Fzf   []Task `yaml:"fzf"`
+	Orca    []Task             `yaml:"orca"`
+	Chi     []Task             `yaml:"chi"`
+	Cobra   []Task             `yaml:"cobra"`
+	Bbolt   []Task             `yaml:"bbolt"`
+	Fzf     []Task             `yaml:"fzf"`
+	Weights map[string]float64 `yaml:"weights"`
 }
 
 // Task is a single benchmark task parsed from YAML.
@@ -64,6 +65,7 @@ type CategoryScore struct {
 	FileAcc    float64 `json:"file_acc"`
 	SymbolAcc  float64 `json:"symbol_acc"`
 	Efficiency float64 `json:"efficiency"`
+	Weight     float64 `json:"weight"`
 }
 
 // EvalReport is the full benchmark report.
@@ -77,6 +79,11 @@ type EvalReport struct {
 	MeanMRR    float64                  `json:"mean_mrr"`
 	KnownGaps  int                      `json:"known_gaps"`
 	ByCategory map[string]CategoryScore `json:"by_category"`
+
+	// Weighted aggregates (category importance × category score)
+	WeightedFileAcc    float64 `json:"weighted_file_acc"`
+	WeightedSymbolAcc  float64 `json:"weighted_symbol_acc"`
+	WeightedEfficiency float64 `json:"weighted_efficiency"`
 }
 
 // snipeResponse is a minimal parse of snipe's JSON output.
@@ -112,6 +119,49 @@ type snipeCandidate struct {
 	Receiver string `json:"receiver"`
 	File     string `json:"file"`
 	Kind     string `json:"kind"`
+}
+
+// packResponse mirrors the nested pack output structure for re-parsing.
+type packResponse struct {
+	Ok      bool           `json:"ok"`
+	Results []packResult   `json:"results"`
+	Meta    snipeMeta      `json:"meta"`
+	Error   *snipeError    `json:"error"`
+}
+
+type packResult struct {
+	Definition *snipeResult  `json:"definition"`
+	References []snipeResult `json:"references"`
+	Callers    []snipeResult `json:"callers"`
+	Callees    []snipeResult `json:"callees"`
+}
+
+// flattenPackResponse re-parses raw JSON as a pack response and flattens
+// all nested results into a flat snipeResponse for uniform scoring.
+func flattenPackResponse(raw []byte) (snipeResponse, bool) {
+	var pr packResponse
+	if err := json.Unmarshal(raw, &pr); err != nil {
+		return snipeResponse{}, false
+	}
+	if pr.Meta.Command != "pack" {
+		return snipeResponse{}, false
+	}
+
+	var flat snipeResponse
+	flat.Ok = pr.Ok
+	flat.Meta = pr.Meta
+	flat.Error = pr.Error
+
+	for _, r := range pr.Results {
+		if r.Definition != nil {
+			flat.Results = append(flat.Results, *r.Definition)
+		}
+		flat.Results = append(flat.Results, r.References...)
+		flat.Results = append(flat.Results, r.Callers...)
+		flat.Results = append(flat.Results, r.Callees...)
+	}
+
+	return flat, true
 }
 
 // promoteAmbiguousCandidates converts AMBIGUOUS_SYMBOL error candidates
@@ -203,6 +253,13 @@ func matchFile(resultFile, expected string) bool {
 	// Normalize both paths for comparison
 	rf := normalizePath(resultFile)
 	ef := normalizePath(expected)
+
+	// Directory pattern: "internal/kg/" matches any file under that directory
+	if strings.HasSuffix(ef, "/") {
+		dir := ef[:len(ef)-1] // strip trailing slash
+		return strings.Contains(rf, dir+"/") || strings.HasSuffix(rf, dir)
+	}
+
 	return strings.HasSuffix(rf, ef) || strings.HasSuffix(ef, rf)
 }
 
@@ -405,6 +462,58 @@ func aggregateReport(repos []RepoResult) (fileAcc, symbolAcc, efficiency, meanMR
 	return
 }
 
+// computeWeightedScores computes weighted aggregates across categories.
+// Each category's score is multiplied by its weight; the result is normalized
+// by total weight so missing categories don't deflate the score.
+// If weights is nil or empty, returns equal-weighted averages (same as unweighted).
+func computeWeightedScores(byCategory map[string]CategoryScore, weights map[string]float64) (fileAcc, symbolAcc, efficiency float64) {
+	if len(weights) == 0 {
+		// Fallback: equal weight per category
+		var n float64
+		for _, cs := range byCategory {
+			if cs.Tasks == 0 {
+				continue
+			}
+			fileAcc += cs.FileAcc
+			symbolAcc += cs.SymbolAcc
+			efficiency += cs.Efficiency
+			n++
+		}
+		if n > 0 {
+			fileAcc /= n
+			symbolAcc /= n
+			efficiency /= n
+		}
+		return
+	}
+
+	var totalWeight float64
+	for cat, cs := range byCategory {
+		if cs.Tasks == 0 {
+			continue
+		}
+		w := weights[cat]
+		if w <= 0 {
+			w = 0.01 // small default for unconfigured categories
+		}
+		totalWeight += w
+		fileAcc += cs.FileAcc * w
+		symbolAcc += cs.SymbolAcc * w
+		efficiency += cs.Efficiency * w
+
+		// Annotate the category with its weight for reporting
+		cs.Weight = w
+		byCategory[cat] = cs
+	}
+
+	if totalWeight > 0 {
+		fileAcc /= totalWeight
+		symbolAcc /= totalWeight
+		efficiency /= totalWeight
+	}
+	return
+}
+
 // formatReport prints the console report.
 func formatReport(report EvalReport) string {
 	var b strings.Builder
@@ -438,22 +547,26 @@ func formatReport(report EvalReport) string {
 
 	// By category
 	b.WriteString("\nBY CATEGORY\n")
-	b.WriteString(strings.Repeat("-", 56) + "\n")
-	b.WriteString(fmt.Sprintf("%-16s %6s %7s %9s %12s\n", "Category", "Tasks", "File%", "Symbol%", "Efficiency%"))
+	b.WriteString(strings.Repeat("-", 68) + "\n")
+	b.WriteString(fmt.Sprintf("%-16s %6s %7s %9s %12s %8s\n", "Category", "Tasks", "File%", "Symbol%", "Efficiency%", "Weight"))
 
-	categories := []string{"def", "callers", "pkg", "search", "cross-cutting"}
+	categories := []string{"search", "def", "refs", "callers", "pack", "cross-cutting", "impl", "pkg", "callees"}
 	for _, cat := range categories {
 		cs, ok := report.ByCategory[cat]
 		if !ok {
 			continue
 		}
-		b.WriteString(fmt.Sprintf("%-16s %6d %6.0f%% %8.0f%% %11.0f%%\n",
-			cat, cs.Tasks, cs.FileAcc, cs.SymbolAcc, cs.Efficiency))
+		weightStr := "  -"
+		if cs.Weight > 0 {
+			weightStr = fmt.Sprintf("  %.0f%%", cs.Weight*100)
+		}
+		b.WriteString(fmt.Sprintf("%-16s %6d %6.0f%% %8.0f%% %11.0f%% %7s\n",
+			cat, cs.Tasks, cs.FileAcc, cs.SymbolAcc, cs.Efficiency, weightStr))
 	}
 
-	// Aggregate
-	b.WriteString("\nAGGREGATE\n")
-	b.WriteString(strings.Repeat("-", 56) + "\n")
+	// Aggregate (unweighted — equal per-task contribution)
+	b.WriteString("\nAGGREGATE (unweighted)\n")
+	b.WriteString(strings.Repeat("-", 68) + "\n")
 	b.WriteString(fmt.Sprintf("File accuracy:    %5.1f%%  (target: >90%%)  [%s]\n",
 		report.FileAcc, passOrMiss(report.FileAcc, 90)))
 	b.WriteString(fmt.Sprintf("Symbol accuracy:  %5.1f%%  (target: >75%%)  [%s]\n",
@@ -461,6 +574,18 @@ func formatReport(report EvalReport) string {
 	b.WriteString(fmt.Sprintf("Efficiency:       %5.1f%%  (target: >80%%)  [%s]\n",
 		report.Efficiency, passOrMiss(report.Efficiency, 80)))
 	b.WriteString(fmt.Sprintf("MRR (secondary):  %5.2f\n", report.MeanMRR))
+
+	// Weighted aggregate (category importance × category score)
+	if report.WeightedFileAcc > 0 || report.WeightedSymbolAcc > 0 {
+		b.WriteString("\nAGGREGATE (weighted by category importance)\n")
+		b.WriteString(strings.Repeat("-", 68) + "\n")
+		b.WriteString(fmt.Sprintf("File accuracy:    %5.1f%%  (target: >90%%)  [%s]\n",
+			report.WeightedFileAcc, passOrMiss(report.WeightedFileAcc, 90)))
+		b.WriteString(fmt.Sprintf("Symbol accuracy:  %5.1f%%  (target: >75%%)  [%s]\n",
+			report.WeightedSymbolAcc, passOrMiss(report.WeightedSymbolAcc, 75)))
+		b.WriteString(fmt.Sprintf("Efficiency:       %5.1f%%  (target: >80%%)  [%s]\n",
+			report.WeightedEfficiency, passOrMiss(report.WeightedEfficiency, 80)))
+	}
 
 	// Known gaps
 	var gaps []string

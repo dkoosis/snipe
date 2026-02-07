@@ -1,10 +1,14 @@
 package query
 
 import (
+	"bufio"
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/dkoosis/snipe/internal/output"
 )
@@ -836,10 +840,116 @@ func scanCallRows(rows *sql.Rows) ([]CallRow, error) {
 }
 
 // FindImplementers finds types that potentially implement an interface.
-// Since Go uses structural typing, we look for types that have methods
-// matching the interface's required methods.
+// Uses method-set matching: extracts the interface's method names from source,
+// then finds types that have methods matching ALL of them (Go structural typing).
+// Falls back to file co-occurrence heuristic if no interface methods are found.
 func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]SymbolRow, error) {
-	// For now, we use a simpler heuristic: find struct/type symbols that reference this interface
+	// Step 1: Get the interface symbol info
+	var ifaceName, ifaceFile, ifacePkg string
+	var ifaceLineStart, ifaceLineEnd int
+	err := db.QueryRow(`SELECT name, file_path, pkg_path, line_start, line_end FROM symbols WHERE id = ?`,
+		interfaceID).Scan(&ifaceName, &ifaceFile, &ifacePkg, &ifaceLineStart, &ifaceLineEnd)
+	if err != nil {
+		return nil, fmt.Errorf("lookup interface: %w", err)
+	}
+
+	// Step 2: Extract method names from the interface source body.
+	// Go interface methods aren't stored as symbols with the interface as receiver,
+	// so we read the source and parse method declarations.
+	methodNames := extractInterfaceMethodNames(ifaceFile, ifaceLineStart, ifaceLineEnd)
+
+	// If no methods found, fall back to file co-occurrence heuristic
+	if len(methodNames) == 0 {
+		return findImplementersByCooccurrence(db, interfaceID, limit, offset)
+	}
+
+	// Step 3: Find types that have methods matching ALL interface method names.
+	// We look for types (struct/type) whose name appears as a receiver on methods
+	// that match every interface method name.
+	// Build placeholders for the IN clause
+	placeholders := make([]string, len(methodNames))
+	args := make([]interface{}, 0, len(methodNames)+3)
+	for i, name := range methodNames {
+		placeholders[i] = "?"
+		args = append(args, name)
+	}
+	inClause := strings.Join(placeholders, ", ")
+	methodCount := len(methodNames)
+	args = append(args, methodCount, ifaceName, ifacePkg)
+
+	// Find candidate types that have ALL required methods.
+	// Group by (type_name, pkg_path) to avoid merging same-named types from different packages.
+	// Exclude the interface itself by matching BOTH name and package (not just name,
+	// since a struct in another package may share the interface's name).
+	candidateQuery := fmt.Sprintf(`
+		SELECT
+		  CASE
+		    WHEN m.receiver LIKE '(*%%' THEN SUBSTR(m.receiver, 3, LENGTH(m.receiver) - 3)
+		    ELSE m.receiver
+		  END AS type_name,
+		  m.pkg_path
+		FROM symbols m
+		WHERE m.kind = 'method'
+		  AND m.name IN (%s)
+		GROUP BY type_name, m.pkg_path
+		HAVING COUNT(DISTINCT m.name) >= ?
+		  AND NOT (type_name = ? AND m.pkg_path = ?)
+	`, inClause)
+
+	candRows, err := db.Query(candidateQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query candidate implementers: %w", err)
+	}
+	type candidate struct {
+		name    string
+		pkgPath string
+	}
+	var candidates []candidate
+	for candRows.Next() {
+		var c candidate
+		if err := candRows.Scan(&c.name, &c.pkgPath); err != nil {
+			candRows.Close()
+			return nil, fmt.Errorf("scan candidate type: %w", err)
+		}
+		candidates = append(candidates, c)
+	}
+	candRows.Close()
+
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	// Step 4: Fetch the full SymbolRow for each implementing type, matching by name AND pkg_path
+	var conditions []string
+	typeArgs := make([]interface{}, 0, len(candidates)*2+2)
+	for _, c := range candidates {
+		conditions = append(conditions, "(s.name = ? AND s.pkg_path = ?)")
+		typeArgs = append(typeArgs, c.name, c.pkgPath)
+	}
+	whereClause := strings.Join(conditions, " OR ")
+	typeArgs = append(typeArgs, limit, offset)
+
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE (%s)
+		  AND s.kind IN ('struct', 'type')
+		ORDER BY s.file_path, s.name
+		LIMIT ? OFFSET ?
+	`, whereClause), typeArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("query implementer symbols: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSymbolRows(rows)
+}
+
+// findImplementersByCooccurrence is the fallback heuristic: finds struct/type
+// symbols in files that reference the interface.
+func findImplementersByCooccurrence(db *sql.DB, interfaceID string, limit, offset int) ([]SymbolRow, error) {
 	rows, err := db.Query(`
 		SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
@@ -855,11 +965,49 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 		LIMIT ? OFFSET ?
 	`, interfaceID, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("query implementers: %w", err)
+		return nil, fmt.Errorf("query implementers by cooccurrence: %w", err)
 	}
 	defer rows.Close()
 
 	return scanSymbolRows(rows)
+}
+
+// interfaceMethodRe matches Go interface method declarations.
+// Matches lines like: "  Name() string" or "  Complete(ctx context.Context, req Request) (*Response, error)"
+var interfaceMethodRe = regexp.MustCompile(`^\s+([A-Z]\w*)\s*\(`)
+
+// extractInterfaceMethodNames reads the interface body from source and extracts
+// exported method names. Returns nil if file can't be read or has no methods.
+func extractInterfaceMethodNames(filePath string, lineStart, lineEnd int) []string {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	var methods []string
+	scanner := bufio.NewScanner(f)
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		if lineNum <= lineStart || lineNum >= lineEnd {
+			continue
+		}
+		line := scanner.Text()
+		// Skip comments and embedded interfaces
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
+			continue
+		}
+		// Match method declaration: starts with uppercase letter followed by '('
+		if m := interfaceMethodRe.FindStringSubmatch(line); m != nil {
+			name := m[1]
+			if len(name) > 0 && unicode.IsUpper(rune(name[0])) {
+				methods = append(methods, name)
+			}
+		}
+	}
+	return methods
 }
 
 // FindPackageSymbols finds all exported symbols in files matching a package path pattern.
@@ -901,6 +1049,8 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 }
 
 // FindSymbolAtPosition looks up a symbol by relative file path and line number.
+// Uses range containment (line_start <= line <= line_end) so that rg hits inside
+// a function body resolve to the enclosing symbol. Prefers the narrowest match.
 // Returns nil if no match. Used to enrich search results with index metadata.
 func FindSymbolAtPosition(db *sql.DB, filePathRel string, line int) *SymbolRow {
 	var s SymbolRow
@@ -911,9 +1061,10 @@ func FindSymbolAtPosition(db *sql.DB, filePathRel string, line int) *SymbolRow {
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
-		WHERE s.file_path_rel = ? AND s.line_start = ?
+		WHERE s.file_path_rel = ? AND s.line_start <= ? AND s.line_end >= ?
+		ORDER BY (s.line_end - s.line_start) ASC
 		LIMIT 1
-	`, filePathRel, line).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &relPath, &pkgPath,
+	`, filePathRel, line, line).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &relPath, &pkgPath,
 		&s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
 		&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 	if err != nil {

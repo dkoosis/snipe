@@ -108,9 +108,14 @@ findCallees:
 
 	// Record query in session for active work tracking
 	var symName string
+	var defResult *output.Result
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symName = sym.Name
 		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "callees")
+		// Build definition result to prepend as context
+		r := sym.ToResult()
+		r.Kind = "definition"
+		defResult = &r
 	}
 
 	// Find callees
@@ -122,8 +127,9 @@ findCallees:
 		})
 	}
 
-	// Convert to results - show the callee functions
-	results := make([]output.Result, len(calls))
+	// Convert to results - callee functions, definition prepended after sorting
+	results := make([]output.Result, 0, len(calls)+1)
+	calleeResults := make([]output.Result, len(calls))
 	tokenEstimate := 0
 	var degraded []string
 
@@ -186,12 +192,14 @@ findCallees:
 			}
 		}
 
-		results[i] = result
+		calleeResults[i] = result
 		tokenEstimate += output.EstimateTokens(call.CalleeSignature.String)
 		if result.Body != "" {
 			tokenEstimate = output.EstimateTokens(result.Body)
 		}
 	}
+
+	results = append(results, calleeResults...)
 
 	// Deduplicate degraded messages
 	degraded = uniqueStrings(degraded)
@@ -199,6 +207,11 @@ findCallees:
 	// Score, sort, and apply selection
 	output.ScoreAndSort(results, symName)
 	results = ApplySelection(results)
+
+	// Prepend the defining function as context (after sort so it stays first)
+	if defResult != nil {
+		results = append([]output.Result{*defResult}, results...)
+	}
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()

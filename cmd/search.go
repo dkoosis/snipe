@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/dkoosis/snipe/internal/search"
 	"github.com/dkoosis/snipe/internal/store"
 )
+
+var identifierRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*$`)
 
 var searchFile string
 
@@ -59,6 +62,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	var globs []string
 	if searchFile != "" {
 		globs = append(globs, searchFile)
+	} else if identifierRe.MatchString(pattern) {
+		// Identifier-like queries: restrict to Go source to avoid docs/changelogs
+		globs = append(globs, "*.go")
 	}
 	results, err := search.Search(dir, pattern, lim, ctx, globs...)
 	if err != nil {

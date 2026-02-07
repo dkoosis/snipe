@@ -77,17 +77,21 @@ func TestEval(t *testing.T) {
 
 	// Build report
 	fileAcc, symbolAcc, efficiency, meanMRR, knownGaps, byCategory := aggregateReport(results)
+	wFileAcc, wSymbolAcc, wEfficiency := computeWeightedScores(byCategory, bench.Weights)
 
 	report := EvalReport{
-		Timestamp:  time.Now().UTC().Format(time.RFC3339),
-		GitCommit:  gitCommit(),
-		Repos:      results,
-		FileAcc:    fileAcc,
-		SymbolAcc:  symbolAcc,
-		Efficiency: efficiency,
-		MeanMRR:    meanMRR,
-		KnownGaps:  knownGaps,
-		ByCategory: byCategory,
+		Timestamp:          time.Now().UTC().Format(time.RFC3339),
+		GitCommit:          gitCommit(),
+		Repos:              results,
+		FileAcc:            fileAcc,
+		SymbolAcc:          symbolAcc,
+		Efficiency:         efficiency,
+		MeanMRR:            meanMRR,
+		KnownGaps:          knownGaps,
+		ByCategory:         byCategory,
+		WeightedFileAcc:    wFileAcc,
+		WeightedSymbolAcc:  wSymbolAcc,
+		WeightedEfficiency: wEfficiency,
 	}
 
 	// Print console report
@@ -120,6 +124,15 @@ func runTask(t *testing.T, repoDir string, task Task) TaskResult {
 			})
 			continue
 		}
+
+		// Pack commands return nested results (definition/references/callers/callees).
+		// The flat snipeResponse parse loses them. Re-parse as pack and flatten.
+		if resp.Meta.Command == "pack" || (resp.Ok && len(resp.Results) == 0 && task.Category == "pack") {
+			if flat, ok := flattenPackResponse(stdout); ok {
+				resp = flat
+			}
+		}
+
 		responses = append(responses, resp)
 	}
 
