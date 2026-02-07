@@ -8,7 +8,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/search"
+	"github.com/dkoosis/snipe/internal/store"
 )
 
 var searchFile string
@@ -70,6 +72,27 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		})
 	}
 
+	// Enrich search results with index metadata if available
+	var indexState output.IndexState
+	enriched := false
+	dbPath := store.DefaultIndexPath(dir)
+	if store.Exists(dbPath) && !store.IsIndexing(dbPath) {
+		if s, err := store.Open(dbPath); err == nil {
+			for i := range results {
+				if sym := query.FindSymbolAtPosition(s.DB(), results[i].File, results[i].Range.Start.Line); sym != nil {
+					results[i].Name = sym.Name
+					results[i].Kind = sym.Kind
+					if sym.Receiver.Valid && sym.Receiver.String != "" {
+						results[i].Receiver = sym.Receiver.String
+					}
+					enriched = true
+				}
+			}
+			indexState = query.CheckIndexState(s.DB(), dir, Version)
+			s.Close()
+		}
+	}
+
 	// Score, sort, and apply selection
 	output.ScoreAndSort(results, pattern)
 	results = ApplySelection(results)
@@ -79,6 +102,15 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	tokenTruncated := false
 	if maxTok > 0 {
 		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+	}
+
+	// Determine index state and degraded flags for response metadata
+	searchIndexState := output.IndexNotUsed
+	var searchDegraded []string
+	if enriched {
+		searchIndexState = indexState
+	} else {
+		searchDegraded = []string{"no_index"}
 	}
 
 	// If summary mode, return condensed output
@@ -91,7 +123,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			Meta: output.Meta{
 				Command:    "search",
 				Query:      searchQueryInfo(pattern),
-				IndexState: output.IndexNotUsed,
+				IndexState: searchIndexState,
+				Degraded:   searchDegraded,
 				Ms:         time.Since(start).Milliseconds(),
 				Total:      summaryData.Total,
 				Truncated:  len(results) >= lim,
@@ -114,8 +147,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		Meta: output.Meta{
 			Command:       "search",
 			Query:         searchQueryInfo(pattern),
-			IndexState:    output.IndexNotUsed, // search doesn't use index
-			Degraded:      []string{"no_index"},
+			IndexState:    searchIndexState,
+			Degraded:      searchDegraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(results),
 			Truncated:     len(results) >= lim || tokenTruncated,

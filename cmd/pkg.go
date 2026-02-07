@@ -37,6 +37,11 @@ func runPkg(cmd *cobra.Command, args []string) error {
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
 	format := GetResponseFormat()
+
+	// pkg is an orientation command — show full surface by default
+	if !cmd.Flags().Changed("limit") {
+		lim = 200
+	}
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
 	w := output.NewWriter(os.Stdout, compact)

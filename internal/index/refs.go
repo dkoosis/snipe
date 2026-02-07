@@ -130,15 +130,17 @@ func ExtractRefsFiltered(result *LoadResult, symbols []Symbol, cache *util.FileC
 // When packages are loaded in chunks, obj.Pos() may return declaration start (col 1)
 // instead of identifier position. The fallback index handles this case.
 type SymbolPosIndex struct {
-	exact    map[string]string // file:line:col -> symbol ID
-	fallback map[string]string // file:line -> symbol ID (for col 1 lookups)
+	exact         map[string]string   // file:line:col -> symbol ID
+	fallback      map[string]string   // file:line -> symbol ID (for col 1 lookups)
+	methodsByName map[string][]string // method name -> [symbol IDs] for interface dispatch
 }
 
 // buildSymbolPosIndex creates a position index with exact and fallback lookups.
 func buildSymbolPosIndex(symbols []Symbol) *SymbolPosIndex {
 	idx := &SymbolPosIndex{
-		exact:    make(map[string]string),
-		fallback: make(map[string]string),
+		exact:         make(map[string]string),
+		fallback:      make(map[string]string),
+		methodsByName: make(map[string][]string),
 	}
 	for _, sym := range symbols {
 		// Exact key using identifier position
@@ -153,6 +155,11 @@ func buildSymbolPosIndex(symbols []Symbol) *SymbolPosIndex {
 			if _, exists := idx.fallback[fallbackKey]; !exists {
 				idx.fallback[fallbackKey] = sym.ID
 			}
+		}
+
+		// Index methods by name for interface dispatch resolution
+		if sym.Kind == KindMethod {
+			idx.methodsByName[sym.Name] = append(idx.methodsByName[sym.Name], sym.ID)
 		}
 	}
 	return idx
@@ -172,6 +179,13 @@ func (idx *SymbolPosIndex) Lookup(file string, line, col int) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// LookupMethodsByName returns all method symbol IDs with the given name.
+// Used for interface dispatch: when a call resolves to an interface method,
+// this finds all concrete methods that could be the target.
+func (idx *SymbolPosIndex) LookupMethodsByName(name string) []string {
+	return idx.methodsByName[name]
 }
 
 func posKey(file string, line, col int) string {

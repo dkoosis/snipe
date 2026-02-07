@@ -3,6 +3,7 @@ package index
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -90,11 +91,9 @@ func extractCallEdgesWithStack(pkg *packages.Package, file *ast.File, filePath s
 			return false // Already handled children
 
 		case *ast.CallExpr:
-			// Extract call edge with current enclosing function
-			edge := extractCallEdgeFromExpr(pkg, node, filePath, fset, symbolIndex, funcStack)
-			if edge != nil {
-				edges = append(edges, *edge)
-			}
+			// Extract call edges with current enclosing function
+			newEdges := extractCallEdgeFromExpr(pkg, node, filePath, fset, symbolIndex, funcStack)
+			edges = append(edges, newEdges...)
 		}
 
 		return true
@@ -104,9 +103,10 @@ func extractCallEdgesWithStack(pkg *packages.Package, file *ast.File, filePath s
 	return edges
 }
 
-// extractCallEdgeFromExpr extracts a call edge from a call expression.
+// extractCallEdgeFromExpr extracts call edges from a call expression.
+// Returns multiple edges when an interface method call resolves to concrete implementations.
 // Uses the function stack for O(1) enclosing function lookup.
-func extractCallEdgeFromExpr(pkg *packages.Package, call *ast.CallExpr, filePath string, fset *token.FileSet, symbolIndex *SymbolPosIndex, funcStack []string) *CallEdge {
+func extractCallEdgeFromExpr(pkg *packages.Package, call *ast.CallExpr, filePath string, fset *token.FileSet, symbolIndex *SymbolPosIndex, funcStack []string) []CallEdge {
 	// Get current enclosing function (caller)
 	if len(funcStack) == 0 {
 		return nil // Call not inside a function (e.g., init expression)
@@ -147,21 +147,60 @@ func extractCallEdgeFromExpr(pkg *packages.Package, call *ast.CallExpr, filePath
 	}
 
 	defPosInfo := fset.Position(defPos)
+	callPos := fset.Position(call.Pos())
 
 	// Look up the callee symbol ID (with fallback for chunked loading)
 	calleeID, ok := symbolIndex.Lookup(defPosInfo.Filename, defPosInfo.Line, defPosInfo.Column)
+	if ok {
+		return []CallEdge{{
+			CallerID: callerID,
+			CalleeID: calleeID,
+			FilePath: filePath,
+			Line:     callPos.Line,
+			Col:      callPos.Column,
+		}}
+	}
+
+	// Lookup failed — check if this is an interface method call.
+	// When calling iface.Method(), TypesInfo.Uses resolves to the interface
+	// definition, which has no symbol in our index. Fall back to matching
+	// all concrete methods with the same name.
+	fn, ok := obj.(*types.Func)
 	if !ok {
-		return nil // Callee not in our index (e.g., stdlib function)
+		return nil
+	}
+	sig := fn.Type().(*types.Signature)
+	recv := sig.Recv()
+	if recv == nil {
+		return nil
+	}
+	recvType := recv.Type()
+	if ptr, ok := recvType.(*types.Pointer); ok {
+		recvType = ptr.Elem()
+	}
+	named, ok := recvType.(*types.Named)
+	if !ok {
+		return nil
+	}
+	if _, isIface := named.Underlying().(*types.Interface); !isIface {
+		return nil
 	}
 
-	// Get call position
-	callPos := fset.Position(call.Pos())
-
-	return &CallEdge{
-		CallerID: callerID,
-		CalleeID: calleeID,
-		FilePath: filePath,
-		Line:     callPos.Line,
-		Col:      callPos.Column,
+	// Interface method call — create edges to all concrete methods with this name
+	implIDs := symbolIndex.LookupMethodsByName(fn.Name())
+	if len(implIDs) == 0 {
+		return nil
 	}
+
+	edges := make([]CallEdge, 0, len(implIDs))
+	for _, id := range implIDs {
+		edges = append(edges, CallEdge{
+			CallerID: callerID,
+			CalleeID: id,
+			FilePath: filePath,
+			Line:     callPos.Line,
+			Col:      callPos.Column,
+		})
+	}
+	return edges
 }

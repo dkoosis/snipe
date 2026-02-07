@@ -878,7 +878,18 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 		WHERE (s.pkg_path = ? OR s.pkg_path LIKE ? OR s.pkg_path LIKE ?)
 		  AND s.name GLOB '[A-Z]*'
 		  AND s.kind NOT IN ('field')
-		ORDER BY s.kind, s.name
+		ORDER BY
+		  CASE s.kind
+		    WHEN 'interface' THEN 1
+		    WHEN 'struct'    THEN 2
+		    WHEN 'type'      THEN 3
+		    WHEN 'method'    THEN 4
+		    WHEN 'func'      THEN 5
+		    WHEN 'const'     THEN 6
+		    WHEN 'var'       THEN 7
+		    ELSE 8
+		  END,
+		  s.name
 		LIMIT ? OFFSET ?
 	`, pkgPattern, suffixPattern, substringPattern, limit, offset)
 	if err != nil {
@@ -887,6 +898,31 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 	defer rows.Close()
 
 	return scanSymbolRows(rows)
+}
+
+// FindSymbolAtPosition looks up a symbol by relative file path and line number.
+// Returns nil if no match. Used to enrich search results with index metadata.
+func FindSymbolAtPosition(db *sql.DB, filePathRel string, line int) *SymbolRow {
+	var s SymbolRow
+	var fileHash, relPath, pkgPath sql.NullString
+	err := db.QueryRow(`
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path,
+		       s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.file_path_rel = ? AND s.line_start = ?
+		LIMIT 1
+	`, filePathRel, line).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &relPath, &pkgPath,
+		&s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
+		&s.Signature, &s.Doc, &s.Receiver, &fileHash)
+	if err != nil {
+		return nil
+	}
+	s.FileHash = fileHash.String
+	s.FilePathRel = relPath.String
+	s.PkgPath = pkgPath.String
+	return &s
 }
 
 // GetCallersPreview returns a preview of top N callers for a symbol.
