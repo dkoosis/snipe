@@ -66,10 +66,20 @@ func BatchLookupByID(db *sql.DB, ids []string) (map[string]*SymbolRow, error) {
 		return make(map[string]*SymbolRow), nil
 	}
 
+	// Deduplicate IDs to avoid redundant SQL parameters
+	seen := make(map[string]struct{}, len(ids))
+	unique := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; !ok {
+			seen[id] = struct{}{}
+			unique = append(unique, id)
+		}
+	}
+
 	// Build placeholders for IN clause
-	placeholders := make([]string, len(ids))
-	args := make([]interface{}, len(ids))
-	for i, id := range ids {
+	placeholders := make([]string, len(unique))
+	args := make([]interface{}, len(unique))
+	for i, id := range unique {
 		placeholders[i] = "?"
 		args[i] = id
 	}
@@ -154,7 +164,7 @@ func LookupByNameInFile(db *sql.DB, name, filePattern string) ([]SymbolRow, erro
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
 		WHERE s.name = ? AND (s.file_path LIKE ? OR s.file_path_rel LIKE ?)
-		ORDER BY s.kind, s.file_path
+		ORDER BY s.kind, s.file_path, s.line_start
 	`, name, pattern, pattern)
 	if err != nil {
 		return nil, fmt.Errorf("query symbols by name in file: %w", err)
@@ -172,7 +182,7 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
 		WHERE s.name = ?
-		ORDER BY s.kind, s.file_path
+		ORDER BY s.kind, s.file_path, s.line_start
 	`, name)
 	if err != nil {
 		return nil, fmt.Errorf("query symbols by name: %w", err)
@@ -194,7 +204,7 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
 		WHERE s.name = ? COLLATE NOCASE
-		ORDER BY s.kind, s.file_path
+		ORDER BY s.kind, s.file_path, s.line_start
 	`, name)
 	if err != nil {
 		return nil, fmt.Errorf("query symbols by name (case-insensitive): %w", err)
@@ -224,7 +234,7 @@ func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
 			s.pkg_path = ? OR
 			s.pkg_path LIKE ?
 		)
-		ORDER BY s.kind, s.file_path
+		ORDER BY s.kind, s.file_path, s.line_start
 	`, name, pkgPath, suffixPattern)
 	if err != nil {
 		return nil, fmt.Errorf("query symbols qualified: %w", err)
@@ -258,7 +268,7 @@ func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error) {
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
 		WHERE s.name = ? AND (s.receiver = ? OR s.receiver = ?)
-		ORDER BY s.file_path
+		ORDER BY s.file_path, s.line_start
 	`, method, receiver, "(*"+strings.Trim(receiver, "()")+")")
 	if err != nil {
 		return nil, fmt.Errorf("query method: %w", err)

@@ -54,16 +54,22 @@ func FindImportsByPackage(db *sql.DB, pkgPath string, limit, offset int) ([]Impo
 // FindImportersByDirectory returns files that import any package within a directory
 // For "snipe importers internal/handler" - find who imports anything in that dir
 func FindImportersByDirectory(db *sql.DB, dirPath string, limit, offset int) ([]ImportRow, error) {
-	// Match packages that end with the directory path
-	pattern := "%" + strings.TrimPrefix(dirPath, "/") + "%"
+	// Boundary-aware matching: match dirPath as a complete path segment
+	// "internal/handler" matches ".../internal/handler" and ".../internal/handler/sub"
+	// but NOT ".../internal/handler2"
+	dirPath = strings.TrimPrefix(dirPath, "/")
+	suffixMatch := "%/" + dirPath         // ends with /dirPath (exact package)
+	subpkgSuffix := "%/" + dirPath + "/%" // subpackages: .../dirPath/...
+	subpkgExact := dirPath + "/%"         // root-relative subpackages
 
 	rows, err := db.Query(`
 		SELECT file_path, pkg_path, name, line, col, importer_pkg
 		FROM imports
-		WHERE pkg_path LIKE ?
+		WHERE pkg_path = ? OR pkg_path LIKE ?
+		   OR pkg_path LIKE ? OR pkg_path LIKE ?
 		ORDER BY file_path, line
 		LIMIT ? OFFSET ?
-	`, pattern, limit, offset)
+	`, dirPath, suffixMatch, subpkgSuffix, subpkgExact, limit, offset)
 	if err != nil {
 		return nil, err
 	}
