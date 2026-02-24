@@ -53,7 +53,7 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 		"--json",
 		"--line-number",
 		"--column",
-		"--no-follow",                              // Don't follow symlinks (avoids macOS network volume prompts)
+		"--no-follow",                             // Don't follow symlinks (avoids macOS network volume prompts)
 		"--max-count", fmt.Sprintf("%d", limit*2), // Get more than limit to account for context
 	}
 
