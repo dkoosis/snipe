@@ -2,9 +2,14 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
 
 	_ "modernc.org/sqlite"
 )
@@ -130,7 +135,9 @@ func IsIndexing(dbPath string) bool {
 	return err == nil
 }
 
-// AcquireLock creates a lock file for indexing
+// AcquireLock creates a lock file for indexing.
+// The lock file contains the PID of the owning process. If a stale lock is
+// detected (owning process no longer running), it is automatically removed.
 func AcquireLock(dbPath string) error {
 	lockPath := LockPath(dbPath)
 	// Ensure directory exists
@@ -139,9 +146,53 @@ func AcquireLock(dbPath string) error {
 	}
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600) // #nosec G304
 	if err != nil {
-		return fmt.Errorf("create lock file: %w", err)
+		if !errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("create lock file: %w", err)
+		}
+		// Lock exists — check if holder is still alive
+		if !tryRemoveStaleLock(lockPath) {
+			return fmt.Errorf("index is locked by another process (see %s)", lockPath)
+		}
+		// Stale lock removed, retry once
+		f, err = os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600) // #nosec G304
+		if err != nil {
+			return fmt.Errorf("create lock file after stale removal: %w", err)
+		}
 	}
+	fmt.Fprintf(f, "%d\n", os.Getpid())
 	return f.Close()
+}
+
+// tryRemoveStaleLock checks whether the lock file is held by a dead process.
+// Returns true if the lock was stale and removed.
+func tryRemoveStaleLock(lockPath string) bool {
+	data, err := os.ReadFile(lockPath) // #nosec G304
+	if err != nil {
+		return false
+	}
+	pidStr := strings.TrimSpace(string(data))
+	if pidStr == "" {
+		// Empty file (old format or crash mid-write) — treat as stale
+		_ = os.Remove(lockPath) // G104: best-effort cleanup
+		return true
+	}
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		// Unparseable — treat as stale
+		_ = os.Remove(lockPath) // G104: best-effort cleanup
+		return true
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		_ = os.Remove(lockPath) // G104: best-effort cleanup
+		return true
+	}
+	// Signal 0 checks existence without killing
+	if err := proc.Signal(syscall.Signal(0)); err != nil {
+		_ = os.Remove(lockPath) // G104: best-effort cleanup
+		return true
+	}
+	return false
 }
 
 // ReleaseLock removes the lock file

@@ -251,6 +251,66 @@ func TestAcquireLockTwiceFails(t *testing.T) {
 	}
 }
 
+func TestAcquireLockWritesPID(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	if err := AcquireLock(dbPath); err != nil {
+		t.Fatalf("AcquireLock failed: %v", err)
+	}
+	defer ReleaseLock(dbPath)
+
+	data, err := os.ReadFile(LockPath(dbPath))
+	if err != nil {
+		t.Fatalf("ReadFile failed: %v", err)
+	}
+	want := fmt.Sprintf("%d\n", os.Getpid())
+	if string(data) != want {
+		t.Errorf("lock file content = %q, want %q", string(data), want)
+	}
+}
+
+func TestAcquireLockRecoversStaleLock(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	lockPath := LockPath(dbPath)
+
+	// Create a lock file with a dead PID (PID 1 is init, but use a very
+	// high PID that almost certainly doesn't exist)
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lockPath, []byte("9999999\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should succeed by detecting and removing the stale lock
+	if err := AcquireLock(dbPath); err != nil {
+		t.Fatalf("AcquireLock should recover stale lock, got: %v", err)
+	}
+	defer ReleaseLock(dbPath)
+}
+
+func TestAcquireLockRecoversEmptyLockFile(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	lockPath := LockPath(dbPath)
+
+	// Create an empty lock file (old format or crash mid-write)
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lockPath, []byte(""), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should succeed by treating empty file as stale
+	if err := AcquireLock(dbPath); err != nil {
+		t.Fatalf("AcquireLock should recover empty lock file, got: %v", err)
+	}
+	defer ReleaseLock(dbPath)
+}
+
 func TestOpenSetsPragmas(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "pragmas.db")
