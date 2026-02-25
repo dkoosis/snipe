@@ -186,13 +186,6 @@ func (idx *SymbolPosIndex) Lookup(file string, line, col int) (string, bool) {
 	return "", false
 }
 
-// LookupMethodsByName returns all method symbol IDs with the given name.
-// Used for interface dispatch: when a call resolves to an interface method,
-// this finds all concrete methods that could be the target.
-func (idx *SymbolPosIndex) LookupMethodsByName(name string) []string {
-	return idx.methodsByName[name]
-}
-
 // LookupMethodsByNameInPkgs returns method symbol IDs filtered to only those
 // whose package is in the provided import set. Eliminates false-positive
 // cross-package edges from common method names (e.g., Close, String).

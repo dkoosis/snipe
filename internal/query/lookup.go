@@ -8,7 +8,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"unicode"
 
 	"github.com/dkoosis/snipe/internal/output"
 )
@@ -1026,10 +1025,7 @@ func extractInterfaceMethodNames(filePath string, lineStart, lineEnd int) []stri
 		}
 		// Match method declaration: starts with uppercase letter followed by '('
 		if m := interfaceMethodRe.FindStringSubmatch(line); m != nil {
-			name := m[1]
-			if len(name) > 0 && unicode.IsUpper(rune(name[0])) {
-				methods = append(methods, name)
-			}
+			methods = append(methods, m[1])
 		}
 	}
 	return methods
@@ -1161,39 +1157,3 @@ func GetCallersPreview(db *sql.DB, symbolID string, limit int) ([]output.CallerP
 	return callers, rows.Err()
 }
 
-// FindSymbolsByKind finds symbols of a specific kind, optionally filtered by file path pattern.
-func FindSymbolsByKind(db *sql.DB, kind string, filePattern string, limit, offset int) ([]SymbolRow, error) {
-	var rows *sql.Rows
-	var err error
-
-	if filePattern != "" {
-		pattern := "%" + filePattern + "%"
-		rows, err = db.Query(`
-			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
-			       s.signature, s.doc, s.receiver, f.hash
-			FROM symbols s
-			LEFT JOIN files f ON s.file_path = f.path
-			WHERE s.kind = ?
-			  AND (s.pkg_path LIKE ? OR s.file_path_rel LIKE ? OR s.file_path LIKE ?)
-			ORDER BY s.file_path, s.line_start
-			LIMIT ? OFFSET ?
-		`, kind, pattern, pattern, pattern, limit, offset)
-	} else {
-		rows, err = db.Query(`
-			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
-			       s.signature, s.doc, s.receiver, f.hash
-			FROM symbols s
-			LEFT JOIN files f ON s.file_path = f.path
-			WHERE s.kind = ?
-			ORDER BY s.file_path, s.line_start
-			LIMIT ? OFFSET ?
-		`, kind, limit, offset)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("query symbols by kind: %w", err)
-	}
-	defer rows.Close()
-
-	return scanSymbolRows(rows)
-}
