@@ -23,7 +23,7 @@ func storedInfoFor(t *testing.T, path string) FileInfo {
 	if err != nil {
 		t.Fatalf("stat %s: %v", path, err)
 	}
-	hash, err := hashFileSHA256(path)
+	hash, err := HashFileSHA256(path)
 	if err != nil {
 		t.Fatalf("hash %s: %v", path, err)
 	}
