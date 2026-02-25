@@ -925,6 +925,10 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 	}
 	candRows.Close()
 
+	if err := candRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate candidate rows: %w", err)
+	}
+
 	if len(candidates) == 0 {
 		return nil, nil
 	}
