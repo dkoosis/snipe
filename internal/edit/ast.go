@@ -23,11 +23,6 @@ const (
 	OpInsertBefore Operation = "insert_before" // Add code before symbol
 )
 
-// ValidOperations returns all valid operation types
-func ValidOperations() []Operation {
-	return []Operation{OpReplaceBody, OpReplaceFull, OpInsertAfter, OpInsertBefore}
-}
-
 // Request describes an edit operation
 type Request struct {
 	File         string    // File path to edit

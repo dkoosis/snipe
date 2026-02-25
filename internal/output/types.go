@@ -267,18 +267,6 @@ func NewIndexInProgressError() *Error {
 	}
 }
 
-// NewStaleIndexError creates a STALE_INDEX warning (ok:true, with degraded note)
-func NewStaleIndexError() *Error {
-	return &Error{
-		Code:    ErrStaleIndex,
-		Message: "Index is stale. Results may be incomplete or outdated.",
-		Next: &NextAction{
-			Command:     "snipe index",
-			Description: "Rebuild the index to reflect recent changes",
-		},
-	}
-}
-
 // SuggestionsForDef generates suggestions after a def command
 func SuggestionsForDef(result *Result) []Suggestion {
 	if result == nil {
@@ -497,8 +485,6 @@ const (
 	PurposeFromDoc PurposeSource = "doc"
 	// PurposeFromTemplate means purpose was generated from signature patterns.
 	PurposeFromTemplate PurposeSource = "template"
-	// PurposeFromLLM means purpose was enriched by LLM (future).
-	PurposeFromLLM PurposeSource = "llm"
 	// PurposeMissing means no purpose could be determined.
 	PurposeMissing PurposeSource = "missing"
 )

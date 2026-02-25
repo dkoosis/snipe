@@ -2,7 +2,6 @@ package context
 
 import (
 	"database/sql"
-	"sort"
 	"strings"
 )
 
@@ -261,98 +260,4 @@ func shortenPackagePath(pkgPath string) string {
 	}
 
 	return pkgPath
-}
-
-// FormatArchSummary formats an ArchSummary as a human-readable string.
-// Useful for debugging and display purposes.
-func FormatArchSummary(summary *ArchSummary) string {
-	if summary == nil {
-		return "No architecture summary available"
-	}
-
-	var sb strings.Builder
-
-	// Spine (primary flows)
-	if len(summary.Spine) > 0 {
-		sb.WriteString("Primary Flows:\n")
-		for _, flow := range summary.Spine {
-			sb.WriteString("  ")
-			sb.WriteString(flow)
-			sb.WriteString("\n")
-		}
-		sb.WriteString("\n")
-	}
-
-	// Components
-	if len(summary.Components) > 0 {
-		sb.WriteString("Components:\n")
-		for _, comp := range summary.Components {
-			sb.WriteString("  ")
-			sb.WriteString(comp.Name)
-			sb.WriteString(": ")
-			sb.WriteString(comp.Purpose)
-			sb.WriteString("\n")
-		}
-		sb.WriteString("\n")
-	}
-
-	// Edges (sorted by count for readability)
-	if len(summary.Edges) > 0 {
-		sb.WriteString("Cross-Package Calls:\n")
-		// Sort by count descending
-		sorted := make([]CrossPackageEdge, len(summary.Edges))
-		copy(sorted, summary.Edges)
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].Count > sorted[j].Count
-		})
-		for _, edge := range sorted {
-			sb.WriteString("  ")
-			sb.WriteString(edge.From)
-			sb.WriteString(" -> ")
-			sb.WriteString(edge.To)
-			sb.WriteString(" (")
-			sb.WriteString(strings.Repeat("x", min(edge.Count/5, 10))) // Visual indicator
-			if edge.Count > 50 {
-				sb.WriteString("...")
-			}
-			sb.WriteString(" ")
-			sb.WriteString(formatCount(edge.Count))
-			sb.WriteString(")\n")
-		}
-		sb.WriteString("\n")
-	}
-
-	// Description
-	if summary.Description != "" {
-		sb.WriteString("Description:\n  ")
-		sb.WriteString(summary.Description)
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
-}
-
-// formatCount formats a count for display.
-func formatCount(count int) string {
-	if count == 1 {
-		return "1 call"
-	}
-	return strings.Replace("N calls", "N", intToString(count), 1)
-}
-
-// intToString converts an integer to string without fmt import overhead.
-func intToString(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	if n < 0 {
-		return "-" + intToString(-n)
-	}
-
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
 }

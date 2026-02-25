@@ -236,11 +236,6 @@ func readFileLines(path string) ([]string, error) {
 	return globalFileCache.LoadLines(path)
 }
 
-// ClearFileCache clears the file cache. Call between commands if needed.
-func ClearFileCache() {
-	globalFileCache.Clear()
-}
-
 // ScoreResult calculates a relevance score for a result based on match quality.
 // Higher scores indicate better matches. Scoring factors:
 // - Exact name match: +100

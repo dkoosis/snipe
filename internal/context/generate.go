@@ -2,6 +2,7 @@ package context
 
 import (
 	"database/sql"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -25,8 +26,6 @@ type GenerateConfig struct {
 	Full bool
 	// MaxSymbols is the maximum number of symbols to include per category (default: 20)
 	MaxSymbols int
-	// IncludeArchSummary includes architecture summary in boot context (Phase 4)
-	IncludeArchSummary bool
 }
 
 // Generate creates a ProjectContext from the snipe index.
@@ -83,12 +82,6 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 	// Build boot views (Phase 2 enrichment)
 	bootViews := generateBootViews(cfg.DB, cfg.RepoRoot)
 
-	// Build architecture summary (Phase 4 enrichment) - only if explicitly requested
-	var archSummary *ArchSummary
-	if cfg.IncludeArchSummary {
-		archSummary, _ = GenerateArchitectureSummary(cfg.DB, cfg.RepoRoot)
-	}
-
 	return &BootContext{
 		Project:     proj.Name,
 		Lang:        lang,
@@ -99,7 +92,6 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		ActiveWork:  activeWork,
 		Commit:      meta.GitCommit,
 		BootViews:   bootViews,
-		ArchSummary: archSummary,
 	}, nil
 }
 
@@ -858,6 +850,6 @@ func generateMeta(db *sql.DB) Meta {
 }
 
 func fileExists(path string) bool {
-	_, err := exec.Command("test", "-f", path).Output()
-	return err == nil
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }

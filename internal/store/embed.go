@@ -77,12 +77,3 @@ func (s *Store) CountEmbeddings() (int, error) {
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM embeddings`).Scan(&count)
 	return count, err
 }
-
-// DeleteEmbeddings removes all embeddings (for re-indexing).
-func (s *Store) DeleteEmbeddings() error {
-	_, err := s.db.Exec(`DELETE FROM embeddings`)
-	if err != nil {
-		return fmt.Errorf("delete embeddings: %w", err)
-	}
-	return nil
-}

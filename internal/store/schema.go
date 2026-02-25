@@ -409,62 +409,10 @@ func (s *Store) SetMeta(key, value string) error {
 	return err
 }
 
-// GetMigrationHistory returns all applied migrations.
-func (s *Store) GetMigrationHistory() ([]struct {
-	Version   int
-	Name      string
-	AppliedAt string
-}, error) {
-	rows, err := s.db.Query(`SELECT version, name, applied_at FROM migrations ORDER BY version`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var history []struct {
-		Version   int
-		Name      string
-		AppliedAt string
-	}
-
-	for rows.Next() {
-		var h struct {
-			Version   int
-			Name      string
-			AppliedAt string
-		}
-		if err := rows.Scan(&h.Version, &h.Name, &h.AppliedAt); err != nil {
-			return nil, err
-		}
-		history = append(history, h)
-	}
-
-	return history, rows.Err()
-}
-
 // GetPurpose retrieves the stored purpose for a symbol.
 func (s *Store) GetPurpose(symbolID string) (string, error) {
 	var purpose string
 	err := s.db.QueryRow(`SELECT purpose FROM symbol_purposes WHERE symbol_id = ?`, symbolID).Scan(&purpose)
-	if err != nil {
-		return "", err
-	}
-	return purpose, nil
-}
-
-// SetPurpose stores a purpose for a symbol.
-func (s *Store) SetPurpose(symbolID, purpose, contentHash, model string) error {
-	_, err := s.db.Exec(
-		`INSERT OR REPLACE INTO symbol_purposes (symbol_id, purpose, content_hash, model, generated_at) VALUES (?, ?, ?, ?, ?)`,
-		symbolID, purpose, contentHash, model, time.Now().UTC().Format(time.RFC3339),
-	)
-	return err
-}
-
-// GetPurposeByHash retrieves a purpose by content hash.
-func (s *Store) GetPurposeByHash(contentHash string) (string, error) {
-	var purpose string
-	err := s.db.QueryRow(`SELECT purpose FROM symbol_purposes WHERE content_hash = ?`, contentHash).Scan(&purpose)
 	if err != nil {
 		return "", err
 	}

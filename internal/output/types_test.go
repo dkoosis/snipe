@@ -93,22 +93,6 @@ func TestErrorMarshal(t *testing.T) {
 	}
 }
 
-func TestNewStaleIndexError(t *testing.T) {
-	err := NewStaleIndexError()
-	if err.Code != ErrStaleIndex {
-		t.Errorf("Code = %q, want %q", err.Code, ErrStaleIndex)
-	}
-	if err.Next == nil {
-		t.Fatal("Next should not be nil")
-	}
-	if err.Next.Command != "snipe index" {
-		t.Errorf("Next command = %q, want %q", err.Next.Command, "snipe index")
-	}
-	if err.Next.Description == "" {
-		t.Error("Next description should not be empty")
-	}
-}
-
 func TestNewIndexInProgressError(t *testing.T) {
 	err := NewIndexInProgressError()
 	if err.Code != ErrIndexInProgress {

@@ -191,8 +191,11 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for command (e.g., 30s, 5m)")
 	rootCmd.PersistentFlags().StringVar(&selectMode, "select", "all", "Result selection: all, best, top3, top5")
+	// Reserved for orca telemetry — hidden until persistToolCall is wired.
 	rootCmd.PersistentFlags().StringVar(&caller, "caller", "", "Caller identifier (e.g., 'orca')")
 	rootCmd.PersistentFlags().StringVar(&requestID, "request-id", "", "Request correlation ID")
+	_ = rootCmd.PersistentFlags().MarkHidden("caller")
+	_ = rootCmd.PersistentFlags().MarkHidden("request-id")
 }
 
 // GetContext returns the command context (with timeout and signal handling).
@@ -287,9 +290,6 @@ func GetConfig() *config.Config {
 	}
 	return loadedConfig
 }
-
-// GetSelectMode returns the --select flag value.
-func GetSelectMode() string { return selectMode }
 
 // ApplySelection truncates results based on the --select flag.
 // Should be called after ScoreAndSort.
