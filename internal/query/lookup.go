@@ -1156,4 +1156,3 @@ func GetCallersPreview(db *sql.DB, symbolID string, limit int) ([]output.CallerP
 	}
 	return callers, rows.Err()
 }
-

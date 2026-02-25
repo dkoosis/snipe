@@ -11,12 +11,14 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 )
 
+const testMainGo = "main.go"
+
 func TestCheckFileStaleness_FreshFiles(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, ".snipe", "index.db")
 
 	// Create a real file with known mtime
-	testFile := filepath.Join(dir, "main.go")
+	testFile := filepath.Join(dir, testMainGo)
 	if err := os.WriteFile(testFile, []byte("package main"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +42,7 @@ func TestCheckFileStaleness_FreshFiles(t *testing.T) {
 	}
 
 	results := []output.Result{
-		{FileAbs: testFile, File: "main.go"},
+		{FileAbs: testFile, File: testMainGo},
 	}
 
 	stale := CheckFileStaleness(s.DB(), dir, results)
@@ -54,7 +56,7 @@ func TestCheckFileStaleness_StaleFile(t *testing.T) {
 	dbPath := filepath.Join(dir, ".snipe", "index.db")
 
 	// Create a real file
-	testFile := filepath.Join(dir, "main.go")
+	testFile := filepath.Join(dir, testMainGo)
 	if err := os.WriteFile(testFile, []byte("package main"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -75,14 +77,14 @@ func TestCheckFileStaleness_StaleFile(t *testing.T) {
 	}
 
 	results := []output.Result{
-		{FileAbs: testFile, File: "main.go"},
+		{FileAbs: testFile, File: testMainGo},
 	}
 
 	stale := CheckFileStaleness(s.DB(), dir, results)
 	if len(stale) != 1 {
 		t.Fatalf("expected 1 stale file, got %v", stale)
 	}
-	if stale[0] != "main.go" {
+	if stale[0] != testMainGo {
 		t.Errorf("expected relative path 'main.go', got %q", stale[0])
 	}
 }
@@ -234,7 +236,7 @@ func TestCheckPathStaleness(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, ".snipe", "index.db")
 
-	testFile := filepath.Join(dir, "main.go")
+	testFile := filepath.Join(dir, testMainGo)
 	if err := os.WriteFile(testFile, []byte("package main"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +258,7 @@ func TestCheckPathStaleness(t *testing.T) {
 	if len(stale) != 1 {
 		t.Fatalf("expected 1 stale path, got %v", stale)
 	}
-	if stale[0] != "main.go" {
+	if stale[0] != testMainGo {
 		t.Errorf("expected 'main.go', got %q", stale[0])
 	}
 
@@ -316,7 +318,7 @@ func TestCheckFileStaleness_HashMatch_MtimeChanged(t *testing.T) {
 	dbPath := filepath.Join(dir, ".snipe", "index.db")
 
 	content := []byte("package main\n\nfunc main() {}\n")
-	testFile := filepath.Join(dir, "main.go")
+	testFile := filepath.Join(dir, testMainGo)
 	if err := os.WriteFile(testFile, content, 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +344,7 @@ func TestCheckFileStaleness_HashMatch_MtimeChanged(t *testing.T) {
 	}
 
 	results := []output.Result{
-		{FileAbs: testFile, File: "main.go"},
+		{FileAbs: testFile, File: testMainGo},
 	}
 
 	stale := CheckFileStaleness(s.DB(), dir, results)
@@ -356,7 +358,7 @@ func TestCheckFileStaleness_HashMismatch_MtimeChanged(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, ".snipe", "index.db")
 
-	testFile := filepath.Join(dir, "main.go")
+	testFile := filepath.Join(dir, testMainGo)
 	if err := os.WriteFile(testFile, []byte("package main\n\nfunc main() {}\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -376,14 +378,14 @@ func TestCheckFileStaleness_HashMismatch_MtimeChanged(t *testing.T) {
 	}
 
 	results := []output.Result{
-		{FileAbs: testFile, File: "main.go"},
+		{FileAbs: testFile, File: testMainGo},
 	}
 
 	stale := CheckFileStaleness(s.DB(), dir, results)
 	if len(stale) != 1 {
 		t.Fatalf("expected 1 stale file (hash mismatch), got %v", stale)
 	}
-	if stale[0] != "main.go" {
+	if stale[0] != testMainGo {
 		t.Errorf("expected 'main.go', got %q", stale[0])
 	}
 }
@@ -393,7 +395,7 @@ func TestCheckFileStaleness_NoHash_FallsBackToMtime(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, ".snipe", "index.db")
 
-	testFile := filepath.Join(dir, "main.go")
+	testFile := filepath.Join(dir, testMainGo)
 	if err := os.WriteFile(testFile, []byte("package main"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +415,7 @@ func TestCheckFileStaleness_NoHash_FallsBackToMtime(t *testing.T) {
 	}
 
 	results := []output.Result{
-		{FileAbs: testFile, File: "main.go"},
+		{FileAbs: testFile, File: testMainGo},
 	}
 
 	// Should be stale — no hash to save it, mtime is newer
@@ -421,7 +423,7 @@ func TestCheckFileStaleness_NoHash_FallsBackToMtime(t *testing.T) {
 	if len(stale) != 1 {
 		t.Fatalf("expected 1 stale file (no hash, mtime fallback), got %v", stale)
 	}
-	if stale[0] != "main.go" {
+	if stale[0] != testMainGo {
 		t.Errorf("expected 'main.go', got %q", stale[0])
 	}
 }
@@ -431,7 +433,7 @@ func TestCheckFileStaleness_HashMatch_MtimeFresh(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, ".snipe", "index.db")
 
-	testFile := filepath.Join(dir, "main.go")
+	testFile := filepath.Join(dir, testMainGo)
 	if err := os.WriteFile(testFile, []byte("package main"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +461,7 @@ func TestCheckFileStaleness_HashMatch_MtimeFresh(t *testing.T) {
 	}
 
 	results := []output.Result{
-		{FileAbs: testFile, File: "main.go"},
+		{FileAbs: testFile, File: testMainGo},
 	}
 
 	stale := CheckFileStaleness(s.DB(), dir, results)
