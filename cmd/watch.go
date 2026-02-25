@@ -122,7 +122,13 @@ func runWatch(cmd *cobra.Command, args []string) error {
 				pendingFiles = append(pendingFiles, relPath)
 			}
 
-			// Reset debounce timer
+			// Reset debounce timer (stop+drain before reset to avoid race)
+			if !debounceTimer.Stop() {
+				select {
+				case <-debounceTimer.C:
+				default:
+				}
+			}
 			debounceTimer.Reset(debounceDuration)
 
 			if watchVerbose {
@@ -175,6 +181,13 @@ func runWatch(cmd *cobra.Command, args []string) error {
 				Error:     err.Error(),
 				Timestamp: time.Now().Format(time.RFC3339),
 			})
+
+		case <-GetContext().Done():
+			emitEvent(WatchEvent{
+				Event:     "stopped",
+				Timestamp: time.Now().Format(time.RFC3339),
+			})
+			return GetContext().Err()
 		}
 	}
 }
