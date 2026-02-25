@@ -308,3 +308,162 @@ func TestCheckFileStaleness_Sorted(t *testing.T) {
 		t.Errorf("expected sorted [a.go b.go c.go], got %v", stale)
 	}
 }
+
+func TestCheckFileStaleness_HashMatch_MtimeChanged(t *testing.T) {
+	// Key scenario: mtime changed (e.g. git checkout, build tool touch) but
+	// content is identical — should be treated as fresh.
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, ".snipe", "index.db")
+
+	content := []byte("package main\n\nfunc main() {}\n")
+	testFile := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(testFile, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Compute the real hash of this content
+	hash, err := index.HashFileSHA256(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	// Store with old mtime but correct hash
+	oldMtime := time.Now().Add(-1 * time.Hour).Unix()
+	if err := s.WriteFiles([]index.FileInfo{
+		{Path: testFile, Mtime: oldMtime, Hash: hash},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	results := []output.Result{
+		{FileAbs: testFile, File: "main.go"},
+	}
+
+	stale := CheckFileStaleness(s.DB(), dir, results)
+	if len(stale) != 0 {
+		t.Errorf("expected fresh (same content, different mtime), got stale: %v", stale)
+	}
+}
+
+func TestCheckFileStaleness_HashMismatch_MtimeChanged(t *testing.T) {
+	// Content actually changed and mtime changed — should be stale.
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, ".snipe", "index.db")
+
+	testFile := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(testFile, []byte("package main\n\nfunc main() {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	// Store with old mtime and a hash that won't match current content
+	oldMtime := time.Now().Add(-1 * time.Hour).Unix()
+	if err := s.WriteFiles([]index.FileInfo{
+		{Path: testFile, Mtime: oldMtime, Hash: "deadbeefdeadbeef"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	results := []output.Result{
+		{FileAbs: testFile, File: "main.go"},
+	}
+
+	stale := CheckFileStaleness(s.DB(), dir, results)
+	if len(stale) != 1 {
+		t.Fatalf("expected 1 stale file (hash mismatch), got %v", stale)
+	}
+	if stale[0] != "main.go" {
+		t.Errorf("expected 'main.go', got %q", stale[0])
+	}
+}
+
+func TestCheckFileStaleness_NoHash_FallsBackToMtime(t *testing.T) {
+	// When no hash is stored, mtime-only comparison should still work.
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, ".snipe", "index.db")
+
+	testFile := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(testFile, []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	// Store with old mtime, no hash (empty string)
+	oldMtime := time.Now().Add(-1 * time.Hour).Unix()
+	if err := s.WriteFiles([]index.FileInfo{
+		{Path: testFile, Mtime: oldMtime, Hash: ""},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	results := []output.Result{
+		{FileAbs: testFile, File: "main.go"},
+	}
+
+	// Should be stale — no hash to save it, mtime is newer
+	stale := CheckFileStaleness(s.DB(), dir, results)
+	if len(stale) != 1 {
+		t.Fatalf("expected 1 stale file (no hash, mtime fallback), got %v", stale)
+	}
+	if stale[0] != "main.go" {
+		t.Errorf("expected 'main.go', got %q", stale[0])
+	}
+}
+
+func TestCheckFileStaleness_HashMatch_MtimeFresh(t *testing.T) {
+	// When mtime hasn't changed, hash check should not even be needed — still fresh.
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, ".snipe", "index.db")
+
+	testFile := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(testFile, []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := os.Stat(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	// Store with matching mtime and a hash
+	hash, err := index.HashFileSHA256(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.WriteFiles([]index.FileInfo{
+		{Path: testFile, Mtime: info.ModTime().Unix(), Hash: hash},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	results := []output.Result{
+		{FileAbs: testFile, File: "main.go"},
+	}
+
+	stale := CheckFileStaleness(s.DB(), dir, results)
+	if len(stale) != 0 {
+		t.Errorf("expected fresh (mtime matches), got stale: %v", stale)
+	}
+}

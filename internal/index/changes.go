@@ -78,7 +78,7 @@ func DetectChanges(dir string, stored map[string]FileInfo, exclude []string) (*C
 		}
 
 		// Mtime changed — verify with content hash
-		hash, hashErr := hashFileSHA256(path)
+		hash, hashErr := HashFileSHA256(path)
 		if hashErr != nil {
 			// Can't hash — conservatively treat as modified
 			result.Modified = append(result.Modified, path)

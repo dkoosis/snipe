@@ -73,8 +73,8 @@ func checkPathStaleness(db *sql.DB, repoRoot string, paths []string) []string {
 		return nil
 	}
 
-	// Batch-query stored mtimes
-	storedMtimes, err := queryFileMtimes(db, paths)
+	// Batch-query stored mtimes and hashes
+	storedMeta, err := queryFileMetadata(db, paths)
 	if err != nil {
 		return nil // Don't block query on staleness check failure
 	}
@@ -82,7 +82,7 @@ func checkPathStaleness(db *sql.DB, repoRoot string, paths []string) []string {
 	// Compare with disk
 	var stale []string
 	for _, absPath := range paths {
-		storedMtime, ok := storedMtimes[absPath]
+		meta, ok := storedMeta[absPath]
 		if !ok {
 			// File not in index — treat as stale
 			stale = append(stale, toRelPath(absPath, repoRoot))
@@ -96,7 +96,15 @@ func checkPathStaleness(db *sql.DB, repoRoot string, paths []string) []string {
 			continue
 		}
 
-		if info.ModTime().Unix() > storedMtime {
+		if info.ModTime().Unix() > meta.mtime {
+			// Mtime changed — check hash if available
+			if meta.hash != "" {
+				currentHash, hashErr := index.HashFileSHA256(absPath)
+				if hashErr == nil && currentHash == meta.hash {
+					// Content unchanged despite mtime bump — treat as fresh
+					continue
+				}
+			}
 			stale = append(stale, toRelPath(absPath, repoRoot))
 		}
 	}
@@ -108,8 +116,14 @@ func checkPathStaleness(db *sql.DB, repoRoot string, paths []string) []string {
 	return stale
 }
 
-// queryFileMtimes queries the files table for stored mtimes.
-func queryFileMtimes(db *sql.DB, paths []string) (map[string]int64, error) {
+// fileMeta holds stored file metadata for staleness comparison.
+type fileMeta struct {
+	mtime int64
+	hash  string
+}
+
+// queryFileMetadata queries the files table for stored mtimes and hashes.
+func queryFileMetadata(db *sql.DB, paths []string) (map[string]fileMeta, error) {
 	if len(paths) == 0 {
 		return nil, nil
 	}
@@ -121,21 +135,21 @@ func queryFileMtimes(db *sql.DB, paths []string) (map[string]int64, error) {
 		args[i] = p
 	}
 
-	q := "SELECT path, mtime FROM files WHERE path IN (" + strings.Join(placeholders, ",") + ")"
+	q := "SELECT path, mtime, COALESCE(hash, '') FROM files WHERE path IN (" + strings.Join(placeholders, ",") + ")"
 	rows, err := db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	result := make(map[string]int64, len(paths))
+	result := make(map[string]fileMeta, len(paths))
 	for rows.Next() {
 		var path string
-		var mtime int64
-		if err := rows.Scan(&path, &mtime); err != nil {
+		var m fileMeta
+		if err := rows.Scan(&path, &m.mtime, &m.hash); err != nil {
 			continue
 		}
-		result[path] = mtime
+		result[path] = m
 	}
 	return result, rows.Err()
 }

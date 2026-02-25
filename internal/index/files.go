@@ -47,7 +47,7 @@ func computeFileInfo(path string) (FileInfo, error) {
 		return FileInfo{}, err
 	}
 
-	hash, err := hashFileSHA256(path)
+	hash, err := HashFileSHA256(path)
 	if err != nil {
 		return FileInfo{}, err
 	}
@@ -59,8 +59,9 @@ func computeFileInfo(path string) (FileInfo, error) {
 	}, nil
 }
 
-// hashFileSHA256 computes a truncated SHA256 hash of a file (16 hex chars)
-func hashFileSHA256(path string) (string, error) {
+// HashFileSHA256 computes a truncated SHA256 hash of a file (16 hex chars).
+// Used during indexing and for staleness checks at query time.
+func HashFileSHA256(path string) (string, error) {
 	f, err := os.Open(path) // #nosec G304 -- path from go/packages load result
 	if err != nil {
 		return "", err
