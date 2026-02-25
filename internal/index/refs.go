@@ -133,6 +133,7 @@ type SymbolPosIndex struct {
 	exact         map[string]string   // file:line:col -> symbol ID
 	fallback      map[string]string   // file:line -> symbol ID (for col 1 lookups)
 	methodsByName map[string][]string // method name -> [symbol IDs] for interface dispatch
+	idToPkg       map[string]string   // symbol ID -> package path (for import-set filtering)
 }
 
 // buildSymbolPosIndex creates a position index with exact and fallback lookups.
@@ -141,11 +142,15 @@ func buildSymbolPosIndex(symbols []Symbol) *SymbolPosIndex {
 		exact:         make(map[string]string),
 		fallback:      make(map[string]string),
 		methodsByName: make(map[string][]string),
+		idToPkg:       make(map[string]string),
 	}
 	for _, sym := range symbols {
 		// Exact key using identifier position
 		exactKey := posKey(sym.FilePath, sym.NameLine, sym.NameCol)
 		idx.exact[exactKey] = sym.ID
+
+		// Track symbol ID → package path for import-set filtering
+		idx.idToPkg[sym.ID] = sym.PkgPath
 
 		// Fallback key for declaration start (col 1) - only for funcs/methods
 		// which are the primary callees we care about
@@ -186,6 +191,23 @@ func (idx *SymbolPosIndex) Lookup(file string, line, col int) (string, bool) {
 // this finds all concrete methods that could be the target.
 func (idx *SymbolPosIndex) LookupMethodsByName(name string) []string {
 	return idx.methodsByName[name]
+}
+
+// LookupMethodsByNameInPkgs returns method symbol IDs filtered to only those
+// whose package is in the provided import set. Eliminates false-positive
+// cross-package edges from common method names (e.g., Close, String).
+func (idx *SymbolPosIndex) LookupMethodsByNameInPkgs(name string, importedPkgs map[string]bool) []string {
+	all := idx.methodsByName[name]
+	if len(importedPkgs) == 0 {
+		return all
+	}
+	var filtered []string
+	for _, id := range all {
+		if pkg, ok := idx.idToPkg[id]; ok && importedPkgs[pkg] {
+			filtered = append(filtered, id)
+		}
+	}
+	return filtered
 }
 
 func posKey(file string, line, col int) string {
