@@ -215,29 +215,40 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 }
 
 func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
-	// Use pkg_path for efficient exact or suffix matching.
-	// The pkgPath may be a full path (e.g., "github.com/user/repo/internal/handler")
-	// or a suffix (e.g., "internal/handler").
-	//
-	// First try exact match, then suffix match.
-	// Uses idx_symbols_name_pkg composite index for O(log N) lookup.
-
-	// Pattern for suffix match: pkg_path ends with /pkgPath or equals pkgPath
-	suffixPattern := "%/" + pkgPath
-
+	// Try exact pkg_path match first — uses idx_symbols_name_pkg composite index.
 	rows, err := db.Query(`
 		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
-		WHERE s.name = ? AND (
-			s.pkg_path = ? OR
-			s.pkg_path LIKE ?
-		)
+		WHERE s.name = ? AND s.pkg_path = ?
 		ORDER BY s.kind, s.file_path, s.line_start
-	`, name, pkgPath, suffixPattern)
+	`, name, pkgPath)
 	if err != nil {
-		return nil, fmt.Errorf("query symbols qualified: %w", err)
+		return nil, fmt.Errorf("query symbols qualified exact: %w", err)
+	}
+	results, err := scanSymbolRows(rows)
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	if len(results) > 0 {
+		return results, nil
+	}
+
+	// Fallback: suffix match for partial package paths (e.g., "internal/handler").
+	// Uses leading-wildcard LIKE which can't use index, but only runs when exact fails.
+	suffixPattern := "%/" + pkgPath
+	rows, err = db.Query(`
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.name = ? AND s.pkg_path LIKE ?
+		ORDER BY s.kind, s.file_path, s.line_start
+	`, name, suffixPattern)
+	if err != nil {
+		return nil, fmt.Errorf("query symbols qualified suffix: %w", err)
 	}
 	defer rows.Close()
 
@@ -1026,18 +1037,14 @@ func extractInterfaceMethodNames(filePath string, lineStart, lineEnd int) []stri
 
 // FindPackageSymbols finds all exported symbols in files matching a package path pattern.
 // It filters to exported symbols only (those starting with uppercase).
+// Cascades: exact → suffix → substring, returning on first match to avoid leading-wildcard LIKE.
 func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]SymbolRow, error) {
-	// Match package pattern using pkg_path for more precise matching
-	// Pattern can be exact, suffix, or substring match
-	suffixPattern := "%/" + pkgPattern
-	substringPattern := "%" + pkgPattern + "%"
-
-	rows, err := db.Query(`
+	const selectCols = `
 		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
-		LEFT JOIN files f ON s.file_path = f.path
-		WHERE (s.pkg_path = ? OR s.pkg_path LIKE ? OR s.pkg_path LIKE ?)
+		LEFT JOIN files f ON s.file_path = f.path`
+	const filterAndOrder = `
 		  AND s.name GLOB '[A-Z]*'
 		  AND s.kind NOT IN ('field')
 		ORDER BY
@@ -1052,10 +1059,45 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 		    ELSE 8
 		  END,
 		  s.name
-		LIMIT ? OFFSET ?
-	`, pkgPattern, suffixPattern, substringPattern, limit, offset)
+		LIMIT ? OFFSET ?`
+
+	// Try exact match first (index-friendly).
+	rows, err := db.Query(selectCols+`
+		WHERE s.pkg_path = ?`+filterAndOrder, pkgPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query package symbols: %w", err)
+	}
+	results, err := scanSymbolRows(rows)
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	if len(results) > 0 {
+		return results, nil
+	}
+
+	// Suffix match (e.g., "internal/handler" matching "github.com/.../internal/handler").
+	suffixPattern := "%/" + pkgPattern
+	rows, err = db.Query(selectCols+`
+		WHERE s.pkg_path LIKE ?`+filterAndOrder, suffixPattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query package symbols suffix: %w", err)
+	}
+	results, err = scanSymbolRows(rows)
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	if len(results) > 0 {
+		return results, nil
+	}
+
+	// Substring match as last resort.
+	substringPattern := "%" + pkgPattern + "%"
+	rows, err = db.Query(selectCols+`
+		WHERE s.pkg_path LIKE ?`+filterAndOrder, substringPattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query package symbols substring: %w", err)
 	}
 	defer rows.Close()
 
