@@ -1,0 +1,47 @@
+---
+version: 2
+project_name: snipe
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: snipe
+    main: .
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - "-s -w -X github.com/dkoosis/snipe/cmd.Version={{ .Version }} -X github.com/dkoosis/snipe/cmd.GitCommit={{ .ShortCommit }}"
+
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: dkoosis
+    name: snipe
+  prerelease: auto
+  name_template: "v{{ .Version }}"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^test:"
