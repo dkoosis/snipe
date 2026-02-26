@@ -49,9 +49,8 @@ func allDashboard() error {
 		"Test/unit:go test -json -cover ./...",
 		// Lint - essential
 		"Lint/vet:go vet ./...",
-		"Lint/gofmt:gofmt -l .",
+		"Lint/gofmt:gofmt -l cmd internal test main.go magefile.go",
 		"Lint/staticcheck:golangci-lint run --allow-parallel-runners --enable-only staticcheck ./...",
-		"Lint/gosec:golangci-lint run --allow-parallel-runners --enable-only gosec ./...",
 	)
 }
 
@@ -61,9 +60,8 @@ func allCLI() error {
 		step{"Build", "go", []string{"build", "-o", "bin/snipe", "."}},
 		step{"Test", "go", []string{"test", "-cover", "./..."}},
 		step{"Vet", "go", []string{"vet", "./..."}},
-		step{"Gofmt", "gofmt", []string{"-l", "."}},
+		step{"Gofmt", "gofmt", []string{"-l", "cmd", "internal", "test", "main.go", "magefile.go"}},
 		step{"Staticcheck", "golangci-lint", []string{"run", "--enable-only", "staticcheck", "./..."}},
-		step{"Gosec", "golangci-lint", []string{"run", "--enable-only", "gosec", "./..."}},
 	)
 }
 

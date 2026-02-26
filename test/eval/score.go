@@ -123,10 +123,10 @@ type snipeCandidate struct {
 
 // packResponse mirrors the nested pack output structure for re-parsing.
 type packResponse struct {
-	Ok      bool           `json:"ok"`
-	Results []packResult   `json:"results"`
-	Meta    snipeMeta      `json:"meta"`
-	Error   *snipeError    `json:"error"`
+	Ok      bool         `json:"ok"`
+	Results []packResult `json:"results"`
+	Meta    snipeMeta    `json:"meta"`
+	Error   *snipeError  `json:"error"`
 }
 
 type packResult struct {

@@ -366,7 +366,6 @@ func TestPagination_OffsetAndLimit_Work(t *testing.T) {
 	}
 }
 
-
 func TestMaxTokens_Truncates_When_LowBudget(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
