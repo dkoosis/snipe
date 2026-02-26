@@ -43,8 +43,8 @@ func All() error {
 
 func allDashboard() error {
 	return runFoDashboard(
-		// Build
-		"Build/snipe:go build -o bin/snipe .",
+		// Build (go install puts binary on PATH)
+		"Build/snipe:go install .",
 		// Test
 		"Test/unit:go test -json -cover ./...",
 		// Lint - essential
@@ -57,7 +57,7 @@ func allDashboard() error {
 func allCLI() error {
 	fmt.Println("═══ Build + Lint + Test ═══")
 	return runSequential(
-		step{"Build", "go", []string{"build", "-o", "bin/snipe", "."}},
+		step{"Build", "go", []string{"install", "."}},
 		step{"Test", "go", []string{"test", "-cover", "./..."}},
 		step{"Vet", "go", []string{"vet", "./..."}},
 		step{"Gofmt", "gofmt", []string{"-l", "cmd", "internal", "test", "main.go", "magefile.go"}},
@@ -79,8 +79,8 @@ func Qa() error {
 
 func qaDashboard() error {
 	return runFoDashboard(
-		// Build
-		"Build/snipe:go build -o bin/snipe .",
+		// Build (go install puts binary on PATH)
+		"Build/snipe:go install .",
 		// Test - comprehensive (note: -cover omitted to avoid "no such tool covdata" false failures)
 		"Test/unit:go test -json ./...",
 		"Test/race:go test -race -json -timeout=5m ./...",
@@ -98,13 +98,9 @@ func qaCLI() error {
 	fmt.Println("═══ Full QA ═══")
 	start := time.Now()
 
-	if err := os.MkdirAll("bin", 0o755); err != nil {
-		return err
-	}
-
 	var failures []string
 	checks := []step{
-		{"Build", "go", []string{"build", "-o", "bin/snipe", "."}},
+		{"Build", "go", []string{"install", "."}},
 		{"Test", "go", []string{"test", "-cover", "./..."}},
 		{"Race", "go", []string{"test", "-race", "-timeout=5m", "./..."}},
 		{"Blackbox", "go", []string{"test", "-tags=blackbox", "-v", "./test/blackbox/..."}},
@@ -136,19 +132,15 @@ func qaCLI() error {
 // Individual Targets
 // ----------------------------------------------------------------------------
 
-// Build compiles the snipe binary.
+// Build installs the snipe binary to $GOPATH/bin.
 func Build() error {
-	fmt.Println("→ Building snipe...")
-	if err := os.MkdirAll("bin", 0o755); err != nil {
-		return err
-	}
-
+	fmt.Println("→ Installing snipe...")
 	version := getVersion()
 	commit := getCommit()
 	ldflags := fmt.Sprintf("-X github.com/dkoosis/snipe/cmd.Version=%s -X github.com/dkoosis/snipe/cmd.GitCommit=%s",
 		version, commit)
 
-	return sh.Run("go", "build", "-ldflags", ldflags, "-o", "bin/snipe", ".")
+	return sh.Run("go", "install", "-ldflags", ldflags, ".")
 }
 
 // Install builds and installs snipe to $GOPATH/bin.
@@ -259,14 +251,14 @@ func Trend() error {
 func EvalSetup() error {
 	fmt.Println("→ Setting up eval repos...")
 
-	// Build snipe first
-	if err := os.MkdirAll("bin", 0o755); err != nil {
-		return err
+	// Install snipe to $GOPATH/bin
+	if err := sh.Run("go", "install", "."); err != nil {
+		return fmt.Errorf("install snipe: %w", err)
 	}
-	if err := sh.Run("go", "build", "-o", "bin/snipe", "."); err != nil {
-		return fmt.Errorf("build snipe: %w", err)
+	snipeBin, err := exec.LookPath("snipe")
+	if err != nil {
+		return fmt.Errorf("snipe not found on PATH after install: %w", err)
 	}
-	snipeBin, _ := filepath.Abs("bin/snipe")
 
 	evalDir := ".eval-repos"
 	if err := os.MkdirAll(evalDir, 0o755); err != nil {
@@ -546,11 +538,6 @@ func runFoDashboard(tasks ...string) error {
 			fmt.Println("fo not found, falling back to CLI mode")
 			return allCLI()
 		}
-	}
-
-	// Ensure bin directory exists
-	if err := os.MkdirAll("bin", 0o755); err != nil {
-		return fmt.Errorf("create bin dir: %w", err)
 	}
 
 	// Build task args
