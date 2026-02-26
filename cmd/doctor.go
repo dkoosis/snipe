@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,19 +16,26 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 )
 
-// DoctorResult represents the result of the doctor check.
-type DoctorResult struct {
-	OK     bool          `json:"ok"`
-	Checks []DoctorCheck `json:"checks"`
-}
-
 // DoctorCheck represents a single diagnostic check.
 type DoctorCheck struct {
-	Name    string `json:"name"`
-	OK      bool   `json:"ok"`
-	Message string `json:"message,omitempty"`
-	Details string `json:"details,omitempty"`
+	Name        string `json:"name"`
+	OK          bool   `json:"ok"`
+	Code        string `json:"code,omitempty"` // e.g. RG_MISSING, INDEX_CORRUPT, INDEX_STALE
+	Message     string `json:"message,omitempty"`
+	Remediation string `json:"remediation,omitempty"` // executable command, not prose
+	Details     string `json:"details,omitempty"`
 }
+
+// Doctor error codes.
+const (
+	DoctorRGMissing        = "RG_MISSING"
+	DoctorGOMissing        = "GO_MISSING"
+	DoctorIndexMissing     = "INDEX_MISSING"
+	DoctorIndexCorrupt     = "INDEX_CORRUPT"
+	DoctorIndexStale       = "INDEX_STALE"
+	DoctorOrphanedRefs     = "ORPHANED_REFS"
+	DoctorEmbedAuthMissing = "EMBED_AUTH_MISSING"
+)
 
 var doctorCmd = &cobra.Command{
 	Use:     "doctor",
@@ -48,52 +54,66 @@ func init() {
 }
 
 func runDoctor(cmd *cobra.Command, args []string) error {
-	result := &DoctorResult{
-		OK:     true,
-		Checks: []DoctorCheck{},
-	}
+	compact, _, _, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact)
+
+	allOK := true
+	var checks []DoctorCheck
 
 	// Check ripgrep
 	rgCheck := checkRipgrep()
-	result.Checks = append(result.Checks, rgCheck)
+	checks = append(checks, rgCheck)
 	if !rgCheck.OK {
-		result.OK = false
+		allOK = false
 	}
 
 	// Check index
 	indexCheck := checkIndex()
-	result.Checks = append(result.Checks, indexCheck)
+	checks = append(checks, indexCheck)
 	if !indexCheck.OK {
-		result.OK = false
+		allOK = false
 	}
 
 	// Check Go toolchain
 	goCheck := checkGoToolchain()
-	result.Checks = append(result.Checks, goCheck)
+	checks = append(checks, goCheck)
 	if !goCheck.OK {
-		result.OK = false
+		allOK = false
 	}
 
 	// Check embeddings credentials
 	embedCheck := checkEmbeddings()
-	result.Checks = append(result.Checks, embedCheck)
+	checks = append(checks, embedCheck)
 
 	// Check orphaned references (only if index exists)
 	if indexCheck.OK {
 		orphanCheck := checkOrphans()
-		result.Checks = append(result.Checks, orphanCheck)
+		checks = append(checks, orphanCheck)
 	}
 
 	// Check index staleness
 	if indexCheck.OK {
 		staleCheck := checkStaleness()
-		result.Checks = append(result.Checks, staleCheck)
+		checks = append(checks, staleCheck)
 	}
 
-	// Output as JSON
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(result)
+	// Find repo root for meta (best-effort)
+	cwd, _ := os.Getwd()
+	repoRoot := findProjectRoot(cwd)
+
+	resp := output.Response[DoctorCheck]{
+		Protocol: output.ProtocolVersion,
+		Ok:       allOK,
+		Results:  checks,
+		Meta: output.Meta{
+			Command:  "doctor",
+			RepoRoot: repoRoot,
+			Ms:       w.Elapsed(),
+			Total:    len(checks),
+		},
+	}
+
+	return w.WriteResponse(resp)
 }
 
 func checkRipgrep() DoctorCheck {
@@ -104,7 +124,9 @@ func checkRipgrep() DoctorCheck {
 	path, err := exec.LookPath("rg")
 	if err != nil {
 		check.OK = false
+		check.Code = DoctorRGMissing
 		check.Message = "ripgrep (rg) not found"
+		check.Remediation = "brew install ripgrep"
 		check.Details = "Install from https://github.com/BurntSushi/ripgrep\n" +
 			"  macOS: brew install ripgrep\n" +
 			"  Ubuntu/Debian: apt install ripgrep\n" +
@@ -152,8 +174,10 @@ func checkIndex() DoctorCheck {
 	indexPath := store.DefaultIndexPath(projectRoot)
 	if !store.Exists(indexPath) {
 		check.OK = false
+		check.Code = DoctorIndexMissing
 		check.Message = "index not found"
-		check.Details = fmt.Sprintf("Expected at: %s\nRun 'snipe index' to create", indexPath)
+		check.Remediation = "snipe index"
+		check.Details = fmt.Sprintf("Expected at: %s", indexPath)
 		return check
 	}
 
@@ -161,8 +185,10 @@ func checkIndex() DoctorCheck {
 	s, err := store.Open(indexPath)
 	if err != nil {
 		check.OK = false
+		check.Code = DoctorIndexCorrupt
 		check.Message = "could not open index"
-		check.Details = fmt.Sprintf("Path: %s\nError: %v\nRun 'snipe index' to rebuild", indexPath, err)
+		check.Remediation = "snipe index"
+		check.Details = fmt.Sprintf("Path: %s\nError: %v", indexPath, err)
 		return check
 	}
 
@@ -170,16 +196,20 @@ func checkIndex() DoctorCheck {
 	if err := s.DB().QueryRow("PRAGMA integrity_check").Scan(&integrityResult); err != nil {
 		s.Close()
 		check.OK = false
+		check.Code = DoctorIndexCorrupt
 		check.Message = "integrity check failed"
-		check.Details = fmt.Sprintf("Path: %s\nError: %v\nRun 'snipe index' to rebuild", indexPath, err)
+		check.Remediation = "snipe index"
+		check.Details = fmt.Sprintf("Path: %s\nError: %v", indexPath, err)
 		return check
 	}
 	s.Close()
 
 	if integrityResult != "ok" {
 		check.OK = false
+		check.Code = DoctorIndexCorrupt
 		check.Message = "index is corrupt"
-		check.Details = fmt.Sprintf("Path: %s\nPRAGMA integrity_check: %s\nRun 'snipe index' to rebuild", indexPath, integrityResult)
+		check.Remediation = "snipe index"
+		check.Details = fmt.Sprintf("Path: %s\nPRAGMA integrity_check: %s", indexPath, integrityResult)
 		return check
 	}
 
@@ -214,8 +244,9 @@ func checkGoToolchain() DoctorCheck {
 	goPath, err := exec.LookPath("go")
 	if err != nil {
 		check.OK = false
+		check.Code = DoctorGOMissing
 		check.Message = "Go toolchain not found"
-		check.Details = "Install from https://go.dev/dl/"
+		check.Remediation = "https://go.dev/dl/"
 		return check
 	}
 
@@ -243,8 +274,9 @@ func checkEmbeddings() DoctorCheck {
 		check.Message = "embedding credentials available"
 	} else {
 		check.OK = true // Not a failure, just informational
+		check.Code = DoctorEmbedAuthMissing
 		check.Message = "no embedding credentials (embeddings disabled)"
-		check.Details = "Set VOYAGE_API_KEY environment variable or create ~/.config/snipe/credentials to enable semantic search"
+		check.Remediation = "export VOYAGE_API_KEY=your-key"
 	}
 
 	return check
@@ -286,11 +318,13 @@ func checkOrphans() DoctorCheck {
 		return check
 	}
 
-	check.OK = true
 	if orphanCount > 0 {
+		check.OK = true // Degraded but not broken
+		check.Code = DoctorOrphanedRefs
 		check.Message = fmt.Sprintf("%d orphaned references found", orphanCount)
-		check.Details = "Run 'snipe index --force' to rebuild and clean up orphaned references"
+		check.Remediation = "snipe index --force"
 	} else {
+		check.OK = true
 		check.Message = "no orphaned references"
 	}
 
@@ -326,15 +360,18 @@ func checkStaleness() DoctorCheck {
 	defer s.Close()
 
 	state := query.CheckIndexState(s.DB(), projectRoot, Version)
-	check.OK = true
 
 	switch state {
 	case output.IndexFresh:
+		check.OK = true
 		check.Message = "index is fresh"
 	case output.IndexStale:
+		check.OK = true // Degraded but not broken
+		check.Code = DoctorIndexStale
 		check.Message = "index is stale"
-		check.Details = "Run 'snipe index' to refresh. Queries still work but results may be incomplete."
-	case output.IndexMissing, output.IndexNotUsed:
+		check.Remediation = "snipe index"
+	default:
+		check.OK = true
 		check.Message = fmt.Sprintf("index state: %s", state)
 	}
 

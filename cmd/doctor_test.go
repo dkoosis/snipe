@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"testing"
@@ -42,8 +41,11 @@ func TestCheckRipgrep_MissingRg(t *testing.T) {
 	if check.OK {
 		t.Error("checkRipgrep().OK = true, want false when rg is not in PATH")
 	}
-	if check.Details == "" {
-		t.Error("check.Details should contain install instructions")
+	if check.Code != DoctorRGMissing {
+		t.Errorf("check.Code = %q, want %q", check.Code, DoctorRGMissing)
+	}
+	if check.Remediation == "" {
+		t.Error("check.Remediation should not be empty")
 	}
 }
 
@@ -65,37 +67,21 @@ func TestCheckIndex_NotInGitRepo(t *testing.T) {
 	}
 }
 
-func TestDoctorResult_JSON(t *testing.T) {
-	result := &DoctorResult{
-		OK: false,
-		Checks: []DoctorCheck{
-			{
-				Name:    "test",
-				OK:      false,
-				Message: "test failed",
-				Details: "details here",
-			},
-		},
+func TestDoctorCheck_Fields(t *testing.T) {
+	check := DoctorCheck{
+		Name:        "test",
+		OK:          false,
+		Code:        DoctorIndexCorrupt,
+		Message:     "test failed",
+		Remediation: "snipe index",
+		Details:     "details here",
 	}
 
-	data, err := json.Marshal(result)
-	if err != nil {
-		t.Fatalf("json.Marshal failed: %v", err)
+	if check.Code != "INDEX_CORRUPT" {
+		t.Errorf("check.Code = %q, want %q", check.Code, "INDEX_CORRUPT")
 	}
-
-	var decoded DoctorResult
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal failed: %v", err)
-	}
-
-	if decoded.OK != false {
-		t.Errorf("decoded.OK = %v, want false", decoded.OK)
-	}
-	if len(decoded.Checks) != 1 {
-		t.Fatalf("len(decoded.Checks) = %d, want 1", len(decoded.Checks))
-	}
-	if decoded.Checks[0].Name != "test" {
-		t.Errorf("decoded.Checks[0].Name = %q, want 'test'", decoded.Checks[0].Name)
+	if check.Remediation != "snipe index" {
+		t.Errorf("check.Remediation = %q, want %q", check.Remediation, "snipe index")
 	}
 }
 
