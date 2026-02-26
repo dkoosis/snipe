@@ -1,24 +1,23 @@
-sha: 0bdfff9 | qa: pass | eval: 80.8%
-updated: 2026-02-25
+sha: 48f2cd6 | qa: pass
+updated: 2026-02-26
 
 ## Do next
 
 Pick from backlog. Top candidates:
 - #93 wildcard predicates
 - #101 batch self-healing
-- #102 callees output contract
 - #103 doctor schema normalization
 - #88 M4 distribution
 
 ## Done
 
-- Phase 3 simplification complete — all 28 dead symbols removed, enrichment stub gutted, flags hidden
-- Fixed mage: scoped gofmt to project dirs, removed contradictory gosec step (9512a0a)
-- #94 hash staleness (0c34b4a), #96 batch OOM (0bdfff9), #97 watch shutdown (a776c5a), #98 rows.Err (de71af4), #99 interface dispatch (0f33ada)
+- #102 callees output contract fixed — ID/file/range now coherent, defResult prepend removed (d8bf6fa)
+- Extracted `CallRow.ToCalleeResult()`/`ToCallerResult()` — deduplicated 8 conversion blocks, -130 lines (48f2cd6)
+- Blackbox test strengthened: 16-char hex ID, real kind, definition range, meta.total, ID chain via `snipe show`
 
 ## Backlog
 
-#93 wildcard predicates | #88 M4 distribution | #100 exported standalone | #101 batch self-heal | #102 callees contract | #103 doctor schema | orca persistToolCall
+#93 wildcard predicates | #88 M4 distribution | #100 exported standalone | #101 batch self-heal | #103 doctor schema | orca persistToolCall
 
 ## Traps
 
