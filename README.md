@@ -1,5 +1,7 @@
 # snipe
 
+[![Release](https://img.shields.io/github/v/release/dkoosis/snipe)](https://github.com/dkoosis/snipe/releases)
+
 Go code navigation for LLMs. Static indexing, <50ms queries, JSON output.
 
 ```bash
