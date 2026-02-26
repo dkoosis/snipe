@@ -844,6 +844,58 @@ func CountCalleesForType(db *sql.DB, typeName string) (int, error) {
 	return count, err
 }
 
+// ToCalleeResult converts a CallRow to an output.Result describing the callee's definition.
+// ID, file, range, and edit_target all point to where the callee is defined.
+func (c *CallRow) ToCalleeResult() output.Result {
+	calleeRange := output.Range{
+		Start: output.Position{Line: c.CalleeLineStart, Col: c.CalleeColStart},
+		End:   output.Position{Line: c.CalleeLineEnd, Col: c.CalleeColEnd},
+	}
+	filePath := c.CalleeFileRel
+	if filePath == "" {
+		filePath = c.CalleeFile
+	}
+	return output.Result{
+		ID:         c.CalleeID,
+		File:       filePath,
+		FileAbs:    c.CalleeFile,
+		Range:      calleeRange,
+		Kind:       c.CalleeKind,
+		Name:       c.CalleeName,
+		Receiver:   c.CalleeReceiver,
+		Match:      c.CalleeSignature.String,
+		EditTarget: output.FormatEditTargetWithHash(filePath, c.CalleeFile, calleeRange),
+	}
+}
+
+// ToCallerResult converts a CallRow to an output.Result describing the caller at the call site.
+// ID, name, kind describe the caller; range points to the call expression location.
+func (c *CallRow) ToCallerResult() output.Result {
+	nameLen := len(c.CalleeName)
+	if nameLen == 0 {
+		nameLen = 1
+	}
+	callRange := output.Range{
+		Start: output.Position{Line: c.CallLine, Col: c.CallCol},
+		End:   output.Position{Line: c.CallLine, Col: c.CallCol + nameLen},
+	}
+	filePath := c.CallerFileRel
+	if filePath == "" {
+		filePath = c.CallerFile
+	}
+	return output.Result{
+		ID:         c.CallerID,
+		File:       filePath,
+		FileAbs:    c.CallerFile,
+		Range:      callRange,
+		Kind:       c.CallerKind,
+		Name:       c.CallerName,
+		Receiver:   c.CallerReceiver,
+		Match:      c.CallerSignature.String,
+		EditTarget: output.FormatEditTargetWithHash(filePath, c.CallerFile, callRange),
+	}
+}
+
 // scanCallRows scans rows into CallRow slices (shared by FindCallers/FindCallees/ForType variants).
 func scanCallRows(rows *sql.Rows) ([]CallRow, error) {
 	var results []CallRow

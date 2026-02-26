@@ -142,31 +142,7 @@ findCallers:
 	}
 
 	for i, call := range calls {
-		// Use callee name length for accurate call site range
-		nameLen := len(call.CalleeName)
-		if nameLen == 0 {
-			nameLen = 1
-		}
-		callRange := output.Range{
-			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-			End:   output.Position{Line: call.CallLine, Col: call.CallCol + nameLen},
-		}
-		// Use relative path for output, absolute for file operations
-		filePath := call.CallerFileRel
-		if filePath == "" {
-			filePath = call.CallerFile
-		}
-		result := output.Result{
-			ID:         call.CallerID,
-			File:       filePath,
-			FileAbs:    call.CallerFile,
-			Range:      callRange,
-			Kind:       call.CallerKind,
-			Name:       call.CallerName,
-			Receiver:   call.CallerReceiver,
-			Match:      call.CallerSignature.String,
-			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callRange),
-		}
+		result := call.ToCallerResult()
 
 		// Add caller body if requested (from the caller's definition, not call site)
 		if withBody {

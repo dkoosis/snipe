@@ -143,27 +143,7 @@ findCallees:
 	}
 
 	for i, call := range calls {
-		// Use callee's definition range — ID and coordinates both describe the callee
-		calleeRange := output.Range{
-			Start: output.Position{Line: call.CalleeLineStart, Col: call.CalleeColStart},
-			End:   output.Position{Line: call.CalleeLineEnd, Col: call.CalleeColEnd},
-		}
-		// Use callee's file path (where the callee is defined)
-		filePath := call.CalleeFileRel
-		if filePath == "" {
-			filePath = call.CalleeFile
-		}
-		result := output.Result{
-			ID:         call.CalleeID,
-			File:       filePath,
-			FileAbs:    call.CalleeFile,
-			Range:      calleeRange,
-			Kind:       call.CalleeKind,
-			Name:       call.CalleeName,
-			Receiver:   call.CalleeReceiver,
-			Match:      call.CalleeSignature.String,
-			EditTarget: output.FormatEditTargetWithHash(filePath, call.CalleeFile, calleeRange),
-		}
+		result := call.ToCalleeResult()
 
 		// Add callee body if requested (from the callee's definition, not call site)
 		if withBody {

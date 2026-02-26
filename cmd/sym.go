@@ -299,30 +299,7 @@ lookup:
 
 	callerResults := make([]output.Result, 0, len(callerRows))
 	for _, call := range callerRows {
-		callNameLen := len(call.CalleeName)
-		if callNameLen == 0 {
-			callNameLen = 1
-		}
-		callRange := output.Range{
-			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-			End:   output.Position{Line: call.CallLine, Col: call.CallCol + callNameLen},
-		}
-		filePath := call.CallerFileRel
-		if filePath == "" {
-			filePath = call.CallerFile
-		}
-		result := output.Result{
-			ID:         call.CallerID,
-			File:       filePath,
-			FileAbs:    call.CallerFile,
-			Range:      callRange,
-			Kind:       call.CallerKind,
-			Name:       call.CallerName,
-			Receiver:   call.CallerReceiver,
-			Match:      call.CallerSignature.String,
-			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callRange),
-		}
-		callerResults = append(callerResults, result)
+		callerResults = append(callerResults, call.ToCallerResult())
 	}
 
 	// Get caller count
@@ -340,26 +317,7 @@ lookup:
 
 	calleeResults := make([]output.Result, 0, len(calleeRows))
 	for _, call := range calleeRows {
-		calleeRange := output.Range{
-			Start: output.Position{Line: call.CalleeLineStart, Col: call.CalleeColStart},
-			End:   output.Position{Line: call.CalleeLineEnd, Col: call.CalleeColEnd},
-		}
-		filePath := call.CalleeFileRel
-		if filePath == "" {
-			filePath = call.CalleeFile
-		}
-		result := output.Result{
-			ID:         call.CalleeID,
-			File:       filePath,
-			FileAbs:    call.CalleeFile,
-			Range:      calleeRange,
-			Kind:       call.CalleeKind,
-			Name:       call.CalleeName,
-			Receiver:   call.CalleeReceiver,
-			Match:      call.CalleeSignature.String,
-			EditTarget: output.FormatEditTargetWithHash(filePath, call.CalleeFile, calleeRange),
-		}
-		calleeResults = append(calleeResults, result)
+		calleeResults = append(calleeResults, call.ToCalleeResult())
 	}
 
 	// Get callee count
