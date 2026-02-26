@@ -37,6 +37,9 @@ const (
 	DoctorEmbedAuthMissing = "EMBED_AUTH_MISSING"
 )
 
+// Common remediation commands.
+const remediationReindex = "snipe index"
+
 var doctorCmd = &cobra.Command{
 	Use:     "doctor",
 	Short:   "Check snipe installation and configuration",
@@ -176,7 +179,7 @@ func checkIndex() DoctorCheck {
 		check.OK = false
 		check.Code = DoctorIndexMissing
 		check.Message = "index not found"
-		check.Remediation = "snipe index"
+		check.Remediation = remediationReindex
 		check.Details = fmt.Sprintf("Expected at: %s", indexPath)
 		return check
 	}
@@ -187,7 +190,7 @@ func checkIndex() DoctorCheck {
 		check.OK = false
 		check.Code = DoctorIndexCorrupt
 		check.Message = "could not open index"
-		check.Remediation = "snipe index"
+		check.Remediation = remediationReindex
 		check.Details = fmt.Sprintf("Path: %s\nError: %v", indexPath, err)
 		return check
 	}
@@ -198,7 +201,7 @@ func checkIndex() DoctorCheck {
 		check.OK = false
 		check.Code = DoctorIndexCorrupt
 		check.Message = "integrity check failed"
-		check.Remediation = "snipe index"
+		check.Remediation = remediationReindex
 		check.Details = fmt.Sprintf("Path: %s\nError: %v", indexPath, err)
 		return check
 	}
@@ -208,7 +211,7 @@ func checkIndex() DoctorCheck {
 		check.OK = false
 		check.Code = DoctorIndexCorrupt
 		check.Message = "index is corrupt"
-		check.Remediation = "snipe index"
+		check.Remediation = remediationReindex
 		check.Details = fmt.Sprintf("Path: %s\nPRAGMA integrity_check: %s", indexPath, integrityResult)
 		return check
 	}
@@ -369,8 +372,8 @@ func checkStaleness() DoctorCheck {
 		check.OK = true // Degraded but not broken
 		check.Code = DoctorIndexStale
 		check.Message = "index is stale"
-		check.Remediation = "snipe index"
-	default:
+		check.Remediation = remediationReindex
+	case output.IndexMissing, output.IndexNotUsed:
 		check.OK = true
 		check.Message = fmt.Sprintf("index state: %s", state)
 	}

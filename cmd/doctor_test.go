@@ -73,15 +73,15 @@ func TestDoctorCheck_Fields(t *testing.T) {
 		OK:          false,
 		Code:        DoctorIndexCorrupt,
 		Message:     "test failed",
-		Remediation: "snipe index",
+		Remediation: remediationReindex,
 		Details:     "details here",
 	}
 
 	if check.Code != "INDEX_CORRUPT" {
 		t.Errorf("check.Code = %q, want %q", check.Code, "INDEX_CORRUPT")
 	}
-	if check.Remediation != "snipe index" {
-		t.Errorf("check.Remediation = %q, want %q", check.Remediation, "snipe index")
+	if check.Remediation != remediationReindex {
+		t.Errorf("check.Remediation = %q, want %q", check.Remediation, remediationReindex)
 	}
 }
 
