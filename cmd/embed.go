@@ -181,7 +181,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 			isStale := age > batchStaleThreshold
 			msg := "Batch job in progress"
 			if isStale {
-				msg = fmt.Sprintf("Batch job appears stale (no progress in %v). Run 'snipe index' to auto-recover or rm .snipe/batch_state.json to force restart.", age.Round(time.Hour))
+				msg = fmt.Sprintf("Batch job appears stale (no progress in %v). Run 'snipe index' to auto-recover.", age.Round(time.Hour))
 			}
 			result := EmbedStatusResult{
 				BatchID:   state.BatchID,

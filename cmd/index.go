@@ -414,13 +414,38 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 					}
 					// Fall through to start new batch
 				case batchStatusCompleted:
-					// Batch completed but we never processed it - this shouldn't happen often
-					fmt.Fprintf(os.Stderr, "  Batch completed but results not processed. Clear .snipe/batch_state.json and re-run.\n")
-					return "batch_completed_unprocessed", nil
+					// Batch completed but results never processed — auto-recover
+					fmt.Fprintf(os.Stderr, "  Batch completed, recovering results...\n")
+
+					// Update state with output file info from API
+					state.Status = batchStatusCompleted
+					state.OutputFileID = actualStatus.OutputFileID
+					state.ErrorFileID = actualStatus.ErrorFileID
+					state.Completed = actualStatus.RequestCounts.Completed
+					state.Failed = actualStatus.RequestCounts.Failed
+					state.UpdatedAt = time.Now()
+
+					dbPath := store.DefaultIndexPath(repoRoot)
+					count, dlErr := downloadAndSaveEmbeddings(client, state, dbPath)
+					if dlErr != nil {
+						// Download failed (expired output, API error) — clear and restart
+						fmt.Fprintf(os.Stderr, "  Recovery failed: %v\n", dlErr)
+						fmt.Fprintf(os.Stderr, "  Clearing state and starting fresh...\n")
+						if clearErr := client.ClearState(); clearErr != nil {
+							return "", fmt.Errorf("clear failed batch state: %w", clearErr)
+						}
+						// Fall through to start new batch
+					} else {
+						fmt.Fprintf(os.Stderr, "  Recovered %d embeddings from completed batch\n", count)
+						if clearErr := client.ClearState(); clearErr != nil {
+							fmt.Fprintf(os.Stderr, "  Warning: failed to clear state: %v\n", clearErr)
+						}
+						return "batch_recovered", nil
+					}
 				default:
-					// Batch is still running according to API, but very old - warn user
+					// Batch is still running according to API, but very old
 					fmt.Fprintf(os.Stderr, "  Batch is still %q according to Voyage AI.\n", actualStatus.Status)
-					fmt.Fprintf(os.Stderr, "  This is unusual. To force restart: rm .snipe/batch_state.json\n")
+					fmt.Fprintf(os.Stderr, "  Run 'snipe embed-status --wait' to monitor, or 'snipe index --embed-mode=off' to skip.\n")
 					return "batch_in_progress", nil
 				}
 			}
