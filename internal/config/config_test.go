@@ -65,7 +65,6 @@ func TestLoad_ProjectOverridesGlobal(t *testing.T) {
 	globalCfg := &Config{
 		Limit:        200,
 		ContextLines: 10,
-		IndexPath:    "/global/index.db",
 	}
 	writeConfig(t, filepath.Join(globalDir, "config.json"), globalCfg)
 
@@ -90,50 +89,6 @@ func TestLoad_ProjectOverridesGlobal(t *testing.T) {
 	// Global value used when project doesn't specify
 	if cfg.ContextLines != 10 {
 		t.Errorf("ContextLines = %d, want 10 (from global)", cfg.ContextLines)
-	}
-
-	// Global value preserved
-	if cfg.IndexPath != "/global/index.db" {
-		t.Errorf("IndexPath = %q, want /global/index.db", cfg.IndexPath)
-	}
-}
-
-func TestLoad_ExcludesMerge(t *testing.T) {
-	// Create temp home dir for global config
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-
-	// Create global config with excludes
-	globalDir := filepath.Join(homeDir, ".config", "snipe")
-	if err := os.MkdirAll(globalDir, 0755); err != nil {
-		t.Fatalf("MkdirAll failed: %v", err)
-	}
-	globalCfg := &Config{
-		Excludes: []string{"vendor", "node_modules"},
-	}
-	writeConfig(t, filepath.Join(globalDir, "config.json"), globalCfg)
-
-	// Create project config with additional excludes
-	projectDir := t.TempDir()
-	projectCfg := &Config{
-		Excludes: []string{"dist", "build"},
-	}
-	writeConfig(t, filepath.Join(projectDir, ".snipe.json"), projectCfg)
-
-	cfg, err := Load(projectDir)
-	if err != nil {
-		t.Fatalf("Load failed: %v", err)
-	}
-
-	// Excludes should be merged
-	expected := []string{"vendor", "node_modules", "dist", "build"}
-	if len(cfg.Excludes) != len(expected) {
-		t.Errorf("Excludes length = %d, want %d", len(cfg.Excludes), len(expected))
-	}
-	for i, e := range expected {
-		if cfg.Excludes[i] != e {
-			t.Errorf("Excludes[%d] = %q, want %q", i, cfg.Excludes[i], e)
-		}
 	}
 }
 

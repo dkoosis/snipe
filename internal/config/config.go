@@ -13,10 +13,6 @@ type Config struct {
 	Limit int `json:"limit,omitempty"`
 	// ContextLines is the default context lines around matches
 	ContextLines int `json:"context_lines,omitempty"`
-	// Excludes are additional patterns to exclude from search
-	Excludes []string `json:"excludes,omitempty"`
-	// IndexPath is the custom index database path
-	IndexPath string `json:"index_path,omitempty"`
 }
 
 // DefaultConfig returns the default configuration.
@@ -24,8 +20,6 @@ func DefaultConfig() *Config {
 	return &Config{
 		Limit:        50,
 		ContextLines: 3,
-		Excludes:     nil,
-		IndexPath:    "",
 	}
 }
 
@@ -98,12 +92,6 @@ func merge(dst, src *Config) *Config {
 	}
 	if src.ContextLines > 0 {
 		result.ContextLines = src.ContextLines
-	}
-	if len(src.Excludes) > 0 {
-		result.Excludes = append(result.Excludes, src.Excludes...)
-	}
-	if src.IndexPath != "" {
-		result.IndexPath = src.IndexPath
 	}
 
 	return &result

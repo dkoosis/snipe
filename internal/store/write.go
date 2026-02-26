@@ -475,19 +475,6 @@ func (s *Store) GetAllFiles() (map[string]index.FileInfo, error) {
 	return files, rows.Err()
 }
 
-// GetFileHash retrieves the content hash for a file path
-func (s *Store) GetFileHash(path string) (string, error) {
-	var hash string
-	err := s.db.QueryRow(`SELECT hash FROM files WHERE path = ?`, path).Scan(&hash)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return hash, nil
-}
-
 // IncrementalResult holds stats from an incremental index write.
 type IncrementalResult struct {
 	OrphanedRefs     int
