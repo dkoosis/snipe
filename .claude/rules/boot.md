@@ -1,4 +1,4 @@
-sha: bd17813 | qa: pass
+sha: 3f3810a | qa: pass
 updated: 2026-02-26
 
 ## Do next
@@ -7,8 +7,9 @@ Pick from backlog. Top candidate: #88 M4 distribution (goreleaser, zero-config i
 
 ## Done
 
-- #101 batch self-healing: completed-but-unprocessed batches auto-recover instead of requiring manual file deletion (bd17813)
-- #100 closed as not-a-snipe-bug — standalone exported funcs correctly categorized in snipe's own index
+- mage all/build/qa now use `go install` — binary lands on PATH for all users (3f3810a)
+- #101 batch self-healing (bd17813)
+- #100 closed as not-a-snipe-bug
 
 ## Backlog
 
