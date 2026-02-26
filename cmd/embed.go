@@ -208,7 +208,8 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 	}
 }
 
-// downloadAndSaveEmbeddings downloads batch results and saves to store.
+// downloadAndSaveEmbeddings streams batch results directly to the store.
+// Downloads and parses line-by-line to avoid buffering the entire payload in RAM.
 func downloadAndSaveEmbeddings(client *embed.BatchClient, state *embed.BatchState, dbPath string) (int, error) {
 	if state.OutputFileID == "" {
 		return 0, fmt.Errorf("no output file available")
@@ -216,37 +217,29 @@ func downloadAndSaveEmbeddings(client *embed.BatchClient, state *embed.BatchStat
 
 	fmt.Fprintf(os.Stderr, "Downloading results from file %s...\n", state.OutputFileID)
 
-	// Download output file
-	data, err := client.DownloadFile(state.OutputFileID)
+	body, err := client.DownloadFile(state.OutputFileID)
 	if err != nil {
 		return 0, fmt.Errorf("download output file: %w", err)
 	}
+	defer body.Close()
 
-	fmt.Fprintf(os.Stderr, "Downloaded %d bytes, parsing...\n", len(data))
-
-	// Parse results
-	embeddings, err := client.ParseBatchResults(data)
-	if err != nil {
-		return 0, fmt.Errorf("parse results: %w", err)
-	}
-
-	fmt.Fprintf(os.Stderr, "Parsed %d embeddings, saving to index...\n", len(embeddings))
-
-	// Open store
+	// Open store before streaming so we can persist each embedding immediately.
 	s, err := store.Open(dbPath)
 	if err != nil {
 		return 0, fmt.Errorf("open store: %w", err)
 	}
 	defer s.Close()
 
-	// Save embeddings
 	count := 0
-	for symbolID, embedding := range embeddings {
+	if err := client.ParseBatchResults(body, func(symbolID string, embedding []float32) error {
 		if err := s.SaveEmbedding(symbolID, embedding, state.Model); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to save embedding for %s: %v\n", symbolID, err)
-			continue
+			return nil // continue on save errors
 		}
 		count++
+		return nil
+	}); err != nil {
+		return count, fmt.Errorf("parse results: %w", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "Saved %d embeddings to index\n", count)

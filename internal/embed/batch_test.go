@@ -1,6 +1,7 @@
 package embed
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -78,9 +79,12 @@ func TestParseBatchResults(t *testing.T) {
 
 	line, _ := json.Marshal(resp)
 	line = append(line, '\n')
-	data := line
 
-	results, err := c.ParseBatchResults(data)
+	results := make(map[string][]float32)
+	err := c.ParseBatchResults(bytes.NewReader(line), func(id string, emb []float32) error {
+		results[id] = emb
+		return nil
+	})
 	if err != nil {
 		t.Fatalf("ParseBatchResults failed: %v", err)
 	}
@@ -108,14 +112,17 @@ func TestParseBatchResults_SkipsErrors(t *testing.T) {
 
 	line, _ := json.Marshal(resp)
 	line = append(line, '\n')
-	data := line
 
-	results, err := c.ParseBatchResults(data)
+	count := 0
+	err := c.ParseBatchResults(bytes.NewReader(line), func(id string, emb []float32) error {
+		count++
+		return nil
+	})
 	if err != nil {
 		t.Fatalf("ParseBatchResults failed: %v", err)
 	}
-	if len(results) != 0 {
-		t.Errorf("expected 0 results for error response, got %d", len(results))
+	if count != 0 {
+		t.Errorf("expected 0 results for error response, got %d", count)
 	}
 }
 

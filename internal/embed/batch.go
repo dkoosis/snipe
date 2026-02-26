@@ -151,6 +151,7 @@ func (c *BatchClient) Model() string {
 }
 
 // UploadFile uploads a JSONL file for batch processing.
+// Uses io.Pipe to stream the multipart body without buffering the entire file in RAM.
 func (c *BatchClient) UploadFile(jsonlPath string) (*FileUploadResponse, error) {
 	file, err := os.Open(jsonlPath) // #nosec G304 -- path from caller (batch embedding JSONL)
 	if err != nil {
@@ -158,27 +159,28 @@ func (c *BatchClient) UploadFile(jsonlPath string) (*FileUploadResponse, error) 
 	}
 	defer file.Close()
 
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
 
-	part, err := writer.CreateFormFile("file", filepath.Base(jsonlPath))
-	if err != nil {
-		return nil, fmt.Errorf("create form file: %w", err)
-	}
+	// Write multipart body in a goroutine so the pipe reader can stream to HTTP.
+	go func() {
+		part, err := writer.CreateFormFile("file", filepath.Base(jsonlPath))
+		if err != nil {
+			pw.CloseWithError(fmt.Errorf("create form file: %w", err))
+			return
+		}
+		if _, err := io.Copy(part, file); err != nil {
+			pw.CloseWithError(fmt.Errorf("copy file content: %w", err))
+			return
+		}
+		if err := writer.WriteField("purpose", "batch"); err != nil {
+			pw.CloseWithError(fmt.Errorf("write purpose field: %w", err))
+			return
+		}
+		pw.CloseWithError(writer.Close())
+	}()
 
-	if _, err := io.Copy(part, file); err != nil {
-		return nil, fmt.Errorf("copy file content: %w", err)
-	}
-
-	if err := writer.WriteField("purpose", "batch"); err != nil {
-		return nil, fmt.Errorf("write purpose field: %w", err)
-	}
-
-	if err := writer.Close(); err != nil {
-		return nil, fmt.Errorf("close writer: %w", err)
-	}
-
-	req, err := http.NewRequest("POST", c.baseURL+"/files", &buf)
+	req, err := http.NewRequest("POST", c.baseURL+"/files", pr)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -274,9 +276,10 @@ func (c *BatchClient) GetBatchStatus(batchID string) (*BatchCreateResponse, erro
 	return &result, nil
 }
 
-// DownloadFile downloads a file by ID and returns its content.
+// DownloadFile downloads a file by ID and returns a streaming reader.
+// Caller must close the returned ReadCloser.
 // Uses a separate client that follows redirects (Voyage API returns redirect to S3).
-func (c *BatchClient) DownloadFile(fileID string) ([]byte, error) {
+func (c *BatchClient) DownloadFile(fileID string) (io.ReadCloser, error) {
 	req, err := http.NewRequest("GET", c.baseURL+"/files/"+fileID+"/content", nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -293,20 +296,20 @@ func (c *BatchClient) DownloadFile(fileID string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 
-	return io.ReadAll(resp.Body)
+	return resp.Body, nil
 }
 
-// ParseBatchResults parses the JSONL output file and returns embeddings keyed by custom_id.
-func (c *BatchClient) ParseBatchResults(data []byte) (map[string][]float32, error) {
-	results := make(map[string][]float32)
-	scanner := bufio.NewScanner(bytes.NewReader(data))
+// ParseBatchResults streams JSONL from r, calling fn for each successfully parsed embedding.
+// Stops early and returns the error if fn returns an error.
+func (c *BatchClient) ParseBatchResults(r io.Reader, fn func(symbolID string, embedding []float32) error) error {
+	scanner := bufio.NewScanner(r)
 
 	// Handle potentially large lines
 	buf := make([]byte, 0, 64*1024)
@@ -320,7 +323,7 @@ func (c *BatchClient) ParseBatchResults(data []byte) (map[string][]float32, erro
 
 		var resp BatchResponse
 		if err := json.Unmarshal([]byte(line), &resp); err != nil {
-			return nil, fmt.Errorf("parse line: %w", err)
+			return fmt.Errorf("parse line: %w", err)
 		}
 
 		if resp.Error != nil {
@@ -334,19 +337,17 @@ func (c *BatchClient) ParseBatchResults(data []byte) (map[string][]float32, erro
 		// Parse the embedding from response body
 		var embResult EmbeddingResponse
 		if err := json.Unmarshal(resp.Response.Body, &embResult); err != nil {
-			return nil, fmt.Errorf("parse embedding result for %s: %w", resp.CustomID, err)
+			return fmt.Errorf("parse embedding result for %s: %w", resp.CustomID, err)
 		}
 
 		if len(embResult.Data) > 0 {
-			results[resp.CustomID] = embResult.Data[0].Embedding
+			if err := fn(resp.CustomID, embResult.Data[0].Embedding); err != nil {
+				return fmt.Errorf("process embedding for %s: %w", resp.CustomID, err)
+			}
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan file: %w", err)
-	}
-
-	return results, nil
+	return scanner.Err()
 }
 
 // SaveState persists the batch state to disk.
