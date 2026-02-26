@@ -1,24 +1,27 @@
-sha: 794cabb
-updated: 2026-02-07T04:15:00Z
-qa: pass
-intent: make snipe quality measurable from real usage, not synthetic benchmarks
+sha: 0bdfff9 | qa: pass | eval: 80.8%
+updated: 2026-02-25
 
-ready: fix Orca telemetry — persistToolCall is a no-op
-  - bug: `persistToolCall` at orca/internal/obs/telemetry/metrics/tool_telemetry.go:236 is empty
-  - plumbing exists: LogToolCallAsync → recordToolTelemetry → sqlite_writer INSERT
-  - the full ToolCallRecord is built at mcp_hooks.go:540-558 with tool, params, tokens, duration
-  - fix: wire persistToolCall to call GlobalSQLiteWriter().LogToolCall()
-  - verify: run orca, call go_symbol, query `SELECT * FROM orca_tool_calls`
-  - then: instrument quality signals (retry detection, rg fallback, suggestion follow-through)
-  - these are behavioral signals — no Claude self-assessment needed
+## Do next
 
-done:
-- search: auto-add --glob '*.go' for identifier queries @cmd/search.go:62
-- FindSymbolAtPosition: range containment instead of exact line match @internal/query/lookup.go:1062
-- engine changes produced 0 eval flips (benchmark can't measure their impact)
-- attempted 5 YAML "fixes" that inflated score 80.8% → 87.5% — all reverted
-- eval score unchanged at 80.8% (honest number, engine-only)
+Pick from backlog. Top candidates:
+- #93 wildcard predicates
+- #101 batch self-healing
+- #102 callees output contract
+- #103 doctor schema normalization
+- #88 M4 distribution
 
-prior-session:
-- pkg sort, search enrichment, interface callers, callgraph dispatch — 55.9% → 80.8%
-- eval harness expanded to 76 tasks, scoring fixes, known_gap support
+## Done
+
+- Phase 3 simplification complete — all 28 dead symbols removed, enrichment stub gutted, flags hidden
+- Fixed mage: scoped gofmt to project dirs, removed contradictory gosec step (9512a0a)
+- #94 hash staleness (0c34b4a), #96 batch OOM (0bdfff9), #97 watch shutdown (a776c5a), #98 rows.Err (de71af4), #99 interface dispatch (0f33ada)
+
+## Backlog
+
+#93 wildcard predicates | #88 M4 distribution | #100 exported standalone | #101 batch self-heal | #102 callees contract | #103 doctor schema | orca persistToolCall
+
+## Traps
+
+- `generatePurpose()` runs every index writing placeholder strings — first thing to stop
+- Do NOT optimize eval until telemetry provides ground truth
+- Enrichment pipeline is roadmap not abandoned — plan at `docs/PLAN-context-enrichment.md`
