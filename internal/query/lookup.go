@@ -689,8 +689,14 @@ type CallRow struct {
 	CalleeSignature sql.NullString
 	CalleeReceiver  string // Receiver type for callee (e.g., "(*Store)")
 	CalleeFileHash  string // Content hash for callee file
-	CallLine        int
-	CallCol         int
+	// Callee definition coordinates (from symbols table)
+	CalleeLineStart int
+	CalleeColStart  int
+	CalleeLineEnd   int
+	CalleeColEnd    int
+	// Call site coordinates (where the call expression appears in the caller)
+	CallLine int
+	CallCol  int
 }
 
 // FindCallers returns all functions that call the given symbol
@@ -699,6 +705,7 @@ func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 		SELECT
 			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, caller.receiver, fc.hash,
 			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, callee.receiver, fe.hash,
+			callee.line_start, callee.col_start, callee.line_end, callee.col_end,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -723,6 +730,7 @@ func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 		SELECT
 			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, caller.receiver, fc.hash,
 			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, callee.receiver, fe.hash,
+			callee.line_start, callee.col_start, callee.line_end, callee.col_end,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -751,6 +759,7 @@ func FindCallersForType(db *sql.DB, typeName string, limit, offset int) ([]CallR
 		SELECT
 			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, caller.receiver, fc.hash,
 			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, callee.receiver, fe.hash,
+			callee.line_start, callee.col_start, callee.line_end, callee.col_end,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -781,6 +790,7 @@ func FindCalleesForType(db *sql.DB, typeName string, limit, offset int) ([]CallR
 		SELECT
 			cg.caller_id, caller.name, caller.kind, caller.file_path, caller.file_path_rel, caller.signature, caller.receiver, fc.hash,
 			cg.callee_id, callee.name, callee.kind, callee.file_path, callee.file_path_rel, callee.signature, callee.receiver, fe.hash,
+			callee.line_start, callee.col_start, callee.line_end, callee.col_end,
 			cg.line, cg.col
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
@@ -843,6 +853,7 @@ func scanCallRows(rows *sql.Rows) ([]CallRow, error) {
 		err := rows.Scan(
 			&r.CallerID, &r.CallerName, &r.CallerKind, &r.CallerFile, &callerFileRel, &r.CallerSignature, &callerReceiver, &callerHash,
 			&r.CalleeID, &r.CalleeName, &r.CalleeKind, &r.CalleeFile, &calleeFileRel, &r.CalleeSignature, &calleeReceiver, &calleeHash,
+			&r.CalleeLineStart, &r.CalleeColStart, &r.CalleeLineEnd, &r.CalleeColEnd,
 			&r.CallLine, &r.CallCol,
 		)
 		if err != nil {

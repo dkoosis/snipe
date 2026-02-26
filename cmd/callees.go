@@ -108,14 +108,9 @@ findCallees:
 
 	// Record query in session for active work tracking
 	var symName string
-	var defResult *output.Result
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symName = sym.Name
 		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "callees")
-		// Build definition result to prepend as context
-		r := sym.ToResult()
-		r.Kind = "definition"
-		defResult = &r
 	}
 
 	// Find callees
@@ -127,8 +122,8 @@ findCallees:
 		})
 	}
 
-	// Convert to results - callee functions, definition prepended after sorting
-	results := make([]output.Result, 0, len(calls)+1)
+	// Convert to results - callee function definitions
+	results := make([]output.Result, 0, len(calls))
 	calleeResults := make([]output.Result, len(calls))
 	tokenEstimate := 0
 	var degraded []string
@@ -148,31 +143,26 @@ findCallees:
 	}
 
 	for i, call := range calls {
-		// Use callee name length for accurate call site range
-		nameLen := len(call.CalleeName)
-		if nameLen == 0 {
-			nameLen = 1
+		// Use callee's definition range — ID and coordinates both describe the callee
+		calleeRange := output.Range{
+			Start: output.Position{Line: call.CalleeLineStart, Col: call.CalleeColStart},
+			End:   output.Position{Line: call.CalleeLineEnd, Col: call.CalleeColEnd},
 		}
-		// Show the call site (where the callee is invoked from the caller)
-		callSiteRange := output.Range{
-			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-			End:   output.Position{Line: call.CallLine, Col: call.CallCol + nameLen},
-		}
-		// Use relative path for output, absolute for file operations
-		filePath := call.CallerFileRel
+		// Use callee's file path (where the callee is defined)
+		filePath := call.CalleeFileRel
 		if filePath == "" {
-			filePath = call.CallerFile
+			filePath = call.CalleeFile
 		}
 		result := output.Result{
 			ID:         call.CalleeID,
-			File:       filePath, // Call site location
-			FileAbs:    call.CallerFile,
-			Range:      callSiteRange,
+			File:       filePath,
+			FileAbs:    call.CalleeFile,
+			Range:      calleeRange,
 			Kind:       call.CalleeKind,
 			Name:       call.CalleeName,
 			Receiver:   call.CalleeReceiver,
 			Match:      call.CalleeSignature.String,
-			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callSiteRange),
+			EditTarget: output.FormatEditTargetWithHash(filePath, call.CalleeFile, calleeRange),
 		}
 
 		// Add callee body if requested (from the callee's definition, not call site)
@@ -207,11 +197,6 @@ findCallees:
 	// Score, sort, and apply selection
 	output.ScoreAndSort(results, symName)
 	results = ApplySelection(results)
-
-	// Prepend the defining function as context (after sort so it stays first)
-	if defResult != nil {
-		results = append([]output.Result{*defResult}, results...)
-	}
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()

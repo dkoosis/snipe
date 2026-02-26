@@ -4,6 +4,7 @@ package blackbox
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -153,9 +154,67 @@ func TestCallersAndCallees_Work_When_IndexPresent(t *testing.T) {
 	if len(calleeResults) == 0 {
 		t.Fatalf("expected callees results")
 	}
-	callee := requireMap(t, calleeResults[0], "results[0]")
-	if getString(t, callee["name"], "name") == "" {
-		t.Fatalf("callee name missing")
+
+	// Verify meta.total matches actual results count (no inflated defResult)
+	meta := requireMap(t, respCallees["meta"], "meta")
+	total := int(getFloat(t, meta["total"], "meta.total"))
+	if total != len(calleeResults) {
+		t.Fatalf("meta.total=%d but len(results)=%d", total, len(calleeResults))
+	}
+
+	// Verify each callee result has coherent identity: ID, file, range all describe the callee
+	for i, raw := range calleeResults {
+		callee := requireMap(t, raw, fmt.Sprintf("results[%d]", i))
+
+		name := getString(t, callee["name"], "name")
+		if name == "" {
+			t.Fatalf("results[%d]: callee name missing", i)
+		}
+
+		// ID must be 16-char hex
+		id := getString(t, callee["id"], "id")
+		if len(id) != 16 {
+			t.Fatalf("results[%d]: id %q is not 16 chars", i, id)
+		}
+
+		// kind must be a real symbol kind, not synthetic "definition"
+		kind := getString(t, callee["kind"], "kind")
+		if kind == "definition" {
+			t.Fatalf("results[%d]: kind should be a symbol kind (func/method), got %q", i, kind)
+		}
+
+		// file must point to where the callee is defined, not the caller's file
+		// In this fixture both are main.go, so verify range points to callee definition
+		rng := requireMap(t, callee["range"], "range")
+		start := requireMap(t, rng["start"], "range.start")
+		line := int(getFloat(t, start["line"], "range.start.line"))
+		// Callee() is defined around line 30; the call site is around line 19.
+		// The range must NOT be the call site line.
+		if line < 25 {
+			t.Fatalf("results[%d] %q: range.start.line=%d looks like call site, not callee definition", i, name, line)
+		}
+
+		// edit_target must be present
+		editTarget := getString(t, callee["edit_target"], "edit_target")
+		if editTarget == "" {
+			t.Fatalf("results[%d]: edit_target missing", i)
+		}
+
+		// Verify ID chains: snipe show <id> should resolve to the callee
+		showStdout, showStderr, showExit := run(t, repoDir, "show", id)
+		if showExit != 0 {
+			t.Fatalf("snipe show %s failed: exit=%d stderr=%s", id, showExit, string(showStderr))
+		}
+		showResp := parseJSON(t, showStdout)
+		showResults := requireSlice(t, showResp["results"], "show results")
+		if len(showResults) == 0 {
+			t.Fatalf("snipe show %s returned no results", id)
+		}
+		showResult := requireMap(t, showResults[0], "show results[0]")
+		showName := getString(t, showResult["name"], "show name")
+		if showName != name {
+			t.Fatalf("ID chain broken: callees returned name=%q but show %s returned name=%q", name, id, showName)
+		}
 	}
 }
 

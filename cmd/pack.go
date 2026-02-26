@@ -505,28 +505,24 @@ func buildCalleeResults(db *sql.DB, symbolID string) ([]output.Result, []string)
 
 	results := make([]output.Result, 0, len(calleeRows))
 	for _, call := range calleeRows {
-		callNameLen := len(call.CalleeName)
-		if callNameLen == 0 {
-			callNameLen = 1
+		calleeRange := output.Range{
+			Start: output.Position{Line: call.CalleeLineStart, Col: call.CalleeColStart},
+			End:   output.Position{Line: call.CalleeLineEnd, Col: call.CalleeColEnd},
 		}
-		callSiteRange := output.Range{
-			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-			End:   output.Position{Line: call.CallLine, Col: call.CallCol + callNameLen},
-		}
-		filePath := call.CallerFileRel
+		filePath := call.CalleeFileRel
 		if filePath == "" {
-			filePath = call.CallerFile
+			filePath = call.CalleeFile
 		}
 		results = append(results, output.Result{
 			ID:         call.CalleeID,
 			File:       filePath,
-			FileAbs:    call.CallerFile,
-			Range:      callSiteRange,
+			FileAbs:    call.CalleeFile,
+			Range:      calleeRange,
 			Kind:       call.CalleeKind,
 			Name:       call.CalleeName,
 			Receiver:   call.CalleeReceiver,
 			Match:      call.CalleeSignature.String,
-			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callSiteRange),
+			EditTarget: output.FormatEditTargetWithHash(filePath, call.CalleeFile, calleeRange),
 		})
 	}
 
@@ -579,28 +575,24 @@ func buildCalleeResultsForType(db *sql.DB, typeName string) ([]output.Result, []
 
 	results := make([]output.Result, 0, len(calleeRows))
 	for _, call := range calleeRows {
-		callNameLen := len(call.CalleeName)
-		if callNameLen == 0 {
-			callNameLen = 1
+		calleeRange := output.Range{
+			Start: output.Position{Line: call.CalleeLineStart, Col: call.CalleeColStart},
+			End:   output.Position{Line: call.CalleeLineEnd, Col: call.CalleeColEnd},
 		}
-		callSiteRange := output.Range{
-			Start: output.Position{Line: call.CallLine, Col: call.CallCol},
-			End:   output.Position{Line: call.CallLine, Col: call.CallCol + callNameLen},
-		}
-		filePath := call.CallerFileRel
+		filePath := call.CalleeFileRel
 		if filePath == "" {
-			filePath = call.CallerFile
+			filePath = call.CalleeFile
 		}
 		results = append(results, output.Result{
 			ID:         call.CalleeID,
 			File:       filePath,
-			FileAbs:    call.CallerFile,
-			Range:      callSiteRange,
+			FileAbs:    call.CalleeFile,
+			Range:      calleeRange,
 			Kind:       call.CalleeKind,
 			Name:       call.CalleeName,
 			Receiver:   call.CalleeReceiver,
 			Match:      call.CalleeSignature.String,
-			EditTarget: output.FormatEditTargetWithHash(filePath, call.CallerFile, callSiteRange),
+			EditTarget: output.FormatEditTargetWithHash(filePath, call.CalleeFile, calleeRange),
 		})
 	}
 
