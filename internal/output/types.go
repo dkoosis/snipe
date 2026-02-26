@@ -247,7 +247,7 @@ func NewAmbiguousError(symbol string, candidates []Candidate) *Error {
 func NewMissingIndexError() *Error {
 	return &Error{
 		Code:    ErrMissingIndex,
-		Message: "No index found. Run 'snipe index' first to build it (takes ~5 seconds for most Go projects).",
+		Message: "No index found. Run: snipe index (~5s for most projects). The .snipe/ directory will be created — add it to .gitignore.",
 		Next: &NextAction{
 			Command:     "snipe index",
 			Description: "Build the symbol index for this repository",

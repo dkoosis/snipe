@@ -11,7 +11,7 @@
   },
   "error": {
     "code": "MISSING_INDEX",
-    "message": "No index found. Run 'snipe index' first to build it (takes ~5 seconds for most Go projects).",
+    "message": "No index found. Run: snipe index (~5s for most projects). The .snipe/ directory will be created — add it to .gitignore.",
     "next": {
       "command": "snipe index",
       "description": "Build the symbol index for this repository"
