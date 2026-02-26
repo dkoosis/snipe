@@ -1,21 +1,18 @@
-sha: 4ab5b2c | qa: pass
+sha: bd17813 | qa: pass
 updated: 2026-02-26
 
 ## Do next
 
-Pick from backlog. Top candidates:
-- #101 batch self-healing
-- #100 exported standalone (bug)
-- #88 M4 distribution
+Pick from backlog. Top candidate: #88 M4 distribution (goreleaser, zero-config install).
 
 ## Done
 
-- #103 doctor normalized to standard envelope with error codes + remediation (e3c5b79, 4ab5b2c)
-- #93 already closed (73225ba) — cascade exact/suffix/substring in place
+- #101 batch self-healing: completed-but-unprocessed batches auto-recover instead of requiring manual file deletion (bd17813)
+- #100 closed as not-a-snipe-bug — standalone exported funcs correctly categorized in snipe's own index
 
 ## Backlog
 
-#88 M4 distribution | #100 exported standalone | #101 batch self-heal | orca persistToolCall
+#88 M4 distribution | orca persistToolCall
 
 ## Traps
 
