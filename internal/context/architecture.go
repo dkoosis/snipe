@@ -47,61 +47,37 @@ func GenerateArchitectureSummary(db *sql.DB, repoRoot string) (*ArchSummary, err
 }
 
 // getPackagePurposes returns all packages with their inferred purposes.
-// Uses a single batch query to extract distinct packages from the index.
+// Queries distinct pkg_paths and shortens them in Go (SQLite lacks REVERSE).
 func getPackagePurposes(db *sql.DB, repoRoot string) ([]PackagePurpose, error) {
-	// Query distinct package paths and group by top-level directory
 	rows, err := db.Query(`
-		SELECT DISTINCT
-			CASE
-				WHEN pkg_path LIKE '%/internal/%' THEN
-					SUBSTR(pkg_path, INSTR(pkg_path, '/internal/') + 1,
-						CASE
-							WHEN INSTR(SUBSTR(pkg_path, INSTR(pkg_path, '/internal/') + 10), '/') > 0
-							THEN INSTR(SUBSTR(pkg_path, INSTR(pkg_path, '/internal/') + 10), '/') + 8
-							ELSE LENGTH(pkg_path)
-						END
-					)
-				WHEN pkg_path LIKE '%/cmd/%' THEN 'cmd'
-				WHEN pkg_path LIKE '%/cmd' THEN 'cmd'
-				ELSE
-					CASE
-						WHEN INSTR(SUBSTR(pkg_path, 1), '/') > 0
-						THEN SUBSTR(pkg_path, LENGTH(pkg_path) - INSTR(REVERSE(pkg_path), '/') + 2)
-						ELSE pkg_path
-					END
-			END as pkg_short
+		SELECT DISTINCT pkg_path
 		FROM symbols
 		WHERE file_path LIKE ? || '/%'
 		  AND pkg_path IS NOT NULL
 		  AND pkg_path != ''
-		GROUP BY pkg_short
-		ORDER BY pkg_short
+		ORDER BY pkg_path
 	`, repoRoot)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	// Collect unique packages
 	seen := make(map[string]bool)
 	var components []PackagePurpose
 
 	for rows.Next() {
-		var pkgShort sql.NullString
-		if err := rows.Scan(&pkgShort); err != nil {
-			continue
-		}
-		if !pkgShort.Valid || pkgShort.String == "" {
+		var pkgPath string
+		if err := rows.Scan(&pkgPath); err != nil {
 			continue
 		}
 
-		name := normalizePackageName(pkgShort.String)
+		name := shortenPackagePath(pkgPath)
+		name = normalizePackageName(name)
 		if name == "" || seen[name] {
 			continue
 		}
 		seen[name] = true
 
-		// Infer purpose from package name
 		purpose := inferPackagePurpose(name)
 		components = append(components, PackagePurpose{
 			Name:    name,
@@ -140,6 +116,9 @@ func inferPackagePurpose(pkg string) string {
 		"internal/embed":   "Vector embeddings and similarity",
 		"internal/context": "Boot context and LLM summaries",
 		"internal/analyze": "Function analysis and diagnostics",
+		"internal/edit":    "AST-safe code editing operations",
+		"internal/kg":      "Knowledge graph integration (orca)",
+		"internal/metrics": "Index and query metrics collection",
 		"pkg":              "Public library packages",
 		"api":              "API definitions and handlers",
 		"test":             "Test utilities and fixtures",
@@ -250,13 +229,10 @@ func shortenPackagePath(pkgPath string) string {
 		return "cmd"
 	}
 
-	// Take last two segments
+	// Root module package — use last segment (project name)
 	parts := strings.Split(pkgPath, "/")
-	if len(parts) >= 2 {
-		return strings.Join(parts[len(parts)-2:], "/")
-	}
-	if len(parts) == 1 {
-		return parts[0]
+	if len(parts) >= 1 {
+		return parts[len(parts)-1]
 	}
 
 	return pkgPath

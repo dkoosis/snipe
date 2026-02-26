@@ -64,6 +64,7 @@ func ExtractPrimaryFlows(db *sql.DB, repoRoot string, maxDepth int) ([]string, e
 }
 
 // queryEntryPointSymbols returns symbols that are entry points.
+// Includes main, Execute, and cobra RunE handlers (runX functions in cmd/).
 func queryEntryPointSymbols(db *sql.DB, repoRoot string) ([]flowNode, error) {
 	rows, err := db.Query(`
 		SELECT id, name, COALESCE(receiver, '') as receiver
@@ -73,17 +74,15 @@ func queryEntryPointSymbols(db *sql.DB, repoRoot string) ([]flowNode, error) {
 		  AND (
 		      name = 'main'
 		      OR name = 'Execute'
-		      OR name = 'RunE'
-		      OR name = 'init'
+		      OR (name LIKE 'run%' AND file_path LIKE '%/cmd/%' AND name GLOB 'run[A-Z]*')
 		  )
 		ORDER BY
-		  CASE name
-		    WHEN 'main' THEN 1
-		    WHEN 'Execute' THEN 2
-		    WHEN 'RunE' THEN 3
-		    WHEN 'init' THEN 4
-		  END
-		LIMIT 20
+		  CASE
+		    WHEN name = 'main' THEN 1
+		    WHEN name = 'Execute' THEN 2
+		    ELSE 3
+		  END,
+		  name
 	`, repoRoot)
 	if err != nil {
 		return nil, err
@@ -171,7 +170,7 @@ func buildFlowPath(startID, startName, startReceiver string, callGraph map[strin
 	}
 	path = append(path, displayName)
 
-	// Traverse call graph (BFS-style, but only following first callee at each level)
+	// Traverse call graph, preferring architecturally significant callees at each level
 	visited := make(map[string]bool)
 	visited[startID] = true
 	currentID := startID
@@ -182,19 +181,7 @@ func buildFlowPath(startID, startName, startReceiver string, callGraph map[strin
 			break
 		}
 
-		// Pick the first unvisited callee (prioritize important-looking names)
-		var nextID string
-		for _, calleeID := range callees {
-			if !visited[calleeID] {
-				name := symbolNames[calleeID]
-				// Skip internal/utility functions in flow display
-				if name != "" && !strings.HasPrefix(name, "fmt.") && !strings.HasPrefix(name, "log.") {
-					nextID = calleeID
-					break
-				}
-			}
-		}
-
+		nextID := pickBestCallee(callees, visited, symbolNames)
 		if nextID == "" {
 			break
 		}
@@ -291,17 +278,15 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 		  AND (
 		      s.name = 'main'
 		      OR s.name = 'Execute'
-		      OR s.name = 'RunE'
-		      OR s.name = 'init'
+		      OR (s.name LIKE 'run%' AND s.file_path LIKE '%/cmd/%' AND s.name GLOB 'run[A-Z]*')
 		  )
 		ORDER BY
-		  CASE s.name
-		    WHEN 'main' THEN 1
-		    WHEN 'Execute' THEN 2
-		    WHEN 'RunE' THEN 3
-		    WHEN 'init' THEN 4
-		  END
-		LIMIT 20
+		  CASE
+		    WHEN s.name = 'main' THEN 1
+		    WHEN s.name = 'Execute' THEN 2
+		    ELSE 3
+		  END,
+		  s.name
 	`, repoRoot)
 	if err != nil {
 		return nil, err
@@ -405,6 +390,52 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 	}
 
 	return results, nil
+}
+
+// pickBestCallee selects the most architecturally significant callee from candidates.
+// Prefers cross-package method calls (Type.Method) and exported symbols over
+// internal helpers like isX/hasX.
+func pickBestCallee(callees []string, visited map[string]bool, symbolNames map[string]string) string {
+	var bestID string
+	var bestScore int
+
+	for _, calleeID := range callees {
+		if visited[calleeID] {
+			continue
+		}
+		name := symbolNames[calleeID]
+		if name == "" {
+			continue
+		}
+		// Skip stdlib utility calls
+		if strings.HasPrefix(name, "fmt.") || strings.HasPrefix(name, "log.") || strings.HasPrefix(name, "strings.") {
+			continue
+		}
+
+		score := 1
+		// Prefer method calls (Type.Method pattern — cross-package significance)
+		if strings.Contains(name, ".") {
+			score += 3
+		}
+		// Prefer exported names (uppercase first char of the function/method name)
+		parts := strings.SplitN(name, ".", 2)
+		checkName := parts[len(parts)-1]
+		if len(checkName) > 0 && checkName[0] >= 'A' && checkName[0] <= 'Z' {
+			score += 2
+		}
+		// Deprioritize boolean helpers (isX, hasX)
+		lower := strings.ToLower(checkName)
+		if strings.HasPrefix(lower, "is") || strings.HasPrefix(lower, "has") {
+			score -= 2
+		}
+
+		if score > bestScore {
+			bestScore = score
+			bestID = calleeID
+		}
+	}
+
+	return bestID
 }
 
 // placeholders generates SQL placeholders like "?,?,?" for IN clauses.

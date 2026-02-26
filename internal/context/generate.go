@@ -82,6 +82,17 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 	// Build boot views (Phase 2 enrichment)
 	bootViews := generateBootViews(cfg.DB, cfg.RepoRoot)
 
+	// Build package summaries
+	var packages []PackageRef
+	if purposes, err := getPackagePurposes(cfg.DB, cfg.RepoRoot); err == nil {
+		for _, pp := range purposes {
+			packages = append(packages, PackageRef{
+				Name:    pp.Name,
+				Purpose: pp.Purpose,
+			})
+		}
+	}
+
 	return &BootContext{
 		Project:     proj.Name,
 		Lang:        lang,
@@ -92,6 +103,7 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		ActiveWork:  activeWork,
 		Commit:      meta.GitCommit,
 		BootViews:   bootViews,
+		Packages:    packages,
 	}, nil
 }
 
