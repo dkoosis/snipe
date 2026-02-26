@@ -449,8 +449,7 @@ func (s *SymbolRow) ToResultWithHints(db *sql.DB) output.Result {
 
 	// Get reference count (always included when db is available)
 	if db != nil {
-		var refCount int
-		err := db.QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id = ?`, s.ID).Scan(&refCount)
+		refCount, err := GetRefCount(db, s.ID)
 		if err != nil {
 			result.RefCount = -1 // Indicate unavailable due to error
 		} else {

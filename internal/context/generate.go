@@ -591,7 +591,7 @@ func generateFiles(db *sql.DB, repoRoot string) Files {
 
 		// Use doc comment if available, otherwise infer from file name
 		if doc.Valid && doc.String != "" {
-			info.Description = extractFirstSentence(doc.String)
+			info.Description = ExtractFirstSentence(doc.String)
 			info.Source = "doc"
 		} else {
 			info.Description = describeFile(relPath)
@@ -613,8 +613,8 @@ func generateFiles(db *sql.DB, repoRoot string) Files {
 	return files
 }
 
-// extractFirstSentence returns the first sentence of a doc comment.
-func extractFirstSentence(doc string) string {
+// ExtractFirstSentence returns the first sentence of a doc comment.
+func ExtractFirstSentence(doc string) string {
 	doc = strings.TrimSpace(doc)
 	// Find first period followed by space or end of string
 	for i, r := range doc {
@@ -731,62 +731,47 @@ func generateSymbols(db *sql.DB, repoRoot string, full bool, maxSymbols int) Sym
 		limit = 1000
 	}
 
-	// Get types ranked by reference count (most referenced = most important)
-	typeRows, err := db.Query(`
-		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
-		FROM symbols s
-		LEFT JOIN refs r ON s.id = r.symbol_id
-		WHERE s.kind IN ('type', 'interface', 'struct')
-		  AND s.file_path LIKE ? || '/%'
-		  AND s.name GLOB '[A-Z]*'
-		GROUP BY s.id
-		ORDER BY ref_count DESC
-		LIMIT ?
-	`, repoRoot, limit)
-	if err == nil {
-		defer typeRows.Close()
-		for typeRows.Next() {
-			var ref SymbolRef
-			var fullPath string
-			var refCount int
-			if err := typeRows.Scan(&ref.Name, &fullPath, &ref.Line, &refCount); err != nil {
-				continue
-			}
-			ref.File = strings.TrimPrefix(fullPath, repoRoot+"/")
-			syms.Types = append(syms.Types, ref)
-		}
-	}
-
-	// Get functions ranked by reference count
-	funcRows, err := db.Query(`
-		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
-		FROM symbols s
-		LEFT JOIN refs r ON s.id = r.symbol_id
-		WHERE s.kind IN ('func', 'method')
-		  AND s.file_path LIKE ? || '/%'
-		  AND s.name GLOB '[A-Z]*'
-		GROUP BY s.id
-		ORDER BY ref_count DESC
-		LIMIT ?
-	`, repoRoot, limit)
-	if err == nil {
-		defer funcRows.Close()
-		for funcRows.Next() {
-			var ref SymbolRef
-			var fullPath string
-			var refCount int
-			if err := funcRows.Scan(&ref.Name, &fullPath, &ref.Line, &refCount); err != nil {
-				continue
-			}
-			ref.File = strings.TrimPrefix(fullPath, repoRoot+"/")
-			syms.Functions = append(syms.Functions, ref)
-		}
-	}
+	syms.Types = querySymbolRefsByKind(db, repoRoot, "('type', 'interface', 'struct')", limit)
+	syms.Functions = querySymbolRefsByKind(db, repoRoot, "('func', 'method')", limit)
 
 	// Get extension points: high-centrality symbols suitable for adding new functionality
 	syms.ExtensionPoints = getExtensionPoints(db, repoRoot)
 
 	return syms
+}
+
+// querySymbolRefsByKind returns exported symbols of given kinds, ranked by reference count.
+// The kindClause is a SQL IN expression like "('func', 'method')".
+func querySymbolRefsByKind(db *sql.DB, repoRoot, kindClause string, limit int) []SymbolRef {
+	// #nosec G201 -- kindClause is a hardcoded literal from caller
+	rows, err := db.Query(`
+		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
+		FROM symbols s
+		LEFT JOIN refs r ON s.id = r.symbol_id
+		WHERE s.kind IN `+kindClause+`
+		  AND s.file_path LIKE ? || '/%'
+		  AND s.name GLOB '[A-Z]*'
+		GROUP BY s.id
+		ORDER BY ref_count DESC
+		LIMIT ?
+	`, repoRoot, limit)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var refs []SymbolRef
+	for rows.Next() {
+		var ref SymbolRef
+		var fullPath string
+		var refCount int
+		if err := rows.Scan(&ref.Name, &fullPath, &ref.Line, &refCount); err != nil {
+			continue
+		}
+		ref.File = strings.TrimPrefix(fullPath, repoRoot+"/")
+		refs = append(refs, ref)
+	}
+	return refs
 }
 
 // getExtensionPoints finds symbols that are good extension points:
@@ -834,7 +819,7 @@ func getExtensionPoints(db *sql.DB, repoRoot string) []ExtensionPoint {
 		ep.File = strings.TrimPrefix(fullPath, repoRoot+"/")
 		if doc.Valid && doc.String != "" {
 			// Extract first sentence for purpose
-			ep.Purpose = extractFirstSentence(doc.String)
+			ep.Purpose = ExtractFirstSentence(doc.String)
 		}
 		points = append(points, ep)
 	}

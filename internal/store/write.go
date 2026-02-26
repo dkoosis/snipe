@@ -53,14 +53,13 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 	}
 
 	// Preserve existing embeddings and symbol purposes before clearing data
-	if _, err := preserveEmbeddings(tx); err != nil {
-		return err
-	}
-	if _, err := preserveSymbolPurposes(tx); err != nil {
-		return err
+	for _, pt := range preservedTables {
+		if _, err := preserveTable(tx, pt); err != nil {
+			return err
+		}
 	}
 
-	// Clear existing data (embeddings/purposes go to temp table, then get restored)
+	// Clear existing data (preserved data goes to temp tables, then gets restored)
 	if err := truncateTables(tx); err != nil {
 		return err
 	}
@@ -70,12 +69,11 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 		return err
 	}
 
-	// Restore embeddings and purposes for symbols that still exist
-	if _, err := restoreEmbeddings(tx); err != nil {
-		return err
-	}
-	if _, err := restoreSymbolPurposes(tx); err != nil {
-		return err
+	// Restore preserved data for symbols that still exist
+	for _, pt := range preservedTables {
+		if _, err := restoreTable(tx, pt); err != nil {
+			return err
+		}
 	}
 
 	// Filter and write refs (only those referencing known symbols)
@@ -159,111 +157,68 @@ func truncateTables(tx *sql.Tx) error {
 	return nil
 }
 
-// preserveEmbeddings copies existing embeddings to a temp table for restoration after reindex.
-// Returns the number of embeddings preserved.
-func preserveEmbeddings(tx *sql.Tx) (int64, error) {
-	// Create temp table (if embeddings table exists)
-	_, err := tx.Exec(`
-		CREATE TEMP TABLE IF NOT EXISTS preserved_embeddings AS
-		SELECT symbol_id, embedding, model, created_at FROM embeddings WHERE 1=0
-	`)
+// preservableTable defines a table whose data should survive a full reindex.
+// Data is copied to a temp table, truncated, then restored for symbols that still exist.
+type preservableTable struct {
+	table   string // source table name (e.g., "embeddings")
+	temp    string // temp table name (e.g., "preserved_embeddings")
+	columns string // comma-separated columns to preserve
+}
+
+var preservedTables = []preservableTable{
+	{
+		table:   "embeddings",
+		temp:    "preserved_embeddings",
+		columns: "symbol_id, embedding, model, created_at",
+	},
+	{
+		table:   "symbol_purposes",
+		temp:    "preserved_purposes",
+		columns: "symbol_id, purpose, content_hash, model, generated_at",
+	},
+}
+
+// preserveTable copies rows from table to a temp table for later restoration.
+// Returns 0 silently if the source table doesn't exist.
+func preserveTable(tx *sql.Tx, pt preservableTable) (int64, error) {
+	_, err := tx.Exec(fmt.Sprintf(
+		"CREATE TEMP TABLE IF NOT EXISTS %s AS SELECT %s FROM %s WHERE 1=0",
+		pt.temp, pt.columns, pt.table)) // #nosec G201 -- table/column names from hardcoded preservedTables
 	if err != nil {
-		if isNoSuchTableErr(err, "embeddings") {
+		if isNoSuchTableErr(err, pt.table) {
 			return 0, nil
 		}
-		return 0, fmt.Errorf("create preserved_embeddings temp table: %w", err)
+		return 0, fmt.Errorf("create %s temp table: %w", pt.temp, err)
 	}
 
-	// Copy current embeddings to temp table
-	result, err := tx.Exec(`
-		INSERT INTO preserved_embeddings (symbol_id, embedding, model, created_at)
-		SELECT symbol_id, embedding, model, created_at FROM embeddings
-	`)
+	result, err := tx.Exec(fmt.Sprintf(
+		"INSERT INTO %s (%s) SELECT %s FROM %s",
+		pt.temp, pt.columns, pt.columns, pt.table)) // #nosec G201 -- hardcoded table/column names
 	if err != nil {
-		return 0, fmt.Errorf("copy embeddings to temp: %w", err)
+		return 0, fmt.Errorf("copy %s to temp: %w", pt.table, err)
 	}
 
 	count, _ := result.RowsAffected()
 	return count, nil
 }
 
-// restoreEmbeddings restores embeddings from temp table for symbols that still exist.
-// Returns the number of embeddings restored.
-func restoreEmbeddings(tx *sql.Tx) (int64, error) {
-	// Restore embeddings for symbols that exist in the new index
-	result, err := tx.Exec(`
-		INSERT OR IGNORE INTO embeddings (symbol_id, embedding, model, created_at)
-		SELECT p.symbol_id, p.embedding, p.model, p.created_at
-		FROM preserved_embeddings p
-		WHERE p.symbol_id IN (SELECT id FROM symbols)
-	`)
+// restoreTable restores rows from temp table for symbols that still exist, then drops temp.
+// Returns 0 silently if the temp table doesn't exist.
+func restoreTable(tx *sql.Tx, pt preservableTable) (int64, error) {
+	result, err := tx.Exec(fmt.Sprintf(
+		"INSERT OR IGNORE INTO %s (%s) SELECT %s FROM %s p WHERE p.symbol_id IN (SELECT id FROM symbols)",
+		pt.table, pt.columns, "p."+strings.ReplaceAll(pt.columns, ", ", ", p."), pt.temp)) // #nosec G201 -- hardcoded table/column names
 	if err != nil {
-		if isNoSuchTableErr(err, "preserved_embeddings") {
+		if isNoSuchTableErr(err, pt.temp) {
 			return 0, nil
 		}
-		return 0, fmt.Errorf("restore embeddings: %w", err)
+		return 0, fmt.Errorf("restore %s: %w", pt.table, err)
 	}
 
 	count, _ := result.RowsAffected()
 
-	// Clean up temp table
-	if _, err := tx.Exec("DROP TABLE IF EXISTS preserved_embeddings"); err != nil {
-		return 0, fmt.Errorf("drop preserved_embeddings temp table: %w", err)
-	}
-
-	return count, nil
-}
-
-// preserveSymbolPurposes copies existing symbol purposes to a temp table for restoration after reindex.
-// Returns the number of purposes preserved.
-func preserveSymbolPurposes(tx *sql.Tx) (int64, error) {
-	// Create temp table (if symbol_purposes table exists)
-	_, err := tx.Exec(`
-		CREATE TEMP TABLE IF NOT EXISTS preserved_purposes AS
-		SELECT symbol_id, purpose, content_hash, model, generated_at FROM symbol_purposes WHERE 1=0
-	`)
-	if err != nil {
-		if isNoSuchTableErr(err, "symbol_purposes") {
-			return 0, nil
-		}
-		return 0, fmt.Errorf("create preserved_purposes temp table: %w", err)
-	}
-
-	// Copy current purposes to temp table
-	result, err := tx.Exec(`
-		INSERT INTO preserved_purposes (symbol_id, purpose, content_hash, model, generated_at)
-		SELECT symbol_id, purpose, content_hash, model, generated_at FROM symbol_purposes
-	`)
-	if err != nil {
-		return 0, fmt.Errorf("copy purposes to temp: %w", err)
-	}
-
-	count, _ := result.RowsAffected()
-	return count, nil
-}
-
-// restoreSymbolPurposes restores symbol purposes from temp table for symbols that still exist.
-// Returns the number of purposes restored.
-func restoreSymbolPurposes(tx *sql.Tx) (int64, error) {
-	// Restore purposes for symbols that exist in the new index
-	result, err := tx.Exec(`
-		INSERT OR IGNORE INTO symbol_purposes (symbol_id, purpose, content_hash, model, generated_at)
-		SELECT p.symbol_id, p.purpose, p.content_hash, p.model, p.generated_at
-		FROM preserved_purposes p
-		WHERE p.symbol_id IN (SELECT id FROM symbols)
-	`)
-	if err != nil {
-		if isNoSuchTableErr(err, "preserved_purposes") {
-			return 0, nil
-		}
-		return 0, fmt.Errorf("restore symbol purposes: %w", err)
-	}
-
-	count, _ := result.RowsAffected()
-
-	// Clean up temp table
-	if _, err := tx.Exec("DROP TABLE IF EXISTS preserved_purposes"); err != nil {
-		return 0, fmt.Errorf("drop preserved_purposes temp table: %w", err)
+	if _, err := tx.Exec("DROP TABLE IF EXISTS " + pt.temp); err != nil { // #nosec G201 -- hardcoded temp name
+		return 0, fmt.Errorf("drop %s temp table: %w", pt.temp, err)
 	}
 
 	return count, nil

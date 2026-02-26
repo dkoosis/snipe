@@ -317,7 +317,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 
 		// Extract first sentence of doc comment as purpose
 		if doc != "" {
-			ep.ref.Purpose = extractFirstSentence(doc)
+			ep.ref.Purpose = ExtractFirstSentence(doc)
 		}
 
 		entryPoints = append(entryPoints, ep)

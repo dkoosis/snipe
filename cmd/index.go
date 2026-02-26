@@ -262,6 +262,33 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	return w.WriteResponse(resp)
 }
 
+// filterEmbeddableSymbols returns symbols suitable for embedding (functions, methods,
+// types with signatures or docs) as SymbolText with combined text for the embedding model.
+func filterEmbeddableSymbols(symbols []index.Symbol) []embed.SymbolText {
+	var result []embed.SymbolText
+	for _, sym := range symbols {
+		switch sym.Kind {
+		case index.KindFunc, index.KindMethod, index.KindType, index.KindInterface, index.KindStruct:
+			if sym.Signature != "" || sym.Doc != "" {
+				text := sym.Name
+				if sym.Signature != "" {
+					text += " " + sym.Signature
+				}
+				if sym.Doc != "" {
+					text += " " + sym.Doc
+				}
+				result = append(result, embed.SymbolText{
+					ID:   sym.ID,
+					Text: text,
+				})
+			}
+		case index.KindVar, index.KindConst, index.KindField:
+			// Skip - these typically don't have meaningful signatures for embedding
+		}
+	}
+	return result
+}
+
 // generateEmbeddings creates embeddings for symbols with signatures.
 func generateEmbeddings(s *store.Store, symbols []index.Symbol) (int, error) {
 	client, err := embed.NewClient()
@@ -271,20 +298,7 @@ func generateEmbeddings(s *store.Store, symbols []index.Symbol) (int, error) {
 
 	fmt.Fprintf(os.Stderr, "Generating embeddings with %s...\n", client.Model())
 
-	// Filter symbols worth embedding (functions, methods, types with signatures/docs)
-	var toEmbed []index.Symbol
-	for _, sym := range symbols {
-		// Embed functions, methods, and types
-		switch sym.Kind {
-		case index.KindFunc, index.KindMethod, index.KindType, index.KindInterface, index.KindStruct:
-			if sym.Signature != "" || sym.Doc != "" {
-				toEmbed = append(toEmbed, sym)
-			}
-		case index.KindVar, index.KindConst, index.KindField:
-			// Skip - these typically don't have meaningful signatures
-		}
-	}
-
+	toEmbed := filterEmbeddableSymbols(symbols)
 	if len(toEmbed) == 0 {
 		return 0, nil
 	}
@@ -303,15 +317,7 @@ func generateEmbeddings(s *store.Store, symbols []index.Symbol) (int, error) {
 		// Build texts for embedding
 		texts := make([]string, len(batch))
 		for j, sym := range batch {
-			// Combine name, signature, and doc for richer embeddings
-			text := sym.Name
-			if sym.Signature != "" {
-				text += " " + sym.Signature
-			}
-			if sym.Doc != "" {
-				text += " " + sym.Doc
-			}
-			texts[j] = text
+			texts[j] = sym.Text
 		}
 
 		// Generate embeddings
@@ -457,28 +463,7 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 	}
 
 	// Filter symbols worth embedding
-	var toEmbed []embed.SymbolText
-	for _, sym := range symbols {
-		switch sym.Kind {
-		case index.KindFunc, index.KindMethod, index.KindType, index.KindInterface, index.KindStruct:
-			if sym.Signature != "" || sym.Doc != "" {
-				text := sym.Name
-				if sym.Signature != "" {
-					text += " " + sym.Signature
-				}
-				if sym.Doc != "" {
-					text += " " + sym.Doc
-				}
-				toEmbed = append(toEmbed, embed.SymbolText{
-					ID:   sym.ID,
-					Text: text,
-				})
-			}
-		case index.KindVar, index.KindConst, index.KindField:
-			// Skip - these typically don't have meaningful signatures
-		}
-	}
-
+	toEmbed := filterEmbeddableSymbols(symbols)
 	if len(toEmbed) == 0 {
 		return "no_symbols", nil
 	}

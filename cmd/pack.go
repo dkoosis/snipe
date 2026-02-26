@@ -320,7 +320,7 @@ func buildPackForSymbol(s *store.Store, dir, symbolID string, opts packOpts) (ou
 	// Get purpose
 	purpose, _ := s.GetPurpose(sym.ID)
 	if purpose == "" && sym.Doc.Valid && sym.Doc.String != "" {
-		purpose = firstSentence(sym.Doc.String)
+		purpose = ctxpkg.ExtractFirstSentence(sym.Doc.String)
 	}
 
 	// Build refs
@@ -354,8 +354,12 @@ func buildPackForSymbol(s *store.Store, dir, symbolID string, opts packOpts) (ou
 			})
 		}
 
-		callerResults, callerDegraded = buildCallerResultsForType(db, sym.Name)
-		calleeResults, calleeDegraded = buildCalleeResultsForType(db, sym.Name)
+		callerResults, callerDegraded = buildCallRowResults(
+			func() ([]query.CallRow, error) { return query.FindCallersForType(db, sym.Name, packCallersLimit, 0) },
+			(*query.CallRow).ToCallerResult, "callers_query_failed")
+		calleeResults, calleeDegraded = buildCallRowResults(
+			func() ([]query.CallRow, error) { return query.FindCalleesForType(db, sym.Name, packCalleesLimit, 0) },
+			(*query.CallRow).ToCalleeResult, "callees_query_failed")
 
 		var cErr error
 		callerCount, cErr = query.CountCallersForType(db, sym.Name)
@@ -369,14 +373,18 @@ func buildPackForSymbol(s *store.Store, dir, symbolID string, opts packOpts) (ou
 			calleeCount = -1
 		}
 	} else {
-		callerResults, callerDegraded = buildCallerResults(db, symbolID)
+		callerResults, callerDegraded = buildCallRowResults(
+			func() ([]query.CallRow, error) { return query.FindCallers(db, symbolID, packCallersLimit, 0) },
+			(*query.CallRow).ToCallerResult, "callers_query_failed")
 
 		if err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE callee_id = ?`, symbolID).Scan(&callerCount); err != nil {
 			degraded = append(degraded, "caller_count_query_failed")
 			callerCount = -1
 		}
 
-		calleeResults, calleeDegraded = buildCalleeResults(db, symbolID)
+		calleeResults, calleeDegraded = buildCallRowResults(
+			func() ([]query.CallRow, error) { return query.FindCallees(db, symbolID, packCalleesLimit, 0) },
+			(*query.CallRow).ToCalleeResult, "callees_query_failed")
 
 		if err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE caller_id = ?`, symbolID).Scan(&calleeCount); err != nil {
 			degraded = append(degraded, "callee_count_query_failed")
@@ -459,61 +467,22 @@ func buildRefResults(db *sql.DB, symbolID, symName string) ([]output.Result, []s
 	return results, degraded
 }
 
-func buildCallerResults(db *sql.DB, symbolID string) ([]output.Result, []string) {
+// buildCallRowResults queries call graph rows and converts them to output results.
+// queryFn fetches the rows; toResult converts each row to an output.Result.
+func buildCallRowResults(
+	queryFn func() ([]query.CallRow, error),
+	toResult func(*query.CallRow) output.Result,
+	degradedLabel string,
+) ([]output.Result, []string) {
 	var degraded []string
-	callerRows, err := query.FindCallers(db, symbolID, packCallersLimit, 0)
+	rows, err := queryFn()
 	if err != nil {
-		degraded = append(degraded, "callers_query_failed")
+		degraded = append(degraded, degradedLabel)
 	}
 
-	results := make([]output.Result, 0, len(callerRows))
-	for _, call := range callerRows {
-		results = append(results, call.ToCallerResult())
-	}
-
-	return results, degraded
-}
-
-func buildCalleeResults(db *sql.DB, symbolID string) ([]output.Result, []string) {
-	var degraded []string
-	calleeRows, err := query.FindCallees(db, symbolID, packCalleesLimit, 0)
-	if err != nil {
-		degraded = append(degraded, "callees_query_failed")
-	}
-
-	results := make([]output.Result, 0, len(calleeRows))
-	for _, call := range calleeRows {
-		results = append(results, call.ToCalleeResult())
-	}
-
-	return results, degraded
-}
-
-func buildCallerResultsForType(db *sql.DB, typeName string) ([]output.Result, []string) {
-	var degraded []string
-	callerRows, err := query.FindCallersForType(db, typeName, packCallersLimit, 0)
-	if err != nil {
-		degraded = append(degraded, "callers_query_failed")
-	}
-
-	results := make([]output.Result, 0, len(callerRows))
-	for _, call := range callerRows {
-		results = append(results, call.ToCallerResult())
-	}
-
-	return results, degraded
-}
-
-func buildCalleeResultsForType(db *sql.DB, typeName string) ([]output.Result, []string) {
-	var degraded []string
-	calleeRows, err := query.FindCalleesForType(db, typeName, packCalleesLimit, 0)
-	if err != nil {
-		degraded = append(degraded, "callees_query_failed")
-	}
-
-	results := make([]output.Result, 0, len(calleeRows))
-	for _, call := range calleeRows {
-		results = append(results, call.ToCalleeResult())
+	results := make([]output.Result, 0, len(rows))
+	for i := range rows {
+		results = append(results, toResult(&rows[i]))
 	}
 
 	return results, degraded
@@ -534,26 +503,6 @@ func estimatePackTokens(pr output.PackResult) int {
 		estimate += output.EstimateResultTokens(&pr.Callees[i])
 	}
 	return estimate
-}
-
-// firstSentence extracts the first sentence from a doc comment.
-func firstSentence(doc string) string {
-	doc = strings.TrimSpace(doc)
-	if doc == "" {
-		return ""
-	}
-	// Find first period followed by space or end of string
-	for i, r := range doc {
-		if r == '.' {
-			if i+1 >= len(doc) || doc[i+1] == ' ' || doc[i+1] == '\n' {
-				return doc[:i+1]
-			}
-		}
-		if r == '\n' {
-			return doc[:i]
-		}
-	}
-	return doc
 }
 
 // extractRelatedTypes extracts type names from a Go function signature.
