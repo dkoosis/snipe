@@ -7,13 +7,13 @@ Pick from backlog. Top candidate: #88 M4 distribution (goreleaser, zero-config i
 
 ## Done
 
+- Closed #102 — already fixed in d8bf6fa, verified output has no definition prepend
 - Simplified 6 files, removed ~127 lines of duplicate logic (a327e37)
 - Merged PR #104: 3-pass true-bug audit with 6 verified findings (ae16960)
-- Untracked .snipe/index.db — was triggering GitHub secret scanning false positives
 
 ## Backlog
 
-#88 M4 distribution | #96 batch embed RAM | #102 callees meta.self | orca persistToolCall
+#88 M4 distribution | #96 batch embed RAM | orca persistToolCall
 
 ## Traps
 
