@@ -2,197 +2,187 @@
 
 [![Release](https://img.shields.io/github/v/release/dkoosis/snipe)](https://github.com/dkoosis/snipe/releases)
 
-Go code navigation for LLMs. Static indexing, <50ms queries, JSON output.
+Static code navigation for Go, built for LLM tool use. Indexes once, queries in under 50ms, returns structured JSON.
+
+## Install
 
 ```bash
+# From source
 go install github.com/dkoosis/snipe@latest
+
+# Or download a binary from GitHub Releases
+# https://github.com/dkoosis/snipe/releases
 ```
 
-## Quick Start
+Requires Go 1.24+ and [ripgrep](https://github.com/BurntSushi/ripgrep). Run `snipe doctor` to verify.
+
+## Quick start
 
 ```bash
-snipe index                     # Build index (run once, ~5s for most projects)
-snipe def ProcessOrder          # Jump to definition
-snipe refs ProcessOrder         # Find all references
-snipe callers ProcessOrder      # Who calls this?
-snipe pack ProcessOrder         # Everything about a symbol in one call
+cd your-go-project
+snipe index                     # Build index (~5s for most projects)
+snipe def ProcessOrder          # Definition by name
+snipe refs ProcessOrder         # All references
+snipe callers ProcessOrder      # Call graph: who calls this?
+snipe callees ProcessOrder      # Call graph: what does this call?
+snipe pack ProcessOrder         # All of the above in one query
 ```
 
-## Why snipe?
+The index is stored in `.snipe/` — add it to your `.gitignore`.
 
-- **Static indexing** -- No gopls daemon, no LSP. Index once, query in <50ms
-- **Semantic search** -- Voyage AI embeddings find symbols by meaning, not just name
-- **Pack command** -- Definition + refs + callers + callees + role + purpose in one query
-- **Incremental indexing** -- Only re-indexes changed files on subsequent runs
-- **Position-first** -- `--at file:line:col` maps directly to compiler error output
-- **JSON-first** -- Deterministic `{results, meta, error}` envelope on every command
-- **Edit-ready** -- Every result has `edit_target` for direct handoff to editors
-- **Hex ID chaining** -- 16-char IDs from one command feed into the next
-- **LLM boot context** -- `snipe context --boot` generates project architecture for LLM sessions
+## How it works
 
-## Architecture
+snipe uses `go/packages` for static analysis (symbols, references, call graph) and stores everything in SQLite. Queries resolve against the index. Text search falls through to ripgrep.
 
 ```
-                          snipe CLI
-                             |
-            +----------------+----------------+
-            |                |                |
-       go/packages       ripgrep          SQLite
-     (static analysis)  (text search)   (.snipe/index.db)
-            |                                 |
-            v                                 |
-    symbols, refs,                            |
-    call graph, types                         |
-            |                                 |
-            +----------> index <--------------+
+                        snipe CLI
                            |
-              +------------+------------+
-              |                         |
-         Voyage AI                 Anthropic API
-      (voyage-code-3)           (claude-3-5-haiku)
-              |                         |
-        embeddings               symbol purposes
-       (1024-dim vectors)       (LLM-generated summaries)
-              |                         |
-              v                         v
-           sim search              explain, context
+          +----------------+----------------+
+          |                |                |
+     go/packages       ripgrep          SQLite
+   (static analysis)  (text search)   (.snipe/index.db)
+          |                                 |
+          v                                 v
+  symbols, refs, call graph         indexed queries (<50ms)
+          |
+          +--- optional -----------------------+
+          |                                    |
+     Voyage AI                          Anthropic API
+   (voyage-code-3)                    (claude-haiku)
+          |                                    |
+   semantic embeddings               symbol purposes
+          |                                    |
+          v                                    v
+       sim search                     explain, context
 ```
 
-**Core pipeline:** `go/packages` extracts symbols, references, and call graph via static analysis. Everything goes into SQLite for fast indexed queries. `ripgrep` handles text search without needing the index.
-
-**Optional enrichment:** With API keys, snipe generates code embeddings (for semantic similarity search) and LLM-generated symbol purposes (for explain and context commands).
+The optional enrichment layer adds semantic embeddings (for similarity search) and LLM-generated symbol purposes (for explain and context commands). These require API keys and are off by default.
 
 ## Commands
 
-### Core Commands
+### Navigation
 
 | Command | Description |
 |---------|-------------|
-| `def [symbol]` | Jump to symbol definition |
-| `refs [symbol]` | Find all references to a symbol |
-| `callers [symbol]` | Find functions that call a symbol |
-| `callees [symbol]` | Find functions that a symbol calls |
+| `def [symbol]` | Symbol definition |
+| `refs [symbol]` | All references to a symbol |
+| `callers [symbol]` | Functions that call a symbol |
+| `callees [symbol]` | Functions called by a symbol |
+| `show <id>` | Expand a result by its hex ID |
 | `search <pattern>` | Text search via ripgrep (no index needed) |
-| `pack [symbol]` | Full symbol profile: def + refs + callers + callees + role + purpose |
-| `show <id>` | Expand a symbol by its 16-char hex ID |
-| `sym [symbol]` | Combined query (def + refs + callers + callees) |
 
-### Index Commands
+### Composite
 
 | Command | Description |
 |---------|-------------|
-| `index [path]` | Build or update the code index |
-| `status` | Show index status and statistics |
-| `doctor` | Check snipe installation and configuration |
+| `pack [symbol]` | Definition + refs + callers + callees + role + purpose |
+| `sym [symbol]` | Definition + refs + callers + callees |
+| `explain [symbol]` | Structured function explanation with mechanism steps |
+| `context [path]` | LLM-optimized project architecture summary |
 
-### Advanced Commands
+### Type system
 
 | Command | Description |
 |---------|-------------|
-| `context [path]` | Generate LLM-optimized project context |
-| `explain [symbol]` | Structured function explanation |
-| `sim <query>` | Semantic similarity search (requires embeddings) |
+| `types [type]` | Type relationships: methods, fields, embeds |
+| `impl [interface]` | Types implementing an interface |
+| `imports <file>` | Packages imported by a file |
+| `importers <pkg>` | Files that import a package |
+| `pkg <name>` | Package overview with exported symbols |
+
+### Index management
+
+| Command | Description |
+|---------|-------------|
+| `index [path]` | Build or update the index |
+| `status` | Index statistics |
+| `doctor` | Verify installation and dependencies |
 | `edit [symbol]` | AST-aware code editing |
-| `types [type]` | Show type relationships (methods, fields, embeds) |
-| `impl [interface]` | Find types implementing an interface |
-| `imports <file>` | Show packages imported by a file |
-| `importers <pkg>` | Find files that import a package |
-| `pkg <name>` | Show package overview with exported symbols |
 
-## Usage Examples
+## Query patterns
 
-### Definition lookup
+**By name, position, or ID** — all navigation commands accept any of these:
 
 ```bash
-snipe def ProcessOrder           # By name
-snipe def --at main.go:42:12     # By position (from error output)
-snipe def a3f2c1de89ab0123       # By hex ID (auto-detected)
-snipe def handler.go:Server      # File-scoped lookup
+snipe def ProcessOrder              # By name
+snipe def --at main.go:42:12       # By position (maps to compiler output)
+snipe def a3f2c1de89ab0123         # By 16-char hex ID (auto-detected)
 ```
 
-### Scoped queries
+**Scoped queries** — filter by file or package:
 
 ```bash
-snipe def --file store.go        # All symbols in a file
-snipe def --pkg query            # Exported symbols in a package
-snipe refs Open --file store.go  # References filtered to a file
-snipe refs Open --pkg internal/query  # References filtered to a package
+snipe def --file store.go          # Symbols in a file
+snipe def --pkg query              # Exported symbols in a package
+snipe refs Open --file store.go    # References filtered to a file
 ```
 
-### Hex ID chaining
+**ID chaining** — pipe results across commands:
 
 ```bash
-# 1. Find the definition
-snipe def --at server/handler.go:142:15
-# Result includes id: "a3f2c1de89ab0123"
-
-# 2. Who calls it?
-snipe callers a3f2c1de89ab0123
-
-# 3. Get full body of a caller
-snipe show b4e3d2c1a0f98765 --with-body
-
-# 4. What does that caller call?
-snipe callees b4e3d2c1a0f98765
+snipe def --at handler.go:142:15   # Returns id: "a3f2c1de89ab0123"
+snipe callers a3f2c1de89ab0123     # Who calls it?
+snipe show b4e3d2c1a0f98765 --with-body  # Full source of a caller
 ```
 
-### Pack: everything in one call
+**Indexing modes:**
 
 ```bash
-snipe pack ProcessOrder              # Full profile by name
-snipe pack --at main.go:42:12        # Full profile at position
-snipe pack abc123def456 789012345678 # Multiple symbols at once
+snipe index                                    # Full (with embeddings + enrichment if keys set)
+snipe index --embed-mode=off --enrich=false    # Minimal (symbols only, no API calls)
+snipe index --force                            # Force full re-index
 ```
 
-### Indexing
-
-```bash
-snipe index                          # Full index with embeddings + enrichment
-snipe index --embed-mode=off         # Skip embeddings
-snipe index --enrich=false           # Skip LLM enrichment
-snipe index --embed-mode=off --enrich=false  # Minimal index (symbols only)
-snipe index --force                  # Force full re-index
-```
-
-Embedding modes: `auto` (default), `batch` (async), `realtime` (sync), `off`
-
-## Key Flags
+## Flags
 
 | Flag | Effect |
 |------|--------|
-| `--at file:line:col` | Query by position (from error/compiler output) |
+| `--at file:line:col` | Query by source position |
 | `--with-body` | Include full function/method body |
-| `--limit N` | Cap results (default 50) |
-| `--offset N` | Skip first N results (pagination) |
-| `--context N` | Lines of context around match (default 3) |
-| `--format mode` | `concise`, `detailed`, or `summary` |
-| `--select mode` | `all`, `best`, `top3`, `top5` |
-| `--max-tokens N` | Truncate output to token budget |
-| `--human` | Pretty-print for terminal debugging |
-| `--signature-only` | Return only signature (no body, no context) |
+| `--limit N` | Cap results (default: 50) |
+| `--offset N` | Skip first N results |
+| `--context N` | Surrounding lines per match (default: 3) |
+| `--format` | `concise` (default), `detailed`, or `summary` |
+| `--select` | `all` (default), `best`, `top3`, `top5` |
+| `--max-tokens N` | Truncate output to fit a token budget |
+| `--signature-only` | Signature only, no body or context |
+| `--human` | Pretty-print for terminal use |
 
-## Output Format
+## Output format
 
-All commands return JSON with a consistent envelope:
+Every command returns JSON with a stable envelope:
 
 ```json
 {
   "protocol": 1,
   "ok": true,
-  "results": [{
-    "id": "a3f2c1de89ab0123",
-    "file": "order/handler.go",
-    "range": {"start": {"line": 42, "col": 4}, "end": {"line": 42, "col": 31}},
-    "kind": "func",
-    "name": "ProcessOrder",
-    "match": "func ProcessOrder(ctx context.Context, order *Order) error",
-    "edit_target": "order/handler.go:42:4-42:31#abc123",
-    "role": "handler"
-  }],
-  "suggestions": ["snipe refs ProcessOrder", "snipe callers ProcessOrder"],
+  "results": [
+    {
+      "id": "427f6c9bb244e3a7",
+      "file": "internal/store/write.go",
+      "range": {
+        "start": {"line": 33, "col": 1},
+        "end": {"line": 98, "col": 2}
+      },
+      "kind": "method",
+      "name": "WriteIndex",
+      "receiver": "(*Store)",
+      "package": "github.com/dkoosis/snipe/internal/store",
+      "match": "func (s *Store) WriteIndex(...) error",
+      "ref_count": 2,
+      "edit_target": "internal/store/write.go:33:1-98:2#427f6c9b"
+    }
+  ],
+  "suggestions": [
+    {
+      "command": "snipe refs WriteIndex",
+      "description": "Find all usages of this symbol",
+      "priority": 1
+    }
+  ],
   "meta": {
     "command": "def",
-    "ms": 23,
+    "ms": 12,
     "total": 1,
     "index_state": "fresh",
     "token_estimate": 450,
@@ -201,54 +191,43 @@ All commands return JSON with a consistent envelope:
 }
 ```
 
-Key fields:
-- `id` -- 16-char hex, usable in subsequent commands
-- `edit_target` -- direct handoff format for editors
-- `role` -- architectural classification (handler, model, util, etc.)
-- `meta.index_state` -- `fresh`, `stale`, or `missing`
-- `meta.stale_files` -- files modified since last index
-- `suggestions` -- recommended next commands
-
-## Embeddings: Why voyage-code-3
-
-snipe uses [Voyage AI's voyage-code-3](https://docs.voyageai.com/docs/embeddings) for semantic search:
-
-- **Code-specialized** -- Trained on code corpora, understands Go identifiers, signatures, and patterns better than general-purpose embedding models
-- **1024-dimensional vectors** -- Good balance of quality vs storage for per-symbol embeddings
-- **Batch + realtime APIs** -- Batch API (async) for initial large indexes, realtime API for incremental updates
-- **Configurable** -- Override with `VOYAGE_MODEL` env var if you prefer a different model
-
-Embeddings power `snipe sim` (semantic similarity search) and enhance `snipe context` output.
+**Envelope contract:**
+- `protocol` — wire format version (currently 1)
+- `ok` — `true` on success, `false` with `error` object on failure
+- `results` — array of result objects, never null
+- `meta.index_state` — `fresh`, `stale`, or `missing`
+- `meta.stale_files` — files modified since the last index run
+- `suggestions` — structured next-step commands for LLM consumers
+- `id` — 16-char hex, stable across queries, usable as input to other commands
 
 ## Configuration
 
 ### Environment variables
 
-| Variable | Purpose |
-|----------|---------|
-| `VOYAGE_API_KEY` | Enable embeddings (Voyage AI) |
-| `VOYAGE_MODEL` | Override embedding model (default: voyage-code-3) |
-| `VOYAGE_API_URL` | Override Voyage API endpoint |
-| `ANTHROPIC_API_KEY` | Enable LLM enrichment (symbol purposes) |
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `VOYAGE_API_KEY` | Semantic embeddings (Voyage AI) | No |
+| `VOYAGE_MODEL` | Override embedding model (default: `voyage-code-3`) | No |
+| `VOYAGE_API_URL` | Override Voyage API endpoint | No |
+| `ANTHROPIC_API_KEY` | LLM-generated symbol purposes | No |
+
+None of these are required. Without them, snipe runs on static analysis only.
 
 ### Project config
 
-Create `.snipe.json` in your project root:
+Optional. Create `.snipe.json` in the project root:
 
 ```json
 {
   "limit": 100,
-  "context_lines": 5,
-  "excludes": ["vendor/**", "testdata/**"]
+  "context_lines": 5
 }
 ```
 
-Or global config at `~/.config/snipe/config.json` (project config overrides global).
+Global config at `~/.config/snipe/config.json` is also supported. Project config takes precedence.
 
 ## Requirements
 
-- Go 1.21+ (for `go/packages` analysis)
-- [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) for text search
-- SQLite (bundled via modernc.org/sqlite, no CGO needed)
-
-Run `snipe doctor` to verify your setup.
+- **Go 1.24+** (for `go/packages` static analysis)
+- **[ripgrep](https://github.com/BurntSushi/ripgrep)** (`rg`) for text search
+- SQLite is bundled (via `modernc.org/sqlite`, no CGO)
