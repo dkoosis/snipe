@@ -1,4 +1,4 @@
-sha: b3223a8 | qa: pass
+sha: a327e37 | qa: pass
 updated: 2026-02-26
 
 ## Do next
@@ -7,9 +7,9 @@ Pick from backlog. Top candidate: #88 M4 distribution (goreleaser, zero-config i
 
 ## Done
 
-- Merged PR #104: 3-pass true-bug audit (6 findings verified — FK reindex, error suppression, negative index panic, watch lifecycle, HTTP context)
-- Cleaned all branches, stashes, stale PRs — main is sole branch, zero debris
-- Tracked session-protocol.md, refreshed baselines
+- Simplified 6 files, removed ~127 lines of duplicate logic (a327e37)
+- Merged PR #104: 3-pass true-bug audit with 6 verified findings (ae16960)
+- Untracked .snipe/index.db — was triggering GitHub secret scanning false positives
 
 ## Backlog
 
