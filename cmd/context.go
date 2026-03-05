@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	contextFormat    string
-	contextFull      bool
-	contextBoot      bool
-	contextOutputNug bool
+	contextFormat      string
+	contextFull        bool
+	contextBoot        bool
+	contextOutputNug   bool
+	contextConventions bool
 )
 
 var contextCmd = &cobra.Command{
@@ -49,6 +50,7 @@ func init() {
 	contextCmd.Flags().BoolVar(&contextFull, "full", false, "Include all symbols, not just key ones")
 	contextCmd.Flags().BoolVar(&contextBoot, "boot", false, "Minimal context for LLM boot (~2000 tokens)")
 	contextCmd.Flags().BoolVar(&contextOutputNug, "output-nug", false, "Output as Orca nugget YAML (for save_nug)")
+	contextCmd.Flags().BoolVar(&contextConventions, "conventions", false, "Detect coding conventions")
 	rootCmd.AddCommand(contextCmd)
 }
 
@@ -103,6 +105,11 @@ func runContext(cmd *cobra.Command, args []string) error {
 		}
 
 		return outputContext(bootCtx, contextFormat)
+	}
+
+	if contextConventions {
+		conv := context.DetectConventions(s.DB(), projectRoot)
+		return outputContext(conv, contextFormat)
 	}
 
 	// Generate full context

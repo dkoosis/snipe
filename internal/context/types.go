@@ -28,6 +28,9 @@ type BootContext struct {
 
 	// Phase 4: Architecture summary
 	ArchSummary *ArchSummary `json:"arch_summary,omitempty" yaml:"arch_summary,omitempty"`
+
+	// Conventions detected from index
+	Conventions *Conventions `json:"conventions,omitempty" yaml:"conventions,omitempty"`
 }
 
 // BootViews contains the three orientation views for LLM boot sequences.

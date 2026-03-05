@@ -97,6 +97,8 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		}
 	}
 
+	conventions := DetectConventions(cfg.DB, cfg.RepoRoot)
+
 	return &BootContext{
 		Project:     proj.Name,
 		Lang:        lang,
@@ -109,6 +111,7 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		Commit:      meta.GitCommit,
 		BootViews:   bootViews,
 		Packages:    packages,
+		Conventions: conventions,
 	}, nil
 }
 
