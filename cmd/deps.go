@@ -62,12 +62,11 @@ func runDeps(cmd *cobra.Command, args []string) error {
 
 	// Resolve package argument
 	repoRoot, _ := s.GetMeta("repo_root")
-	var pkgPath string
+	arg := "."
 	if len(args) > 0 {
-		pkgPath = query.ResolvePkgPattern(s.DB(), args[0], dir, repoRoot)
-	} else {
-		pkgPath = query.ResolvePkgPattern(s.DB(), ".", dir, repoRoot)
+		arg = args[0]
 	}
+	pkgPath := query.ResolvePkgPattern(s.DB(), arg, dir, repoRoot)
 
 	// Ensure we have the full package path as stored in the imports table.
 	pkgPath = query.ResolveFullPkgPath(s.DB(), pkgPath, modulePath)
@@ -105,14 +104,7 @@ func runDepsSingle(w *output.Writer, db *sql.DB, pkgPath, modulePath, dir string
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
 		Results:  []output.DepsResult{result},
-		Meta: output.Meta{
-			Command:    "deps",
-			Query:      map[string]string{"package": pkgPath},
-			RepoRoot:   dir,
-			IndexState: query.CheckIndexState(db, dir, Version),
-			Ms:         time.Since(start).Milliseconds(),
-			Total:      len(dependencies) + len(dependents),
-		},
+		Meta:     depsMeta(db, dir, start, map[string]string{"package": pkgPath}, len(dependencies)+len(dependents)),
 	}
 
 	return w.WriteResponse(resp)
@@ -144,15 +136,19 @@ func runDepsTree(w *output.Writer, db *sql.DB, modulePath, dir string, start tim
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
 		Results:  []output.DepTreeResult{result},
-		Meta: output.Meta{
-			Command:    "deps",
-			Query:      map[string]string{"mode": "tree"},
-			RepoRoot:   dir,
-			IndexState: query.CheckIndexState(db, dir, Version),
-			Ms:         time.Since(start).Milliseconds(),
-			Total:      len(graph.Packages),
-		},
+		Meta:     depsMeta(db, dir, start, map[string]string{"mode": "tree"}, len(graph.Packages)),
 	}
 
 	return w.WriteResponse(resp)
+}
+
+func depsMeta(db *sql.DB, dir string, start time.Time, q map[string]string, total int) output.Meta {
+	return output.Meta{
+		Command:    "deps",
+		Query:      q,
+		RepoRoot:   dir,
+		IndexState: query.CheckIndexState(db, dir, Version),
+		Ms:         time.Since(start).Milliseconds(),
+		Total:      total,
+	}
 }

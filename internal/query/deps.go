@@ -7,9 +7,8 @@ import (
 
 // DepEdge represents a dependency relationship with weight.
 type DepEdge struct {
-	Package     string `json:"package"`
-	PackageFull string `json:"package_full"`
-	FileCount   int    `json:"file_count"`
+	Package   string `json:"package"`
+	FileCount int    `json:"file_count"`
 }
 
 // PackageDeps holds bidirectional dependencies for a single package.
@@ -70,59 +69,52 @@ func ResolveFullPkgPath(db *sql.DB, pkgPath, modulePath string) string {
 // FindPackageDeps returns bidirectional dependencies for a single package.
 // Only internal packages (those sharing the module path prefix) are included.
 func FindPackageDeps(db *sql.DB, pkgPath, modulePath string) (*PackageDeps, error) {
-	result := &PackageDeps{}
-
 	// What this package imports (internal only)
-	depRows, err := db.Query(`
+	deps, err := scanDepEdges(db, `
 		SELECT pkg_path, COUNT(DISTINCT file_path) as file_count
 		FROM imports
 		WHERE importer_pkg = ? AND pkg_path LIKE ? || '/%'
 		GROUP BY pkg_path
 		ORDER BY file_count DESC
-	`, pkgPath, modulePath)
+	`, modulePath, pkgPath, modulePath)
 	if err != nil {
-		return nil, err
-	}
-	defer depRows.Close()
-
-	for depRows.Next() {
-		var e DepEdge
-		if err := depRows.Scan(&e.PackageFull, &e.FileCount); err != nil {
-			return nil, err
-		}
-		e.Package = trimModulePath(e.PackageFull, modulePath)
-		result.Dependencies = append(result.Dependencies, e)
-	}
-	if err := depRows.Err(); err != nil {
 		return nil, err
 	}
 
 	// Who imports this package (internal only)
-	depByRows, err := db.Query(`
+	dependents, err := scanDepEdges(db, `
 		SELECT importer_pkg, COUNT(DISTINCT file_path) as file_count
 		FROM imports
 		WHERE pkg_path = ? AND importer_pkg LIKE ? || '/%'
 		GROUP BY importer_pkg
 		ORDER BY file_count DESC
-	`, pkgPath, modulePath)
+	`, modulePath, pkgPath, modulePath)
 	if err != nil {
 		return nil, err
 	}
-	defer depByRows.Close()
 
-	for depByRows.Next() {
-		var e DepEdge
-		if err := depByRows.Scan(&e.PackageFull, &e.FileCount); err != nil {
-			return nil, err
-		}
-		e.Package = trimModulePath(e.PackageFull, modulePath)
-		result.Dependents = append(result.Dependents, e)
-	}
-	if err := depByRows.Err(); err != nil {
+	return &PackageDeps{Dependencies: deps, Dependents: dependents}, nil
+}
+
+// scanDepEdges runs a query returning (pkg_path, file_count) rows and trims the module prefix.
+func scanDepEdges(db *sql.DB, query, modulePath string, args ...any) ([]DepEdge, error) {
+	rows, err := db.Query(query, args...)
+	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	return result, nil
+	var result []DepEdge
+	for rows.Next() {
+		var fullPath string
+		var e DepEdge
+		if err := rows.Scan(&fullPath, &e.FileCount); err != nil {
+			return nil, err
+		}
+		e.Package = trimModulePath(fullPath, modulePath)
+		result = append(result, e)
+	}
+	return result, rows.Err()
 }
 
 // FindDepGraph builds the full internal dependency graph for a module.
