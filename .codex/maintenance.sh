@@ -1,41 +1,35 @@
-#!/bin/bash
-# Periodic maintenance for Codex sandbox
+#!/usr/bin/env bash
+# Codex cached container refresh for snipe
+# Runs when a cached container is reused for a new task.
+# Keep lightweight — setup.sh already installed tools.
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_ROOT"
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_DIR"
 
-echo "=== snipe Maintenance ==="
+echo "=== snipe maintenance ==="
 
-# Activate environment
-source "$REPO_ROOT/.codex/activate.sh"
-
-# Clean old caches
-echo "Cleaning old caches..."
-go clean -cache -testcache 2>/dev/null || true
-
-# Verify modules (non-mutating; avoids go.mod/go.sum churn)
-echo "Verifying modules..."
+# Refresh go modules (deps may have changed)
 go mod download
-go mod verify
+echo "  go modules refreshed"
 
-# Rebuild snipe binary with low peak RAM settings
-echo "Rebuilding snipe (low peak RAM)..."
-export GOMAXPROCS=2
-go build -p 1 -o "$REPO_ROOT/bin/snipe" .
-
-# Index only if missing (avoid heavy work that can crash constrained sandboxes)
-if [[ -f "$REPO_ROOT/.snipe/index.db" ]]; then
-    echo "Index exists; skipping reindex"
-else
-    echo "Building snipe index..."
-    "$REPO_ROOT/bin/snipe" index
+# Rebuild snipe index (source may have changed)
+if command -v snipe >/dev/null 2>&1; then
+  snipe index --embed-mode=off --enrich=false 2>/dev/null && echo "  snipe index rebuilt" || echo "  snipe index skipped"
 fi
 
-# Verify binary
-echo "Verifying snipe..."
-"$REPO_ROOT/bin/snipe" version
+# Quick verify — fail fast if tools disappeared
+MISSING=0
+for tool in go snipe mage golangci-lint govulncheck gofumpt goimports; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    printf "  MISSING  %s\n" "$tool"
+    MISSING=$((MISSING + 1))
+  fi
+done
 
-echo ""
-echo "=== Maintenance Complete ==="
+if [ "$MISSING" -gt 0 ]; then
+  echo "WARNING: $MISSING tool(s) missing — container cache may be stale, re-run setup"
+  exit 1
+fi
 
+echo "=== maintenance complete ==="

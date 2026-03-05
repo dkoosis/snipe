@@ -1,50 +1,85 @@
-#!/bin/bash
-# Activate snipe development environment
+#!/usr/bin/env bash
+# Source this file to activate the Go development environment for Codex/Claude sandbox
 # Usage: source .codex/activate.sh
+#
+# NOTE: For Codex cloud, .codex/setup.sh runs automatically on container creation.
+# This file is for local use and as a fallback when the agent sources it via AGENTS.md.
 
-# Find repo root
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_ROOT"
-
-# Set up isolated caches in .codex/cache
-export GOCACHE="$REPO_ROOT/.codex/cache/go-build"
-export GOMODCACHE="$REPO_ROOT/.codex/cache/mod"
-export GOLANGCI_LINT_CACHE="$REPO_ROOT/.codex/cache/golangci-lint"
-
-# Ensure cache directories exist
-mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOLANGCI_LINT_CACHE"
-
-# Detect platform
-PLATFORM="$(uname -s)-$(uname -m)"
-case "$PLATFORM" in
-    Linux-x86_64)  BINDIR="$REPO_ROOT/.codex/bin/linux-amd64" ;;
-    Darwin-x86_64) BINDIR="$REPO_ROOT/.codex/bin/darwin-amd64" ;;
-    Darwin-arm64)  BINDIR="$REPO_ROOT/.codex/bin/darwin-arm64" ;;
-    *)             BINDIR="" ;;
+# Detect platform for prebuilt binaries
+_CODEX_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+_CODEX_ARCH=$(uname -m)
+case "$_CODEX_ARCH" in
+  x86_64) _CODEX_ARCH="amd64" ;;
+  aarch64|arm64) _CODEX_ARCH="arm64" ;;
 esac
+_CODEX_PLATFORM="${_CODEX_OS}-${_CODEX_ARCH}"
 
-# Add paths to PATH
-export PATH="$REPO_ROOT/bin:$BINDIR:$PATH"
+export GOTOOLCHAIN=local
+export GOPROXY="https://proxy.golang.org,direct"
+export GOSUMDB="sum.golang.org"
 
-# Link prebuilt binaries if available and bin directory doesn't have them
-if [[ -d "$BINDIR" ]]; then
-    mkdir -p "$REPO_ROOT/bin"
-    for tool in golangci-lint mage rg; do
-        if [[ -x "$BINDIR/$tool" && ! -e "$REPO_ROOT/bin/$tool" ]]; then
-            ln -sf "$BINDIR/$tool" "$REPO_ROOT/bin/$tool"
-        fi
-    done
+# Repo-local caches
+export GOCACHE="$PWD/.codex/cache/go-build"
+export GOMODCACHE="$PWD/.codex/cache/mod"
+export GOLANGCI_LINT_CACHE="$PWD/.codex/cache/golangci-lint"
+mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOLANGCI_LINT_CACHE" 2>/dev/null || true
+
+# Performance
+export GOMAXPROCS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+ulimit -n 4096 2>/dev/null || true
+
+# Ubuntu fd-find installs as fdfind; ensure fd is available
+if command -v fdfind >/dev/null 2>&1 && ! command -v fd >/dev/null 2>&1; then
+  mkdir -p "$PWD/bin" 2>/dev/null || true
+  ln -sf "$(command -v fdfind)" "$PWD/bin/fd" 2>/dev/null || true
 fi
 
-# Performance tuning
-export GOMAXPROCS=${GOMAXPROCS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
-export GOTOOLCHAIN=auto
+# Link prebuilt binaries for current platform
+_PREBUILT_DIR="$PWD/.bin/$_CODEX_PLATFORM"
+if [ -d "$_PREBUILT_DIR" ] && [ -n "$(ls -A "$_PREBUILT_DIR" 2>/dev/null)" ]; then
+  mkdir -p "$PWD/bin" 2>/dev/null || true
+  for tool in "$_PREBUILT_DIR"/*; do
+    [ -f "$tool" ] || continue
+    toolname=$(basename "$tool")
+    if [ ! -e "$PWD/bin/$toolname" ]; then
+      ln -sf "$tool" "$PWD/bin/$toolname" 2>/dev/null || true
+    fi
+  done
+fi
 
-# Increase file descriptor limit if possible
-ulimit -n 65536 2>/dev/null || true
+# PATH: repo bins first
+export PATH="$PWD/bin:$PWD/.bin:$PATH"
 
-echo "snipe environment activated"
-echo "  GOCACHE=$GOCACHE"
-echo "  GOMODCACHE=$GOMODCACHE"
-echo "  PATH includes: $REPO_ROOT/bin"
+# Helper: available commands
+codex-help() {
+  echo "Build & QA:"
+  echo "  mage              # Default: build + lint + test"
+  echo "  mage qa           # Full: race, blackbox, govulncheck"
+  echo ""
+  echo "Code Navigation:"
+  echo "  snipe def <symbol>   # Jump to definition"
+  echo "  snipe callers <sym>  # Find callers"
+  echo "  snipe deps <pkg>     # Package dependencies"
+  echo "  snipe deps --tree    # Full dependency graph"
+  echo "  snipe search \"text\"  # Text search"
+}
 
+# Report tool status
+_TOOLS_OK=0
+_TOOLS_MISS=0
+for _t in go mage golangci-lint snipe jq; do
+  if command -v "$_t" >/dev/null 2>&1; then
+    _TOOLS_OK=$((_TOOLS_OK + 1))
+  else
+    _TOOLS_MISS=$((_TOOLS_MISS + 1))
+  fi
+done
+
+echo "snipe environment activated (${_CODEX_PLATFORM})"
+echo "  Tools: ${_TOOLS_OK}/5 core (go, mage, golangci-lint, snipe, jq)"
+if [ "$_TOOLS_MISS" -gt 0 ]; then
+  echo "  WARNING: ${_TOOLS_MISS} tool(s) missing"
+fi
+echo "  Run 'codex-help' for available commands"
+
+unset _CODEX_OS _CODEX_ARCH _CODEX_PLATFORM _PREBUILT_DIR _TOOLS_OK _TOOLS_MISS _t

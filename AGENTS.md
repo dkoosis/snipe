@@ -1,73 +1,84 @@
-# Codex Agent Instructions
+# Snipe — Agent Instructions
+
+Go code navigation CLI for LLMs. Static indexing, <50ms queries, JSON output.
 
 ## Environment Setup
 
-**IMPORTANT**: Before running any Go tools, mage, or snipe commands, you MUST first activate the environment:
+**First:** Verify all tools are available. If anything is missing, the setup script didn't run.
+
+Setup is handled by `.codex/setup.sh` (auto-discovered by Codex on container creation).
+Fallback: `source .codex/activate.sh` (auto-detects platform, links prebuilt binaries from `.bin/linux-{amd64,arm64}/`).
+
+### Required tools
+
+| Tool | Purpose | Example |
+|------|---------|---------|
+| `snipe` | Go symbol navigation (self-hosted) | `snipe def Open`, `snipe callers FindPackageDeps` |
+| `mage` | Go task runner (build/test/lint) | `mage`, `mage qa` |
+| `golangci-lint` | Go linting | `golangci-lint run ./...` |
+| `gofumpt` | Strict Go formatting | `gofumpt -w file.go` |
+| `goimports` | Fix imports | `goimports -w file.go` |
+| `govulncheck` | Vulnerability scanning | `govulncheck ./...` |
+| `jq` | JSON processing | `snipe deps --tree \| jq '.results[0].packages'` |
+
+### Available in codex-universal (no install needed)
+
+`go`, `jq`, `rg` (ripgrep), `python3`, `fdfind` (aliased to `fd` by setup)
+
+### Orientation workflow
 
 ```bash
-source .codex/activate.sh
+source .codex/activate.sh         # activate environment (if not auto-setup)
+snipe doctor                      # verify index is healthy
+snipe def <Symbol>                # jump to any definition
+snipe callers <Symbol>            # find who calls a function
+snipe deps <package>              # package dependency topology
+snipe deps --tree                 # full project dependency graph
+snipe search "pattern"            # text search (uses rg, no index needed)
 ```
 
-This adds the prebuilt binaries to your PATH. Without this, commands like `mage`, `snipe`, `golangci-lint`, and `govulncheck` will not be found.
+## Project Structure
 
-Alternatively, use full paths:
-- `.codex/bin/linux-amd64/mage qa`
-- `.codex/bin/linux-amd64/snipe search "query"`
-- `.codex/bin/linux-amd64/golangci-lint run`
-
-## Quick Start
-
-```bash
-# Activate environment (required once per session)
-source .codex/activate.sh
-
-# Run diagnostics to verify setup
-bash .codex/diagnose.sh
-
-# Run full QA (lint + tests)
-mage qa
-
-# Run tests only
-go test ./...
-
-# Run linter only
-golangci-lint run
+```
+cmd/           CLI commands (def, refs, callers, callees, deps, search, index)
+internal/
+  index/       go/packages indexing
+  query/       symbol lookup, position resolution, dependency topology
+  store/       SQLite persistence
+  context/     boot context, roles, flows, enrichment
+  output/      JSON envelope formatting
+  embed/       Voyage AI embeddings (batch + realtime)
+test/blackbox/ integration tests
+.snipe/        local index (gitignored)
 ```
 
-## Available Commands
+## Code Conventions
 
-After activating the environment:
+- **Error handling:** Wrap with context via `fmt.Errorf("context: %w", err)`.
+- **Testing:** Table-driven, in-memory SQLite for query tests (see `resolve_test.go`).
+- **Output:** `{protocol, ok, results, meta, error}` JSON envelope — all commands.
+- **IDs:** 16-char hex, chainable across commands.
 
-| Command | Description |
-|---------|-------------|
-| `mage qa` | Full QA: build, test, lint, security scan |
-| `mage` | Default: build + lint + test |
-| `mage test` | Run unit tests |
-| `mage lint` | Run golangci-lint |
-| `mage build` | Build snipe binary |
-| `go test ./...` | Run all tests |
-| `go test -race ./...` | Run tests with race detection |
-| `snipe search "query"` | Search codebase |
-| `snipe doctor` | Check snipe health |
+## QA
 
-## Vendored Dependencies
+| Command | What | Duration |
+|---------|------|----------|
+| `mage` | build + lint + test | ~15s |
+| `mage qa` | race, blackbox, golangci, govulncheck | ~90s |
+| `go test ./...` | unit tests only | ~10s |
 
-All Go dependencies are vendored in `vendor/`. The sandbox can build and test without network access.
+`mage qa` is the merge gate. Must pass before commit.
 
-## Test Strategy
+## Task Execution
 
-1. **Unit tests**: `go test ./...`
-2. **Race detection**: `go test -race ./...`
-3. **Blackbox tests**: `go test -tags=blackbox ./test/blackbox/...`
-4. **Full QA**: `mage qa`
+- Read `docs/progress.md` for current state
+- Pick tasks from `.claude/rules/boot.md` "do next"
+- Commit after each logical unit that passes `mage`
+- Prefer small, surgical changes
+- Don't add features, abstractions, or refactors beyond what's requested
 
-## Common Issues
+## Output Rules
 
-### "command not found: mage"
-Run `source .codex/activate.sh` first, or use `.codex/bin/linux-amd64/mage`.
-
-### Network timeouts during go vet
-Expected in sandbox. Use `GOTOOLCHAIN=local` or skip network-dependent operations.
-
-### Build fails with module errors
-Dependencies are vendored. Use `go build -mod=vendor ./...` if needed.
+- Final code only — no placeholders, no TODOs
+- Must compile: `go build ./...`
+- Must validate: `mage qa`
