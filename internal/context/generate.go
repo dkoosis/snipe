@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/query"
 )
 
 // Package directory constants.
@@ -237,7 +239,7 @@ func generateArchitecture(db *sql.DB, repoRoot string) Architecture {
 	}
 
 	// Detect the Go module path from existing symbols
-	modulePath := detectModulePath(db)
+	modulePath := query.DetectModulePath(db)
 	if modulePath == "" {
 		modulePath = filepath.Base(repoRoot) // fallback
 	}
@@ -261,23 +263,6 @@ func generateArchitecture(db *sql.DB, repoRoot string) Architecture {
 	arch.Boundaries = inferBoundaries(db, modulePath)
 
 	return arch
-}
-
-// detectModulePath finds the Go module path from indexed symbols.
-func detectModulePath(db *sql.DB) string {
-	var pkgPath string
-	// Get the shortest distinct package path (should be the module root)
-	err := db.QueryRow(`
-		SELECT pkg_path FROM symbols
-		WHERE pkg_path NOT LIKE '%/internal/%'
-		  AND pkg_path NOT LIKE '%/cmd/%'
-		ORDER BY LENGTH(pkg_path)
-		LIMIT 1
-	`).Scan(&pkgPath)
-	if err != nil {
-		return ""
-	}
-	return pkgPath
 }
 
 // inferDataFlows analyzes imports to determine data flow between packages.

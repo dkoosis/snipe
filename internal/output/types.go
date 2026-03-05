@@ -442,6 +442,34 @@ type PackResult struct {
 	RelatedTypes []string        `json:"related_types,omitempty"`
 }
 
+// DepsResult is the response for single-package dependency queries.
+type DepsResult struct {
+	Package      string     `json:"package"`
+	Dependencies []DepRef   `json:"dependencies"`
+	Dependents   []DepRef   `json:"dependents"`
+	Cycles       [][]string `json:"cycles,omitempty"`
+}
+
+// DepRef references a package with import weight.
+type DepRef struct {
+	Package   string `json:"package"`
+	FileCount int    `json:"file_count"`
+}
+
+// DepTreeResult is the response for full dependency graph queries.
+type DepTreeResult struct {
+	Packages []string      `json:"packages"`
+	Edges    []DepTreeEdge `json:"edges"`
+	Cycles   [][]string    `json:"cycles,omitempty"`
+}
+
+// DepTreeEdge is a directed edge in the dependency tree.
+type DepTreeEdge struct {
+	From      string `json:"from"`
+	To        string `json:"to"`
+	FileCount int    `json:"file_count"`
+}
+
 // SuggestionsForPack generates suggestions after a pack command.
 func SuggestionsForPack(result *Result) []Suggestion {
 	if result == nil {

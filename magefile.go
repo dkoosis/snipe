@@ -169,6 +169,39 @@ func Blackbox() error {
 	return sh.RunV("go", "test", "-tags=blackbox", "-v", "./test/blackbox/...")
 }
 
+// Cross cross-compiles snipe for Codex/Claude cloud sandboxes (linux/amd64 + linux/arm64).
+func Cross() error {
+	version := getVersion()
+	commit := getCommit()
+	ldflags := fmt.Sprintf("-s -w -X github.com/dkoosis/snipe/cmd.Version=%s -X github.com/dkoosis/snipe/cmd.GitCommit=%s",
+		version, commit)
+
+	targets := []struct{ goos, goarch, dir string }{
+		{"linux", "amd64", ".bin/linux-amd64"},
+		{"linux", "arm64", ".bin/linux-arm64"},
+	}
+
+	for _, t := range targets {
+		outPath := filepath.Join(t.dir, "snipe")
+		if err := os.MkdirAll(t.dir, 0o755); err != nil {
+			return fmt.Errorf("mkdir %s: %w", t.dir, err)
+		}
+		env := map[string]string{
+			"CGO_ENABLED": "0",
+			"GOOS":        t.goos,
+			"GOARCH":      t.goarch,
+		}
+		if err := sh.RunWith(env, "go", "build", "-trimpath", "-ldflags", ldflags, "-o", outPath, "."); err != nil {
+			return fmt.Errorf("build %s/%s: %w", t.goos, t.goarch, err)
+		}
+		// Get file size for reporting
+		if info, err := os.Stat(outPath); err == nil {
+			fmt.Printf("  built %s (%dMB)\n", outPath, info.Size()/(1024*1024))
+		}
+	}
+	return nil
+}
+
 // Clean removes build artifacts.
 func Clean() error {
 	fmt.Println("→ Cleaning...")

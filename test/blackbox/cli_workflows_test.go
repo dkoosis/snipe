@@ -731,6 +731,78 @@ func TestPack_StructType_AggregatesMethodCallGraph(t *testing.T) {
 	}
 }
 
+func TestDeps_SinglePackage_ReturnsDependencies(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "deps", "alpha")
+	if exitCode != 0 {
+		t.Fatalf("deps exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:           "deps",
+		requireQuery:      true,
+		requireRepoRoot:   true,
+		requireIndexState: true,
+	})
+
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected deps results")
+	}
+	first := requireMap(t, results[0], "results[0]")
+
+	// alpha is imported by root, so it should have dependents
+	if _, ok := first["package"]; !ok {
+		t.Fatalf("deps result missing package")
+	}
+	if _, ok := first["dependencies"]; !ok {
+		t.Fatalf("deps result missing dependencies")
+	}
+	if _, ok := first["dependents"]; !ok {
+		t.Fatalf("deps result missing dependents")
+	}
+}
+
+func TestDeps_Tree_ReturnsGraph(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "deps", "--tree")
+	if exitCode != 0 {
+		t.Fatalf("deps --tree exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:           "deps",
+		requireQuery:      true,
+		requireRepoRoot:   true,
+		requireIndexState: true,
+	})
+
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected tree results")
+	}
+	first := requireMap(t, results[0], "results[0]")
+
+	if _, ok := first["packages"]; !ok {
+		t.Fatalf("tree result missing packages")
+	}
+	if _, ok := first["edges"]; !ok {
+		t.Fatalf("tree result missing edges")
+	}
+
+	// Fixture has root importing alpha, beta, greet — should have edges
+	edges := requireSlice(t, first["edges"], "edges")
+	if len(edges) == 0 {
+		t.Fatalf("expected edges in dependency tree")
+	}
+}
+
 func indexRepo(t *testing.T, repoDir string) {
 	t.Helper()
 

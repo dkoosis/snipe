@@ -148,7 +148,7 @@ var knownSubcommands = map[string]bool{
 	"index": true, "def": true, "refs": true, "callers": true, "callees": true,
 	"search": true, "show": true, "sym": true, "status": true,
 	// Analysis commands
-	"impl": true, "types": true, "imports": true, "importers": true, "pkg": true,
+	"impl": true, "types": true, "imports": true, "importers": true, "pkg": true, "deps": true,
 	// Edit, explain, and pack
 	"edit": true, "explain": true, "pack": true,
 	// Maintenance commands
