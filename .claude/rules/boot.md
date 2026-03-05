@@ -1,20 +1,19 @@
-sha: 75712ff | qa: pass
+sha: d628604 | qa: pass
 updated: 2026-03-05
 
 ## Do next
 
-Tag v0.1.1 to pick up linux/arm64 fix + Stream E features + deps command + sandbox, then push.
+Tag v0.1.1 — main is pushed, #106 and #88 closed. Just tag and release.
 
 1. `gh run list --limit 3` — verify v0.1.0 release built
-2. `git push origin main`
-3. `git tag v0.1.1 && git push origin v0.1.1`
-4. Close #88 with link to release, close #106 with commit ref
+2. `git tag v0.1.1 && git push origin v0.1.1`
+3. Verify release artifacts appear on GitHub
 
 ## Done
 
-- `snipe deps` command shipped (#106): single-package + full-graph modes, cycle detection, blackbox tests
-- Sandbox replicated from trixi: `.codex/` scripts, `.bin/linux-{amd64,arm64}/` prebuilts (11 tools each), `mage cross`, `settings.local.json`, AGENTS.md
-- Self-review: fixed fragile path heuristic (DB lookup), cycle detection parent-map bug (stack-based), filed #113
+- Cleaned repo: 3 worktrees removed, 3 orphan branches deleted, stale stash dropped, #106 closed
+- Simplified deps command: extracted scanDepEdges helper, removed dead PackageFull field, extracted depsMeta
+- Main pushed to remote, synced
 
 ## Backlog
 
@@ -25,5 +24,4 @@ Tag v0.1.1 to pick up linux/arm64 fix + Stream E features + deps command + sandb
 - v0.1.0 tag is at 834d19e (before linux/arm64 + Stream E + deps) — v0.1.1 needed
 - `generatePurpose()` runs every index writing placeholder strings — first thing to stop
 - Do NOT optimize eval until telemetry provides ground truth
-- `.claude/settings.local.json` is in global gitignore — won't be committed, stays machine-local
-- Worktrees at `.claude/worktrees/agent-*` — clean up when convenient
+- `query` must NOT import `output` — layering violation caught and reverted this session
