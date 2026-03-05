@@ -126,7 +126,7 @@ func detectReceivers(db *sql.DB) *ReceiverConvention {
 		Total:        total,
 		SingleLetter: singleLetter,
 		Descriptive:  descriptive,
-		PointerPct:   float64(pointer) / float64(total),
+		PointerPct:   float64(pointer) / float64(total) * 100,
 	}
 }
 
@@ -261,7 +261,7 @@ func detectErrors(db *sql.DB) *ErrorConvention {
 	err = db.QueryRow(`
 		SELECT COUNT(*) FROM symbols
 		WHERE kind = 'func'
-		  AND signature LIKE '%error%'
+		  AND (signature LIKE '%error)' OR signature LIKE '% error')
 		  AND file_path NOT LIKE '%_test.go'
 	`).Scan(&errorFuncs)
 	if err != nil {

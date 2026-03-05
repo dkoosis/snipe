@@ -118,8 +118,8 @@ func TestDetectReceivers(t *testing.T) {
 		t.Errorf("pattern: got %q", result.Pattern)
 	}
 	// 3 out of 4 are pointer receivers
-	if result.PointerPct != 0.75 {
-		t.Errorf("pointer_pct: got %f, want 0.75", result.PointerPct)
+	if result.PointerPct != 75.0 {
+		t.Errorf("pointer_pct: got %f, want 75.0", result.PointerPct)
 	}
 }
 
