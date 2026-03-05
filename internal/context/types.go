@@ -16,6 +16,7 @@ type BootContext struct {
 	Lang        string      `json:"lang" yaml:"lang"`
 	Build       string      `json:"build" yaml:"build"`
 	Test        string      `json:"test" yaml:"test"`
+	BuildInfo   *BuildInfo  `json:"build_info,omitempty" yaml:"build_info,omitempty"`
 	EntryPoints []string    `json:"entry_points" yaml:"entry_points"`
 	KeySymbols  []SymbolRef `json:"key_symbols" yaml:"key_symbols"`
 	ActiveWork  *ActiveWork `json:"active_work,omitempty" yaml:"active_work,omitempty"`
@@ -34,6 +35,23 @@ type BootViews struct {
 	EntryPointDetails []EntryPointRef     `json:"entry_point_details,omitempty" yaml:"entry_point_details,omitempty"`
 	PrimaryFlows      []string            `json:"primary_flows,omitempty" yaml:"primary_flows,omitempty"`
 	ChangeBoundaries  map[string][]string `json:"change_boundaries,omitempty" yaml:"change_boundaries,omitempty"`
+	InterfaceMap      []InterfaceEntry    `json:"interface_map,omitempty" yaml:"interface_map,omitempty"`
+}
+
+// InterfaceEntry describes a key interface and its known implementors in the repo.
+type InterfaceEntry struct {
+	Interface    string           `json:"interface" yaml:"interface"`
+	File         string           `json:"file" yaml:"file"`
+	Line         int              `json:"line" yaml:"line"`
+	Methods      []string         `json:"methods" yaml:"methods"`
+	Implementors []ImplementorRef `json:"implementors" yaml:"implementors"`
+}
+
+// ImplementorRef is a lightweight reference to a type implementing an interface.
+type ImplementorRef struct {
+	Name string `json:"name" yaml:"name"`
+	File string `json:"file" yaml:"file"`
+	Line int    `json:"line" yaml:"line"`
 }
 
 // ArchSummary provides a high-level architecture overview grounded in call graph data.
@@ -157,6 +175,22 @@ type SymbolRef struct {
 	Role       string `json:"role,omitempty" yaml:"role,omitempty"`
 	Visibility string `json:"visibility,omitempty" yaml:"visibility,omitempty"`
 	Purpose    string `json:"purpose,omitempty" yaml:"purpose,omitempty"`
+}
+
+// BuildInfo describes the detected build/task system and CI configuration.
+type BuildInfo struct {
+	System     string   `json:"system" yaml:"system"`                               // "mage", "make", "task", "just", "go"
+	Build      string   `json:"build" yaml:"build"`                                 // Primary build command
+	Test       string   `json:"test" yaml:"test"`                                   // Primary test command
+	Targets    []string `json:"targets,omitempty" yaml:"targets,omitempty"`         // Available targets
+	CI         []CIInfo `json:"ci,omitempty" yaml:"ci,omitempty"`                   // CI configs found
+	GoGenerate bool     `json:"go_generate,omitempty" yaml:"go_generate,omitempty"` // true if //go:generate found
+}
+
+// CIInfo describes a detected CI configuration file.
+type CIInfo struct {
+	System string `json:"system" yaml:"system"` // "github-actions", "gitlab-ci", "circleci", "jenkins"
+	File   string `json:"file" yaml:"file"`     // Relative path
 }
 
 // Meta contains generation metadata.

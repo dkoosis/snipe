@@ -93,11 +93,14 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		}
 	}
 
+	buildInfo := DetectBuildInfo(cfg.RepoRoot, cfg.DB)
+
 	return &BootContext{
 		Project:     proj.Name,
 		Lang:        lang,
-		Build:       proj.Build,
-		Test:        proj.Test,
+		Build:       buildInfo.Build,
+		Test:        buildInfo.Test,
+		BuildInfo:   &buildInfo,
 		EntryPoints: entryPoints,
 		KeySymbols:  keySymbols,
 		ActiveWork:  activeWork,
@@ -118,8 +121,11 @@ func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 	// Get change boundaries using batch query
 	changeBoundaries, _ := GetChangeBoundaries(db, repoRoot)
 
+	// Get interface satisfaction map
+	interfaceMap, _ := GetInterfaceMap(db, repoRoot)
+
 	// Only return BootViews if we have meaningful content
-	if len(entryPointDetails) == 0 && len(primaryFlows) == 0 && len(changeBoundaries) == 0 {
+	if len(entryPointDetails) == 0 && len(primaryFlows) == 0 && len(changeBoundaries) == 0 && len(interfaceMap) == 0 {
 		return nil
 	}
 
@@ -127,6 +133,7 @@ func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 		EntryPointDetails: entryPointDetails,
 		PrimaryFlows:      primaryFlows,
 		ChangeBoundaries:  changeBoundaries,
+		InterfaceMap:      interfaceMap,
 	}
 }
 

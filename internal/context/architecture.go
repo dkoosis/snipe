@@ -48,6 +48,8 @@ func GenerateArchitectureSummary(db *sql.DB, repoRoot string) (*ArchSummary, err
 
 // getPackagePurposes returns all packages with their inferred purposes.
 // Queries distinct pkg_paths and shortens them in Go (SQLite lacks REVERSE).
+// Uses real doc comments from package_docs table when available, falling back
+// to hardcoded inference.
 func getPackagePurposes(db *sql.DB, repoRoot string) ([]PackagePurpose, error) {
 	rows, err := db.Query(`
 		SELECT DISTINCT pkg_path
@@ -62,15 +64,24 @@ func getPackagePurposes(db *sql.DB, repoRoot string) ([]PackagePurpose, error) {
 	}
 	defer rows.Close()
 
-	seen := make(map[string]bool)
-	var components []PackagePurpose
-
+	var pkgPaths []string
 	for rows.Next() {
 		var pkgPath string
 		if err := rows.Scan(&pkgPath); err != nil {
 			continue
 		}
+		pkgPaths = append(pkgPaths, pkgPath)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
+	// Batch load package docs
+	docMap := loadPackageDocs(db, pkgPaths)
+
+	seen := make(map[string]bool)
+	var components []PackagePurpose
+	for _, pkgPath := range pkgPaths {
 		name := shortenPackagePath(pkgPath)
 		name = normalizePackageName(name)
 		if name == "" || seen[name] {
@@ -78,14 +89,52 @@ func getPackagePurposes(db *sql.DB, repoRoot string) ([]PackagePurpose, error) {
 		}
 		seen[name] = true
 
-		purpose := inferPackagePurpose(name)
+		purpose := docMap[pkgPath]
+		if purpose == "" {
+			purpose = inferPackagePurpose(name)
+		}
 		components = append(components, PackagePurpose{
 			Name:    name,
 			Purpose: purpose,
 		})
 	}
 
-	return components, rows.Err()
+	return components, nil
+}
+
+// loadPackageDocs returns a map of pkg_path -> first sentence of doc comment.
+// Non-fatal: returns empty map if package_docs table doesn't exist yet.
+func loadPackageDocs(db *sql.DB, pkgPaths []string) map[string]string {
+	if len(pkgPaths) == 0 {
+		return nil
+	}
+
+	placeholders := make([]string, len(pkgPaths))
+	args := make([]interface{}, len(pkgPaths))
+	for i, p := range pkgPaths {
+		placeholders[i] = "?"
+		args[i] = p
+	}
+
+	// #nosec G201 -- placeholders are positional parameters
+	query := "SELECT pkg_path, doc FROM package_docs WHERE pkg_path IN (" +
+		strings.Join(placeholders, ",") + ")"
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	result := make(map[string]string, len(pkgPaths))
+	for rows.Next() {
+		var pkgPath, doc string
+		if err := rows.Scan(&pkgPath, &doc); err != nil {
+			continue
+		}
+		result[pkgPath] = ExtractFirstSentence(doc)
+	}
+	return result
 }
 
 // normalizePackageName cleans up package names for display.

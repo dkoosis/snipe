@@ -142,9 +142,13 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "Found %d symbols\n", len(symbols))
 
+	// Extract package-level doc comments
+	pkgDocs := index.ExtractPackageDocs(result)
+	fmt.Fprintf(os.Stderr, "Found %d package docs\n", len(pkgDocs))
+
 	// Branch: incremental vs full
 	if detection.result == skipResultProceedIncremental {
-		return runIncrementalIndex(cmd, s, result, symbols, detection.changes, absDir, start, w)
+		return runIncrementalIndex(cmd, s, result, symbols, pkgDocs, detection.changes, absDir, start, w)
 	}
 
 	// Full reindex path
@@ -185,6 +189,11 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(os.Stderr, "Writing index...\n")
 	if err := s.WriteIndex(symbols, refs, edges); err != nil {
 		return fmt.Errorf("write index: %w", err)
+	}
+
+	// Write package docs
+	if err := s.WritePackageDocs(pkgDocs); err != nil {
+		return fmt.Errorf("write package docs: %w", err)
 	}
 
 	// Write imports
@@ -516,7 +525,7 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 }
 
 // runIncrementalIndex performs an incremental index update for changed files only.
-func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadResult, allSymbols []index.Symbol, changes *index.ChangeResult, absDir string, start time.Time, w *output.Writer) error {
+func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadResult, allSymbols []index.Symbol, pkgDocs []index.PackageDoc, changes *index.ChangeResult, absDir string, start time.Time, w *output.Writer) error {
 	// Build file filter set (modified + added files only)
 	changedFiles := make([]string, 0, len(changes.Modified)+len(changes.Added))
 	changedFiles = append(changedFiles, changes.Modified...)
@@ -565,6 +574,11 @@ func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadRes
 	incResult, err := s.WriteIndexIncremental(changedSymbols, refs, edges, imports, changedFiles, changes.Deleted)
 	if err != nil {
 		return fmt.Errorf("write incremental index: %w", err)
+	}
+
+	// Write package docs (full replace — cheap and ensures consistency)
+	if err := s.WritePackageDocs(pkgDocs); err != nil {
+		return fmt.Errorf("write package docs: %w", err)
 	}
 
 	// Update file hashes for ALL files (cheap stat calls)

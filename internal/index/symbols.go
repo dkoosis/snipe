@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -418,6 +419,67 @@ func extractDoc(doc *ast.CommentGroup) string {
 		return ""
 	}
 	return strings.TrimSpace(doc.Text())
+}
+
+// PackageDoc holds the extracted package-level doc comment for a Go package.
+type PackageDoc struct {
+	PkgPath string
+	Doc     string
+}
+
+// ExtractPackageDocs extracts package-level doc comments from loaded packages.
+// For each package, it prioritizes doc.go files, then falls back to the first
+// file with a non-empty package doc comment.
+func ExtractPackageDocs(result *LoadResult) []PackageDoc {
+	seen := make(map[string]bool)
+	var docs []PackageDoc
+
+	for _, pkg := range result.Packages {
+		if pkg.PkgPath == "" || seen[pkg.PkgPath] {
+			continue
+		}
+
+		doc := extractPackageDoc(pkg)
+		if doc == "" {
+			continue
+		}
+		seen[pkg.PkgPath] = true
+		docs = append(docs, PackageDoc{
+			PkgPath: pkg.PkgPath,
+			Doc:     doc,
+		})
+	}
+
+	return docs
+}
+
+// extractPackageDoc returns the best package-level doc comment for a package.
+// Prioritizes doc.go, then falls back to first file with a non-empty File.Doc.
+func extractPackageDoc(pkg *packages.Package) string {
+	var fallback string
+
+	for i, file := range pkg.Syntax {
+		if i >= len(pkg.GoFiles) {
+			continue
+		}
+		if file.Doc == nil {
+			continue
+		}
+		doc := strings.TrimSpace(file.Doc.Text())
+		if doc == "" {
+			continue
+		}
+
+		filePath := pkg.GoFiles[i]
+		if filepath.Base(filePath) == "doc.go" {
+			return doc
+		}
+		if fallback == "" {
+			fallback = doc
+		}
+	}
+
+	return fallback
 }
 
 func generateID(filePath string, line, col int, kind string) string {

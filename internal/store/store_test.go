@@ -105,7 +105,7 @@ func TestSchemaCreation(t *testing.T) {
 	defer s.Close()
 
 	// Verify tables exist by querying them
-	tables := []string{"symbols", "refs", "call_graph", "meta", "files"}
+	tables := []string{"symbols", "refs", "call_graph", "meta", "files", "package_docs"}
 	for _, table := range tables {
 		var count int
 		err := s.DB().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count)
@@ -119,8 +119,8 @@ func TestSchemaCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetMeta(schema_version) failed: %v", err)
 	}
-	if version != "12" {
-		t.Errorf("schema_version = %q, want %q", version, "12")
+	if version != "13" {
+		t.Errorf("schema_version = %q, want %q", version, "13")
 	}
 }
 

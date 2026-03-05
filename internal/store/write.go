@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dkoosis/snipe/internal/index"
 
@@ -662,6 +663,43 @@ func isNoSuchTableErr(err error, table string) bool {
 		return false
 	}
 	return strings.Contains(strings.ToLower(sqliteErr.Error()), "no such table: "+strings.ToLower(table))
+}
+
+// WritePackageDocs writes package-level doc comments to the database.
+// Full replace: deletes existing rows and re-inserts.
+func (s *Store) WritePackageDocs(docs []index.PackageDoc) error {
+	if len(docs) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+
+	if _, err := tx.Exec(`DELETE FROM package_docs`); err != nil {
+		return fmt.Errorf("clear package_docs: %w", err)
+	}
+
+	stmt, err := tx.Prepare(`INSERT INTO package_docs (pkg_path, doc, indexed_at) VALUES (?, ?, ?)`)
+	if err != nil {
+		return fmt.Errorf("prepare package_docs insert: %w", err)
+	}
+	defer stmt.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, d := range docs {
+		if _, err := stmt.Exec(d.PkgPath, d.Doc, now); err != nil {
+			return fmt.Errorf("insert package doc %s: %w", d.PkgPath, err)
+		}
+	}
+
+	return tx.Commit()
 }
 
 // GetStats returns index statistics

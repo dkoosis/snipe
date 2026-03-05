@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 12
+const schemaVersion = 13
 
 // migration represents a database migration.
 type migration struct {
@@ -194,6 +194,17 @@ var migrations = []migration{
 			FOREIGN KEY (symbol_id) REFERENCES symbols(id)
 		);
 		CREATE INDEX IF NOT EXISTS idx_symbol_purposes_hash ON symbol_purposes(content_hash);
+		`,
+	},
+	{
+		version: 13,
+		name:    "package_docs_table",
+		up: `
+		CREATE TABLE IF NOT EXISTS package_docs (
+			pkg_path   TEXT PRIMARY KEY,
+			doc        TEXT NOT NULL,
+			indexed_at TEXT NOT NULL
+		);
 		`,
 	},
 }
