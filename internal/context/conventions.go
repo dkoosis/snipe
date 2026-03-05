@@ -156,17 +156,18 @@ func detectTesting(db *sql.DB) *TestConvention {
 	}
 
 	// Check colocation: does a non-test .go file exist in the same directory?
+	// Use NOT LIKE '%/%' suffix to exclude subdirectory matches.
 	var colocated, separate int
 	for _, tf := range testFiles {
 		dir := filepath.Dir(tf)
+		prefix := dir + "/"
 		var count int
 		err := db.QueryRow(`
 			SELECT COUNT(*) FROM symbols
-			WHERE file_path LIKE ? || '/%'
+			WHERE file_path LIKE ? || '%.go'
 			  AND file_path NOT LIKE '%_test.go'
-			  AND file_path LIKE '%.go'
-			LIMIT 1
-		`, dir).Scan(&count)
+			  AND SUBSTR(file_path, ?) NOT LIKE '%/%'
+		`, prefix, len(prefix)+1).Scan(&count)
 		if err == nil && count > 0 {
 			colocated++
 		} else {
@@ -277,18 +278,15 @@ func detectErrors(db *sql.DB) *ErrorConvention {
 		pattern = "sentinel errors"
 	}
 
-	// Confidence based on how much evidence we have
-	conf := "low"
-	if total >= 3 {
-		conf = "medium"
-	}
-	if sentinels >= 3 || errorFuncs >= 5 {
-		conf = "high"
+	// Use sentinel ratio as the consistency signal
+	ratio := float64(sentinels) / float64(total)
+	if sentinels == 0 {
+		ratio = 1.0 // fully consistent: no sentinels at all
 	}
 
 	return &ErrorConvention{
 		Pattern:    pattern,
-		Confidence: conf,
+		Confidence: confidence(max(ratio, 1-ratio), total),
 		Sentinels:  sentinels,
 		ErrorFuncs: errorFuncs,
 	}
