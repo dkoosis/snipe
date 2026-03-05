@@ -199,3 +199,67 @@ type Meta struct {
 	GitCommit        string `json:"git_commit,omitempty" yaml:"git_commit,omitempty"`
 	IndexFingerprint string `json:"index_fingerprint,omitempty" yaml:"index_fingerprint,omitempty"`
 }
+
+// Conventions holds detected coding conventions for a project.
+type Conventions struct {
+	Constructors  *ConstructorConvention `json:"constructors,omitempty" yaml:"constructors,omitempty"`
+	Receivers     *ReceiverConvention    `json:"receivers,omitempty" yaml:"receivers,omitempty"`
+	Testing       *TestConvention        `json:"testing,omitempty" yaml:"testing,omitempty"`
+	Interfaces    *InterfaceConvention   `json:"interfaces,omitempty" yaml:"interfaces,omitempty"`
+	ErrorHandling *ErrorConvention       `json:"errors,omitempty" yaml:"errors,omitempty"`
+	FileOrg       *FileOrgConvention     `json:"file_organization,omitempty" yaml:"file_organization,omitempty"`
+}
+
+// ConstructorConvention describes New* function patterns.
+type ConstructorConvention struct {
+	Pattern    string `json:"pattern" yaml:"pattern"`
+	Confidence string `json:"confidence" yaml:"confidence"`
+	Total      int    `json:"total" yaml:"total"`
+	WithError  int    `json:"with_error" yaml:"with_error"`
+	WithoutErr int    `json:"without_error" yaml:"without_error"`
+}
+
+// ReceiverConvention describes method receiver naming patterns.
+type ReceiverConvention struct {
+	Pattern      string  `json:"pattern" yaml:"pattern"`
+	Confidence   string  `json:"confidence" yaml:"confidence"`
+	Total        int     `json:"total" yaml:"total"`
+	SingleLetter int     `json:"single_letter" yaml:"single_letter"`
+	Descriptive  int     `json:"descriptive" yaml:"descriptive"`
+	PointerPct   float64 `json:"pointer_pct" yaml:"pointer_pct"`
+}
+
+// TestConvention describes testing patterns.
+type TestConvention struct {
+	Pattern    string `json:"pattern" yaml:"pattern"`
+	Confidence string `json:"confidence" yaml:"confidence"`
+	TestFiles  int    `json:"test_files" yaml:"test_files"`
+	Colocated  int    `json:"colocated" yaml:"colocated"`
+	Separate   int    `json:"separate" yaml:"separate"`
+	Helpers    int    `json:"helpers" yaml:"helpers"`
+}
+
+// InterfaceConvention describes interface naming and sizing patterns.
+type InterfaceConvention struct {
+	Pattern    string `json:"pattern" yaml:"pattern"`
+	Confidence string `json:"confidence" yaml:"confidence"`
+	Total      int    `json:"total" yaml:"total"`
+	ErSuffix   int    `json:"er_suffix" yaml:"er_suffix"`
+}
+
+// ErrorConvention describes error handling patterns.
+type ErrorConvention struct {
+	Pattern    string `json:"pattern" yaml:"pattern"`
+	Confidence string `json:"confidence" yaml:"confidence"`
+	Sentinels  int    `json:"sentinels" yaml:"sentinels"`
+	ErrorFuncs int    `json:"error_returning_funcs" yaml:"error_returning_funcs"`
+}
+
+// FileOrgConvention describes file organization patterns.
+type FileOrgConvention struct {
+	Pattern      string  `json:"pattern" yaml:"pattern"`
+	Confidence   string  `json:"confidence" yaml:"confidence"`
+	AvgTypesFile float64 `json:"avg_types_per_file" yaml:"avg_types_per_file"`
+	SingleType   int     `json:"single_type_files" yaml:"single_type_files"`
+	MultiType    int     `json:"multi_type_files" yaml:"multi_type_files"`
+}
