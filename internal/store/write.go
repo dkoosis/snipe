@@ -666,7 +666,7 @@ func isNoSuchTableErr(err error, table string) bool {
 }
 
 // WritePackageDocs writes package-level doc comments to the database.
-// Full replace: deletes existing rows and re-inserts.
+// Uses upsert to avoid full-table delete on incremental reindex.
 func (s *Store) WritePackageDocs(docs []index.PackageDoc) error {
 	if len(docs) == 0 {
 		return nil
@@ -682,20 +682,19 @@ func (s *Store) WritePackageDocs(docs []index.PackageDoc) error {
 		}
 	}()
 
-	if _, err := tx.Exec(`DELETE FROM package_docs`); err != nil {
-		return fmt.Errorf("clear package_docs: %w", err)
-	}
-
-	stmt, err := tx.Prepare(`INSERT INTO package_docs (pkg_path, doc, indexed_at) VALUES (?, ?, ?)`)
+	stmt, err := tx.Prepare(`
+		INSERT INTO package_docs (pkg_path, doc, indexed_at) VALUES (?, ?, ?)
+		ON CONFLICT(pkg_path) DO UPDATE SET doc = excluded.doc, indexed_at = excluded.indexed_at
+	`)
 	if err != nil {
-		return fmt.Errorf("prepare package_docs insert: %w", err)
+		return fmt.Errorf("prepare package_docs upsert: %w", err)
 	}
 	defer stmt.Close()
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	for _, d := range docs {
 		if _, err := stmt.Exec(d.PkgPath, d.Doc, now); err != nil {
-			return fmt.Errorf("insert package doc %s: %w", d.PkgPath, err)
+			return fmt.Errorf("upsert package doc %s: %w", d.PkgPath, err)
 		}
 	}
 

@@ -1,16 +1,12 @@
 package context
 
 import (
-	"bufio"
 	"database/sql"
 	"fmt"
-	"os"
-	"regexp"
 	"strings"
-)
 
-// interfaceMethodLineRe matches exported method declarations inside an interface body.
-var interfaceMethodLineRe = regexp.MustCompile(`^\s+([A-Z]\w*)\s*\(`)
+	"github.com/dkoosis/snipe/internal/query"
+)
 
 // GetInterfaceMap finds non-trivial interfaces in the repo and their implementors.
 // Non-trivial means 2+ methods OR 2+ implementors.
@@ -25,7 +21,7 @@ func GetInterfaceMap(db *sql.DB, repoRoot string) ([]InterfaceEntry, error) {
 
 	// Read method names from source for each interface
 	for i := range ifaces {
-		ifaces[i].methods = extractMethodNamesFromSource(
+		ifaces[i].methods = query.ExtractInterfaceMethodNames(
 			ifaces[i].filePath, ifaces[i].lineStart, ifaces[i].lineEnd,
 		)
 	}
@@ -153,6 +149,7 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 	if err != nil {
 		return nil, err
 	}
+	defer candRows.Close()
 
 	type candidate struct {
 		name    string
@@ -166,7 +163,6 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 		}
 		candidates = append(candidates, c)
 	}
-	candRows.Close()
 
 	if len(candidates) == 0 {
 		return nil, nil
@@ -195,17 +191,7 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 	}
 	defer rows.Close()
 
-	var refs []ImplementorRef
-	for rows.Next() {
-		var ref ImplementorRef
-		var filePath string
-		if err := rows.Scan(&ref.Name, &filePath, &ref.Line); err != nil {
-			continue
-		}
-		ref.File = strings.TrimPrefix(filePath, repoRoot+"/")
-		refs = append(refs, ref)
-	}
-	return refs, rows.Err()
+	return scanImplementorRefs(rows, repoRoot)
 }
 
 func queryImplementorsByCooccurrence(db *sql.DB, repoRoot, interfaceID string) ([]ImplementorRef, error) {
@@ -227,6 +213,11 @@ func queryImplementorsByCooccurrence(db *sql.DB, repoRoot, interfaceID string) (
 	}
 	defer rows.Close()
 
+	return scanImplementorRefs(rows, repoRoot)
+}
+
+// scanImplementorRefs scans rows of (name, file_path, line_start) into ImplementorRef slices.
+func scanImplementorRefs(rows *sql.Rows, repoRoot string) ([]ImplementorRef, error) {
 	var refs []ImplementorRef
 	for rows.Next() {
 		var ref ImplementorRef
@@ -238,31 +229,4 @@ func queryImplementorsByCooccurrence(db *sql.DB, repoRoot, interfaceID string) (
 		refs = append(refs, ref)
 	}
 	return refs, rows.Err()
-}
-
-func extractMethodNamesFromSource(filePath string, lineStart, lineEnd int) []string {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-
-	var methods []string
-	scanner := bufio.NewScanner(f)
-	lineNum := 0
-	for scanner.Scan() {
-		lineNum++
-		if lineNum <= lineStart || lineNum >= lineEnd {
-			continue
-		}
-		line := scanner.Text()
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
-			continue
-		}
-		if m := interfaceMethodLineRe.FindStringSubmatch(line); m != nil {
-			methods = append(methods, m[1])
-		}
-	}
-	return methods
 }

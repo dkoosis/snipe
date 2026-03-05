@@ -938,7 +938,7 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 	// Step 2: Extract method names from the interface source body.
 	// Go interface methods aren't stored as symbols with the interface as receiver,
 	// so we read the source and parse method declarations.
-	methodNames := extractInterfaceMethodNames(ifaceFile, ifaceLineStart, ifaceLineEnd)
+	methodNames := ExtractInterfaceMethodNames(ifaceFile, ifaceLineStart, ifaceLineEnd)
 
 	// If no methods found, fall back to file co-occurrence heuristic
 	if len(methodNames) == 0 {
@@ -1062,9 +1062,9 @@ func findImplementersByCooccurrence(db *sql.DB, interfaceID string, limit, offse
 // Matches lines like: "  Name() string" or "  Complete(ctx context.Context, req Request) (*Response, error)"
 var interfaceMethodRe = regexp.MustCompile(`^\s+([A-Z]\w*)\s*\(`)
 
-// extractInterfaceMethodNames reads the interface body from source and extracts
+// ExtractInterfaceMethodNames reads the interface body from source and extracts
 // exported method names. Returns nil if file can't be read or has no methods.
-func extractInterfaceMethodNames(filePath string, lineStart, lineEnd int) []string {
+func ExtractInterfaceMethodNames(filePath string, lineStart, lineEnd int) []string {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil

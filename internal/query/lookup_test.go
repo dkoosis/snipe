@@ -1,11 +1,11 @@
-package context
+package query
 
 import (
 	"os"
 	"testing"
 )
 
-func TestExtractMethodNamesFromSource(t *testing.T) {
+func TestExtractInterfaceMethodNames(t *testing.T) {
 	content := `package fake
 
 type Greeter interface {
@@ -16,7 +16,7 @@ type Greeter interface {
 }
 `
 	f := writeTempGoFile(t, content)
-	methods := extractMethodNamesFromSource(f, 3, 8)
+	methods := ExtractInterfaceMethodNames(f, 3, 8)
 
 	if len(methods) != 2 {
 		t.Fatalf("expected 2 methods, got %d: %v", len(methods), methods)
@@ -29,7 +29,7 @@ type Greeter interface {
 	}
 }
 
-func TestExtractMethodNamesFromSource_SkipsEmbedded(t *testing.T) {
+func TestExtractInterfaceMethodNames_SkipsEmbedded(t *testing.T) {
 	content := `package fake
 
 type ReadWriter interface {
@@ -38,7 +38,7 @@ type ReadWriter interface {
 }
 `
 	f := writeTempGoFile(t, content)
-	methods := extractMethodNamesFromSource(f, 3, 6)
+	methods := ExtractInterfaceMethodNames(f, 3, 6)
 	if len(methods) != 1 || methods[0] != "Write" {
 		t.Errorf("expected [Write], got %v", methods)
 	}

@@ -34,8 +34,9 @@ func Generate(cfg GenerateConfig) (*ProjectContext, error) {
 		cfg.MaxSymbols = 20
 	}
 
+	bi := DetectBuildInfo(cfg.RepoRoot, cfg.DB)
 	ctx := &ProjectContext{
-		Project:      generateProject(cfg.RepoRoot),
+		Project:      generateProject(cfg.RepoRoot, &bi),
 		Architecture: generateArchitecture(cfg.DB, cfg.RepoRoot),
 		Files:        generateFiles(cfg.DB, cfg.RepoRoot),
 		Symbols:      generateSymbols(cfg.DB, cfg.RepoRoot, cfg.Full, cfg.MaxSymbols),
@@ -47,7 +48,8 @@ func Generate(cfg GenerateConfig) (*ProjectContext, error) {
 
 // GenerateBoot creates a minimal BootContext for LLM boot sequences (~2000 tokens).
 func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
-	proj := generateProject(cfg.RepoRoot)
+	buildInfo := DetectBuildInfo(cfg.RepoRoot, cfg.DB)
+	proj := generateProject(cfg.RepoRoot, &buildInfo)
 	meta := generateMeta(cfg.DB)
 
 	// Get entry points (cmd/* main.go files) - backward compatible
@@ -93,13 +95,11 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		}
 	}
 
-	buildInfo := DetectBuildInfo(cfg.RepoRoot, cfg.DB)
-
 	return &BootContext{
 		Project:     proj.Name,
 		Lang:        lang,
-		Build:       buildInfo.Build,
-		Test:        buildInfo.Test,
+		Build:       proj.Build,
+		Test:        proj.Test,
 		BuildInfo:   &buildInfo,
 		EntryPoints: entryPoints,
 		KeySymbols:  keySymbols,
@@ -215,27 +215,17 @@ func getKeySymbolsByRefCount(db *sql.DB, repoRoot string, limit int) []SymbolRef
 	return symbols
 }
 
-func generateProject(repoRoot string) Project {
+func generateProject(repoRoot string, buildInfo *BuildInfo) Project {
 	name := filepath.Base(repoRoot)
 	proj := Project{
 		Name: name,
 		Root: repoRoot,
 		Lang: []string{"go"}, // snipe currently only supports Go
 	}
-
-	// Detect build system
-	switch {
-	case fileExists(filepath.Join(repoRoot, "magefile.go")):
-		proj.Build = "mage"
-		proj.Test = "mage test"
-	case fileExists(filepath.Join(repoRoot, "Makefile")):
-		proj.Build = "make"
-		proj.Test = "make test"
-	default:
-		proj.Build = "go build ./..."
-		proj.Test = "go test ./..."
+	if buildInfo != nil {
+		proj.Build = buildInfo.Build
+		proj.Test = buildInfo.Test
 	}
-
 	return proj
 }
 
