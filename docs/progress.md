@@ -153,6 +153,25 @@ Content-hash incremental enrichment (schema already exists).
 
 ---
 
+## Stream E: Claude Orientation (in progress)
+
+Improve snipe's usefulness for Claude navigating Go repos. Issues #105-#112.
+
+| Issue | Feature | Effort | Impact | Status |
+|-------|---------|--------|--------|--------|
+| #105 | Package narratives from doc.go | S | High | done 5c6eaaf |
+| #109 | Interface satisfaction map | S | High | done 5c6eaaf |
+| #111 | Build/test system detection | S | High | done 5c6eaaf |
+| #106 | Dependency topology in boot | M | High | — |
+| #107 | Convention detection | M | Medium | — |
+| #108 | Test mapping | M | Medium | — |
+| #110 | Change impact surface | L | High | — |
+| #112 | Token budget optimization | M | Medium | — |
+
+Simplify review after quick wins: deduplicated interface method extraction, consolidated build detection, upsert for package_docs. Net -105 lines (c34271e).
+
+---
+
 ## Decisions log
 
 | Decision | Rationale | Date |
