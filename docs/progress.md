@@ -162,7 +162,7 @@ Improve snipe's usefulness for Claude navigating Go repos. Issues #105-#112.
 | #105 | Package narratives from doc.go | S | High | done 5c6eaaf |
 | #109 | Interface satisfaction map | S | High | done 5c6eaaf |
 | #111 | Build/test system detection | S | High | done 5c6eaaf |
-| #106 | Dependency topology in boot | M | High | — |
+| #106 | Dependency topology (`snipe deps`) | M | High | done aa699a2 |
 | #107 | Convention detection | M | Medium | — |
 | #108 | Test mapping | M | Medium | — |
 | #110 | Change impact surface | L | High | — |
