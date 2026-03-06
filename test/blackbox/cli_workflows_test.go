@@ -803,6 +803,105 @@ func TestDeps_Tree_ReturnsGraph(t *testing.T) {
 	}
 }
 
+func TestContext_Conventions_ReturnsDetectedPatterns_When_IndexPresent(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	initGitRepo(t, repoDir)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "context", "--conventions", repoDir)
+	if exitCode != 0 {
+		t.Fatalf("context --conventions exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+
+	// Fixture has Greeter interface → interfaces should be detected
+	if iface, ok := resp["interfaces"]; ok {
+		ifaceMap := requireMap(t, iface, "interfaces")
+		if _, ok := ifaceMap["pattern"]; !ok {
+			t.Fatalf("interfaces missing pattern field")
+		}
+		if _, ok := ifaceMap["total"]; !ok {
+			t.Fatalf("interfaces missing total field")
+		}
+	}
+
+	// Fixture has (w *Widget) Do() → receivers should be detected
+	if recv, ok := resp["receivers"]; ok {
+		recvMap := requireMap(t, recv, "receivers")
+		if _, ok := recvMap["pattern"]; !ok {
+			t.Fatalf("receivers missing pattern field")
+		}
+		total := getFloat(t, recvMap["total"], "receivers.total")
+		if total < 1 {
+			t.Fatalf("receivers.total = %v, want >= 1", total)
+		}
+	}
+
+	// At least one category should be detected from fixture
+	detected := 0
+	for _, key := range []string{"constructors", "receivers", "testing", "interfaces", "errors", "file_organization"} {
+		if v, ok := resp[key]; ok && v != nil {
+			detected++
+		}
+	}
+	if detected == 0 {
+		t.Fatalf("expected at least one convention category detected, got none")
+	}
+}
+
+func TestContext_Boot_IncludesConventions_When_IndexPresent(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	initGitRepo(t, repoDir)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "context", "--boot", repoDir)
+	if exitCode != 0 {
+		t.Fatalf("context --boot exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+
+	// Boot context should include conventions field
+	conv, ok := resp["conventions"]
+	if !ok {
+		t.Fatalf("boot context missing conventions field")
+	}
+	if conv == nil {
+		t.Fatalf("boot context conventions is null")
+	}
+	convMap := requireMap(t, conv, "conventions")
+
+	// Should have at least one non-nil category
+	detected := 0
+	for _, key := range []string{"constructors", "receivers", "testing", "interfaces", "errors", "file_organization"} {
+		if v, ok := convMap[key]; ok && v != nil {
+			detected++
+		}
+	}
+	if detected == 0 {
+		t.Fatalf("expected at least one convention in boot context")
+	}
+}
+
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "test@test.com"},
+		{"config", "user.name", "Test"},
+		{"add", "."},
+		{"commit", "-m", "init"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+}
+
 func indexRepo(t *testing.T, repoDir string) {
 	t.Helper()
 
