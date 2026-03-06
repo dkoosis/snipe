@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"os"
-	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -10,6 +9,7 @@ import (
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
+	"github.com/dkoosis/snipe/internal/semsearch"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -36,11 +36,6 @@ var (
 func init() {
 	simCmd.Flags().Float64Var(&simThreshold, "threshold", 0.3, "Minimum similarity threshold (0-1)")
 	rootCmd.AddCommand(simCmd)
-}
-
-type simResult struct {
-	row        store.EmbeddingRow
-	similarity float32
 }
 
 func runSim(cmd *cobra.Command, args []string) error {
@@ -78,15 +73,6 @@ func runSim(cmd *cobra.Command, args []string) error {
 	}
 	defer s.Close()
 
-	// Check if embeddings exist
-	count, err := s.CountEmbeddings()
-	if err != nil || count == 0 {
-		return w.WriteError("sim", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "no embeddings found. Run 'snipe index --embed' first",
-		})
-	}
-
 	// Get embedding client
 	client, err := embed.NewClient()
 	if err != nil {
@@ -96,85 +82,48 @@ func runSim(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// Embed the query
-	queryEmbed, err := client.EmbedOne(queryText, "query")
-	if err != nil {
-		return w.WriteError("sim", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to embed query: " + err.Error(),
-		})
-	}
-
-	// Get all embeddings
-	embeddings, err := s.GetAllEmbeddings()
-	if err != nil {
-		return w.WriteError("sim", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to load embeddings: " + err.Error(),
-		})
-	}
-
-	// Compute similarities
-	var matches []simResult
+	// Run semantic search (fetch off+lim to support offset)
 	threshold := float32(simThreshold)
-	for _, e := range embeddings {
-		sim := embed.CosineSimilarity(queryEmbed, e.Embedding)
-		if sim >= threshold {
-			matches = append(matches, simResult{row: e, similarity: sim})
-		}
+	searchLimit := off + lim
+	results, _, simErr := semsearch.Search(queryText, s, client, searchLimit, threshold)
+	if simErr != nil {
+		return w.WriteError("sim", &output.Error{
+			Code:    output.ErrInternal,
+			Message: simErr.Error(),
+		})
+	}
+	if results == nil {
+		return w.WriteError("sim", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "no embeddings found. Run 'snipe index --embed' first",
+		})
 	}
 
-	// Sort by similarity descending
-	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].similarity > matches[j].similarity
-	})
-
-	// Apply offset and limit
-	if off > 0 && off < len(matches) {
-		matches = matches[off:]
-	} else if off >= len(matches) {
-		matches = nil
+	// Apply offset
+	totalBeforeOffset := len(results)
+	if off > 0 && off < len(results) {
+		results = results[off:]
+	} else if off >= len(results) {
+		results = nil
 	}
-	if len(matches) > lim {
-		matches = matches[:lim]
+	if len(results) > lim {
+		results = results[:lim]
 	}
 
-	// Convert to results
-	results := make([]output.Result, len(matches))
-	tokenEstimate := 0
+	// Add body/context and track degraded
 	var degraded []string
-
-	for i, m := range matches {
-		// Look up full symbol info
-		sym, err := query.LookupByID(s.DB(), m.row.SymbolID)
-		if err != nil || sym == nil {
-			degraded = append(degraded, "symbol_lookup_failed")
-			continue
-		}
-
-		result := sym.ToResult()
-		result.Score = float64(m.similarity)
-
+	for i := range results {
 		if withBody {
-			if err := output.AddBody(&result); err != nil {
+			if err := output.AddBody(&results[i]); err != nil {
 				degraded = append(degraded, "body_extraction_failed")
 			}
 		}
-
 		if contextLines > 0 && !withBody {
-			if err := output.AddContext(&result, contextLines); err != nil {
+			if err := output.AddContext(&results[i], contextLines); err != nil {
 				degraded = append(degraded, "context_extraction_failed")
 			}
 		}
-
-		results[i] = result
-		if result.Body != "" {
-			tokenEstimate += output.EstimateTokens(result.Body)
-		} else {
-			tokenEstimate += output.EstimateTokens(result.Match)
-		}
 	}
-
 	degraded = uniqueStrings(degraded)
 
 	// Apply token budget truncation if specified
@@ -202,15 +151,15 @@ func runSim(cmd *cobra.Command, args []string) error {
 				Total:      summaryData.Total,
 				Offset:     off,
 				Limit:      lim,
-				Truncated:  len(matches) >= lim,
+				Truncated:  totalBeforeOffset >= searchLimit,
 				StaleFiles: staleFiles,
 			},
 		}
 		return w.WriteResponse(summaryResp)
 	}
 
-	// Recalculate token estimate after truncation
-	tokenEstimate = 0
+	// Calculate token estimate after truncation
+	tokenEstimate := 0
 	for i := range results {
 		tokenEstimate += output.EstimateResultTokens(&results[i])
 	}
@@ -229,7 +178,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 			Total:         len(results),
 			Offset:        off,
 			Limit:         lim,
-			Truncated:     len(matches) >= lim || tokenTruncated,
+			Truncated:     totalBeforeOffset >= searchLimit || tokenTruncated,
 			TokenEstimate: tokenEstimate,
 			StaleFiles:    staleFiles,
 		},
