@@ -3,18 +3,14 @@ package query
 import (
 	"database/sql"
 	"strings"
-)
 
-// DepEdge represents a dependency relationship with weight.
-type DepEdge struct {
-	Package   string `json:"package"`
-	FileCount int    `json:"file_count"`
-}
+	"github.com/dkoosis/snipe/internal/output"
+)
 
 // PackageDeps holds bidirectional dependencies for a single package.
 type PackageDeps struct {
-	Dependencies []DepEdge
-	Dependents   []DepEdge
+	Dependencies []output.DepRef
+	Dependents   []output.DepRef
 }
 
 // DepGraphEdge represents a directed edge in the full dependency graph.
@@ -97,17 +93,17 @@ func FindPackageDeps(db *sql.DB, pkgPath, modulePath string) (*PackageDeps, erro
 }
 
 // scanDepEdges runs a query returning (pkg_path, file_count) rows and trims the module prefix.
-func scanDepEdges(db *sql.DB, query, modulePath string, args ...any) ([]DepEdge, error) {
+func scanDepEdges(db *sql.DB, query, modulePath string, args ...any) ([]output.DepRef, error) {
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var result []DepEdge
+	var result []output.DepRef
 	for rows.Next() {
 		var fullPath string
-		var e DepEdge
+		var e output.DepRef
 		if err := rows.Scan(&fullPath, &e.FileCount); err != nil {
 			return nil, err
 		}

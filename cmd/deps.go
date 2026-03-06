@@ -83,28 +83,17 @@ func runDepsSingle(w *output.Writer, db *sql.DB, pkgPath, modulePath, dir string
 		})
 	}
 
-	// Convert to output types
-	dependencies := make([]output.DepRef, len(deps.Dependencies))
-	for i, d := range deps.Dependencies {
-		dependencies[i] = output.DepRef{Package: d.Package, FileCount: d.FileCount}
-	}
-
-	dependents := make([]output.DepRef, len(deps.Dependents))
-	for i, d := range deps.Dependents {
-		dependents[i] = output.DepRef{Package: d.Package, FileCount: d.FileCount}
-	}
-
 	result := output.DepsResult{
 		Package:      pkgPath,
-		Dependencies: dependencies,
-		Dependents:   dependents,
+		Dependencies: deps.Dependencies,
+		Dependents:   deps.Dependents,
 	}
 
 	resp := output.Response[output.DepsResult]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
 		Results:  []output.DepsResult{result},
-		Meta:     depsMeta(db, dir, start, map[string]string{"package": pkgPath}, len(dependencies)+len(dependents)),
+		Meta:     depsMeta(db, dir, start, map[string]string{"package": pkgPath}, len(deps.Dependencies)+len(deps.Dependents)),
 	}
 
 	return w.WriteResponse(resp)
