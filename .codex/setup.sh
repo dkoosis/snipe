@@ -21,6 +21,10 @@ INSTALL_DIR="/usr/local/bin"
 
 echo "=== snipe sandbox setup ==="
 
+# --- 0. Sandbox environment ---
+# Skip fo dashboard in sandbox — use CLI output mode for mage
+echo 'export CLI=1' >> "$HOME/.bashrc"
+
 # --- 1. System aliases ---
 # Ubuntu fd-find installs as fdfind; scripts expect fd
 if command -v fdfind >/dev/null 2>&1 && ! command -v fd >/dev/null 2>&1; then

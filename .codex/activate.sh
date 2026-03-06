@@ -14,6 +14,8 @@ case "$_CODEX_ARCH" in
 esac
 _CODEX_PLATFORM="${_CODEX_OS}-${_CODEX_ARCH}"
 
+# Skip fo dashboard in sandbox — use CLI output mode
+export CLI=1
 export GOTOOLCHAIN=local
 export GOPROXY="https://proxy.golang.org,direct"
 export GOSUMDB="sum.golang.org"
