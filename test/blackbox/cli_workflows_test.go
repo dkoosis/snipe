@@ -839,15 +839,7 @@ func TestContext_Conventions_ReturnsDetectedPatterns_When_IndexPresent(t *testin
 	}
 
 	// At least one category should be detected from fixture
-	detected := 0
-	for _, key := range []string{"constructors", "receivers", "testing", "interfaces", "errors", "file_organization"} {
-		if v, ok := resp[key]; ok && v != nil {
-			detected++
-		}
-	}
-	if detected == 0 {
-		t.Fatalf("expected at least one convention category detected, got none")
-	}
+	assertHasConventions(t, resp)
 }
 
 func TestContext_Boot_IncludesConventions_When_IndexPresent(t *testing.T) {
@@ -871,16 +863,21 @@ func TestContext_Boot_IncludesConventions_When_IndexPresent(t *testing.T) {
 		t.Fatalf("boot context conventions is null")
 	}
 	convMap := requireMap(t, conv, "conventions")
+	assertHasConventions(t, convMap)
+}
 
-	// Should have at least one non-nil category
+var conventionKeys = []string{"constructors", "receivers", "testing", "interfaces", "errors", "file_organization"}
+
+func assertHasConventions(t *testing.T, m map[string]any) {
+	t.Helper()
 	detected := 0
-	for _, key := range []string{"constructors", "receivers", "testing", "interfaces", "errors", "file_organization"} {
-		if v, ok := convMap[key]; ok && v != nil {
+	for _, key := range conventionKeys {
+		if v, ok := m[key]; ok && v != nil {
 			detected++
 		}
 	}
 	if detected == 0 {
-		t.Fatalf("expected at least one convention in boot context")
+		t.Fatalf("expected at least one convention category, got none")
 	}
 }
 

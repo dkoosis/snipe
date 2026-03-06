@@ -62,6 +62,9 @@ func detectConstructors(db *sql.DB) *ConstructorConvention {
 			withoutErr++
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return nil
+	}
 
 	if total == 0 {
 		return nil
@@ -115,6 +118,9 @@ func detectReceivers(db *sql.DB) *ReceiverConvention {
 			descriptive++
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return nil
+	}
 
 	if total == 0 {
 		return nil
@@ -156,25 +162,36 @@ func detectTesting(db *sql.DB) *TestConvention {
 		}
 		testFiles = append(testFiles, fp)
 	}
+	if err := rows.Err(); err != nil {
+		return nil
+	}
 
 	if len(testFiles) == 0 {
 		return nil
 	}
 
+	// Collect directories containing non-test .go source files (single query).
+	srcDirs := make(map[string]bool)
+	srcRows, err := db.Query(`
+		SELECT DISTINCT file_path FROM symbols
+		WHERE file_path LIKE '%.go'
+		  AND file_path NOT LIKE '%_test.go'
+	`)
+	if err == nil {
+		defer srcRows.Close()
+		for srcRows.Next() {
+			var fp string
+			if err := srcRows.Scan(&fp); err != nil {
+				continue
+			}
+			srcDirs[filepath.Dir(fp)] = true
+		}
+	}
+
 	// Check colocation: does a non-test .go file exist in the same directory?
-	// Use NOT LIKE '%/%' suffix to exclude subdirectory matches.
 	var colocated, separate int
 	for _, tf := range testFiles {
-		dir := filepath.Dir(tf)
-		prefix := dir + "/"
-		var count int
-		err := db.QueryRow(`
-			SELECT COUNT(*) FROM symbols
-			WHERE file_path LIKE ? || '%.go'
-			  AND file_path NOT LIKE '%_test.go'
-			  AND SUBSTR(file_path, ?) NOT LIKE '%/%'
-		`, prefix, len(prefix)+1).Scan(&count)
-		if err == nil && count > 0 {
+		if srcDirs[filepath.Dir(tf)] {
 			colocated++
 		} else {
 			separate++
@@ -232,6 +249,9 @@ func detectInterfaces(db *sql.DB) *InterfaceConvention {
 		if strings.HasSuffix(lower, "er") || strings.HasSuffix(lower, "or") {
 			erSuffix++
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil
 	}
 
 	if total == 0 {
@@ -326,6 +346,9 @@ func detectFileOrg(db *sql.DB) *FileOrgConvention {
 		} else {
 			multiType++
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil
 	}
 
 	if fileCount == 0 {
