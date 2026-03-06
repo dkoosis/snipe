@@ -20,15 +20,21 @@ func DetectConventions(db *sql.DB, repoRoot string) *Conventions {
 	}
 }
 
+const (
+	confidenceHigh   = "high"
+	confidenceMedium = "medium"
+	confidenceLow    = "low"
+)
+
 // confidence returns "high", "medium", or "low" based on consistency ratio and sample size.
 func confidence(ratio float64, sampleSize int) string {
 	switch {
 	case ratio >= 0.8 && sampleSize >= 3:
-		return "high"
+		return confidenceHigh
 	case ratio >= 0.6 && sampleSize >= 3:
-		return "medium"
+		return confidenceMedium
 	default:
-		return "low"
+		return confidenceLow
 	}
 }
 
