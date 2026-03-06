@@ -121,6 +121,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		Context:  GetContext(),
 		Dir:      absDir,
 		Patterns: []string{"./..."},
+		Tests:    true,
 	})
 	if err != nil {
 		return fmt.Errorf("load packages: %w", err)

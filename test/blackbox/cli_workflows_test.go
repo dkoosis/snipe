@@ -881,6 +881,90 @@ func assertHasConventions(t *testing.T, m map[string]any) {
 	}
 }
 
+func TestTests_FindsDirectAndTransitive_When_IndexPresent(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "tests", "Callee")
+	if exitCode != 0 {
+		t.Fatalf("tests exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:           "tests",
+		requireQuery:      true,
+		requireRepoRoot:   true,
+		requireIndexState: true,
+	})
+
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected test results for Callee")
+	}
+
+	// Should find TestCallee (direct) and TestViaHelper (transitive via testHelper)
+	names := make(map[string]bool)
+	for _, r := range results {
+		rm := requireMap(t, r, "result")
+		names[getString(t, rm["name"], "name")] = true
+	}
+	if !names["TestCallee"] {
+		t.Errorf("missing direct test TestCallee; got %v", names)
+	}
+}
+
+func TestTests_Direct_ExcludesTransitive(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "tests", "--direct", "Callee")
+	if exitCode != 0 {
+		t.Fatalf("tests --direct exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	results := requireSlice(t, resp["results"], "results")
+
+	// Direct should only find TestCallee, not TestViaHelper
+	for _, r := range results {
+		rm := requireMap(t, r, "result")
+		if hints, ok := rm["hints"]; ok && hints != nil {
+			hintSlice := requireSlice(t, hints, "hints")
+			for _, h := range hintSlice {
+				if getString(t, h, "hint") == "transitive_test" {
+					t.Errorf("--direct should not return transitive tests")
+				}
+			}
+		}
+	}
+}
+
+func TestTests_ZeroCoverage_ReturnsSuggestions(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	// UseAmbiguous has no test callers
+	stdout, stderr, exitCode := run(t, repoDir, "tests", "UseAmbiguous")
+	if exitCode != 0 {
+		t.Fatalf("tests exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) != 0 {
+		t.Fatalf("expected 0 tests for UseAmbiguous, got %d", len(results))
+	}
+
+	// Should have suggestions
+	if sug, ok := resp["suggestions"]; ok && sug != nil {
+		suggestions := requireSlice(t, sug, "suggestions")
+		if len(suggestions) == 0 {
+			t.Errorf("expected suggestions for zero-coverage symbol")
+		}
+	}
+}
+
 func initGitRepo(t *testing.T, dir string) {
 	t.Helper()
 

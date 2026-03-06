@@ -227,7 +227,7 @@ func restoreTable(tx *sql.Tx, pt preservableTable) (int64, error) {
 
 func writeSymbols(tx *sql.Tx, symbols []index.Symbol, repoRoot string) error {
 	stmt, err := tx.Prepare(`
-		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path, line_start, col_start, line_end, col_end, name_line, name_col, signature, doc, receiver)
+		INSERT OR IGNORE INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path, line_start, col_start, line_end, col_end, name_line, name_col, signature, doc, receiver)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
@@ -264,7 +264,7 @@ func writeSymbols(tx *sql.Tx, symbols []index.Symbol, repoRoot string) error {
 
 func writeRefs(tx *sql.Tx, refs []index.Ref, repoRoot string) error {
 	stmt, err := tx.Prepare(`
-		INSERT INTO refs (id, symbol_id, file_path, file_path_rel, line, col, enclosing_id, snippet)
+		INSERT OR IGNORE INTO refs (id, symbol_id, file_path, file_path_rel, line, col, enclosing_id, snippet)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {

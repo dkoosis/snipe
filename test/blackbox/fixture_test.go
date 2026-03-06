@@ -117,6 +117,33 @@ func Ambiguous() string {
 	writeFile(t, betaPath, betaContent)
 	paths["beta"] = betaPath
 
+	// Test file — exercises Callee via direct call and via helper
+	testContent := `package fixture
+
+import "testing"
+
+func TestCallee(t *testing.T) {
+	result := Callee()
+	if result != "ok" {
+		t.Fatal("unexpected")
+	}
+}
+
+func testHelper() string {
+	return Callee()
+}
+
+func TestViaHelper(t *testing.T) {
+	result := testHelper()
+	if result != "ok" {
+		t.Fatal("unexpected")
+	}
+}
+`
+	testPath := filepath.Join(repoDir, "main_test.go")
+	writeFile(t, testPath, testContent)
+	paths["test"] = testPath
+
 	return repoDir, paths
 }
 
