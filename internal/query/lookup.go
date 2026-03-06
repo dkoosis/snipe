@@ -967,6 +967,7 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 		SELECT
 		  CASE
 		    WHEN m.receiver LIKE '(*%%' THEN SUBSTR(m.receiver, 3, LENGTH(m.receiver) - 3)
+		    WHEN m.receiver LIKE '(%%' THEN SUBSTR(m.receiver, 2, LENGTH(m.receiver) - 2)
 		    ELSE m.receiver
 		  END AS type_name,
 		  m.pkg_path

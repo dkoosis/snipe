@@ -83,11 +83,22 @@ func runImporters(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// Convert to results - group by importing file
-	results := make([]output.Result, len(imports))
+	// Convert to results - deduplicate by importing package
+	results := make([]output.Result, 0, len(imports))
 	tokenEstimate := 0
+	seenPkg := make(map[string]bool, len(imports))
 
-	for i, imp := range imports {
+	for _, imp := range imports {
+		// Deduplicate by importer package — show each importing package once
+		pkgKey := imp.ImporterPkg.String
+		if pkgKey == "" {
+			pkgKey = imp.FilePath // fallback for missing importer_pkg
+		}
+		if seenPkg[pkgKey] {
+			continue
+		}
+		seenPkg[pkgKey] = true
+
 		impRange := output.Range{
 			Start: output.Position{Line: imp.Line, Col: imp.Col},
 			End:   output.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
@@ -97,16 +108,16 @@ func runImporters(cmd *cobra.Command, args []string) error {
 		if filePathRel == "" {
 			filePathRel = imp.FilePath
 		}
-		results[i] = output.Result{
+		results = append(results, output.Result{
 			ID:         imp.FilePath + ":" + imp.PkgPath,
 			File:       filePathRel,
 			FileAbs:    imp.FilePath,
 			Range:      impRange,
 			Kind:       "import",
-			Name:       imp.PkgPath,
+			Name:       imp.ImporterPkg.String,
 			Match:      "import \"" + imp.PkgPath + "\"",
 			EditTarget: output.FormatEditTargetWithHash(filePathRel, imp.FilePath, impRange),
-		}
+		})
 		tokenEstimate += output.EstimateTokens(imp.FilePath)
 	}
 

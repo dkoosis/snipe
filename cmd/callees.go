@@ -122,9 +122,8 @@ findCallees:
 		})
 	}
 
-	// Convert to results - callee function definitions
+	// Convert to results - callee function definitions, deduplicated by callee ID
 	results := make([]output.Result, 0, len(calls))
-	calleeResults := make([]output.Result, len(calls))
 	tokenEstimate := 0
 	var degraded []string
 
@@ -142,7 +141,13 @@ findCallees:
 		}
 	}
 
-	for i, call := range calls {
+	seen := make(map[string]bool, len(calls))
+	for _, call := range calls {
+		if seen[call.CalleeID] {
+			continue
+		}
+		seen[call.CalleeID] = true
+
 		result := call.ToCalleeResult()
 
 		// Add callee body if requested (from the callee's definition, not call site)
@@ -162,14 +167,12 @@ findCallees:
 			}
 		}
 
-		calleeResults[i] = result
+		results = append(results, result)
 		tokenEstimate += output.EstimateTokens(call.CalleeSignature.String)
 		if result.Body != "" {
 			tokenEstimate = output.EstimateTokens(result.Body)
 		}
 	}
-
-	results = append(results, calleeResults...)
 
 	// Deduplicate degraded messages
 	degraded = uniqueStrings(degraded)
