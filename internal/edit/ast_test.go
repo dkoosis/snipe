@@ -7,10 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/snipe/internal/edit"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dkoosis/snipe/internal/edit"
 )
 
 const sampleSource = `package sample
@@ -28,10 +29,10 @@ func (Thing) Name() string {
 }
 `
 
-func writeGoFile(t *testing.T, src string) string {
+func writeGoFile(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "sample.go")
-	require.NoError(t, os.WriteFile(path, []byte(src), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(sampleSource), 0o600))
 	return path
 }
 
@@ -51,7 +52,7 @@ func TestFindSymbol_ReturnsSymbolMetadata_When_MatchingDeclarationExists(t *test
 		{name: "const declaration", symbol: "Meaning", wantKind: "const", wantLine: 5, wantHasBody: false},
 	}
 
-	path := writeGoFile(t, sampleSource)
+	path := writeGoFile(t)
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -77,7 +78,7 @@ func TestFindSymbol_ReturnsSymbolMetadata_When_MatchingDeclarationExists(t *test
 func TestFindSymbol_ReturnsError_When_SymbolDoesNotExistOrLineFilterMismatches(t *testing.T) {
 	t.Parallel()
 
-	path := writeGoFile(t, sampleSource)
+	path := writeGoFile(t)
 	tests := []struct {
 		name    string
 		symbol  string
@@ -103,7 +104,7 @@ func TestFindSymbol_ReturnsError_When_SymbolDoesNotExistOrLineFilterMismatches(t
 func TestApply_ReturnsError_When_RequestIsInvalid(t *testing.T) {
 	t.Parallel()
 
-	path := writeGoFile(t, sampleSource)
+	path := writeGoFile(t)
 	tests := []struct {
 		name    string
 		req     edit.Request
@@ -181,7 +182,7 @@ func TestApply_ReturnsEditedCode_When_UsingSupportedOperations(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			path := writeGoFile(t, sampleSource)
+			path := writeGoFile(t)
 			tc.req.File = path
 
 			got, err := edit.Apply(tc.req)
@@ -200,7 +201,7 @@ func TestApply_ReturnsEditedCode_When_UsingSupportedOperations(t *testing.T) {
 func TestApplyAndWrite_PersistsFormattedChanges_When_RequestIsValid(t *testing.T) {
 	t.Parallel()
 
-	path := writeGoFile(t, sampleSource)
+	path := writeGoFile(t)
 	result, err := edit.ApplyAndWrite(edit.Request{
 		File:      path,
 		Symbol:    "Add",
