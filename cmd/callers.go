@@ -122,8 +122,8 @@ findCallers:
 		})
 	}
 
-	// Convert to results - show the caller functions
-	results := make([]output.Result, len(calls))
+	// Convert to results - show the caller functions, deduplicated by caller ID
+	results := make([]output.Result, 0, len(calls))
 	tokenEstimate := 0
 	var degraded []string
 
@@ -141,7 +141,13 @@ findCallers:
 		}
 	}
 
-	for i, call := range calls {
+	seen := make(map[string]bool, len(calls))
+	for _, call := range calls {
+		if seen[call.CallerID] {
+			continue
+		}
+		seen[call.CallerID] = true
+
 		result := call.ToCallerResult()
 
 		// Add caller body if requested (from the caller's definition, not call site)
@@ -161,7 +167,7 @@ findCallers:
 			}
 		}
 
-		results[i] = result
+		results = append(results, result)
 		tokenEstimate += output.EstimateTokens(call.CallerSignature.String)
 		if result.Body != "" {
 			tokenEstimate = output.EstimateTokens(result.Body)
