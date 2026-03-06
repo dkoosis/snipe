@@ -1,27 +1,30 @@
-sha: d628604 | qa: pass
-updated: 2026-03-05
+sha: 6d977e8 | qa: pass | updated: 2026-03-05
 
 ## Do next
 
-Tag v0.1.1 — main is pushed, #106 and #88 closed. Just tag and release.
+Brainstorm #110 change impact (`snipe impact <symbol>`), then implement.
 
-1. `gh run list --limit 3` — verify v0.1.0 release built
-2. `git tag v0.1.1 && git push origin v0.1.1`
-3. Verify release artifacts appear on GitHub
+1. `mage` — confirm green baseline
+2. Invoke brainstorming skill for #110 — user approved starting this
+3. Design: "if I change this, what breaks?" — callers (transitive), implementors, tests (#108 data)
+4. Tag v0.1.1 still pending — do after #110 or when user asks
 
 ## Done
 
-- Cleaned repo: 3 worktrees removed, 3 orphan branches deleted, stale stash dropped, #106 closed
-- Simplified deps command: extracted scanDepEdges helper, removed dead PackageFull field, extracted depsMeta
-- Main pushed to remote, synced
+- #108 test mapping shipped: `snipe tests <symbol>` with 2-hop transitive call graph, `--direct`, `--at`, zero-coverage suggestions
+- Enabled test file indexing (`Tests: true` in go/packages config, `OR IGNORE` for dedup)
+- #107 convention detection shipped: 6 detectors, `--conventions` flag, boot context integration
+- Merged PR #114 (AST edit tests from Codex), fixed lint issues
+- Simplify pass: fixed 5 missing `rows.Err()` checks, eliminated N+1 in detectTesting
 
 ## Backlog
 
-#107 convention detection | #108 test mapping | #110 change impact | #112 token budget | #113 deps type consolidation | orca persistToolCall | Homebrew tap
+#110 change impact | #112 token budget | #113 deps type consolidation | v0.1.1 tag | orca persistToolCall | Homebrew tap
 
 ## Traps
 
-- v0.1.0 tag is at 834d19e (before linux/arm64 + Stream E + deps) — v0.1.1 needed
+- v0.1.0 tag at 834d19e — v0.1.1 still needed (has linux/arm64 + Stream E + deps + tests + conventions)
 - `generatePurpose()` runs every index writing placeholder strings — first thing to stop
+- `knownSubcommands` map in cmd/root.go must be updated when adding new commands (tests was missing)
+- `Tests: true` in indexer causes 3x package variants — `INSERT OR IGNORE` handles dedup
 - Do NOT optimize eval until telemetry provides ground truth
-- `query` must NOT import `output` — layering violation caught and reverted this session
