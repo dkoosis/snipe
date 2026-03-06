@@ -28,7 +28,13 @@ import (
 )
 
 type Widget struct {
+	Base
 	Name string
+	Count int
+}
+
+type Base struct {
+	ID string
 }
 
 func (w *Widget) Do() string {
@@ -48,6 +54,19 @@ func AnotherCaller() string {
 	return Callee()
 }
 
+func ThirdCaller() string {
+	return Callee()
+}
+
+func CallMany() string {
+	left := Callee()
+	again := Callee()
+	right := helperStandalone()
+	widget := UseWidget()
+	UseAmbiguous()
+	return left + again + right + widget
+}
+
 func Callee() string {
 	return "ok"
 }
@@ -64,6 +83,10 @@ func UseAmbiguous() {
 func UseWidget() string {
 	w := &Widget{Name: "test"}
 	return w.Do()
+}
+
+func helperStandalone() string {
+	return "helper"
 }
 `
 
@@ -90,6 +113,12 @@ type Rude struct{}
 
 func (Rude) Hello() string {
 	return "bye"
+}
+
+type PointerGreeter struct{}
+
+func (*PointerGreeter) Hello() string {
+	return "ptr"
 }
 `
 
