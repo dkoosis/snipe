@@ -1,30 +1,26 @@
-sha: 6d977e8 | qa: pass | updated: 2026-03-05
+sha: fdb50e0 | qa: pass | updated: 2026-03-06
 
 ## Do next
 
-Brainstorm #110 change impact (`snipe impact <symbol>`), then implement.
+Un-skip `TestImpl_ReturnsImplementations_ForInterface` in `test/blackbox/cli_workflows_test.go:223` — impl fix is verified by sweep tests now.
 
-1. `mage` — confirm green baseline
-2. Invoke brainstorming skill for #110 — user approved starting this
-3. Design: "if I change this, what breaks?" — callers (transitive), implementors, tests (#108 data)
-4. Tag v0.1.1 still pending — do after #110 or when user asks
+1. `mage` — confirm green
+2. Un-skip the impl test, verify pass
+3. Tag v0.1.1 when user approves
 
 ## Done
 
-- #108 test mapping shipped: `snipe tests <symbol>` with 2-hop transitive call graph, `--direct`, `--at`, zero-coverage suggestions
-- Enabled test file indexing (`Tests: true` in go/packages config, `OR IGNORE` for dedup)
-- #107 convention detection shipped: 6 detectors, `--conventions` flag, boot context integration
-- Merged PR #114 (AST edit tests from Codex), fixed lint issues
-- Simplify pass: fixed 5 missing `rows.Err()` checks, eliminated N+1 in detectTesting
+- Updated Codex sandbox: golangci-lint v2.8.0 (Go 1.25.5), CLI=1 for fo bypass
+- Applied same sandbox fixes to ../trixi (golangci-lint + fo stub)
 
 ## Backlog
 
-#110 change impact | #112 token budget | #113 deps type consolidation | v0.1.1 tag | orca persistToolCall | Homebrew tap
+un-skip impl test | #112 vague-intent search | #117 semsearch unit tests | v0.1.1 tag | orca persistToolCall | Homebrew tap
 
 ## Traps
 
-- v0.1.0 tag at 834d19e — v0.1.1 still needed (has linux/arm64 + Stream E + deps + tests + conventions)
+- v0.1.0 tag at 834d19e — v0.1.1 still needed
 - `generatePurpose()` runs every index writing placeholder strings — first thing to stop
-- `knownSubcommands` map in cmd/root.go must be updated when adding new commands (tests was missing)
-- `Tests: true` in indexer causes 3x package variants — `INSERT OR IGNORE` handles dedup
+- `knownSubcommands` map in cmd/root.go must be updated when adding new commands
+- No interfaces in snipe's own source — impl can only be tested via blackbox fixture
 - Do NOT optimize eval until telemetry provides ground truth
