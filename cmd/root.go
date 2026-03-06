@@ -146,7 +146,7 @@ var knownSubcommands = map[string]bool{
 	"help": true, "completion": true,
 	// Core commands
 	"index": true, "def": true, "refs": true, "callers": true, "callees": true,
-	"search": true, "show": true, "sym": true, "status": true, "tests": true,
+	"search": true, "show": true, "sym": true, "status": true, "tests": true, "impact": true,
 	// Analysis commands
 	"impl": true, "types": true, "imports": true, "importers": true, "pkg": true, "deps": true,
 	// Edit, explain, and pack

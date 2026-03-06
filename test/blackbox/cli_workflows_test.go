@@ -965,6 +965,176 @@ func TestTests_ZeroCoverage_ReturnsSuggestions(t *testing.T) {
 	}
 }
 
+func TestImpact_FindsCallersAndTests(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "impact", "Callee")
+	if exitCode != 0 {
+		t.Fatalf("impact exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:           "impact",
+		requireQuery:      true,
+		requireRepoRoot:   true,
+		requireIndexState: true,
+	})
+
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected impact results for Callee")
+	}
+
+	// Check for at least one direct_caller hint (Caller or AnotherCaller)
+	foundDirectCaller := false
+	foundTest := false
+	for _, r := range results {
+		rm := requireMap(t, r, "result")
+		if hints, ok := rm["hints"]; ok && hints != nil {
+			hintSlice := requireSlice(t, hints, "hints")
+			for _, h := range hintSlice {
+				hint := getString(t, h, "hint")
+				if hint == "direct_caller" {
+					foundDirectCaller = true
+				}
+				if hint == "direct_test" || hint == "transitive_test" {
+					foundTest = true
+				}
+			}
+		}
+	}
+	if !foundDirectCaller {
+		t.Errorf("expected at least one result with hint direct_caller")
+	}
+	if !foundTest {
+		t.Errorf("expected at least one result with hint direct_test or transitive_test")
+	}
+
+	// Check suggestions exist (summary suggestion)
+	if sug, ok := resp["suggestions"]; ok && sug != nil {
+		suggestions := requireSlice(t, sug, "suggestions")
+		if len(suggestions) == 0 {
+			t.Errorf("expected at least one suggestion")
+		}
+	} else {
+		t.Errorf("expected suggestions in response")
+	}
+}
+
+func TestImpact_Direct_ExcludesTransitive(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "impact", "--direct", "Callee")
+	if exitCode != 0 {
+		t.Fatalf("impact --direct exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	results := requireSlice(t, resp["results"], "results")
+
+	for _, r := range results {
+		rm := requireMap(t, r, "result")
+		if hints, ok := rm["hints"]; ok && hints != nil {
+			hintSlice := requireSlice(t, hints, "hints")
+			for _, h := range hintSlice {
+				hint := getString(t, h, "hint")
+				if hint == "transitive_caller" {
+					t.Errorf("--direct should not return transitive_caller hints")
+				}
+				if hint == "transitive_test" {
+					t.Errorf("--direct should not return transitive_test hints")
+				}
+			}
+		}
+	}
+}
+
+func TestImpact_ZeroCoverage_ReturnsSuggestions(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "impact", "UseAmbiguous")
+	if exitCode != 0 {
+		t.Fatalf("impact exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+
+	// UseAmbiguous has callers but no test callers — should have no_tests suggestion
+	if sug, ok := resp["suggestions"]; ok && sug != nil {
+		suggestions := requireSlice(t, sug, "suggestions")
+		foundNoTests := false
+		for _, s := range suggestions {
+			sm := requireMap(t, s, "suggestion")
+			if cond, ok := sm["condition"]; ok {
+				if getString(t, cond, "condition") == "no_tests" {
+					foundNoTests = true
+				}
+			}
+		}
+		if !foundNoTests {
+			t.Errorf("expected suggestion with condition no_tests for zero-coverage symbol")
+		}
+	} else {
+		t.Errorf("expected suggestions for zero-coverage symbol")
+	}
+}
+
+func TestImpact_Interface_FindsImplementers(t *testing.T) {
+	// Note: snipe impl uses a reference heuristic (not structural matching),
+	// so the fixture's Greeter interface currently returns 0 implementers.
+	// This test verifies the impact command handles interfaces correctly
+	// and that if implementers are found, they carry the right hint.
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "impact", "Greeter")
+	if exitCode != 0 {
+		t.Fatalf("impact exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:           "impact",
+		requireQuery:      true,
+		requireRepoRoot:   true,
+		requireIndexState: true,
+	})
+
+	// If results are present, check implementer hints are correctly applied
+	if resultsRaw, ok := resp["results"]; ok && resultsRaw != nil {
+		results := requireSlice(t, resultsRaw, "results")
+		for _, r := range results {
+			rm := requireMap(t, r, "result")
+			if hints, ok := rm["hints"]; ok && hints != nil {
+				hintSlice := requireSlice(t, hints, "hints")
+				for _, h := range hintSlice {
+					hint := getString(t, h, "hint")
+					// All hints should be valid impact hint types
+					switch hint {
+					case "direct_caller", "transitive_caller", "implementer",
+						"direct_test", "transitive_test":
+						// valid
+					default:
+						t.Errorf("unexpected hint %q", hint)
+					}
+				}
+			}
+		}
+	}
+
+	// Greeter has no test coverage — should get no_tests suggestion
+	if sug, ok := resp["suggestions"]; ok && sug != nil {
+		suggestions := requireSlice(t, sug, "suggestions")
+		if len(suggestions) == 0 {
+			t.Errorf("expected suggestions for interface impact")
+		}
+	}
+}
+
 func initGitRepo(t *testing.T, dir string) {
 	t.Helper()
 

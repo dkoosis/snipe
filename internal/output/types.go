@@ -1,5 +1,7 @@
 package output
 
+import "fmt"
+
 // ProtocolVersion is the snipe wire protocol version.
 // Bump when the response envelope schema changes in a breaking way.
 const ProtocolVersion = 1
@@ -133,6 +135,46 @@ const (
 	HintUnused      = "unused"       // Exported symbol with no references
 	HintPointerRecv = "pointer_recv" // Method has pointer receiver (nil-callable)
 )
+
+// Impact hint constants
+const (
+	HintDirectCaller     = "direct_caller"
+	HintTransitiveCaller = "transitive_caller"
+	HintImplementer      = "implementer"
+	HintDirectTest       = "direct_test"
+	HintTransitiveTest   = "transitive_test"
+)
+
+// SuggestionsForImpact generates suggestions after an impact command.
+func SuggestionsForImpact(symbol string, directCallers, transitiveCallers, implementers, tests, pkgCount int) []Suggestion {
+	var suggestions []Suggestion
+
+	summary := fmt.Sprintf("Impact: %d direct callers, %d transitive, %d implementers, %d tests across %d packages",
+		directCallers, transitiveCallers, implementers, tests, pkgCount)
+	suggestions = append(suggestions, Suggestion{
+		Description: summary,
+		Priority:    1,
+	})
+
+	if tests == 0 {
+		suggestions = append(suggestions, Suggestion{
+			Command:     "snipe tests " + symbol,
+			Description: "No test coverage found — check with transitive search",
+			Priority:    1,
+			Condition:   "no_tests",
+		})
+	}
+
+	if transitiveCallers > 10 {
+		suggestions = append(suggestions, Suggestion{
+			Command:     "snipe callers --direct " + symbol,
+			Description: "Many transitive callers — drill into direct callers",
+			Priority:    2,
+		})
+	}
+
+	return suggestions
+}
 
 // Sibling represents another declaration of the same kind in the same file
 type Sibling struct {
