@@ -59,12 +59,12 @@ func setupTestsDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func insertTestSym(t *testing.T, db *sql.DB, id, name, kind, filePath, filePathRel, pkgPath, signature string) {
+func insertTestSym(t *testing.T, db *sql.DB, id, name, filePath, filePathRel, pkgPath, signature string) {
 	t.Helper()
 	_, err := db.Exec(`INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path,
 		line_start, col_start, line_end, col_end, signature, doc, receiver)
-		VALUES (?, ?, ?, ?, ?, ?, 1, 1, 10, 1, ?, '', '')`,
-		id, name, kind, filePath, filePathRel, pkgPath, signature)
+		VALUES (?, ?, 'func', ?, ?, ?, 1, 1, 10, 1, ?, '', '')`,
+		id, name, filePath, filePathRel, pkgPath, signature)
 	if err != nil {
 		t.Fatalf("insert symbol %s: %v", id, err)
 	}
@@ -83,10 +83,10 @@ func TestFindTests_Direct(t *testing.T) {
 	db := setupTestsDB(t)
 	defer db.Close()
 
-	insertTestSym(t, db, "s1", "ProcessOrder", "func", "/repo/order.go", "order.go", "pkg/order", "func ProcessOrder()")
-	insertTestSym(t, db, "t1", "TestProcessOrder", "func", "/repo/order_test.go", "order_test.go", "pkg/order", "func TestProcessOrder(t *testing.T)")
+	insertTestSym(t, db, "s1", "ProcessOrder", "/repo/order.go", "order.go", "pkg/order", "func ProcessOrder()")
+	insertTestSym(t, db, "t1", "TestProcessOrder", "/repo/order_test.go", "order_test.go", "pkg/order", "func TestProcessOrder(t *testing.T)")
 	insertCallEdge(t, db, "t1", "s1", "/repo/order_test.go", 10, 5)
-	insertTestSym(t, db, "c1", "HandleRequest", "func", "/repo/handler.go", "handler.go", "pkg/handler", "func HandleRequest()")
+	insertTestSym(t, db, "c1", "HandleRequest", "/repo/handler.go", "handler.go", "pkg/handler", "func HandleRequest()")
 	insertCallEdge(t, db, "c1", "s1", "/repo/handler.go", 20, 5)
 
 	results, err := FindTests(db, "s1", true, 50, 0)
@@ -108,12 +108,12 @@ func TestFindTests_Transitive(t *testing.T) {
 	db := setupTestsDB(t)
 	defer db.Close()
 
-	insertTestSym(t, db, "s1", "ProcessOrder", "func", "/repo/order.go", "order.go", "pkg/order", "func ProcessOrder()")
-	insertTestSym(t, db, "h1", "setupOrder", "func", "/repo/order_test.go", "order_test.go", "pkg/order", "func setupOrder()")
+	insertTestSym(t, db, "s1", "ProcessOrder", "/repo/order.go", "order.go", "pkg/order", "func ProcessOrder()")
+	insertTestSym(t, db, "h1", "setupOrder", "/repo/order_test.go", "order_test.go", "pkg/order", "func setupOrder()")
 	insertCallEdge(t, db, "h1", "s1", "/repo/order_test.go", 15, 5)
-	insertTestSym(t, db, "t1", "TestOrderFlow", "func", "/repo/order_test.go", "order_test.go", "pkg/order", "func TestOrderFlow(t *testing.T)")
+	insertTestSym(t, db, "t1", "TestOrderFlow", "/repo/order_test.go", "order_test.go", "pkg/order", "func TestOrderFlow(t *testing.T)")
 	insertCallEdge(t, db, "t1", "h1", "/repo/order_test.go", 25, 5)
-	insertTestSym(t, db, "t2", "TestProcessOrder", "func", "/repo/order_test.go", "order_test.go", "pkg/order", "func TestProcessOrder(t *testing.T)")
+	insertTestSym(t, db, "t2", "TestProcessOrder", "/repo/order_test.go", "order_test.go", "pkg/order", "func TestProcessOrder(t *testing.T)")
 	insertCallEdge(t, db, "t2", "s1", "/repo/order_test.go", 30, 5)
 
 	results, err := FindTests(db, "s1", false, 50, 0)
@@ -135,14 +135,14 @@ func TestFindTests_AllTestTypes(t *testing.T) {
 	db := setupTestsDB(t)
 	defer db.Close()
 
-	insertTestSym(t, db, "s1", "Foo", "func", "/repo/foo.go", "foo.go", "pkg/foo", "func Foo()")
+	insertTestSym(t, db, "s1", "Foo", "/repo/foo.go", "foo.go", "pkg/foo", "func Foo()")
 	for _, tc := range []struct{ id, name string }{
 		{"t1", "TestFoo"},
 		{"t2", "BenchmarkFoo"},
 		{"t3", "FuzzFoo"},
 		{"t4", "ExampleFoo"},
 	} {
-		insertTestSym(t, db, tc.id, tc.name, "func", "/repo/foo_test.go", "foo_test.go", "pkg/foo", "")
+		insertTestSym(t, db, tc.id, tc.name, "/repo/foo_test.go", "foo_test.go", "pkg/foo", "")
 		insertCallEdge(t, db, tc.id, "s1", "/repo/foo_test.go", 10, 5)
 	}
 
@@ -159,7 +159,7 @@ func TestFindTests_Empty(t *testing.T) {
 	db := setupTestsDB(t)
 	defer db.Close()
 
-	insertTestSym(t, db, "s1", "Untested", "func", "/repo/lonely.go", "lonely.go", "pkg/lonely", "func Untested()")
+	insertTestSym(t, db, "s1", "Untested", "/repo/lonely.go", "lonely.go", "pkg/lonely", "func Untested()")
 
 	results, err := FindTests(db, "s1", false, 50, 0)
 	if err != nil {
@@ -174,10 +174,10 @@ func TestFindTests_DeduplicatesDirectAndTransitive(t *testing.T) {
 	db := setupTestsDB(t)
 	defer db.Close()
 
-	insertTestSym(t, db, "s1", "Target", "func", "/repo/target.go", "target.go", "pkg/t", "func Target()")
-	insertTestSym(t, db, "h1", "helper", "func", "/repo/target_test.go", "target_test.go", "pkg/t", "func helper()")
+	insertTestSym(t, db, "s1", "Target", "/repo/target.go", "target.go", "pkg/t", "func Target()")
+	insertTestSym(t, db, "h1", "helper", "/repo/target_test.go", "target_test.go", "pkg/t", "func helper()")
 	insertCallEdge(t, db, "h1", "s1", "/repo/target_test.go", 5, 1)
-	insertTestSym(t, db, "t1", "TestBoth", "func", "/repo/target_test.go", "target_test.go", "pkg/t", "func TestBoth(t *testing.T)")
+	insertTestSym(t, db, "t1", "TestBoth", "/repo/target_test.go", "target_test.go", "pkg/t", "func TestBoth(t *testing.T)")
 	insertCallEdge(t, db, "t1", "s1", "/repo/target_test.go", 10, 1)
 	insertCallEdge(t, db, "t1", "h1", "/repo/target_test.go", 11, 1)
 
