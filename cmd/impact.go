@@ -239,6 +239,9 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	results := make([]output.Result, 0, len(sortable))
 	for _, s := range sortable {
 		s.m.result.Hints = s.m.hints
+		if s.m.result.Name != "" && s.m.result.Name[0] >= 'A' && s.m.result.Name[0] <= 'Z' {
+			s.m.result.Hints = append(s.m.result.Hints, output.HintExported)
+		}
 		results = append(results, s.m.result)
 	}
 

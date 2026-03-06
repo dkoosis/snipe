@@ -143,6 +143,7 @@ const (
 	HintImplementer      = "implementer"
 	HintDirectTest       = "direct_test"
 	HintTransitiveTest   = "transitive_test"
+	HintExported         = "exported" // Symbol is part of the public API surface
 )
 
 // SuggestionsForImpact generates suggestions after an impact command.

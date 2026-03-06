@@ -992,6 +992,7 @@ func TestImpact_FindsCallersAndTests(t *testing.T) {
 	// Check for at least one direct_caller hint (Caller or AnotherCaller)
 	foundDirectCaller := false
 	foundTest := false
+	foundExported := false
 	for _, r := range results {
 		rm := requireMap(t, r, "result")
 		if hints, ok := rm["hints"]; ok && hints != nil {
@@ -1004,6 +1005,9 @@ func TestImpact_FindsCallersAndTests(t *testing.T) {
 				if hint == "direct_test" || hint == "transitive_test" {
 					foundTest = true
 				}
+				if hint == "exported" {
+					foundExported = true
+				}
 			}
 		}
 	}
@@ -1012,6 +1016,9 @@ func TestImpact_FindsCallersAndTests(t *testing.T) {
 	}
 	if !foundTest {
 		t.Errorf("expected at least one result with hint direct_test or transitive_test")
+	}
+	if !foundExported {
+		t.Errorf("expected at least one result with hint exported (Caller/AnotherCaller are exported)")
 	}
 
 	// Check suggestions exist (summary suggestion)
@@ -1118,7 +1125,7 @@ func TestImpact_Interface_FindsImplementers(t *testing.T) {
 					// All hints should be valid impact hint types
 					switch hint {
 					case "direct_caller", "transitive_caller", "implementer",
-						"direct_test", "transitive_test":
+						"direct_test", "transitive_test", "exported":
 						// valid
 					default:
 						t.Errorf("unexpected hint %q", hint)
