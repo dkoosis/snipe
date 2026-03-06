@@ -9,7 +9,6 @@ import (
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
-	"github.com/dkoosis/snipe/internal/semsearch"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -85,7 +84,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 	// Run semantic search (fetch off+lim to support offset)
 	threshold := float32(simThreshold)
 	searchLimit := off + lim
-	results, _, simErr := semsearch.Search(queryText, s, client, searchLimit, threshold)
+	results, _, simErr := embed.Search(queryText, s, client, searchLimit, threshold)
 	if simErr != nil {
 		return w.WriteError("sim", &output.Error{
 			Code:    output.ErrInternal,

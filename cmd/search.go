@@ -13,7 +13,6 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/search"
-	"github.com/dkoosis/snipe/internal/semsearch"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -107,7 +106,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		if clientErr != nil {
 			decisionPath = append(decisionPath, "rg:0_results", "sim:client_error")
 		} else {
-			simResults, simDur, simErr := semsearch.Search(pattern, s, client, lim, 0.3)
+			simResults, simDur, simErr := embed.Search(pattern, s, client, lim, 0.3)
 			if simErr == nil && len(simResults) > 0 {
 				results = simResults
 				decisionPath = []string{

@@ -1,22 +1,18 @@
-// Package semsearch provides semantic similarity search over indexed embeddings.
-//
-// Separated from internal/embed to avoid an import cycle: store → embed.
-package semsearch
+package embed
 
 import (
 	"fmt"
 	"sort"
 	"time"
 
-	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
-	"github.com/dkoosis/snipe/internal/vector"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
+	"github.com/dkoosis/snipe/internal/vector"
 )
 
-// result pairs a symbol ID with its similarity score for sorting.
-type result struct {
+// searchResult pairs a symbol ID with its similarity score for sorting.
+type searchResult struct {
 	symbolID   string
 	similarity float32
 }
@@ -29,7 +25,7 @@ type result struct {
 // At 1024 dims × 4 bytes per float32, that's ~4KB per symbol. For 5,000 symbols
 // this is ~20MB — acceptable for current use. If this becomes a bottleneck,
 // the first optimization is an ANN index (HNSW or IVF) to avoid the full scan.
-func Search(queryText string, s *store.Store, client *embed.Client, limit int, threshold float32) ([]output.Result, time.Duration, error) {
+func Search(queryText string, s *store.Store, client *Client, limit int, threshold float32) ([]output.Result, time.Duration, error) {
 	start := time.Now()
 
 	count, err := s.CountEmbeddings()
@@ -50,11 +46,11 @@ func Search(queryText string, s *store.Store, client *embed.Client, limit int, t
 		return nil, 0, fmt.Errorf("load embeddings: %w", err)
 	}
 
-	var matches []result
+	var matches []searchResult
 	for _, e := range embeddings {
 		sim := vector.CosineSimilarity(queryEmbed, e.Embedding)
 		if sim >= threshold {
-			matches = append(matches, result{
+			matches = append(matches, searchResult{
 				symbolID:   e.SymbolID,
 				similarity: sim,
 			})
