@@ -491,12 +491,14 @@ func (s *Store) WriteIndexIncremental(
 	if len(allAffected) > 0 {
 		// Delete embeddings + purposes for symbols in affected files
 		if err := deleteByFilePaths(tx, "SELECT id FROM symbols", "DELETE FROM embeddings WHERE symbol_id IN", allAffected, repoRoot); err != nil {
-			// Ignore if embeddings table doesn't exist
-			_ = err
+			if !isNoSuchTableErr(err, "embeddings") {
+				return nil, fmt.Errorf("delete embeddings: %w", err)
+			}
 		}
 		if err := deleteByFilePaths(tx, "SELECT id FROM symbols", "DELETE FROM symbol_purposes WHERE symbol_id IN", allAffected, repoRoot); err != nil {
-			// Ignore if symbol_purposes table doesn't exist
-			_ = err
+			if !isNoSuchTableErr(err, "symbol_purposes") {
+				return nil, fmt.Errorf("delete symbol_purposes: %w", err)
+			}
 		}
 
 		// Delete data from affected files
@@ -507,8 +509,9 @@ func (s *Store) WriteIndexIncremental(
 			return nil, fmt.Errorf("delete call_graph: %w", err)
 		}
 		if err := deleteFromFileSet(tx, "imports", allAffected); err != nil {
-			// Ignore if table doesn't exist
-			_ = err
+			if !isNoSuchTableErr(err, "imports") {
+				return nil, fmt.Errorf("delete imports: %w", err)
+			}
 		}
 		if err := deleteFromFileSet(tx, "symbols", allAffected); err != nil {
 			return nil, fmt.Errorf("delete symbols: %w", err)
