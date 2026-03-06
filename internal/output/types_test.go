@@ -662,14 +662,23 @@ func TestSuggestionsForRefs(t *testing.T) {
 
 func TestSuggestionsForSearch(t *testing.T) {
 	t.Run("no results", func(t *testing.T) {
-		suggestions := SuggestionsForSearch("pattern", 0)
+		suggestions := SuggestionsForSearch("pattern", 0, false)
 		if len(suggestions) == 0 {
 			t.Error("should suggest alternatives when no results")
+		}
+		hasSim := false
+		for _, s := range suggestions {
+			if strings.Contains(s.Command, "snipe sim") {
+				hasSim = true
+			}
+		}
+		if !hasSim {
+			t.Error("should suggest snipe sim when no results")
 		}
 	})
 
 	t.Run("many results", func(t *testing.T) {
-		suggestions := SuggestionsForSearch("TODO", 50)
+		suggestions := SuggestionsForSearch("TODO", 50, false)
 		hasSummary := false
 		for _, s := range suggestions {
 			if strings.Contains(s.Command, "--format=summary") {
@@ -678,6 +687,16 @@ func TestSuggestionsForSearch(t *testing.T) {
 		}
 		if !hasSummary {
 			t.Error("should suggest --format=summary for many results")
+		}
+	})
+
+	t.Run("semantic fallback used", func(t *testing.T) {
+		suggestions := SuggestionsForSearch("handle request", 3, true)
+		if len(suggestions) == 0 {
+			t.Fatal("should suggest snipe sim when fallback used")
+		}
+		if !strings.Contains(suggestions[0].Command, "snipe sim") {
+			t.Error("first suggestion should be snipe sim for fallback results")
 		}
 	})
 }

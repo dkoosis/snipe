@@ -3,7 +3,9 @@
 package blackbox
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1159,5 +1161,154 @@ func indexRepo(t *testing.T, repoDir string) {
 	stdout, stderr, exitCode := run(t, repoDir, "index", repoDir)
 	if exitCode != 0 {
 		t.Fatalf("index exit %d stderr=%s stdout=%s", exitCode, string(stderr), string(stdout))
+	}
+}
+
+// runWithEnv runs snipe with a custom environment (filtered from os.Environ).
+func runWithEnv(t *testing.T, repoDir string, env []string, args ...string) (stdout []byte, stderr []byte, exitCode int) {
+	t.Helper()
+
+	cmd := exec.Command(binPath, args...)
+	cmd.Dir = repoDir
+	cmd.Env = env
+
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	err := cmd.Run()
+	stdout = outBuf.Bytes()
+	stderr = errBuf.Bytes()
+	if err == nil {
+		return stdout, stderr, 0
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return stdout, stderr, exitErr.ExitCode()
+	}
+	return stdout, stderr, 1
+}
+
+// envWithout returns os.Environ() with the named keys removed.
+func envWithout(keys ...string) []string {
+	remove := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		remove[k] = true
+	}
+	var env []string
+	for _, e := range os.Environ() {
+		k, _, _ := strings.Cut(e, "=")
+		if !remove[k] {
+			env = append(env, e)
+		}
+	}
+	return env
+}
+
+// --- Semantic fallback tests ---
+
+func TestSearch_NoFallback_WhenRgFindsResults(t *testing.T) {
+	_, rgErr := exec.LookPath("rg")
+	if rgErr != nil {
+		t.Skip("rg not installed")
+	}
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	// "Hello" exists literally in the fixture — rg should find it
+	stdout, stderr, exitCode := run(t, repoDir, "search", "Hello")
+	if exitCode != 0 {
+		t.Fatalf("search exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatal("expected rg results for literal match")
+	}
+
+	// No decision_path should be present (no fallback)
+	meta := requireMap(t, resp["meta"], "meta")
+	if dp, ok := meta["decision_path"]; ok && dp != nil {
+		t.Fatalf("unexpected decision_path when rg found results: %v", dp)
+	}
+}
+
+func TestSearch_NoFallback_WhenNoCredentials(t *testing.T) {
+	_, rgErr := exec.LookPath("rg")
+	if rgErr != nil {
+		t.Skip("rg not installed")
+	}
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	// Search for something that won't match literally, with credentials stripped
+	env := envWithout("VOYAGE_API_KEY", "VOYAGE_MODEL", "VOYAGE_API_URL")
+	// Also prevent credentials file from being read by setting HOME to temp dir
+	env = append(env, "HOME="+t.TempDir())
+	stdout, stderr, exitCode := runWithEnv(t, repoDir, env, "search", "xyzzy_nonexistent_pattern_42")
+	if exitCode != 0 {
+		t.Fatalf("search exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	// results may be null (nil) or empty array — both are acceptable for 0 results
+	resultCount := 0
+	if results, ok := resp["results"].([]any); ok {
+		resultCount = len(results)
+	}
+	if resultCount != 0 {
+		t.Fatalf("expected 0 results without credentials, got %d", resultCount)
+	}
+
+	// No decision_path should be present (fallback not attempted)
+	meta := requireMap(t, resp["meta"], "meta")
+	if dp, ok := meta["decision_path"]; ok && dp != nil {
+		t.Fatalf("unexpected decision_path without credentials: %v", dp)
+	}
+
+	// Should suggest snipe sim as alternative
+	if sugg, ok := resp["suggestions"].([]any); ok {
+		found := false
+		for _, s := range sugg {
+			if m, ok := s.(map[string]any); ok {
+				if cmd, ok := m["command"].(string); ok && strings.Contains(cmd, "snipe sim") {
+					found = true
+				}
+			}
+		}
+		if !found {
+			t.Error("expected snipe sim suggestion when no results and no fallback")
+		}
+	}
+}
+
+func TestSearch_NoFallback_WhenFileFilterSet(t *testing.T) {
+	_, rgErr := exec.LookPath("rg")
+	if rgErr != nil {
+		t.Skip("rg not installed")
+	}
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	// --file restricts search; fallback should not fire even with 0 results
+	stdout, stderr, exitCode := run(t, repoDir, "search", "xyzzy_nonexistent_42", "--file", "*.go")
+	if exitCode != 0 {
+		t.Fatalf("search exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	// results may be null (nil) or empty array — both are acceptable for 0 results
+	resultCount := 0
+	if results, ok := resp["results"].([]any); ok {
+		resultCount = len(results)
+	}
+	if resultCount != 0 {
+		t.Fatalf("expected 0 results for nonsense pattern, got %d", resultCount)
+	}
+
+	meta := requireMap(t, resp["meta"], "meta")
+	if dp, ok := meta["decision_path"]; ok && dp != nil {
+		t.Fatalf("unexpected decision_path with --file filter: %v", dp)
 	}
 }

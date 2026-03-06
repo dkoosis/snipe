@@ -362,14 +362,25 @@ func SuggestionsForRefs(symbol string, resultCount int) []Suggestion {
 	return suggestions
 }
 
-// SuggestionsForSearch generates suggestions after a search command
-func SuggestionsForSearch(pattern string, resultCount int) []Suggestion {
+// SuggestionsForSearch generates suggestions after a search command.
+// usedFallback indicates whether semantic similarity was used as fallback.
+func SuggestionsForSearch(pattern string, resultCount int, usedFallback bool) []Suggestion {
 	var suggestions []Suggestion
+
+	if usedFallback && resultCount > 0 {
+		suggestions = append(suggestions, Suggestion{
+			Command:     "snipe sim \"" + pattern + "\"",
+			Description: "Results from semantic similarity — use 'snipe sim' for more control",
+			Priority:    2,
+			Condition:   "semantic_fallback",
+		})
+		return suggestions
+	}
 
 	if resultCount == 0 {
 		suggestions = append(suggestions, Suggestion{
-			Command:     "snipe search \"" + pattern + "\" --context 5",
-			Description: "Try with more context lines",
+			Command:     "snipe sim \"" + pattern + "\"",
+			Description: "Try semantic search if you're looking for concepts, not exact text",
 			Priority:    2,
 		})
 	}
