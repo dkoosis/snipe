@@ -378,6 +378,38 @@ func SuggestionsForCallees(symbol string, resultCount int) []Suggestion {
 	}
 }
 
+// SuggestionsForTests generates suggestions after a tests command.
+func SuggestionsForTests(symbol string, resultCount int, suggestedFile string) []Suggestion {
+	if resultCount == 0 {
+		suggestions := []Suggestion{
+			{
+				Command:     "snipe refs " + symbol,
+				Description: "Check if the symbol is referenced anywhere",
+				Priority:    1,
+			},
+		}
+		if suggestedFile != "" {
+			suggestions = append(suggestions, Suggestion{
+				Description: "No tests found for " + symbol + ". Consider adding tests in " + suggestedFile,
+				Priority:    2,
+			})
+		}
+		return suggestions
+	}
+	return []Suggestion{
+		{
+			Command:     "snipe def " + symbol,
+			Description: "View the function definition",
+			Priority:    1,
+		},
+		{
+			Command:     "snipe callers " + symbol,
+			Description: "See all callers, not just tests",
+			Priority:    2,
+		},
+	}
+}
+
 // SuggestionsForAmbiguous generates suggestions when symbol is ambiguous
 func SuggestionsForAmbiguous(candidates []Candidate) []Suggestion {
 	if len(candidates) == 0 {
