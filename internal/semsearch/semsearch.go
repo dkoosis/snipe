@@ -10,6 +10,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/vector"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -51,7 +52,7 @@ func Search(queryText string, s *store.Store, client *embed.Client, limit int, t
 
 	var matches []result
 	for _, e := range embeddings {
-		sim := embed.CosineSimilarity(queryEmbed, e.Embedding)
+		sim := vector.CosineSimilarity(queryEmbed, e.Embedding)
 		if sim >= threshold {
 			matches = append(matches, result{
 				symbolID:   e.SymbolID,

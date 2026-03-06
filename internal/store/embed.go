@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dkoosis/snipe/internal/embed"
+	"github.com/dkoosis/snipe/internal/vector"
 )
 
 // SaveEmbedding stores an embedding for a symbol.
 func (s *Store) SaveEmbedding(symbolID string, embedding []float32, model string) error {
-	data := embed.SerializeEmbedding(embedding)
+	data := vector.SerializeEmbedding(embedding)
 	_, err := s.db.Exec(
 		`INSERT OR REPLACE INTO embeddings (symbol_id, embedding, model, created_at) VALUES (?, ?, ?, ?)`,
 		symbolID, data, model, time.Now().UTC().Format(time.RFC3339),
@@ -31,7 +31,7 @@ func (s *Store) GetEmbedding(symbolID string) ([]float32, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	return embed.DeserializeEmbedding(data), model, nil
+	return vector.DeserializeEmbedding(data), model, nil
 }
 
 // EmbeddingRow represents a row from the embeddings table with symbol info.
@@ -64,7 +64,7 @@ func (s *Store) GetAllEmbeddings() ([]EmbeddingRow, error) {
 		if err := rows.Scan(&r.SymbolID, &data, &r.Model, &r.Name, &r.Kind, &r.FilePath, &r.Signature); err != nil {
 			return nil, err
 		}
-		r.Embedding = embed.DeserializeEmbedding(data)
+		r.Embedding = vector.DeserializeEmbedding(data)
 		results = append(results, r)
 	}
 
