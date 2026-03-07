@@ -210,7 +210,22 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 	}
 	defer rows2.Close()
 
-	return scanSymbolRows(rows2)
+	results, err = scanSymbolRows(rows2)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) > 0 {
+		return results, nil
+	}
+
+	// Method name fallback: "ListFiles" matches methods with any receiver.
+	// Only triggers when the name looks like an exported identifier (no dots, parens, slashes).
+	if len(name) > 0 && name[0] >= 'A' && name[0] <= 'Z' &&
+		!strings.Contains(name, ".") && !strings.Contains(name, "(") {
+		return lookupMethodByName(db, name)
+	}
+
+	return nil, nil
 }
 
 func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
@@ -282,6 +297,25 @@ func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error) {
 	`, method, receiver, "(*"+strings.Trim(receiver, "()")+")")
 	if err != nil {
 		return nil, fmt.Errorf("query method: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSymbolRows(rows)
+}
+
+// lookupMethodByName finds methods matching a bare name across all receivers.
+// e.g. "ListFiles" finds (*DiskSpacePrimitives).ListFiles, (*MemoryStore).ListFiles, etc.
+func lookupMethodByName(db *sql.DB, name string) ([]SymbolRow, error) {
+	rows, err := db.Query(`
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.name = ? AND s.receiver IS NOT NULL AND s.receiver != ''
+		ORDER BY s.kind, s.file_path, s.line_start
+	`, name)
+	if err != nil {
+		return nil, fmt.Errorf("query method by bare name: %w", err)
 	}
 	defer rows.Close()
 
