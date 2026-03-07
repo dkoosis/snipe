@@ -208,11 +208,10 @@ func TestCallers(t *testing.T) {
 	})
 
 	t.Run("detailed_format", func(t *testing.T) {
-		stdout, _, _ := run(t, repoDir, "callers", "Callee", "--format", "detailed")
-		resp := assertEnvelope(t, stdout, "callers")
-		results := requireSlice(t, resp["results"], "results")
-		if len(results) == 0 {
-			t.Fatalf("expected callers")
+		// --format detailed uses Claude text; verify it produces non-empty output
+		stdout, _, _ := runRaw(t, repoDir, "callers", "Callee", "--format", "detailed")
+		if len(stdout) == 0 {
+			t.Fatalf("expected non-empty detailed output")
 		}
 	})
 }

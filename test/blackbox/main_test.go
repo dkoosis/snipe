@@ -55,7 +55,26 @@ func runTests(m *testing.M) int {
 	return m.Run()
 }
 
+// run executes snipe with --format json (most tests parse JSON envelopes).
+// Use runRaw for tests that need the default Claude-text output.
 func run(t *testing.T, repoDir string, args ...string) (stdout []byte, stderr []byte, exitCode int) {
+	t.Helper()
+	// Prepend --format json unless the caller already specified --format.
+	hasFormat := false
+	for _, a := range args {
+		if a == "--format" {
+			hasFormat = true
+			break
+		}
+	}
+	if !hasFormat {
+		args = append([]string{"--format", "json"}, args...)
+	}
+	return runRaw(t, repoDir, args...)
+}
+
+// runRaw executes snipe without injecting --format json.
+func runRaw(t *testing.T, repoDir string, args ...string) (stdout []byte, stderr []byte, exitCode int) {
 	t.Helper()
 
 	cmd := exec.Command(binPath, args...)

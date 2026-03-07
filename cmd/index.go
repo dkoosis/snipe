@@ -231,7 +231,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	case embedModeOff:
 		embedStatus = "disabled"
 	case embedModeBatch:
-		status, err := startBatchEmbeddings(absDir, symbols)
+		status, err := startBatchEmbeddings(absDir, symbols, fp.Combined)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: batch embedding failed: %v\n", err)
 			embedStatus = batchStatusFailed
@@ -390,7 +390,8 @@ func resolveEmbedMode(mode string, legacyEmbed bool, s *store.Store) string {
 const batchStaleThreshold = 12 * time.Hour
 
 // startBatchEmbeddings initiates async batch embedding via Voyage API.
-func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, error) {
+// fingerprint identifies the index generation that these embeddings belong to.
+func startBatchEmbeddings(repoRoot string, symbols []index.Symbol, fingerprint string) (string, error) {
 	snipeDir := filepath.Join(repoRoot, ".snipe")
 	client, err := embed.NewBatchClient(snipeDir)
 	if err != nil {
@@ -406,7 +407,8 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 	if state != nil && (state.Status == "validating" || state.Status == "in_progress") {
 		// Check if batch is stale (stuck for too long)
 		age := time.Since(state.UpdatedAt)
-		if age > batchStaleThreshold {
+		switch {
+		case age > batchStaleThreshold:
 			// Try to verify actual status from Voyage API
 			fmt.Fprintf(os.Stderr, "Batch %s has been %q for %v, checking actual status...\n",
 				state.BatchID, state.Status, age.Round(time.Minute))
@@ -430,33 +432,42 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 					}
 					// Fall through to start new batch
 				case batchStatusCompleted:
-					// Batch completed but results never processed — auto-recover
-					fmt.Fprintf(os.Stderr, "  Batch completed, recovering results...\n")
-
-					// Update state with output file info from API
-					state.Status = batchStatusCompleted
-					state.OutputFileID = actualStatus.OutputFileID
-					state.ErrorFileID = actualStatus.ErrorFileID
-					state.Completed = actualStatus.RequestCounts.Completed
-					state.Failed = actualStatus.RequestCounts.Failed
-					state.UpdatedAt = time.Now()
-
-					dbPath := store.DefaultIndexPath(repoRoot)
-					count, dlErr := downloadAndSaveEmbeddings(client, state, dbPath)
-					if dlErr != nil {
-						// Download failed (expired output, API error) — clear and restart
-						fmt.Fprintf(os.Stderr, "  Recovery failed: %v\n", dlErr)
-						fmt.Fprintf(os.Stderr, "  Clearing state and starting fresh...\n")
+					// Check if batch was created for a different index generation
+					if !state.MatchesFingerprint(fingerprint) {
+						fmt.Fprintf(os.Stderr, "  Batch was created for a different index version, discarding stale results...\n")
 						if clearErr := client.ClearState(); clearErr != nil {
-							return "", fmt.Errorf("clear failed batch state: %w", clearErr)
+							return "", fmt.Errorf("clear stale batch state: %w", clearErr)
 						}
 						// Fall through to start new batch
 					} else {
-						fmt.Fprintf(os.Stderr, "  Recovered %d embeddings from completed batch\n", count)
-						if clearErr := client.ClearState(); clearErr != nil {
-							fmt.Fprintf(os.Stderr, "  Warning: failed to clear state: %v\n", clearErr)
+						// Batch completed but results never processed — auto-recover
+						fmt.Fprintf(os.Stderr, "  Batch completed, recovering results...\n")
+
+						// Update state with output file info from API
+						state.Status = batchStatusCompleted
+						state.OutputFileID = actualStatus.OutputFileID
+						state.ErrorFileID = actualStatus.ErrorFileID
+						state.Completed = actualStatus.RequestCounts.Completed
+						state.Failed = actualStatus.RequestCounts.Failed
+						state.UpdatedAt = time.Now()
+
+						dbPath := store.DefaultIndexPath(repoRoot)
+						count, dlErr := downloadAndSaveEmbeddings(client, state, dbPath)
+						if dlErr != nil {
+							// Download failed (expired output, API error) — clear and restart
+							fmt.Fprintf(os.Stderr, "  Recovery failed: %v\n", dlErr)
+							fmt.Fprintf(os.Stderr, "  Clearing state and starting fresh...\n")
+							if clearErr := client.ClearState(); clearErr != nil {
+								return "", fmt.Errorf("clear failed batch state: %w", clearErr)
+							}
+							// Fall through to start new batch
+						} else {
+							fmt.Fprintf(os.Stderr, "  Recovered %d embeddings from completed batch\n", count)
+							if clearErr := client.ClearState(); clearErr != nil {
+								fmt.Fprintf(os.Stderr, "  Warning: failed to clear state: %v\n", clearErr)
+							}
+							return "batch_recovered", nil
 						}
-						return "batch_recovered", nil
 					}
 				default:
 					// Batch is still running according to API, but very old
@@ -465,7 +476,14 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 					return "batch_in_progress", nil
 				}
 			}
-		} else {
+		case !state.MatchesFingerprint(fingerprint):
+			// Batch is for a different index version — discard and start fresh
+			fmt.Fprintf(os.Stderr, "Batch %s is for a different index version, discarding...\n", state.BatchID)
+			if clearErr := client.ClearState(); clearErr != nil {
+				return "", fmt.Errorf("clear mismatched batch state: %w", clearErr)
+			}
+			// Fall through to start new batch
+		default:
 			fmt.Fprintf(os.Stderr, "Batch embedding already in progress (batch_id: %s, status: %s, age: %v)\n",
 				state.BatchID, state.Status, age.Round(time.Minute))
 			return "batch_in_progress", nil
@@ -505,15 +523,16 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol) (string, erro
 
 	// Save state for polling
 	newState := &embed.BatchState{
-		BatchID:     batchResp.ID,
-		InputFileID: fileResp.ID,
-		Status:      batchResp.Status,
-		Total:       len(toEmbed),
-		Completed:   0,
-		Failed:      0,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		Model:       client.Model(),
+		BatchID:          batchResp.ID,
+		InputFileID:      fileResp.ID,
+		Status:           batchResp.Status,
+		Total:            len(toEmbed),
+		Completed:        0,
+		Failed:           0,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
+		Model:            client.Model(),
+		IndexFingerprint: fingerprint,
 	}
 	if err := client.SaveState(newState); err != nil {
 		return "", fmt.Errorf("save state: %w", err)

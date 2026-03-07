@@ -221,10 +221,6 @@ func TestCallersAndCallees_Work_When_IndexPresent(t *testing.T) {
 }
 
 func TestImpl_ReturnsImplementations_ForInterface(t *testing.T) {
-	// Skip: snipe impl uses a heuristic (types referencing interface in same file)
-	// which doesn't detect structural implementations without explicit reference.
-	t.Skip("impl command uses reference heuristic, not structural matching")
-
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
 
@@ -1174,6 +1170,18 @@ func indexRepo(t *testing.T, repoDir string) {
 // runWithEnv runs snipe with a custom environment (filtered from os.Environ).
 func runWithEnv(t *testing.T, repoDir string, env []string, args ...string) (stdout []byte, stderr []byte, exitCode int) {
 	t.Helper()
+
+	// Inject --format json unless caller already specified --format.
+	hasFormat := false
+	for _, a := range args {
+		if a == "--format" {
+			hasFormat = true
+			break
+		}
+	}
+	if !hasFormat {
+		args = append([]string{"--format", "json"}, args...)
+	}
 
 	cmd := exec.Command(binPath, args...)
 	cmd.Dir = repoDir

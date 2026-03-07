@@ -205,6 +205,79 @@ func TestLoadState_NoFile(t *testing.T) {
 	}
 }
 
+func TestStatePersistence_Fingerprint(t *testing.T) {
+	dir := t.TempDir()
+	c := newTestBatchClient(dir)
+
+	state := &BatchState{
+		BatchID:          "batch-456",
+		Status:           "in_progress",
+		Total:            50,
+		IndexFingerprint: "abc123",
+	}
+
+	if err := c.SaveState(state); err != nil {
+		t.Fatalf("SaveState failed: %v", err)
+	}
+
+	loaded, err := c.LoadState()
+	if err != nil {
+		t.Fatalf("LoadState failed: %v", err)
+	}
+	if loaded.IndexFingerprint != "abc123" {
+		t.Errorf("IndexFingerprint = %q, want %q", loaded.IndexFingerprint, "abc123")
+	}
+}
+
+func TestMatchesFingerprint(t *testing.T) {
+	tests := []struct {
+		name        string
+		state       *BatchState
+		fingerprint string
+		want        bool
+	}{
+		{
+			name:        "matching fingerprint",
+			state:       &BatchState{IndexFingerprint: "abc123"},
+			fingerprint: "abc123",
+			want:        true,
+		},
+		{
+			name:        "mismatched fingerprint",
+			state:       &BatchState{IndexFingerprint: "abc123"},
+			fingerprint: "def456",
+			want:        false,
+		},
+		{
+			name:        "empty state fingerprint (legacy batch)",
+			state:       &BatchState{IndexFingerprint: ""},
+			fingerprint: "abc123",
+			want:        false,
+		},
+		{
+			name:        "empty current fingerprint",
+			state:       &BatchState{IndexFingerprint: "abc123"},
+			fingerprint: "",
+			want:        false,
+		},
+		{
+			name:        "both empty",
+			state:       &BatchState{},
+			fingerprint: "",
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.state.MatchesFingerprint(tt.fingerprint)
+			if got != tt.want {
+				t.Errorf("MatchesFingerprint(%q) = %v, want %v", tt.fingerprint, got, tt.want)
+			}
+		})
+	}
+}
+
 // splitLines splits on newlines, filtering empty trailing lines.
 func splitLines(s string) []string {
 	var lines []string

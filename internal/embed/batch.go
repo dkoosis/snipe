@@ -25,17 +25,24 @@ type BatchClient struct {
 
 // BatchState tracks the state of a batch embedding job.
 type BatchState struct {
-	BatchID      string    `json:"batch_id"`
-	InputFileID  string    `json:"input_file_id"`
-	OutputFileID string    `json:"output_file_id,omitempty"`
-	ErrorFileID  string    `json:"error_file_id,omitempty"`
-	Status       string    `json:"status"` // validating, in_progress, completed, failed, cancelled
-	Total        int       `json:"total"`
-	Completed    int       `json:"completed"`
-	Failed       int       `json:"failed"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	Model        string    `json:"model"`
+	BatchID          string    `json:"batch_id"`
+	InputFileID      string    `json:"input_file_id"`
+	OutputFileID     string    `json:"output_file_id,omitempty"`
+	ErrorFileID      string    `json:"error_file_id,omitempty"`
+	Status           string    `json:"status"` // validating, in_progress, completed, failed, cancelled
+	Total            int       `json:"total"`
+	Completed        int       `json:"completed"`
+	Failed           int       `json:"failed"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	Model            string    `json:"model"`
+	IndexFingerprint string    `json:"index_fingerprint,omitempty"`
+}
+
+// MatchesFingerprint returns true if the batch was created for the given index fingerprint.
+// Returns false if either fingerprint is empty (legacy state or missing fingerprint).
+func (s *BatchState) MatchesFingerprint(fp string) bool {
+	return s.IndexFingerprint != "" && fp != "" && s.IndexFingerprint == fp
 }
 
 // BatchRequest is a single request in the batch JSONL file.
