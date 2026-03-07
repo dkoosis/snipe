@@ -52,4 +52,4 @@ How to work on snipe. Stable — only update when the workflow itself changes.
 - Do NOT optimize eval score until telemetry provides ground truth
 - Do NOT touch enrichment phases without user approval (see `docs/PLAN-context-enrichment.md`)
 - `mage qa` is the merge gate — no exceptions
-- Output invariant: `{results, meta, error}` JSON, hex IDs 16-char
+- Output: Claude-optimized by default (D1, D4). JSON envelope available via `--format json` for orca integration

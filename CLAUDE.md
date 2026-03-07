@@ -1,6 +1,6 @@
 # snipe
 
-Go code nav CLI for LLMs. Static indexing, <50ms queries, JSON out.
+Make it easier for Claude to work with Go repos. Static indexing, <50ms queries, output optimized for Claude.
 
 ## verify
 
@@ -46,8 +46,20 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 
 `n:boot:snipe` tracks: state (active|wrapped), working_on, ready (issue#)
 
+## decisions
+
+◯ Do not revisit.
+
+| ID | Principle | Constraint |
+|----|-----------|------------|
+| D1 | Claude is the primary consumer | Default output optimized for Claude, not humans or generic JSON parsers |
+| D2 | One command should "just work" | Bare name lookup → fuzzy match → method fallback → semantic. No syntax guessing |
+| D3 | Index root = git root | Always resolve to repo root, not CWD. Eliminates MISSING_INDEX confusion |
+| D4 | Token budget is a first-class concern | Every byte of output must earn its place. No envelope noise in default output |
+| D5 | Hex IDs chain across commands | 16-char IDs enable follow-up queries without re-lookup |
+| D6 | `mage qa` is the merge gate | No exceptions |
+
 ## invariants
 
 - `mage qa` passes before merge
-- output: `{results, meta, error}` JSON
 - hex IDs: 16-char, chain across commands
