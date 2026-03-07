@@ -156,6 +156,79 @@ func TestFindImpactCallers_DedupsTransitive(t *testing.T) {
 	}
 }
 
+func TestFindMethodIDs(t *testing.T) {
+	db := setupImpactTestDB(t)
+
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('s1','Store','struct','/store.go','store.go','pkg/store',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('m1','Open','method','/store.go','store.go','pkg/store',10,1,20,1,NULL,NULL,'(*Store)')`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('m2','Close','method','/store.go','store.go','pkg/store',25,1,30,1,NULL,NULL,'(*Store)')`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('m3','Get','method','/other.go','other.go','pkg/other',1,1,5,1,NULL,NULL,'(*Other)')`)
+
+	ids, err := FindMethodIDs(db, "Store")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 2 {
+		t.Fatalf("expected 2 methods, got %d", len(ids))
+	}
+}
+
+func TestFindImpactCallersMulti(t *testing.T) {
+	db := setupImpactTestDB(t)
+
+	// Store struct + two methods
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('s1','Store','struct','/store.go','store.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('m1','Open','method','/store.go','store.go','pkg',10,1,20,1,NULL,NULL,'(*Store)')`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('m2','Close','method','/store.go','store.go','pkg',25,1,30,1,NULL,NULL,'(*Store)')`)
+	// Callers of the methods
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('c1','funcA','func','/a.go','a.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('c2','funcB','func','/b.go','b.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/store.go',0,'h1')`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/a.go',0,'h2')`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/b.go',0,'h3')`)
+	execOrFatal(t, db, `INSERT INTO call_graph VALUES ('c1','m1','/a.go',3,5)`)
+	execOrFatal(t, db, `INSERT INTO call_graph VALUES ('c2','m2','/b.go',3,5)`)
+
+	// Single ID returns nothing (struct has no call edges)
+	rows, err := FindImpactCallers(db, "s1", false, 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("single struct ID should have 0 callers, got %d", len(rows))
+	}
+
+	// Multi with methods returns callers
+	rows, err = FindImpactCallersMulti(db, []string{"s1", "m1", "m2"}, false, 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 callers via methods, got %d", len(rows))
+	}
+}
+
+func TestFindImpactCallersMulti_Dedup(t *testing.T) {
+	db := setupImpactTestDB(t)
+
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('m1','Open','method','/store.go','store.go','pkg',10,1,20,1,NULL,NULL,'(*Store)')`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('m2','Close','method','/store.go','store.go','pkg',25,1,30,1,NULL,NULL,'(*Store)')`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('c1','funcA','func','/a.go','a.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/store.go',0,'h1')`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/a.go',0,'h2')`)
+	// c1 calls both methods
+	execOrFatal(t, db, `INSERT INTO call_graph VALUES ('c1','m1','/a.go',3,5)`)
+	execOrFatal(t, db, `INSERT INTO call_graph VALUES ('c1','m2','/a.go',4,5)`)
+
+	rows, err := FindImpactCallersMulti(db, []string{"m1", "m2"}, false, 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 deduped caller, got %d", len(rows))
+	}
+}
+
 func TestFindImpactCallers_ExcludesTestFiles(t *testing.T) {
 	db := setupImpactTestDB(t)
 

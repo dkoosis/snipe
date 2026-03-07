@@ -3,6 +3,7 @@ package query
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/dkoosis/snipe/internal/output"
 )
@@ -96,6 +97,88 @@ func FindTests(db *sql.DB, symbolID string, direct bool, limit, offset int) ([]T
 	} else {
 		rows, err = db.Query(q, symbolID, symbolID, limit, offset)
 	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanTestRows(rows)
+}
+
+// FindTestsMulti returns test functions that exercise any of the given symbol IDs.
+// Used for type impact — finds tests of a struct's methods.
+func FindTestsMulti(db *sql.DB, symbolIDs []string, direct bool, limit, offset int) ([]TestRow, error) {
+	if len(symbolIDs) == 0 {
+		return nil, nil
+	}
+	if len(symbolIDs) == 1 {
+		return FindTests(db, symbolIDs[0], direct, limit, offset)
+	}
+
+	placeholders := strings.Repeat("?,", len(symbolIDs))
+	placeholders = placeholders[:len(placeholders)-1]
+
+	args := make([]interface{}, 0, len(symbolIDs)*2+2)
+	for _, id := range symbolIDs {
+		args = append(args, id)
+	}
+
+	var q string
+	if direct {
+		q = fmt.Sprintf(`
+			SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
+			       s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+			       s.signature, s.doc, s.receiver, f.hash,
+			       1 AS hop
+			FROM call_graph cg
+			JOIN symbols s ON s.id = cg.caller_id
+			LEFT JOIN files f ON s.file_path = f.path
+			WHERE cg.callee_id IN (%s)
+			  AND s.file_path GLOB '*_test.go'
+			  AND `+testFuncFilterFor("s")+`
+			ORDER BY s.file_path, s.name
+			LIMIT ? OFFSET ?`, placeholders)
+		args = append(args, limit, offset)
+	} else {
+		for _, id := range symbolIDs {
+			args = append(args, id)
+		}
+		q = fmt.Sprintf(`
+			WITH direct_tests AS (
+				SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
+				       s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+				       s.signature, s.doc, s.receiver, f.hash,
+				       1 AS hop
+				FROM call_graph cg
+				JOIN symbols s ON s.id = cg.caller_id
+				LEFT JOIN files f ON s.file_path = f.path
+				WHERE cg.callee_id IN (%s)
+				  AND s.file_path GLOB '*_test.go'
+				  AND `+testFuncFilterFor("s")+`
+			),
+			transitive_tests AS (
+				SELECT DISTINCT ts.id, ts.name, ts.kind, ts.file_path, ts.file_path_rel,
+				       ts.pkg_path, ts.line_start, ts.col_start, ts.line_end, ts.col_end,
+				       ts.signature, ts.doc, ts.receiver, f.hash,
+				       2 AS hop
+				FROM call_graph cg1
+				JOIN call_graph cg2 ON cg2.callee_id = cg1.caller_id
+				JOIN symbols ts ON ts.id = cg2.caller_id
+				LEFT JOIN files f ON ts.file_path = f.path
+				WHERE cg1.callee_id IN (%s)
+				  AND ts.file_path GLOB '*_test.go'
+				  AND `+testFuncFilterFor("ts")+`
+				  AND ts.id NOT IN (SELECT id FROM direct_tests)
+			)
+			SELECT * FROM direct_tests
+			UNION ALL
+			SELECT * FROM transitive_tests
+			ORDER BY hop, file_path, name
+			LIMIT ? OFFSET ?`, placeholders, placeholders)
+		args = append(args, limit, offset)
+	}
+
+	rows, err := db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
