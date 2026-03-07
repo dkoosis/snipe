@@ -5,7 +5,7 @@ Read first every session, then pick ONE task from boot.md.
 
 ## Project
 
-Go code nav CLI for LLMs. Static indexing, <50ms queries, JSON output.
+Go code nav CLI for LLMs. Static indexing, <50ms queries, Claude-optimized output.
 Goal: replace `go_symbol()` + Explore agents in orca.
 
 Integration: orca calls snipe as subprocess. Commands consumed:
@@ -172,12 +172,30 @@ Simplify review after quick wins: deduplicated interface method extraction, cons
 
 ---
 
+## Output Format Rewrite (2026-03-06)
+
+Default output changed from JSON envelope to Claude-optimized structured text.
+~68% token reduction. JSON available via `--format json` for orca integration.
+
+| Change | Commit | Notes |
+|--------|--------|-------|
+| Fuzzy method name resolution | 34dca70 | Bare name → method match across receivers (#120) |
+| Claude-optimized default output | 083667f | D1/D4: text default, JSON opt-in |
+| Decision table D1-D6 + guard-rails | 64df431 | Trixi-style, do-not-revisit |
+| Issues #120-#123 | — | fuzzy names, search fallback, human format, root detection |
+
+---
+
 ## Decisions log
+
+Canonical decision table now in CLAUDE.md (D1-D6). Below is history.
 
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| D1: Claude is primary consumer | Default output optimized for Claude, not JSON parsers | 2026-03-06 |
+| D4: Token budget is first-class | Every output byte must earn its place | 2026-03-06 |
 | mage for build; mage qa is merge gate | Single command, Go-native | early |
-| Output: {results, meta, error} JSON envelope | LLM consumption, chainable | Phase 0 |
+| Output: {results, meta, error} JSON envelope | Superseded by D1 — JSON now opt-in via --format json | Phase 0 |
 | Hex IDs: 16-char, chain across commands | Compact, unambiguous | Phase 0 |
 | Remove human output layer | snipe is LLM-only tool | 2026-02 |
 | Eval: engine-only scoring, no Claude self-assessment | Honest baselines | 2026-02 |
