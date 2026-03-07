@@ -70,7 +70,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 
 	// Setup output writer
 	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	// Load batch client
 	client, err := embed.NewBatchClient(snipeDir)

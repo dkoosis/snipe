@@ -16,24 +16,45 @@ import (
 // globalFileCache is the default file cache for output operations.
 var globalFileCache = util.NewFileCache(util.DefaultMaxCachedFiles)
 
-// Writer handles JSON output formatting for LLM consumers.
+// OutputFormat controls how the Writer renders responses.
+type OutputFormat string
+
+const (
+	// OutputClaude renders terse, structured text optimized for Claude (default).
+	OutputClaude OutputFormat = ""
+	// OutputJSON renders the full JSON envelope (for orca/toolchain integration).
+	OutputJSON OutputFormat = "json"
+)
+
+// Writer handles output formatting for LLM consumers.
 type Writer struct {
 	out     io.Writer
 	compact bool
+	format  OutputFormat
 	start   time.Time
 }
 
-// NewWriter creates a new JSON output writer.
-func NewWriter(out io.Writer, compact bool) *Writer {
+// NewWriter creates a new output writer.
+// format controls rendering: "" (default) = Claude-optimized text, "json" = full JSON envelope.
+func NewWriter(out io.Writer, compact bool, format OutputFormat) *Writer {
 	return &Writer{
 		out:     out,
 		compact: compact,
+		format:  format,
 		start:   time.Now(),
 	}
 }
 
-// WriteResponse writes a response as JSON.
+// WriteResponse writes a response in the configured format.
 func (w *Writer) WriteResponse(resp any) error {
+	if w.format == OutputJSON {
+		return w.writeJSON(resp)
+	}
+	return w.writeClaude(resp)
+}
+
+// writeJSON writes the full JSON envelope (legacy/orca format).
+func (w *Writer) writeJSON(resp any) error {
 	enc := json.NewEncoder(w.out)
 	if !w.compact {
 		enc.SetIndent("", "  ")
@@ -41,8 +62,386 @@ func (w *Writer) WriteResponse(resp any) error {
 	return enc.Encode(resp)
 }
 
+// writeClaude renders a response as terse structured text optimized for Claude.
+func (w *Writer) writeClaude(resp any) error {
+	var b strings.Builder
+
+	switch r := resp.(type) {
+	case Response[Result]:
+		w.writeClaudeResults(&b, r.Results, r.Meta, r.Suggestions, r.Error)
+	case Response[Summary]:
+		w.writeClaudeSummary(&b, r.Results, r.Meta)
+	case Response[PackResult]:
+		w.writeClaudePack(&b, r.Results, r.Meta)
+	case Response[ExplainResult]:
+		w.writeClaudeExplain(&b, r.Results, r.Meta)
+	case Response[SymResult]:
+		w.writeClaudeSym(&b, r.Results, r.Meta)
+	case Response[DepsResult]:
+		w.writeClaudeDeps(&b, r.Results, r.Meta)
+	case Response[DepTreeResult]:
+		w.writeClaudeDepTree(&b, r.Results, r.Meta)
+	default:
+		// Fallback: JSON for unknown types
+		return w.writeJSON(resp)
+	}
+
+	_, err := io.WriteString(w.out, b.String())
+	return err
+}
+
+func (w *Writer) writeClaudeResults(b *strings.Builder, results []Result, meta Meta, suggestions []Suggestion, respErr *Error) {
+	if respErr != nil {
+		w.writeClaudeError(b, respErr)
+		return
+	}
+
+	for i, r := range results {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		writeResultHeader(b, &r)
+
+		if r.Body != "" {
+			b.WriteString("```go\n")
+			b.WriteString(r.Body)
+			b.WriteString("\n```\n")
+		} else if r.Match != "" && r.Kind != "" {
+			// Signature line only (no body)
+			b.WriteString("  ")
+			b.WriteString(r.Match)
+			b.WriteString("\n")
+		}
+	}
+
+	if meta.Total == 0 && respErr == nil {
+		b.WriteString("No results.\n")
+	}
+
+	w.writeClaudeMeta(b, meta)
+	writeClaudeSuggestions(b, suggestions)
+}
+
+func writeResultHeader(b *strings.Builder, r *Result) {
+	// # Name [hex-id]
+	b.WriteString("# ")
+	if r.Receiver != "" {
+		b.WriteString("(")
+		b.WriteString(r.Receiver)
+		b.WriteString(").")
+	}
+	b.WriteString(r.Name)
+	if r.ID != "" {
+		b.WriteString(" [")
+		b.WriteString(r.ID)
+		b.WriteString("]")
+	}
+	b.WriteString("\n")
+
+	// file:line-line | kind | refs | callers
+	b.WriteString(r.File)
+	if r.Range.Start.Line > 0 {
+		fmt.Fprintf(b, ":%d", r.Range.Start.Line)
+		if r.Range.End.Line > r.Range.Start.Line {
+			fmt.Fprintf(b, "-%d", r.Range.End.Line)
+		}
+	}
+	if r.Kind != "" {
+		b.WriteString(" | ")
+		b.WriteString(r.Kind)
+	}
+	if r.RefCount > 0 {
+		fmt.Fprintf(b, " | %d refs", r.RefCount)
+	}
+	if len(r.CallersPreview) > 0 {
+		b.WriteString(" | callers: ")
+		for j, cp := range r.CallersPreview {
+			if j > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(cp.Name)
+			if j >= 2 && j < len(r.CallersPreview)-1 {
+				fmt.Fprintf(b, " +%d more", len(r.CallersPreview)-j-1)
+				break
+			}
+		}
+	}
+	b.WriteString("\n")
+
+	// Hints on their own line if present
+	if len(r.Hints) > 0 {
+		b.WriteString("hints: ")
+		for j, h := range r.Hints {
+			if j > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(h)
+		}
+		b.WriteString("\n")
+	}
+}
+
+func (w *Writer) writeClaudeMeta(b *strings.Builder, meta Meta) {
+	// Only include metadata that helps Claude, skip noise
+	var parts []string
+	if meta.Truncated {
+		parts = append(parts, "truncated")
+	}
+	if len(meta.StaleFiles) > 0 {
+		parts = append(parts, fmt.Sprintf("%d stale files", len(meta.StaleFiles)))
+	}
+	if meta.IndexState == IndexStale {
+		parts = append(parts, "index stale")
+	}
+	if meta.IndexState == IndexMissing {
+		parts = append(parts, "no index")
+	}
+	if len(meta.Degraded) > 0 {
+		parts = append(parts, meta.Degraded...)
+	}
+	if len(parts) > 0 {
+		b.WriteString("---\n")
+		for _, p := range parts {
+			b.WriteString("! ")
+			b.WriteString(p)
+			b.WriteString("\n")
+		}
+	}
+}
+
+func (w *Writer) writeClaudeError(b *strings.Builder, err *Error) {
+	b.WriteString("error: ")
+	b.WriteString(err.Message)
+	b.WriteString("\n")
+
+	if err.Next != nil {
+		b.WriteString("next: ")
+		b.WriteString(err.Next.Command)
+		b.WriteString("\n")
+	}
+
+	if len(err.Candidates) > 0 {
+		b.WriteString("candidates:\n")
+		for _, c := range err.Candidates {
+			b.WriteString("  ")
+			if c.Receiver != "" {
+				b.WriteString("(")
+				b.WriteString(c.Receiver)
+				b.WriteString(").")
+			}
+			b.WriteString(c.Name)
+			b.WriteString(" [")
+			b.WriteString(c.ID)
+			b.WriteString("] ")
+			b.WriteString(c.File)
+			b.WriteString(" | ")
+			b.WriteString(c.Kind)
+			b.WriteString("\n")
+		}
+	}
+
+	writeClaudeSuggestions(b, err.Suggestions)
+}
+
+func writeClaudeSuggestions(b *strings.Builder, suggestions []Suggestion) {
+	if len(suggestions) == 0 {
+		return
+	}
+	for _, s := range suggestions {
+		if s.Command != "" {
+			b.WriteString("? ")
+			b.WriteString(s.Command)
+			if s.Description != "" {
+				b.WriteString("  -- ")
+				b.WriteString(s.Description)
+			}
+			b.WriteString("\n")
+		}
+	}
+}
+
+func (w *Writer) writeClaudeSummary(b *strings.Builder, results []Summary, meta Meta) {
+	for _, s := range results {
+		fmt.Fprintf(b, "%d results", s.Total)
+		if len(s.Kinds) > 0 {
+			b.WriteString(" (")
+			first := true
+			for k, v := range s.Kinds {
+				if !first {
+					b.WriteString(", ")
+				}
+				fmt.Fprintf(b, "%d %s", v, k)
+				first = false
+			}
+			b.WriteString(")")
+		}
+		b.WriteString("\n")
+		for _, f := range s.Files {
+			fmt.Fprintf(b, "  %s: %d\n", f.File, f.Count)
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudePack(b *strings.Builder, results []PackResult, meta Meta) {
+	for _, r := range results {
+		if r.Definition != nil {
+			writeResultHeader(b, r.Definition)
+			if r.Purpose != "" {
+				b.WriteString("purpose: ")
+				b.WriteString(r.Purpose)
+				b.WriteString("\n")
+			}
+			if r.Role != "" {
+				b.WriteString("role: ")
+				b.WriteString(r.Role)
+				b.WriteString("\n")
+			}
+			if r.Definition.Body != "" {
+				b.WriteString("```go\n")
+				b.WriteString(r.Definition.Body)
+				b.WriteString("\n```\n")
+			}
+		}
+		if len(r.Methods) > 0 {
+			b.WriteString("methods:\n")
+			for _, m := range r.Methods {
+				b.WriteString("  ")
+				b.WriteString(m.Name)
+				if m.Signature != "" {
+					b.WriteString(" — ")
+					b.WriteString(m.Signature)
+				}
+				b.WriteString("\n")
+			}
+		}
+		if r.CallerCount > 0 {
+			fmt.Fprintf(b, "%d callers", r.CallerCount)
+			if r.RefCount > 0 {
+				fmt.Fprintf(b, ", %d refs", r.RefCount)
+			}
+			b.WriteString("\n")
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudeExplain(b *strings.Builder, results []ExplainResult, meta Meta) {
+	for _, r := range results {
+		fmt.Fprintf(b, "# %s\n", r.Symbol)
+		fmt.Fprintf(b, "%s | %s\n", r.File, r.Kind)
+		if r.Signature != "" {
+			b.WriteString("  ")
+			b.WriteString(r.Signature)
+			b.WriteString("\n")
+		}
+		if r.Purpose != "" {
+			b.WriteString("purpose: ")
+			b.WriteString(r.Purpose)
+			b.WriteString("\n")
+		}
+		if len(r.Mechanism) > 0 {
+			b.WriteString("mechanism:\n")
+			for _, step := range r.Mechanism {
+				fmt.Fprintf(b, "  %s %s", step.Action, step.Target)
+				if step.Note != "" {
+					fmt.Fprintf(b, " (%s)", step.Note)
+				}
+				b.WriteString("\n")
+			}
+		}
+		if len(r.Warnings) > 0 {
+			for _, warn := range r.Warnings {
+				fmt.Fprintf(b, "! %s L%d: %s\n", warn.Severity, warn.Line, warn.Message)
+			}
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudeSym(b *strings.Builder, results []SymResult, meta Meta) {
+	for _, r := range results {
+		if r.Definition != nil {
+			writeResultHeader(b, r.Definition)
+			if r.Definition.Body != "" {
+				b.WriteString("```go\n")
+				b.WriteString(r.Definition.Body)
+				b.WriteString("\n```\n")
+			}
+		}
+		if r.CallerCount > 0 {
+			fmt.Fprintf(b, "%d callers", r.CallerCount)
+			if len(r.Callers) > 0 {
+				b.WriteString(": ")
+				for j, c := range r.Callers {
+					if j > 0 {
+						b.WriteString(", ")
+					}
+					b.WriteString(c.Name)
+					if j >= 4 {
+						fmt.Fprintf(b, " +%d more", r.CallerCount-j-1)
+						break
+					}
+				}
+			}
+			b.WriteString("\n")
+		}
+		if r.CalleeCount > 0 {
+			fmt.Fprintf(b, "%d callees\n", r.CalleeCount)
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudeDeps(b *strings.Builder, results []DepsResult, meta Meta) {
+	for _, r := range results {
+		fmt.Fprintf(b, "# %s\n", r.Package)
+		if len(r.Dependencies) > 0 {
+			b.WriteString("imports:\n")
+			for _, d := range r.Dependencies {
+				fmt.Fprintf(b, "  %s (%d files)\n", d.Package, d.FileCount)
+			}
+		}
+		if len(r.Dependents) > 0 {
+			b.WriteString("imported by:\n")
+			for _, d := range r.Dependents {
+				fmt.Fprintf(b, "  %s (%d files)\n", d.Package, d.FileCount)
+			}
+		}
+		if len(r.Cycles) > 0 {
+			b.WriteString("! cycles:\n")
+			for _, c := range r.Cycles {
+				fmt.Fprintf(b, "  %s\n", strings.Join(c, " -> "))
+			}
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudeDepTree(b *strings.Builder, results []DepTreeResult, meta Meta) {
+	for _, r := range results {
+		fmt.Fprintf(b, "%d packages, %d edges\n", len(r.Packages), len(r.Edges))
+		for _, e := range r.Edges {
+			fmt.Fprintf(b, "  %s -> %s (%d files)\n", e.From, e.To, e.FileCount)
+		}
+		if len(r.Cycles) > 0 {
+			b.WriteString("! cycles:\n")
+			for _, c := range r.Cycles {
+				fmt.Fprintf(b, "  %s\n", strings.Join(c, " -> "))
+			}
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
 // WriteError writes an error response
 func (w *Writer) WriteError(command string, err *Error) error {
+	if w.format != OutputJSON {
+		var b strings.Builder
+		w.writeClaudeError(&b, err)
+		_, writeErr := io.WriteString(w.out, b.String())
+		return writeErr
+	}
 	resp := Response[any]{
 		Protocol: ProtocolVersion,
 		Ok:       false,
@@ -51,9 +450,10 @@ func (w *Writer) WriteError(command string, err *Error) error {
 			Command: command,
 			Ms:      time.Since(w.start).Milliseconds(),
 		},
-		Error: err,
+		Error:       err,
+		Suggestions: err.Suggestions,
 	}
-	return w.WriteResponse(resp)
+	return w.writeJSON(resp)
 }
 
 // Elapsed returns milliseconds since writer creation

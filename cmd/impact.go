@@ -55,7 +55,7 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
 
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && impactAt == "" && impactID == "" {
 		return w.WriteError("impact", &output.Error{
@@ -147,7 +147,21 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	// --- Phase 1: Transitive callers (non-test files) ---
 	// Use internal limit 3x to avoid phase 1 starving phases 2-3
 	internalLim := lim * 3
-	callerRows, err := query.FindImpactCallers(s.DB(), symbolID, impactDirect, internalLim, 0)
+
+	// For structs/types, expand to include callers of methods on the type
+	var callerRows []query.ImpactRow
+	isType := symKind == "struct" || symKind == "type"
+	if isType {
+		methodIDs, mErr := query.FindMethodIDs(s.DB(), symName)
+		if mErr != nil {
+			degraded = append(degraded, "method_lookup_failed")
+		}
+		// Include the type itself + all its methods
+		targetIDs := append([]string{symbolID}, methodIDs...)
+		callerRows, err = query.FindImpactCallersMulti(s.DB(), targetIDs, impactDirect, internalLim, 0)
+	} else {
+		callerRows, err = query.FindImpactCallers(s.DB(), symbolID, impactDirect, internalLim, 0)
+	}
 	if err != nil {
 		degraded = append(degraded, "callers_failed")
 		callerRows = nil
@@ -165,7 +179,17 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	}
 
 	// --- Phase 3: Test coverage ---
-	testRows, err := query.FindTests(s.DB(), symbolID, impactDirect, internalLim, 0)
+	var testRows []query.TestRow
+	if isType {
+		methodIDs, mErr := query.FindMethodIDs(s.DB(), symName)
+		if mErr != nil {
+			degraded = append(degraded, "method_lookup_failed")
+		}
+		targetIDs := append([]string{symbolID}, methodIDs...)
+		testRows, err = query.FindTestsMulti(s.DB(), targetIDs, impactDirect, internalLim, 0)
+	} else {
+		testRows, err = query.FindTests(s.DB(), symbolID, impactDirect, internalLim, 0)
+	}
 	if err != nil {
 		degraded = append(degraded, "tests_failed")
 		testRows = nil

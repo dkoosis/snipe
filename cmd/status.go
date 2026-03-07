@@ -42,7 +42,7 @@ type StatusResponse struct {
 
 func runStatus(cmd *cobra.Command, args []string) error {
 	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	// Find repo root
 	dir := findProjectRoot(".")

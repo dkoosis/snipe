@@ -58,7 +58,7 @@ func init() {
 
 func runDoctor(cmd *cobra.Command, args []string) error {
 	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	allOK := true
 	var checks []DoctorCheck
@@ -322,7 +322,7 @@ func checkOrphans() DoctorCheck {
 	}
 
 	if orphanCount > 0 {
-		check.OK = true // Degraded but not broken
+		check.OK = false
 		check.Code = DoctorOrphanedRefs
 		check.Message = fmt.Sprintf("%d orphaned references found", orphanCount)
 		check.Remediation = "snipe index --force"

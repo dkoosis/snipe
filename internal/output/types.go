@@ -55,10 +55,11 @@ const (
 
 // Error represents an error response
 type Error struct {
-	Code       string      `json:"code"`
-	Message    string      `json:"message"`
-	Next       *NextAction `json:"next,omitempty"`
-	Candidates []Candidate `json:"candidates,omitempty"`
+	Code        string       `json:"code"`
+	Message     string       `json:"message"`
+	Next        *NextAction  `json:"next,omitempty"`
+	Candidates  []Candidate  `json:"candidates,omitempty"`
+	Suggestions []Suggestion `json:"suggestions,omitempty"`
 }
 
 // NextAction suggests the next command to run

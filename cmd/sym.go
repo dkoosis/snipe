@@ -50,7 +50,7 @@ func runSym(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
 	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && symAt == "" {

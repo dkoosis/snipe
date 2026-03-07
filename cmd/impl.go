@@ -43,7 +43,7 @@ func runImpl(cmd *cobra.Command, args []string) error {
 	format := GetResponseFormat()
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && implID == "" {
 		return w.WriteError("impl", &output.Error{
@@ -119,6 +119,10 @@ func runImpl(cmd *cobra.Command, args []string) error {
 			return w.WriteError("impl", &output.Error{
 				Code:    output.ErrNotFound,
 				Message: name + " is not an interface",
+				Suggestions: []output.Suggestion{
+					{Command: "snipe def " + name, Description: "View definition of " + name, Priority: 1},
+					{Command: "snipe refs " + name, Description: "Find references to " + name, Priority: 2},
+				},
 			})
 		}
 

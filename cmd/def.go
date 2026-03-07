@@ -57,7 +57,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 	// Apply format overrides
 	withBody, withSiblings, contextLines = ApplyFormatOverrides(format, withBody, withSiblings, contextLines)
 
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	// Handle --file and --pkg scoped queries
 	if defFile != "" || defPkg != "" {
@@ -102,7 +102,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return w.WriteError("def", &output.Error{
 				Code:    output.ErrNotFound,
-				Message: err.Error(),
+				Message: "no symbol found at " + defAt,
 			})
 		}
 		queryInfo = map[string]string{"at": defAt}

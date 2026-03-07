@@ -54,7 +54,7 @@ func runPack(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
 	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && packAt == "" {
 		return w.WriteError("pack", &output.Error{

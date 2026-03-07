@@ -187,7 +187,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&noSiblings, "no-siblings", false, "Exclude sibling declarations")
 	rootCmd.PersistentFlags().BoolVar(&signatureOnly, "signature-only", false, "Return only signature (no body, no context)")
 	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Token budget (0 = unlimited)")
-	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "", "concise | detailed | summary")
+	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "", "concise | detailed | summary | json")
 	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for command (e.g., 30s, 5m)")
 	rootCmd.PersistentFlags().StringVar(&selectMode, "select", "all", "Result selection: all, best, top3, top5")
@@ -234,6 +234,15 @@ func GetOutputConfig() (compact bool, lim int, off int, ctx int, body bool, sibl
 // GetResponseFormat returns the response format mode.
 func GetResponseFormat() ResponseFormat {
 	return ResponseFormat(responseFormat)
+}
+
+// GetOutputFormat returns the output format for the Writer.
+// "json" = full JSON envelope, "" = Claude-optimized text (default).
+func GetOutputFormat() output.OutputFormat {
+	if responseFormat == "json" {
+		return output.OutputJSON
+	}
+	return output.OutputClaude
 }
 
 // ApplyFormatOverrides adjusts output config based on --format flag.

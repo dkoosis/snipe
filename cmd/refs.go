@@ -56,7 +56,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
 
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && refsAt == "" {

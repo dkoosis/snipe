@@ -40,7 +40,7 @@ func runDeps(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
 	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	s, dir, err := OpenStore(w, "deps")
 	if err != nil {

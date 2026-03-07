@@ -54,7 +54,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	_, _, ctx = ApplyFormatOverrides(format, false, false, ctx)
 	summary := format == FormatSummary
 
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	// Get current directory
 	dir, err := os.Getwd()

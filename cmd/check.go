@@ -43,7 +43,7 @@ func init() {
 
 func runCheck(cmd *cobra.Command, args []string) error {
 	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	dir, err := os.Getwd()
 	if err != nil {

@@ -45,7 +45,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 	format := GetResponseFormat()
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	dir, err := os.Getwd()
 	if err != nil {

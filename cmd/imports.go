@@ -33,7 +33,7 @@ func runImports(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
 	compact, lim, offset, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	filePath := args[0]
 

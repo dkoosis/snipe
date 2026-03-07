@@ -46,7 +46,7 @@ func runCallers(cmd *cobra.Command, args []string) error {
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
 
-	w := output.NewWriter(os.Stdout, compact)
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && callersID == "" {
 		return w.WriteError("callers", &output.Error{
