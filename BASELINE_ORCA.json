@@ -1,35 +1,35 @@
 {
-  "timestamp": "2026-03-07T01:47:33Z",
-  "git_commit": "ac15e1c5",
-  "go_version": "go1.25.7",
+  "timestamp": "2026-03-08T18:13:11Z",
+  "git_commit": "511eee08",
+  "go_version": "go1.25.8",
   "codebase": {
     "go_files": 428,
-    "symbols": 7731,
-    "refs": 22529,
-    "call_edges": 8234,
-    "db_size_kb": 27032
+    "symbols": 7732,
+    "refs": 22538,
+    "call_edges": 8236,
+    "db_size_kb": 27072
   },
   "index": {
-    "total_ms": 34500,
-    "load_ms": 3702,
-    "extract_ms": 15161,
-    "persist_ms": 15570,
-    "peak_mem_mb": 1564
+    "total_ms": 60942,
+    "load_ms": 30542,
+    "extract_ms": 16392,
+    "persist_ms": 13804,
+    "peak_mem_mb": 1566
   },
   "query": {
-    "def_by_name_ms": 1.1298800000000002,
-    "def_by_pos_ms": 2.43119,
-    "refs_by_id_ms": 2.20365
+    "def_by_name_ms": 1.02632,
+    "def_by_pos_ms": 2.22699,
+    "refs_by_id_ms": 2.04711
   },
   "search": {
-    "simple_pattern_ms": 12.04196,
-    "regex_pattern_ms": 24.25043
+    "simple_pattern_ms": 11.497399999999999,
+    "regex_pattern_ms": 18.41087
   },
   "quality": {
-    "symbols_with_doc": 4532,
-    "symbols_with_sig": 7731,
-    "doc_coverage_pct": 58.62113568749192,
-    "refs_per_symbol": 2.91411201655672,
-    "callgraph_coverage_pct": 127.00983227299017
+    "symbols_with_doc": 4533,
+    "symbols_with_sig": 7732,
+    "doc_coverage_pct": 58.62648732540093,
+    "refs_per_symbol": 2.9148991205380237,
+    "callgraph_coverage_pct": 126.9208549971115
   }
 }

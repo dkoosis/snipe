@@ -2,6 +2,8 @@ module github.com/dkoosis/snipe
 
 go 1.24.0
 
+toolchain go1.25.8
+
 require (
 	github.com/magefile/mage v1.15.0
 	github.com/spf13/cobra v1.10.2

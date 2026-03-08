@@ -62,6 +62,7 @@ func TestDetectConstructors(t *testing.T) {
 	result := detectConstructors(db)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Total != 4 {
 		t.Errorf("total: got %d, want 4", result.Total)
@@ -104,6 +105,7 @@ func TestDetectReceivers(t *testing.T) {
 	result := detectReceivers(db)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Total != 4 {
 		t.Errorf("total: got %d, want 4", result.Total)
@@ -141,6 +143,7 @@ func TestDetectTesting(t *testing.T) {
 	result := detectTesting(db)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.TestFiles != 2 {
 		t.Errorf("test_files: got %d, want 2", result.TestFiles)
@@ -175,6 +178,7 @@ func TestDetectInterfaces(t *testing.T) {
 	result := detectInterfaces(db)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Total != 4 {
 		t.Errorf("total: got %d, want 4", result.Total)
@@ -206,6 +210,7 @@ func TestDetectErrors(t *testing.T) {
 	result := detectErrors(db)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Sentinels != 2 {
 		t.Errorf("sentinels: got %d, want 2", result.Sentinels)
@@ -227,6 +232,7 @@ func TestDetectErrors_NoSentinels(t *testing.T) {
 	result := detectErrors(db)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Pattern != "inline error returns" {
 		t.Errorf("pattern: got %q, want 'inline error returns'", result.Pattern)
@@ -251,6 +257,7 @@ func TestDetectFileOrg(t *testing.T) {
 	result := detectFileOrg(db)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.SingleType != 2 {
 		t.Errorf("single_type: got %d, want 2", result.SingleType)
@@ -283,6 +290,7 @@ func TestDetectConventions_AllCategories(t *testing.T) {
 	conv := DetectConventions(db, "/repo")
 	if conv == nil {
 		t.Fatal("expected non-nil conventions")
+		return
 	}
 
 	count := 0

@@ -147,6 +147,7 @@ func TestStatePersistence(t *testing.T) {
 	}
 	if loaded == nil {
 		t.Fatal("LoadState returned nil")
+		return
 	}
 	if loaded.BatchID != "batch-123" {
 		t.Errorf("BatchID = %q, want %q", loaded.BatchID, "batch-123")

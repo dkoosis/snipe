@@ -61,6 +61,7 @@ func TestSessionActiveWork(t *testing.T) {
 	aw = session.GetActiveWork()
 	if aw == nil {
 		t.Fatal("expected active work, got nil")
+		return
 	}
 
 	if len(aw.RecentSymbols) != 2 {

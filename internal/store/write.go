@@ -437,6 +437,33 @@ type IncrementalResult struct {
 	IncrementalCount int // how many incremental writes since last full reindex
 }
 
+// DeleteFileEntries removes specific file paths from the files table.
+func (s *Store) DeleteFileEntries(paths []string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+	placeholders := make([]string, len(paths))
+	args := make([]interface{}, len(paths))
+	for i, p := range paths {
+		placeholders[i] = "?"
+		args[i] = p
+	}
+	query := fmt.Sprintf("DELETE FROM files WHERE path IN (%s)", strings.Join(placeholders, ","))
+	if _, err := tx.Exec(query, args...); err != nil {
+		return fmt.Errorf("delete files: %w", err)
+	}
+	return tx.Commit()
+}
+
 // WriteIndexIncremental updates the index for changed/deleted files only.
 // Symbols for changed files are replaced; refs, call edges, and imports from
 // changed files are deleted and re-inserted. Unchanged files are left in place.

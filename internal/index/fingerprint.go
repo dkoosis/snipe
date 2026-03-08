@@ -65,9 +65,11 @@ func hashFile(path string) (string, error) {
 }
 
 func getGoEnvHash(dir string) string {
-	// Get relevant environment values
-	envVars := []string{"GOOS", "GOARCH", "GOMOD", "GOWORK"}
-	var values []string
+	// Only include build-config values that affect type-checking output.
+	// GOMOD/GOWORK are absolute paths that change per-machine and cause
+	// false "build config changed" invalidations. CGO_ENABLED affects
+	// which files get compiled.
+	envVars := []string{"CGO_ENABLED", "GOARCH", "GOOS"}
 
 	cmd := exec.Command("go", "env")
 	cmd.Dir = dir
@@ -76,7 +78,6 @@ func getGoEnvHash(dir string) string {
 		return ""
 	}
 
-	// Parse output
 	envMap := make(map[string]string)
 	for _, line := range strings.Split(string(output), "\n") {
 		parts := strings.SplitN(line, "=", 2)
@@ -87,6 +88,7 @@ func getGoEnvHash(dir string) string {
 		}
 	}
 
+	var values []string
 	for _, key := range envVars {
 		if val, ok := envMap[key]; ok {
 			values = append(values, key+"="+val)

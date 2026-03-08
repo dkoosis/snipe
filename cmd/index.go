@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -113,7 +114,16 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		detection = &changeDetection{result: skipResultProceedFull}
 	}
 
-	// Load packages (always needed — go/packages needs full type context)
+	// Delete-only fast path: skip expensive go/packages load when only files were removed
+	if detection.result == skipResultProceedIncremental &&
+		detection.changes != nil &&
+		len(detection.changes.Modified) == 0 &&
+		len(detection.changes.Added) == 0 &&
+		len(detection.changes.Deleted) > 0 {
+		return runDeleteOnlyIndex(s, detection.changes, absDir, start, w)
+	}
+
+	// Load packages (needed for symbol extraction)
 	fmt.Fprintf(os.Stderr, "Loading packages from %s...\n", absDir)
 	loadStart := time.Now()
 
@@ -130,8 +140,15 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	loadMs := time.Since(loadStart).Milliseconds()
 	fmt.Fprintf(os.Stderr, "Loaded %d packages in %dms\n", len(result.Packages), loadMs)
 
-	// Report any load errors
+	// Report load errors (suppress test package noise from go/packages).
+	// go/packages generates spurious "no required module" warnings for
+	// _test and .test packages when Tests=true.
 	for _, e := range result.Errors {
+		msg := e.Error()
+		if strings.Contains(msg, "no required module provides package") &&
+			(strings.Contains(msg, "_test") || strings.Contains(msg, ".test")) {
+			continue
+		}
 		fmt.Fprintf(os.Stderr, "Warning: %v\n", e)
 	}
 
@@ -650,6 +667,57 @@ func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadRes
 		},
 	}
 
+	return w.WriteResponse(resp)
+}
+
+// runDeleteOnlyIndex handles the case where only files were deleted.
+// Skips the expensive go/packages load entirely — just removes dead rows from the DB.
+func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir string, start time.Time, w *output.Writer) error {
+	nDel := len(changes.Deleted)
+	fmt.Fprintf(os.Stderr, "Delete-only: removing %d files (skipping package load)\n", nDel)
+
+	// Remove symbols, refs, edges, imports, embeddings, purposes for deleted files
+	incResult, err := s.WriteIndexIncremental(nil, nil, nil, nil, nil, changes.Deleted)
+	if err != nil {
+		return fmt.Errorf("delete-only incremental: %w", err)
+	}
+
+	// Remove file entries for deleted files
+	if err := s.DeleteFileEntries(changes.Deleted); err != nil {
+		return fmt.Errorf("delete file entries: %w", err)
+	}
+
+	// Update metadata
+	if err := s.SetMeta("indexed_at", time.Now().Format(time.RFC3339)); err != nil {
+		return fmt.Errorf("store timestamp: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "Deleted %d files\n", nDel)
+
+	var suggestions []output.Suggestion
+	if incResult.OrphanedRefs > 0 {
+		suggestions = append(suggestions, output.Suggestion{
+			Command:     "snipe index --force",
+			Description: fmt.Sprintf("Full rebuild to clear %d orphaned refs", incResult.OrphanedRefs),
+			Priority:    3,
+			Condition:   "incremental_orphans",
+		})
+	}
+
+	symCount, _, _, _ := s.GetStats()
+	resp := output.Response[any]{
+		Protocol:    output.ProtocolVersion,
+		Ok:          true,
+		Results:     nil,
+		Suggestions: suggestions,
+		Meta: output.Meta{
+			Command:    "index",
+			RepoRoot:   absDir,
+			IndexState: output.IndexFresh,
+			Ms:         time.Since(start).Milliseconds(),
+			Total:      symCount,
+		},
+	}
 	return w.WriteResponse(resp)
 }
 

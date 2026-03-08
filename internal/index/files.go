@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 // FileInfo represents file metadata for change detection
@@ -14,29 +16,64 @@ type FileInfo struct {
 	Hash  string
 }
 
-// ExtractFileInfo collects file hashes from loaded packages.
-// Returns a map of file path to FileInfo for efficient lookup.
+// ExtractFileInfo walks the repo directory to collect file hashes.
+// Uses the same directory walk as DetectChanges to ensure the file sets
+// match exactly — go/packages omits some files (build-tagged, integration
+// tests) and includes cache paths, causing perpetual change detection.
 func ExtractFileInfo(result *LoadResult) ([]FileInfo, error) {
-	// Collect unique files
-	seen := make(map[string]struct{})
-	var files []FileInfo
-
-	for _, pkg := range result.Packages {
-		for _, path := range pkg.GoFiles {
-			if _, ok := seen[path]; ok {
-				continue
+	// Determine repo root from the first package's directory
+	var repoRoot string
+	if len(result.Packages) > 0 && len(result.Packages[0].GoFiles) > 0 {
+		dir := filepath.Dir(result.Packages[0].GoFiles[0])
+		for dir != "/" {
+			if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+				repoRoot = dir
+				break
 			}
-			seen[path] = struct{}{}
-
-			info, err := computeFileInfo(path)
-			if err != nil {
-				// Skip files that can't be hashed (may have been deleted)
-				continue
-			}
-			files = append(files, info)
+			dir = filepath.Dir(dir)
 		}
 	}
+	if repoRoot == "" {
+		return nil, nil
+	}
 
+	return WalkFileInfo(repoRoot, DefaultExclude())
+}
+
+// WalkFileInfo walks a directory tree collecting FileInfo for all .go files,
+// applying the same exclusion rules as DetectChanges.
+func WalkFileInfo(dir string, exclude []string) ([]FileInfo, error) {
+	var files []FileInfo
+
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil //nolint:nilerr // Skip unreadable entries
+		}
+		if d.IsDir() {
+			base := d.Name()
+			if strings.HasPrefix(base, ".") && base != "." {
+				return filepath.SkipDir
+			}
+			for _, pat := range exclude {
+				if base == pat {
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".go") {
+			return nil
+		}
+		info, fErr := computeFileInfo(path)
+		if fErr != nil {
+			return nil //nolint:nilerr // Skip unhashable files
+		}
+		files = append(files, info)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 	return files, nil
 }
 
