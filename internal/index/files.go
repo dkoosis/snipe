@@ -20,23 +20,7 @@ type FileInfo struct {
 // Uses the same directory walk as DetectChanges to ensure the file sets
 // match exactly — go/packages omits some files (build-tagged, integration
 // tests) and includes cache paths, causing perpetual change detection.
-func ExtractFileInfo(result *LoadResult) ([]FileInfo, error) {
-	// Determine repo root from the first package's directory
-	var repoRoot string
-	if len(result.Packages) > 0 && len(result.Packages[0].GoFiles) > 0 {
-		dir := filepath.Dir(result.Packages[0].GoFiles[0])
-		for dir != "/" {
-			if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-				repoRoot = dir
-				break
-			}
-			dir = filepath.Dir(dir)
-		}
-	}
-	if repoRoot == "" {
-		return nil, nil
-	}
-
+func ExtractFileInfo(repoRoot string) ([]FileInfo, error) {
 	return WalkFileInfo(repoRoot, DefaultExclude())
 }
 

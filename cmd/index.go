@@ -197,7 +197,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 
 	// Extract file info (for content hashes)
 	fmt.Fprintf(os.Stderr, "Computing file hashes...\n")
-	files, err := index.ExtractFileInfo(result)
+	files, err := index.ExtractFileInfo(absDir)
 	if err != nil {
 		return fmt.Errorf("extract file info: %w", err)
 	}
@@ -620,7 +620,7 @@ func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadRes
 
 	// Update file hashes for ALL files (cheap stat calls)
 	fmt.Fprintf(os.Stderr, "Computing file hashes...\n")
-	files, err := index.ExtractFileInfo(result)
+	files, err := index.ExtractFileInfo(absDir)
 	if err != nil {
 		return fmt.Errorf("extract file info: %w", err)
 	}
