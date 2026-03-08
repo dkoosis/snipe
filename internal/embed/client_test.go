@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -68,7 +69,7 @@ func TestEmbedAPIError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for 401 response, got nil")
 	}
-	if !contains(err.Error(), "401") {
+	if !strings.Contains(err.Error(), "401") {
 		t.Errorf("error should mention 401, got: %s", err.Error())
 	}
 }
@@ -121,17 +122,4 @@ func TestClientDimensions(t *testing.T) {
 	if c.Dimensions() != 1024 {
 		t.Errorf("Dimensions() = %d, want 1024", c.Dimensions())
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

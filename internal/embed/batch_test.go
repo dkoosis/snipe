@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -37,7 +38,7 @@ func TestWriteJSONL(t *testing.T) {
 		t.Fatalf("ReadFile failed: %v", err)
 	}
 
-	lines := splitLines(string(data))
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines, got %d", len(lines))
 	}
@@ -276,23 +277,4 @@ func TestMatchesFingerprint(t *testing.T) {
 			}
 		})
 	}
-}
-
-// splitLines splits on newlines, filtering empty trailing lines.
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			line := s[start:i]
-			if line != "" {
-				lines = append(lines, line)
-			}
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
 }

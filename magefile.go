@@ -213,6 +213,7 @@ func Clean() error {
 // Baseline captures performance/quality metrics.
 func Baseline() error {
 	fmt.Println("→ Capturing baseline metrics...")
+	os.Setenv("SNIPE_BASELINE", "1")
 	return sh.RunV("go", "test", "-v", "-run", "TestCaptureBaseline", "./test/bench/")
 }
 

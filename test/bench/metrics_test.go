@@ -66,8 +66,8 @@ type QualityMetrics struct {
 // TestCaptureBaseline captures all metrics and outputs JSON
 // Run with: go test -v -run TestCaptureBaseline ./test/bench/
 func TestCaptureBaseline(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping baseline capture in short mode")
+	if os.Getenv("SNIPE_BASELINE") == "" {
+		t.Skip("skipping baseline capture (set SNIPE_BASELINE=1 to run)")
 	}
 
 	dir, _ := filepath.Abs(testRepo)
