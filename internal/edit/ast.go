@@ -2,6 +2,7 @@
 package edit
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -12,6 +13,9 @@ import (
 
 	"github.com/pmezard/go-difflib/difflib"
 )
+
+// ErrSymbolNotFound is returned when a symbol cannot be located in the file.
+var ErrSymbolNotFound = errors.New("symbol not found")
 
 // Operation defines the type of edit operation
 type Operation string
@@ -153,7 +157,7 @@ func FindSymbol(filePath, symbolName string, optLine int) (*SymbolInfo, error) {
 	})
 
 	if found == nil {
-		return nil, fmt.Errorf("symbol %q not found in %s", symbolName, filePath)
+		return nil, fmt.Errorf("%w: %q in %s", ErrSymbolNotFound, symbolName, filePath)
 	}
 
 	return found, nil
@@ -272,11 +276,11 @@ func Apply(req Request) (*Result, error) {
 		return nil, fmt.Errorf("unknown operation: %s", req.Operation)
 	}
 
-	// Format the result
+	// Format the result — a format failure means the edit produced invalid Go,
+	// so surface it rather than silently writing broken code.
 	formatted, err := format.Source(newContent)
 	if err != nil {
-		// Return unformatted if formatting fails
-		formatted = newContent
+		return nil, fmt.Errorf("format after edit: %w", err)
 	}
 
 	// Compute diff

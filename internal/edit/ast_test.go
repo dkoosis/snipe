@@ -54,7 +54,6 @@ func TestFindSymbol_ReturnsSymbolMetadata_When_MatchingDeclarationExists(t *test
 
 	path := writeGoFile(t)
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -85,17 +84,17 @@ func TestFindSymbol_ReturnsError_When_SymbolDoesNotExistOrLineFilterMismatches(t
 		line    int
 		wantErr string
 	}{
-		{name: "missing symbol", symbol: "Unknown", line: 0, wantErr: `symbol "Unknown" not found`},
-		{name: "line filter mismatch", symbol: "Add", line: 100, wantErr: `symbol "Add" not found`},
+		{name: "missing symbol", symbol: "Unknown", line: 0, wantErr: `"Unknown"`},
+		{name: "line filter mismatch", symbol: "Add", line: 100, wantErr: `"Add"`},
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			_, err := edit.FindSymbol(path, tc.symbol, tc.line)
 			require.Error(t, err)
+			assert.ErrorIs(t, err, edit.ErrSymbolNotFound)
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
@@ -123,12 +122,11 @@ func TestApply_ReturnsError_When_RequestIsInvalid(t *testing.T) {
 		{
 			name:    "symbol not found",
 			req:     edit.Request{File: path, Symbol: "Nope", Operation: edit.OpReplaceFull, NewCode: "func Nope() {}"},
-			wantErr: `symbol "Nope" not found`,
+			wantErr: `"Nope"`,
 		},
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := edit.Apply(tc.req)
@@ -179,7 +177,6 @@ func TestApply_ReturnsEditedCode_When_UsingSupportedOperations(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			path := writeGoFile(t)
