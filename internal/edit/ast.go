@@ -25,12 +25,11 @@ const (
 
 // Request describes an edit operation
 type Request struct {
-	File         string    // File path to edit
-	Symbol       string    // Symbol name to find
-	Line         int       // Optional: specific line to target
-	Operation    Operation // Edit operation type
-	NewCode      string    // New code to insert/replace
-	ExpectedHash string    // Optional: hash to validate freshness
+	File      string    // File path to edit
+	Symbol    string    // Symbol name to find
+	Line      int       // Optional: specific line to target
+	Operation Operation // Edit operation type
+	NewCode   string    // New code to insert/replace
 }
 
 // Result contains the edit result
@@ -43,6 +42,8 @@ type Result struct {
 	LineEnd      int    `json:"line_end"`
 	NewLineEnd   int    `json:"new_line_end"`
 	Applied      bool   `json:"applied"`
+
+	formatted []byte // formatted file content, used by ApplyAndWrite
 }
 
 // FindSymbol locates a symbol in the file and returns its position info
@@ -293,6 +294,7 @@ func Apply(req Request) (*Result, error) {
 		LineEnd:      info.LineEnd,
 		NewLineEnd:   newLineEnd,
 		Applied:      false,
+		formatted:    formatted,
 	}, nil
 }
 
@@ -303,60 +305,7 @@ func ApplyAndWrite(req Request) (*Result, error) {
 		return nil, err
 	}
 
-	info, err := FindSymbol(req.File, req.Symbol, req.Line)
-	if err != nil {
-		return nil, err
-	}
-
-	// Rebuild the full content
-	var newContent []byte
-	switch req.Operation {
-	case OpReplaceBody:
-		newCode := strings.TrimSpace(req.NewCode)
-		if !strings.HasPrefix(newCode, "{") {
-			newCode = "{\n" + newCode + "\n}"
-		}
-		start := info.BodyStart - 1
-		end := info.BodyEnd - 1
-		newContent = make([]byte, 0, len(info.Source))
-		newContent = append(newContent, info.Source[:start]...)
-		newContent = append(newContent, []byte(newCode)...)
-		newContent = append(newContent, info.Source[end:]...)
-
-	case OpReplaceFull:
-		newCode := strings.TrimSpace(req.NewCode)
-		start := info.PosStart - 1
-		end := info.PosEnd - 1
-		newContent = make([]byte, 0, len(info.Source))
-		newContent = append(newContent, info.Source[:start]...)
-		newContent = append(newContent, []byte(newCode)...)
-		newContent = append(newContent, info.Source[end:]...)
-
-	case OpInsertAfter:
-		newCode := "\n\n" + strings.TrimSpace(req.NewCode)
-		end := info.PosEnd - 1
-		newContent = make([]byte, 0, len(info.Source)+len(newCode))
-		newContent = append(newContent, info.Source[:end]...)
-		newContent = append(newContent, []byte(newCode)...)
-		newContent = append(newContent, info.Source[end:]...)
-
-	case OpInsertBefore:
-		newCode := strings.TrimSpace(req.NewCode) + "\n\n"
-		start := info.PosStart - 1
-		newContent = make([]byte, 0, len(info.Source)+len(newCode))
-		newContent = append(newContent, info.Source[:start]...)
-		newContent = append(newContent, []byte(newCode)...)
-		newContent = append(newContent, info.Source[start:]...)
-	}
-
-	// Format
-	formatted, err := format.Source(newContent)
-	if err != nil {
-		formatted = newContent
-	}
-
-	// Write to file
-	if err := os.WriteFile(req.File, formatted, 0600); err != nil { // #nosec G306 -- preserving original Go source file permissions
+	if err := os.WriteFile(req.File, result.formatted, 0600); err != nil { // #nosec G306 -- preserving original Go source file permissions
 		return nil, fmt.Errorf("write file: %w", err)
 	}
 
