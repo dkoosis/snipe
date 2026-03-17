@@ -5,47 +5,6 @@ import (
 	"strings"
 )
 
-// GenerateArchitectureSummary creates a high-level architecture overview from the snipe index.
-// It analyzes call graph data to produce:
-// - Spine: primary call flows from entry points
-// - Components: packages with their inferred purposes
-// - Edges: top cross-package call relationships
-// - Description: placeholder for LLM-generated prose
-//
-// Performance: Uses batch SQL queries with no queries in loops. Total queries <= 5.
-func GenerateArchitectureSummary(db *sql.DB, repoRoot string) (*ArchSummary, error) {
-	// Query 1-3: Get primary flows (reuses batch queries from flows.go)
-	spine, err := ExtractPrimaryFlows(db, repoRoot, 5)
-	if err != nil {
-		// Non-fatal: continue with empty spine
-		spine = nil
-	}
-
-	// Query 4: Get package purposes in a single batch query
-	components, err := getPackagePurposes(db, repoRoot)
-	if err != nil {
-		// Non-fatal: continue with empty components
-		components = nil
-	}
-
-	// Query 5: Get cross-package call edges in a single batch query
-	edges, err := getCrossPackageEdges(db, repoRoot)
-	if err != nil {
-		// Non-fatal: continue with empty edges
-		edges = nil
-	}
-
-	// Build description placeholder
-	description := "[Architecture description pending LLM enrichment]"
-
-	return &ArchSummary{
-		Spine:       spine,
-		Components:  components,
-		Edges:       edges,
-		Description: description,
-	}, nil
-}
-
 // getPackagePurposes returns all packages with their inferred purposes.
 // Queries distinct pkg_paths and shortens them in Go (SQLite lacks REVERSE).
 // Uses real doc comments from package_docs table when available, falling back
@@ -211,59 +170,6 @@ func inferPackagePurpose(pkg string) string {
 	return "Application logic"
 }
 
-// getCrossPackageEdges returns the top cross-package call relationships.
-// Uses a single batch query with aggregation.
-func getCrossPackageEdges(db *sql.DB, repoRoot string) ([]CrossPackageEdge, error) {
-	// Query cross-package calls grouped by caller/callee package
-	rows, err := db.Query(`
-		WITH PackageCalls AS (
-			SELECT
-				caller.pkg_path as caller_pkg,
-				callee.pkg_path as callee_pkg,
-				COUNT(*) as call_count
-			FROM call_graph cg
-			JOIN symbols caller ON cg.caller_id = caller.id
-			JOIN symbols callee ON cg.callee_id = callee.id
-			WHERE caller.file_path LIKE ? || '/%'
-			  AND callee.file_path LIKE ? || '/%'
-			  AND caller.pkg_path IS NOT NULL
-			  AND callee.pkg_path IS NOT NULL
-			  AND caller.pkg_path != callee.pkg_path
-			GROUP BY caller.pkg_path, callee.pkg_path
-			HAVING call_count >= 2
-		)
-		SELECT caller_pkg, callee_pkg, call_count
-		FROM PackageCalls
-		ORDER BY call_count DESC
-		LIMIT 15
-	`, repoRoot, repoRoot)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var edges []CrossPackageEdge
-	for rows.Next() {
-		var callerPkg, calleePkg string
-		var count int
-		if err := rows.Scan(&callerPkg, &calleePkg, &count); err != nil {
-			continue
-		}
-
-		// Shorten package paths for display
-		fromShort := shortenPackagePath(callerPkg)
-		toShort := shortenPackagePath(calleePkg)
-
-		edges = append(edges, CrossPackageEdge{
-			From:  fromShort,
-			To:    toShort,
-			Count: count,
-		})
-	}
-
-	return edges, rows.Err()
-}
-
 // shortenPackagePath extracts the short form of a package path.
 // Example: "github.com/user/snipe/internal/store" -> "internal/store"
 func shortenPackagePath(pkgPath string) string {
@@ -280,9 +186,5 @@ func shortenPackagePath(pkgPath string) string {
 
 	// Root module package — use last segment (project name)
 	parts := strings.Split(pkgPath, "/")
-	if len(parts) >= 1 {
-		return parts[len(parts)-1]
-	}
-
-	return pkgPath
+	return parts[len(parts)-1]
 }

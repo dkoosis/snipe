@@ -20,26 +20,26 @@ func (b *BootContext) ToNuggets() []Nugget {
 
 	// Build the body content
 	var body strings.Builder
-	body.WriteString(fmt.Sprintf("lang: %s\n", b.Lang))
-	body.WriteString(fmt.Sprintf("build: %s\n", b.Build))
-	body.WriteString(fmt.Sprintf("test: %s\n", b.Test))
+	fmt.Fprintf(&body, "lang: %s\n", b.Lang)
+	fmt.Fprintf(&body, "build: %s\n", b.Build)
+	fmt.Fprintf(&body, "test: %s\n", b.Test)
 
 	if len(b.EntryPoints) > 0 {
 		body.WriteString("entry_points:\n")
 		for _, ep := range b.EntryPoints {
-			body.WriteString(fmt.Sprintf("  - %s\n", ep))
+			fmt.Fprintf(&body, "  - %s\n", ep)
 		}
 	}
 
 	if len(b.KeySymbols) > 0 {
 		body.WriteString("key_symbols:\n")
 		for _, sym := range b.KeySymbols {
-			body.WriteString(fmt.Sprintf("  - %s (%s:%d)\n", sym.Name, sym.File, sym.Line))
+			fmt.Fprintf(&body, "  - %s (%s:%d)\n", sym.Name, sym.File, sym.Line)
 		}
 	}
 
 	if b.Commit != "" {
-		body.WriteString(fmt.Sprintf("commit: %s\n", b.Commit))
+		fmt.Fprintf(&body, "commit: %s\n", b.Commit)
 	}
 
 	return []Nugget{
@@ -59,16 +59,16 @@ func (p *ProjectContext) ToNuggets() []Nugget {
 
 	// Project overview nugget
 	var projBody strings.Builder
-	projBody.WriteString(fmt.Sprintf("name: %s\n", p.Project.Name))
-	projBody.WriteString(fmt.Sprintf("root: %s\n", p.Project.Root))
+	fmt.Fprintf(&projBody, "name: %s\n", p.Project.Name)
+	fmt.Fprintf(&projBody, "root: %s\n", p.Project.Root)
 	if len(p.Project.Lang) > 0 {
-		projBody.WriteString(fmt.Sprintf("lang: %s\n", strings.Join(p.Project.Lang, ", ")))
+		fmt.Fprintf(&projBody, "lang: %s\n", strings.Join(p.Project.Lang, ", "))
 	}
 	if p.Project.Build != "" {
-		projBody.WriteString(fmt.Sprintf("build: %s\n", p.Project.Build))
+		fmt.Fprintf(&projBody, "build: %s\n", p.Project.Build)
 	}
 	if p.Project.Test != "" {
-		projBody.WriteString(fmt.Sprintf("test: %s\n", p.Project.Test))
+		fmt.Fprintf(&projBody, "test: %s\n", p.Project.Test)
 	}
 
 	nugs = append(nugs, Nugget{
@@ -83,15 +83,15 @@ func (p *ProjectContext) ToNuggets() []Nugget {
 		var archBody strings.Builder
 		archBody.WriteString("components:\n")
 		for _, comp := range p.Architecture.Components {
-			archBody.WriteString(fmt.Sprintf("  %s:\n", comp.Name))
-			archBody.WriteString(fmt.Sprintf("    purpose: %s\n", comp.Purpose))
+			fmt.Fprintf(&archBody, "  %s:\n", comp.Name)
+			fmt.Fprintf(&archBody, "    purpose: %s\n", comp.Purpose)
 			if comp.Entry != "" {
-				archBody.WriteString(fmt.Sprintf("    entry: %s\n", comp.Entry))
+				fmt.Fprintf(&archBody, "    entry: %s\n", comp.Entry)
 			}
 			if len(comp.KeyFiles) > 0 {
 				archBody.WriteString("    key_files:\n")
 				for _, f := range comp.KeyFiles {
-					archBody.WriteString(fmt.Sprintf("      - %s\n", f))
+					fmt.Fprintf(&archBody, "      - %s\n", f)
 				}
 			}
 		}
@@ -99,9 +99,9 @@ func (p *ProjectContext) ToNuggets() []Nugget {
 		if len(p.Architecture.DataFlows) > 0 {
 			archBody.WriteString("data_flows:\n")
 			for _, df := range p.Architecture.DataFlows {
-				archBody.WriteString(fmt.Sprintf("  - %s -> %s", df.From, df.To))
+				fmt.Fprintf(&archBody, "  - %s -> %s", df.From, df.To)
 				if df.Via != "" {
-					archBody.WriteString(fmt.Sprintf(" (%s)", df.Via))
+					fmt.Fprintf(&archBody, " (%s)", df.Via)
 				}
 				archBody.WriteString("\n")
 			}
@@ -110,12 +110,12 @@ func (p *ProjectContext) ToNuggets() []Nugget {
 		if len(p.Architecture.Boundaries) > 0 {
 			archBody.WriteString("boundaries:\n")
 			for _, b := range p.Architecture.Boundaries {
-				archBody.WriteString(fmt.Sprintf("  %s:\n", b.Package))
+				fmt.Fprintf(&archBody, "  %s:\n", b.Package)
 				if len(b.Owns) > 0 {
-					archBody.WriteString(fmt.Sprintf("    owns: [%s]\n", strings.Join(b.Owns, ", ")))
+					fmt.Fprintf(&archBody, "    owns: [%s]\n", strings.Join(b.Owns, ", "))
 				}
 				if len(b.Exports) > 0 {
-					archBody.WriteString(fmt.Sprintf("    exports: [%s]\n", strings.Join(b.Exports, ", ")))
+					fmt.Fprintf(&archBody, "    exports: [%s]\n", strings.Join(b.Exports, ", "))
 				}
 			}
 		}
@@ -134,13 +134,13 @@ func (p *ProjectContext) ToNuggets() []Nugget {
 		if len(p.Symbols.Types) > 0 {
 			symBody.WriteString("types:\n")
 			for _, t := range p.Symbols.Types {
-				symBody.WriteString(fmt.Sprintf("  - %s (%s:%d)\n", t.Name, t.File, t.Line))
+				fmt.Fprintf(&symBody, "  - %s (%s:%d)\n", t.Name, t.File, t.Line)
 			}
 		}
 		if len(p.Symbols.Functions) > 0 {
 			symBody.WriteString("functions:\n")
 			for _, f := range p.Symbols.Functions {
-				symBody.WriteString(fmt.Sprintf("  - %s (%s:%d)\n", f.Name, f.File, f.Line))
+				fmt.Fprintf(&symBody, "  - %s (%s:%d)\n", f.Name, f.File, f.Line)
 			}
 		}
 

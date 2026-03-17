@@ -131,12 +131,7 @@ func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 
 // inferVisibility determines if a symbol is exported based on its name.
 func inferVisibility(name string) Visibility {
-	if len(name) == 0 {
-		return VisibilityPackagePrivate
-	}
-	// Check first rune for uppercase
-	r := []rune(name)[0]
-	if unicode.IsUpper(r) {
+	if len(name) > 0 && unicode.IsUpper(rune(name[0])) {
 		return VisibilityExported
 	}
 	return VisibilityPackagePrivate

@@ -14,7 +14,6 @@ import (
 // Package directory constants.
 const (
 	pkgCmd      = "cmd"
-	pkgQuery    = "query"
 	pkgInternal = "internal"
 )
 
