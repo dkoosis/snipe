@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/output"
@@ -43,21 +44,24 @@ type rgSubmatch struct {
 // Search runs ripgrep and returns formatted results.
 // Optional globs are passed as --glob flags to rg (e.g., "*.go", "store.go").
 func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]output.Result, error) {
-	// Check if rg is available
 	if _, err := exec.LookPath("rg"); err != nil {
 		return nil, fmt.Errorf("ripgrep (rg) not found: install from https://github.com/BurntSushi/ripgrep")
+	}
+
+	if limit <= 0 {
+		limit = 50
 	}
 
 	args := []string{
 		"--json",
 		"--line-number",
 		"--column",
-		"--no-follow",                             // Don't follow symlinks (avoids macOS network volume prompts)
-		"--max-count", fmt.Sprintf("%d", limit*2), // Get more than limit to account for context
+		"--no-follow",                          // Don't follow symlinks (avoids macOS network volume prompts)
+		"--max-count", strconv.Itoa(limit * 2), // Get more than limit to account for context
 	}
 
 	if contextLines > 0 {
-		args = append(args, "--context", fmt.Sprintf("%d", contextLines))
+		args = append(args, "--context", strconv.Itoa(contextLines))
 	}
 
 	// Add exclude patterns
@@ -149,23 +153,27 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 	// next write, allowing clean shutdown (same as `rg | head -n 50` behavior).
 	_ = stdout.Close() // G104: intentional close to trigger SIGPIPE
 
-	// Wait for rg to finish and check exit code
-	// rg exit codes: 0 = matches found, 1 = no matches, 2 = error
+	// Wait for rg to finish and check exit code.
+	// rg exit codes: 0 = matches found, 1 = no matches, 2 = error.
+	// Exit code -1 means rg was killed by a signal (e.g. SIGPIPE from our
+	// early pipe close) — safe to ignore when we already have results.
 	if err := cmd.Wait(); err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			// Exit code 1 means no matches - not an error
-			if exitErr.ExitCode() == 1 {
+			switch code := exitErr.ExitCode(); {
+			case code == 1:
 				return results, nil
+			case code == -1 && len(results) > 0:
+				// Signal death (SIGPIPE) after we closed the pipe — expected
+				return results, nil
+			default:
+				stderr := strings.TrimSpace(stderrBuf.String())
+				if stderr != "" {
+					return results, fmt.Errorf("rg error (exit %d): %s", code, stderr)
+				}
+				return results, fmt.Errorf("rg failed with exit code %d", code)
 			}
-			// Exit code 2+ means actual error — include stderr for actionable message
-			stderr := strings.TrimSpace(stderrBuf.String())
-			if stderr != "" {
-				return results, fmt.Errorf("rg error (exit %d): %s", exitErr.ExitCode(), stderr)
-			}
-			return results, fmt.Errorf("rg failed with exit code %d", exitErr.ExitCode())
 		}
-		// Other errors (not exit errors) are unexpected
 		return results, fmt.Errorf("wait for rg: %w", err)
 	}
 
@@ -173,5 +181,5 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 }
 
 func generateSearchID(line, col int) string {
-	return fmt.Sprintf("s%d%d", line, col)
+	return "s" + strconv.Itoa(line) + ":" + strconv.Itoa(col)
 }
