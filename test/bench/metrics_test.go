@@ -3,10 +3,8 @@ package bench
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -225,7 +223,7 @@ func TestCaptureBaseline(t *testing.T) {
 	}
 
 	// Get git commit for tracking
-	if commit, err := getGitCommit(); err == nil {
+	if commit, err := getGitCommitFor(dir); err == nil {
 		metrics.GitCommit = commit
 	}
 
@@ -253,13 +251,4 @@ func TestCaptureBaseline(t *testing.T) {
 			t.Logf("History appended to: %s", historyFile)
 		}
 	}
-}
-
-func getGitCommit() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
 }
