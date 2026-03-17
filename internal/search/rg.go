@@ -13,14 +13,14 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 )
 
-// RgMatch represents a ripgrep JSON match
-type RgMatch struct {
+// rgMatch represents a ripgrep JSON match.
+type rgMatch struct {
 	Type string          `json:"type"`
 	Data json.RawMessage `json:"data"`
 }
 
-// RgMatchData represents the data field for a match type
-type RgMatchData struct {
+// rgMatchData represents the data field for a match type.
+type rgMatchData struct {
 	Path struct {
 		Text string `json:"text"`
 	} `json:"path"`
@@ -28,12 +28,11 @@ type RgMatchData struct {
 		Text string `json:"text"`
 	} `json:"lines"`
 	LineNumber int          `json:"line_number"`
-	AbsOffset  int          `json:"absolute_offset"`
-	Submatches []RgSubmatch `json:"submatches"`
+	Submatches []rgSubmatch `json:"submatches"`
 }
 
-// RgSubmatch represents a submatch within a line
-type RgSubmatch struct {
+// rgSubmatch represents a submatch within a line.
+type rgSubmatch struct {
 	Match struct {
 		Text string `json:"text"`
 	} `json:"match"`
@@ -97,7 +96,7 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 	for scanner.Scan() && len(results) < limit {
 		line := scanner.Bytes()
 
-		var msg RgMatch
+		var msg rgMatch
 		if err := json.Unmarshal(line, &msg); err != nil {
 			continue
 		}
@@ -106,7 +105,7 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 			continue
 		}
 
-		var data RgMatchData
+		var data rgMatchData
 		if err := json.Unmarshal(msg.Data, &data); err != nil {
 			continue
 		}
@@ -122,7 +121,7 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 				filePathRel = data.Path.Text
 			}
 			result := output.Result{
-				ID:         generateSearchID(data.Path.Text, data.LineNumber, sub.Start),
+				ID:         generateSearchID(data.LineNumber, sub.Start),
 				File:       filePathRel,
 				FileAbs:    data.Path.Text,
 				Range:      matchRange,
@@ -173,7 +172,6 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 	return results, nil
 }
 
-func generateSearchID(_ string, line, col int) string {
-	// Simple hash for search results
+func generateSearchID(line, col int) string {
 	return fmt.Sprintf("s%d%d", line, col)
 }
