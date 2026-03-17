@@ -336,9 +336,6 @@ func extractPkgShortName(pkgPath, modulePath string) string {
 
 	// Extract first or second level component
 	parts := strings.Split(rel, "/")
-	if len(parts) == 0 {
-		return ""
-	}
 
 	// For internal/*, use internal/subpkg
 	if parts[0] == pkgInternal && len(parts) > 1 {
@@ -621,9 +618,6 @@ func ExtractFirstSentence(doc string) string {
 
 func categorizeByConcern(relPath string) string {
 	parts := strings.Split(relPath, "/")
-	if len(parts) == 0 {
-		return "other"
-	}
 
 	// Check for internal packages
 	if len(parts) >= 2 && parts[0] == pkgInternal {

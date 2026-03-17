@@ -322,7 +322,11 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 
 		entryPoints = append(entryPoints, ep)
 	}
+	rowsErr := rows.Err()
 	_ = rows.Close()
+	if rowsErr != nil {
+		return nil, rowsErr
+	}
 
 	if len(entryPoints) == 0 {
 		return nil, nil

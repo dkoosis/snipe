@@ -299,20 +299,23 @@ func detectErrors(db *sql.DB) *ErrorConvention {
 		return nil
 	}
 
-	pattern := "inline error returns"
-	if sentinels >= 1 {
-		pattern = "sentinel errors"
+	// Measure how dominant one style is over the other
+	sentinelRatio := float64(sentinels) / float64(total)
+	consistency := max(sentinelRatio, 1-sentinelRatio)
+	if sentinels == 0 {
+		consistency = 1.0 // fully consistent: no sentinels at all
 	}
 
-	// Use sentinel ratio as the consistency signal
-	ratio := float64(sentinels) / float64(total)
-	if sentinels == 0 {
-		ratio = 1.0 // fully consistent: no sentinels at all
+	pattern := "inline error returns"
+	if sentinelRatio > 0.5 {
+		pattern = "sentinel errors"
+	} else if sentinels >= 1 {
+		pattern = "mixed: sentinel errors + inline returns"
 	}
 
 	return &ErrorConvention{
 		Pattern:    pattern,
-		Confidence: confidence(max(ratio, 1-ratio), total),
+		Confidence: confidence(consistency, total),
 		Sentinels:  sentinels,
 		ErrorFuncs: errorFuncs,
 	}

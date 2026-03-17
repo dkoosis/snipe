@@ -419,7 +419,8 @@ func inferRoleForType(_ *sql.DB, _, name, pkgPath string) Role {
 }
 
 // InferRoleForSymbol returns the role for a single symbol without scanning the entire DB.
-func InferRoleForSymbol(db *sql.DB, symbolID, name, kind, signature, pkgPath, _ string) Role {
+// The filePath parameter is accepted for call-site convenience but unused.
+func InferRoleForSymbol(db *sql.DB, symbolID, name, kind, signature, pkgPath, _ /* filePath */ string) Role {
 	if kind == kindFunc || kind == kindMethod {
 		return inferRole(db, symbolID, name, kind, signature, pkgPath)
 	}

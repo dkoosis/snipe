@@ -9,8 +9,8 @@ import (
 // Nugget represents an Orca knowledge graph nugget for save_nug.
 type Nugget struct {
 	ID   string   `yaml:"id"`
-	K    string   `yaml:"k"`
-	B    string   `yaml:"b"`
+	Kind string   `yaml:"k"`
+	Body string   `yaml:"b"`
 	Tags []string `yaml:"tags,omitempty"`
 }
 
@@ -45,8 +45,8 @@ func (b *BootContext) ToNuggets() []Nugget {
 	return []Nugget{
 		{
 			ID:   fmt.Sprintf("n:project:%s", projectSlug),
-			K:    "project",
-			B:    body.String(),
+			Kind: "project",
+			Body: body.String(),
 			Tags: []string{projectSlug, "boot-context"},
 		},
 	}
@@ -73,8 +73,8 @@ func (p *ProjectContext) ToNuggets() []Nugget {
 
 	nugs = append(nugs, Nugget{
 		ID:   fmt.Sprintf("n:project:%s", projectSlug),
-		K:    "project",
-		B:    projBody.String(),
+		Kind: "project",
+		Body: projBody.String(),
 		Tags: []string{projectSlug},
 	})
 
@@ -122,8 +122,8 @@ func (p *ProjectContext) ToNuggets() []Nugget {
 
 		nugs = append(nugs, Nugget{
 			ID:   fmt.Sprintf("n:map:%s-arch", projectSlug),
-			K:    "map",
-			B:    archBody.String(),
+			Kind: "map",
+			Body: archBody.String(),
 			Tags: []string{projectSlug, "architecture"},
 		})
 	}
@@ -146,8 +146,8 @@ func (p *ProjectContext) ToNuggets() []Nugget {
 
 		nugs = append(nugs, Nugget{
 			ID:   fmt.Sprintf("n:map:%s-symbols", projectSlug),
-			K:    "map",
-			B:    symBody.String(),
+			Kind: "map",
+			Body: symBody.String(),
 			Tags: []string{projectSlug, "symbols"},
 		})
 	}

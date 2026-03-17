@@ -218,7 +218,7 @@ func TestDetectErrors(t *testing.T) {
 	if result.ErrorFuncs != 2 {
 		t.Errorf("error_funcs: got %d, want 2", result.ErrorFuncs)
 	}
-	if result.Pattern != "sentinel errors" {
+	if result.Pattern != "mixed: sentinel errors + inline returns" {
 		t.Errorf("pattern: got %q", result.Pattern)
 	}
 }
