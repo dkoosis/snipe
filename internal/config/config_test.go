@@ -8,7 +8,7 @@ import (
 )
 
 func TestDefaultConfig(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := defaultConfig()
 
 	if cfg.Limit != 50 {
 		t.Errorf("Limit = %d, want 50", cfg.Limit)
@@ -93,10 +93,10 @@ func TestLoad_ProjectOverridesGlobal(t *testing.T) {
 }
 
 func TestProjectConfigPath(t *testing.T) {
-	got := ProjectConfigPath("/home/user/project")
+	got := projectConfigPath("/home/user/project")
 	want := filepath.Join("/home/user/project", ".snipe.json")
 	if got != want {
-		t.Errorf("ProjectConfigPath() = %q, want %q", got, want)
+		t.Errorf("projectConfigPath() = %q, want %q", got, want)
 	}
 }
 

@@ -15,16 +15,16 @@ type Config struct {
 	ContextLines int `json:"context_lines,omitempty"`
 }
 
-// DefaultConfig returns the default configuration.
-func DefaultConfig() *Config {
+// defaultConfig returns the default configuration.
+func defaultConfig() *Config {
 	return &Config{
 		Limit:        50,
 		ContextLines: 3,
 	}
 }
 
-// GlobalConfigPath returns the path to the global config file.
-func GlobalConfigPath() (string, error) {
+// globalConfigPath returns the path to the global config file.
+func globalConfigPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -32,18 +32,18 @@ func GlobalConfigPath() (string, error) {
 	return filepath.Join(home, ".config", "snipe", "config.json"), nil
 }
 
-// ProjectConfigPath returns the path to the project config file.
-func ProjectConfigPath(projectRoot string) string {
+// projectConfigPath returns the path to the project config file.
+func projectConfigPath(projectRoot string) string {
 	return filepath.Join(projectRoot, ".snipe.json")
 }
 
 // Load loads and merges configuration from global and project sources.
 // Project config overrides global config, which overrides defaults.
 func Load(projectRoot string) (*Config, error) {
-	cfg := DefaultConfig()
+	cfg := defaultConfig()
 
 	// Load global config if exists
-	globalPath, err := GlobalConfigPath()
+	globalPath, err := globalConfigPath()
 	if err == nil {
 		if globalCfg, err := loadFile(globalPath); err == nil {
 			cfg = merge(cfg, globalCfg)
@@ -52,7 +52,7 @@ func Load(projectRoot string) (*Config, error) {
 
 	// Load project config if exists (overrides global)
 	if projectRoot != "" {
-		projectPath := ProjectConfigPath(projectRoot)
+		projectPath := projectConfigPath(projectRoot)
 		if projectCfg, err := loadFile(projectPath); err == nil {
 			cfg = merge(cfg, projectCfg)
 		}
@@ -63,11 +63,8 @@ func Load(projectRoot string) (*Config, error) {
 
 // loadFile loads a config from a JSON file. Returns nil if file doesn't exist.
 func loadFile(path string) (*Config, error) {
-	data, err := os.ReadFile(path) // #nosec G304 -- path from GlobalConfigPath/ProjectConfigPath
+	data, err := os.ReadFile(path) // #nosec G304 -- path from globalConfigPath/projectConfigPath
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, err
-		}
 		return nil, err
 	}
 
