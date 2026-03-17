@@ -42,7 +42,7 @@ func All() error {
 }
 
 func allDashboard() error {
-	return runFoDashboard(
+	return runFoDashboard(allCLI,
 		// Build (go install puts binary on PATH)
 		"Build/snipe:go install .",
 		// Test
@@ -78,7 +78,7 @@ func Qa() error {
 }
 
 func qaDashboard() error {
-	return runFoDashboard(
+	return runFoDashboard(qaCLI,
 		// Build (go install puts binary on PATH)
 		"Build/snipe:go install .",
 		// Test - comprehensive (note: -cover omitted to avoid "no such tool covdata" false failures)
@@ -235,35 +235,13 @@ func Trend() error {
 	fmt.Println(strings.Repeat("-", 72))
 
 	for _, line := range lines[start:] {
-		var m struct {
-			Timestamp string `json:"timestamp"`
-			GitCommit string `json:"git_commit"`
-			Codebase  struct {
-				Symbols int `json:"symbols"`
-				Refs    int `json:"refs"`
-			} `json:"codebase"`
-			Index struct {
-				TotalMs int64 `json:"total_ms"`
-			} `json:"index"`
-			Query struct {
-				DefByNameMs float64 `json:"def_by_name_ms"`
-			} `json:"query"`
-			Quality struct {
-				CallGraphCoverage float64 `json:"callgraph_coverage_pct"`
-			} `json:"quality"`
-		}
+		var m metricsRecord
 		if err := json.Unmarshal([]byte(line), &m); err != nil {
 			continue
 		}
 
-		date := m.Timestamp[:10]
-		commit := m.GitCommit
-		if len(commit) > 7 {
-			commit = commit[:7]
-		}
-
 		fmt.Printf("%-12s %-8s %8d %8d %8d %8.2f %7.1f%%\n",
-			date, commit, m.Codebase.Symbols, m.Codebase.Refs,
+			m.datePrefix(), m.shortCommit(), m.Codebase.Symbols, m.Codebase.Refs,
 			m.Index.TotalMs, m.Query.DefByNameMs, m.Quality.CallGraphCoverage)
 	}
 
@@ -285,7 +263,7 @@ func EvalSetup() error {
 
 	evalDir := ".eval-repos"
 	if err := os.MkdirAll(evalDir, 0o755); err != nil {
-		return err
+		return fmt.Errorf("create eval dir %s: %w", evalDir, err)
 	}
 
 	repos := []struct {
@@ -312,7 +290,10 @@ func EvalSetup() error {
 
 		// Index with snipe
 		fmt.Printf("  %s: indexing...\n", r.Name)
-		absDir, _ := filepath.Abs(dir)
+		absDir, err := filepath.Abs(dir)
+		if err != nil {
+			return fmt.Errorf("resolve path %s: %w", dir, err)
+		}
 		cmd := exec.Command(snipeBin, "index", absDir, "--enrich=false", "--embed-mode=off")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -343,63 +324,13 @@ func Metrics() error {
 		return fmt.Errorf("no metrics data")
 	}
 
-	// Parse entries
-	type entry struct {
-		Timestamp string
-		Commit    string
-		Symbols   int
-		Refs      int
-		CallEdges int
-		IndexMs   int64
-		DefMs     float64
-		RefsMs    float64
-		DocCov    float64
-		CallCov   float64
-	}
-
-	var entries []entry
+	var entries []metricsRecord
 	for _, line := range lines {
-		var m struct {
-			Timestamp string `json:"timestamp"`
-			GitCommit string `json:"git_commit"`
-			Codebase  struct {
-				Symbols   int `json:"symbols"`
-				Refs      int `json:"refs"`
-				CallEdges int `json:"call_edges"`
-			} `json:"codebase"`
-			Index struct {
-				TotalMs int64 `json:"total_ms"`
-			} `json:"index"`
-			Query struct {
-				DefByNameMs float64 `json:"def_by_name_ms"`
-				RefsByIDMs  float64 `json:"refs_by_id_ms"`
-			} `json:"query"`
-			Quality struct {
-				DocCoverage       float64 `json:"doc_coverage_pct"`
-				CallGraphCoverage float64 `json:"callgraph_coverage_pct"`
-			} `json:"quality"`
-		}
+		var m metricsRecord
 		if err := json.Unmarshal([]byte(line), &m); err != nil {
 			continue
 		}
-
-		commit := m.GitCommit
-		if len(commit) > 7 {
-			commit = commit[:7]
-		}
-
-		entries = append(entries, entry{
-			Timestamp: m.Timestamp,
-			Commit:    commit,
-			Symbols:   m.Codebase.Symbols,
-			Refs:      m.Codebase.Refs,
-			CallEdges: m.Codebase.CallEdges,
-			IndexMs:   m.Index.TotalMs,
-			DefMs:     m.Query.DefByNameMs,
-			RefsMs:    m.Query.RefsByIDMs,
-			DocCov:    m.Quality.DocCoverage,
-			CallCov:   m.Quality.CallGraphCoverage,
-		})
+		entries = append(entries, m)
 	}
 
 	// Last 30 entries
@@ -449,14 +380,14 @@ func Metrics() error {
 	var docCov, callCov []float64
 
 	for _, e := range entries {
-		indexMs = append(indexMs, float64(e.IndexMs))
-		defMs = append(defMs, e.DefMs)
-		refsMs = append(refsMs, e.RefsMs)
-		symbols = append(symbols, float64(e.Symbols))
-		refs = append(refs, float64(e.Refs))
-		calls = append(calls, float64(e.CallEdges))
-		docCov = append(docCov, e.DocCov)
-		callCov = append(callCov, e.CallCov)
+		indexMs = append(indexMs, float64(e.Index.TotalMs))
+		defMs = append(defMs, e.Query.DefByNameMs)
+		refsMs = append(refsMs, e.Query.RefsByIDMs)
+		symbols = append(symbols, float64(e.Codebase.Symbols))
+		refs = append(refs, float64(e.Codebase.Refs))
+		calls = append(calls, float64(e.Codebase.CallEdges))
+		docCov = append(docCov, e.Quality.DocCoverage)
+		callCov = append(callCov, e.Quality.CallGraphCoverage)
 	}
 
 	curr := entries[len(entries)-1]
@@ -493,38 +424,83 @@ func Metrics() error {
 	fmt.Println("PERFORMANCE                   Trend (30)                    Now      Δ")
 	fmt.Println(strings.Repeat("─", 70))
 	fmt.Printf("Index Time      %s  %8dms  %s\n",
-		sparkline(indexMs), curr.IndexMs, pctChange(float64(curr.IndexMs), float64(first.IndexMs)))
+		sparkline(indexMs), curr.Index.TotalMs, pctChange(float64(curr.Index.TotalMs), float64(first.Index.TotalMs)))
 	fmt.Printf("Def Query       %s  %8.3fms  %s\n",
-		sparkline(defMs), curr.DefMs, pctChange(curr.DefMs, first.DefMs))
+		sparkline(defMs), curr.Query.DefByNameMs, pctChange(curr.Query.DefByNameMs, first.Query.DefByNameMs))
 	fmt.Printf("Refs Query      %s  %8.3fms  %s\n",
-		sparkline(refsMs), curr.RefsMs, pctChange(curr.RefsMs, first.RefsMs))
+		sparkline(refsMs), curr.Query.RefsByIDMs, pctChange(curr.Query.RefsByIDMs, first.Query.RefsByIDMs))
 	fmt.Println()
 
 	// Codebase metrics (growth)
 	fmt.Println("CODEBASE                      Trend (30)                    Now      Δ")
 	fmt.Println(strings.Repeat("─", 70))
 	fmt.Printf("Symbols         %s  %8d  %s\n",
-		sparkline(symbols), curr.Symbols, intChange(curr.Symbols, first.Symbols))
+		sparkline(symbols), curr.Codebase.Symbols, intChange(curr.Codebase.Symbols, first.Codebase.Symbols))
 	fmt.Printf("References      %s  %8d  %s\n",
-		sparkline(refs), curr.Refs, intChange(curr.Refs, first.Refs))
+		sparkline(refs), curr.Codebase.Refs, intChange(curr.Codebase.Refs, first.Codebase.Refs))
 	fmt.Printf("Call Edges      %s  %8d  %s\n",
-		sparkline(calls), curr.CallEdges, intChange(curr.CallEdges, first.CallEdges))
+		sparkline(calls), curr.Codebase.CallEdges, intChange(curr.Codebase.CallEdges, first.Codebase.CallEdges))
 	fmt.Println()
 
 	// Quality metrics (higher is better)
 	fmt.Println("QUALITY                       Trend (30)                    Now      Δ")
 	fmt.Println(strings.Repeat("─", 70))
 	fmt.Printf("Doc Coverage    %s  %7.1f%%  %s\n",
-		sparkline(docCov), curr.DocCov, pctChange(curr.DocCov, first.DocCov))
+		sparkline(docCov), curr.Quality.DocCoverage, pctChange(curr.Quality.DocCoverage, first.Quality.DocCoverage))
 	fmt.Printf("Call Coverage   %s  %7.1f%%  %s\n",
-		sparkline(callCov), curr.CallCov, pctChange(curr.CallCov, first.CallCov))
+		sparkline(callCov), curr.Quality.CallGraphCoverage, pctChange(curr.Quality.CallGraphCoverage, first.Quality.CallGraphCoverage))
 	fmt.Println()
 
 	fmt.Printf("Period: %s → %s (%d measurements)\n",
-		first.Timestamp[:10], curr.Timestamp[:10], len(entries))
+		first.datePrefix(), curr.datePrefix(), len(entries))
 	fmt.Println()
 
 	return nil
+}
+
+// ----------------------------------------------------------------------------
+// Shared types
+// ----------------------------------------------------------------------------
+
+// metricsRecord is the on-disk schema for .snipe/metrics.jsonl entries.
+// Used by both Trend and Metrics targets.
+type metricsRecord struct {
+	Timestamp string `json:"timestamp"`
+	GitCommit string `json:"git_commit"`
+	Codebase  struct {
+		Symbols   int `json:"symbols"`
+		Refs      int `json:"refs"`
+		CallEdges int `json:"call_edges"`
+	} `json:"codebase"`
+	Index struct {
+		TotalMs int64 `json:"total_ms"`
+	} `json:"index"`
+	Query struct {
+		DefByNameMs float64 `json:"def_by_name_ms"`
+		RefsByIDMs  float64 `json:"refs_by_id_ms"`
+	} `json:"query"`
+	Quality struct {
+		DocCoverage       float64 `json:"doc_coverage_pct"`
+		CallGraphCoverage float64 `json:"callgraph_coverage_pct"`
+	} `json:"quality"`
+}
+
+// shortCommit returns the first 7 characters of a commit hash, or the full
+// string if shorter.
+func (m metricsRecord) shortCommit() string {
+	if len(m.GitCommit) > 7 {
+		return m.GitCommit[:7]
+	}
+	return m.GitCommit
+}
+
+// datePrefix returns the YYYY-MM-DD prefix of Timestamp, or "unknown" if
+// the timestamp is too short.
+func (m metricsRecord) datePrefix() string {
+	if len(m.Timestamp) >= 10 {
+		return m.Timestamp[:10]
+	}
+	return "unknown"
 }
 
 // ----------------------------------------------------------------------------
@@ -550,16 +526,15 @@ func runSequential(steps ...step) error {
 	return nil
 }
 
-func runFoDashboard(tasks ...string) error {
+func runFoDashboard(fallback func() error, tasks ...string) error {
 	// Find fo binary
 	foBin := os.Getenv("HOME") + "/Projects/fo/bin/fo"
 	if _, err := os.Stat(foBin); err != nil {
 		var lookupErr error
 		foBin, lookupErr = exec.LookPath("fo")
 		if lookupErr != nil {
-			// Fall back to CLI mode if fo not available
 			fmt.Println("fo not found, falling back to CLI mode")
-			return allCLI()
+			return fallback()
 		}
 	}
 
