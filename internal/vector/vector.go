@@ -23,7 +23,7 @@ func CosineSimilarity(a, b []float32) float32 {
 		return 0
 	}
 
-	return dot / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
+	return dot / float32(math.Sqrt(float64(normA*normB)))
 }
 
 // SerializeEmbedding converts a float32 slice to bytes for storage.
