@@ -2,6 +2,7 @@ package query
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 )
 
@@ -25,7 +26,7 @@ func FindImports(db *sql.DB, filePath string, limit, offset int) ([]ImportRow, e
 		LIMIT ? OFFSET ?
 	`, filePath, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query imports for file %s: %w", filePath, err)
 	}
 	defer rows.Close()
 
@@ -43,7 +44,7 @@ func FindImportsByPackage(db *sql.DB, pkgPath string, limit, offset int) ([]Impo
 		LIMIT ? OFFSET ?
 	`, pkgPath, "%/"+pkgPath, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query importers of %s: %w", pkgPath, err)
 	}
 	defer rows.Close()
 
@@ -70,7 +71,7 @@ func FindImportersByDirectory(db *sql.DB, dirPath string, limit, offset int) ([]
 		LIMIT ? OFFSET ?
 	`, dirPath, suffixMatch, subpkgSuffix, subpkgExact, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query importers of directory %s: %w", dirPath, err)
 	}
 	defer rows.Close()
 

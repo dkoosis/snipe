@@ -96,11 +96,12 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*output.ExplainR
 
 	// Extract mechanism (callees with action mapping)
 	if opts.Mode != output.ExplainBrief {
-		mechanism, keyDeps, err := extractMechanism(db, sym, funcDecl, fset, opts.Mode)
-		if err == nil {
-			result.Mechanism = mechanism
-			result.KeyDeps = keyDeps
+		mechanism, keyDeps, mechErr := extractMechanism(db, sym, funcDecl, fset, opts.Mode)
+		if mechErr != nil {
+			return nil, fmt.Errorf("extract mechanism: %w", mechErr)
 		}
+		result.Mechanism = mechanism
+		result.KeyDeps = keyDeps
 	}
 
 	// Get caller context
@@ -117,9 +118,10 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*output.ExplainR
 	}
 
 	callerCtx, err := buildCallerContext(db, symbolID, callerLimit)
-	if err == nil && callerCtx != nil {
-		result.CallerContext = callerCtx
+	if err != nil {
+		return nil, fmt.Errorf("build caller context: %w", err)
 	}
+	result.CallerContext = callerCtx
 
 	return result, nil
 }
@@ -138,7 +140,7 @@ func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.File
 	}
 
 	var steps []output.MechanismStep
-	depSet := make(map[string]bool)
+	depSet := make(map[string]struct{})
 
 	for _, callee := range callees {
 		action := inferAction(callee.CalleeName)
@@ -170,69 +172,71 @@ func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.File
 	return steps, keyDeps, nil
 }
 
+// exactActionMap maps exact callee names to action verbs.
+var exactActionMap = map[string]string{
+	"Open":      "opens",
+	"Close":     "closes",
+	"Read":      "reads",
+	"Write":     "writes",
+	"Get":       "retrieves",
+	"Set":       "updates",
+	"Save":      "persists",
+	"Store":     "persists",
+	"Load":      "loads",
+	"Parse":     "parses",
+	"Format":    "formats",
+	"Validate":  "validates",
+	"Check":     "validates",
+	"Execute":   "executes",
+	"Run":       "executes",
+	"Start":     "starts",
+	"Stop":      "stops",
+	"Init":      "initializes",
+	"Create":    "creates",
+	"Delete":    "deletes",
+	"Remove":    "removes",
+	"Add":       "adds",
+	"Append":    "appends",
+	"Insert":    "inserts",
+	"Update":    "updates",
+	"Find":      "finds",
+	"Search":    "searches",
+	"Query":     "queries",
+	"Fetch":     "fetches",
+	"Send":      "sends",
+	"Receive":   "receives",
+	"Encode":    "encodes",
+	"Decode":    "decodes",
+	"Marshal":   "serializes",
+	"Unmarshal": "deserializes",
+}
+
+// actionPrefixes maps name prefixes to action verbs, checked in order.
+var actionPrefixes = []struct {
+	prefix, action string
+}{
+	{"Is", "validates"},
+	{"Has", "validates"},
+	{"Check", "validates"},
+	{"New", "creates"},
+	{"Make", "creates"},
+	{"Get", "retrieves"},
+	{"Set", "updates"},
+	{"Save", "persists"},
+	{"Load", "loads"},
+	{"Parse", "parses"},
+	{"Format", "formats"},
+}
+
 // inferAction maps callee names to action verbs.
 func inferAction(name string) string {
-	// Check exact matches first
-	actionMap := map[string]string{
-		"Open":      "opens",
-		"Close":     "closes",
-		"Read":      "reads",
-		"Write":     "writes",
-		"Get":       "retrieves",
-		"Set":       "updates",
-		"Save":      "persists",
-		"Store":     "persists",
-		"Load":      "loads",
-		"Parse":     "parses",
-		"Format":    "formats",
-		"Validate":  "validates",
-		"Check":     "validates",
-		"Execute":   "executes",
-		"Run":       "executes",
-		"Start":     "starts",
-		"Stop":      "stops",
-		"Init":      "initializes",
-		"Create":    "creates",
-		"Delete":    "deletes",
-		"Remove":    "removes",
-		"Add":       "adds",
-		"Append":    "appends",
-		"Insert":    "inserts",
-		"Update":    "updates",
-		"Find":      "finds",
-		"Search":    "searches",
-		"Query":     "queries",
-		"Fetch":     "fetches",
-		"Send":      "sends",
-		"Receive":   "receives",
-		"Encode":    "encodes",
-		"Decode":    "decodes",
-		"Marshal":   "serializes",
-		"Unmarshal": "deserializes",
-	}
-
-	if action, ok := actionMap[name]; ok {
+	if action, ok := exactActionMap[name]; ok {
 		return action
 	}
 
-	// Check prefixes
-	prefixes := map[string]string{
-		"Is":     "validates",
-		"Has":    "validates",
-		"Check":  "validates",
-		"New":    "creates",
-		"Make":   "creates",
-		"Get":    "retrieves",
-		"Set":    "updates",
-		"Save":   "persists",
-		"Load":   "loads",
-		"Parse":  "parses",
-		"Format": "formats",
-	}
-
-	for prefix, action := range prefixes {
-		if strings.HasPrefix(name, prefix) {
-			return action
+	for _, p := range actionPrefixes {
+		if strings.HasPrefix(name, p.prefix) {
+			return p.action
 		}
 	}
 
@@ -265,7 +269,7 @@ func inferNote(name, _ string) string {
 }
 
 // extractDeps extracts type names from a signature for key_deps.
-func extractDeps(sig string, deps map[string]bool) {
+func extractDeps(sig string, deps map[string]struct{}) {
 	// Simple extraction: find capitalized identifiers that look like types
 	// This is a heuristic, not exhaustive
 	words := strings.FieldsFunc(sig, func(r rune) bool {
@@ -279,31 +283,29 @@ func extractDeps(sig string, deps map[string]bool) {
 		}
 		// Only include if starts with uppercase (exported type)
 		if len(word) > 0 && word[0] >= 'A' && word[0] <= 'Z' {
-			deps[word] = true
+			deps[word] = struct{}{}
 		}
 	}
 }
 
-func isKeyword(s string) bool {
-	keywords := map[string]bool{
-		"func": true, "return": true, "if": true, "else": true, "for": true,
-		"range": true, "switch": true, "case": true, "default": true,
-		"type": true, "struct": true, "interface": true, "map": true,
-		"chan": true, "go": true, "defer": true, "select": true,
-	}
-	return keywords[s]
+var goKeywords = map[string]bool{
+	"func": true, "return": true, "if": true, "else": true, "for": true,
+	"range": true, "switch": true, "case": true, "default": true,
+	"type": true, "struct": true, "interface": true, "map": true,
+	"chan": true, "go": true, "defer": true, "select": true,
 }
 
-func isBuiltin(s string) bool {
-	builtins := map[string]bool{
-		"int": true, "int8": true, "int16": true, "int32": true, "int64": true,
-		"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
-		"float32": true, "float64": true, "complex64": true, "complex128": true,
-		"string": true, "bool": true, "byte": true, "rune": true, "error": true,
-		"any": true, "comparable": true,
-	}
-	return builtins[s]
+func isKeyword(s string) bool { return goKeywords[s] }
+
+var goBuiltins = map[string]bool{
+	"int": true, "int8": true, "int16": true, "int32": true, "int64": true,
+	"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
+	"float32": true, "float64": true, "complex64": true, "complex128": true,
+	"string": true, "bool": true, "byte": true, "rune": true, "error": true,
+	"any": true, "comparable": true,
 }
+
+func isBuiltin(s string) bool { return goBuiltins[s] }
 
 // buildCallerContext summarizes caller patterns.
 func buildCallerContext(db *sql.DB, symbolID string, limit int) (*output.CallerContext, error) {

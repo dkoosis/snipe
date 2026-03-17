@@ -100,9 +100,9 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 		}
 		defer rows2.Close()
 
-		seen := make(map[string]bool)
+		seen := make(map[string]struct{}, len(matches))
 		for _, m := range matches {
-			seen[m.name] = true
+			seen[m.name] = struct{}{}
 		}
 
 		for rows2.Next() {
@@ -111,14 +111,14 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 				return nil, err
 			}
 
-			if seen[symName] {
+			if _, ok := seen[symName]; ok {
 				continue
 			}
 
 			dist := LevenshteinDistance(name, symName)
 			if dist <= maxDistance && dist > 0 {
 				matches = append(matches, fuzzyMatch{name: symName, distance: dist})
-				seen[symName] = true
+				seen[symName] = struct{}{}
 			}
 		}
 

@@ -19,7 +19,7 @@ func FindMethodIDs(db *sql.DB, typeName string) ([]string, error) {
 		  AND (receiver = ? OR receiver = ?)
 	`, fmt.Sprintf("(*%s)", typeName), fmt.Sprintf("(%s)", typeName))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query method IDs for %s: %w", typeName, err)
 	}
 	defer rows.Close()
 
@@ -47,7 +47,7 @@ func FindImpactCallersMulti(db *sql.DB, symbolIDs []string, direct bool, limit, 
 	placeholders := strings.Repeat("?,", len(symbolIDs))
 	placeholders = placeholders[:len(placeholders)-1] // trim trailing comma
 
-	args := make([]interface{}, 0, len(symbolIDs)*2+2)
+	args := make([]any, 0, len(symbolIDs)*2+2)
 	for _, id := range symbolIDs {
 		args = append(args, id)
 	}

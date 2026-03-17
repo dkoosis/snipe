@@ -129,7 +129,7 @@ func queryFileMetadata(db *sql.DB, paths []string) (map[string]fileMeta, error) 
 	}
 
 	placeholders := make([]string, len(paths))
-	args := make([]interface{}, len(paths))
+	args := make([]any, len(paths))
 	for i, p := range paths {
 		placeholders[i] = "?"
 		args[i] = p

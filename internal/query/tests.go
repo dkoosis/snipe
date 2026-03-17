@@ -118,7 +118,7 @@ func FindTestsMulti(db *sql.DB, symbolIDs []string, direct bool, limit, offset i
 	placeholders := strings.Repeat("?,", len(symbolIDs))
 	placeholders = placeholders[:len(placeholders)-1]
 
-	args := make([]interface{}, 0, len(symbolIDs)*2+2)
+	args := make([]any, 0, len(symbolIDs)*2+2)
 	for _, id := range symbolIDs {
 		args = append(args, id)
 	}

@@ -2,6 +2,7 @@ package query
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/output"
@@ -74,7 +75,7 @@ func FindPackageDeps(db *sql.DB, pkgPath, modulePath string) (*PackageDeps, erro
 		ORDER BY file_count DESC
 	`, modulePath, pkgPath, modulePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query dependencies for %s: %w", pkgPath, err)
 	}
 
 	// Who imports this package (internal only)
@@ -86,7 +87,7 @@ func FindPackageDeps(db *sql.DB, pkgPath, modulePath string) (*PackageDeps, erro
 		ORDER BY file_count DESC
 	`, modulePath, pkgPath, modulePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query dependents for %s: %w", pkgPath, err)
 	}
 
 	return &PackageDeps{Dependencies: deps, Dependents: dependents}, nil
@@ -124,27 +125,27 @@ func FindDepGraph(db *sql.DB, modulePath string) (*DepGraph, error) {
 		ORDER BY file_count DESC
 	`, modulePath, modulePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query dep graph: %w", err)
 	}
 	defer rows.Close()
 
-	pkgSet := make(map[string]bool)
+	pkgSet := make(map[string]struct{})
 	var edges []DepGraphEdge
 
 	for rows.Next() {
 		var fromFull, toFull string
 		var fileCount int
 		if err := rows.Scan(&fromFull, &toFull, &fileCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan dep graph edge: %w", err)
 		}
 		from := trimModulePath(fromFull, modulePath)
 		to := trimModulePath(toFull, modulePath)
-		pkgSet[from] = true
-		pkgSet[to] = true
+		pkgSet[from] = struct{}{}
+		pkgSet[to] = struct{}{}
 		edges = append(edges, DepGraphEdge{From: from, To: to, FileCount: fileCount})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("iterate dep graph rows: %w", err)
 	}
 
 	packages := make([]string, 0, len(pkgSet))

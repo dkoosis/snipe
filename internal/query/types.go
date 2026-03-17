@@ -118,21 +118,24 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 
 	// Get methods
 	methods, err := GetMethodsForType(db, sym.Name, sym.PkgPath)
-	if err == nil {
-		info.Methods = methods
+	if err != nil {
+		return nil, fmt.Errorf("get methods for %s: %w", sym.Name, err)
 	}
+	info.Methods = methods
 
 	// Get embeds (from refs where the reference is in this type's definition)
 	embeds, err := getEmbedsForType(db, symbolID, sym.FilePath, sym.LineStart, sym.LineEnd)
-	if err == nil {
-		info.Embeds = embeds
+	if err != nil {
+		return nil, fmt.Errorf("get embeds for %s: %w", sym.Name, err)
 	}
+	info.Embeds = embeds
 
 	// Get fields (from symbols with kind=field in this type)
 	fields, err := getFieldsForType(db, symbolID, sym.FilePath, sym.LineStart, sym.LineEnd)
-	if err == nil {
-		info.Fields = fields
+	if err != nil {
+		return nil, fmt.Errorf("get fields for %s: %w", sym.Name, err)
 	}
+	info.Fields = fields
 
 	return info, nil
 }

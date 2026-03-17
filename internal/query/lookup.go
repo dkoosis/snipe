@@ -74,7 +74,7 @@ func BatchLookupByID(db *sql.DB, ids []string) (map[string]*SymbolRow, error) {
 
 	// Build placeholders for IN clause
 	placeholders := make([]string, len(unique))
-	args := make([]interface{}, len(unique))
+	args := make([]any, len(unique))
 	for i, id := range unique {
 		placeholders[i] = "?"
 		args[i] = id
@@ -227,7 +227,7 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 
 func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
 	// Try exact pkg_path match first — uses idx_symbols_name_pkg composite index.
-	rows, err := db.Query(`
+	results, err := querySymbols(db, `
 		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
@@ -238,11 +238,6 @@ func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query symbols qualified exact: %w", err)
 	}
-	results, err := scanSymbolRows(rows)
-	rows.Close()
-	if err != nil {
-		return nil, err
-	}
 	if len(results) > 0 {
 		return results, nil
 	}
@@ -250,7 +245,7 @@ func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
 	// Fallback: suffix match for partial package paths (e.g., "internal/handler").
 	// Uses leading-wildcard LIKE which can't use index, but only runs when exact fails.
 	suffixPattern := "%/" + pkgPath
-	rows, err = db.Query(`
+	return querySymbols(db, `
 		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
@@ -258,12 +253,6 @@ func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
 		WHERE s.name = ? AND s.pkg_path LIKE ?
 		ORDER BY s.kind, s.file_path, s.line_start
 	`, name, suffixPattern)
-	if err != nil {
-		return nil, fmt.Errorf("query symbols qualified suffix: %w", err)
-	}
-	defer rows.Close()
-
-	return scanSymbolRows(rows)
 }
 
 func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error) {
@@ -686,7 +675,7 @@ func FindSiblings(db *sql.DB, filePath, kind, excludeID string, limit int) ([]ou
 		LIMIT ?
 	`, filePath, kind, excludeID, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query siblings: %w", err)
 	}
 	defer rows.Close()
 
@@ -747,7 +736,7 @@ func FindCallers(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 		LIMIT ? OFFSET ?
 	`, symbolID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query callers for %s: %w", symbolID, err)
 	}
 	defer rows.Close()
 
@@ -772,7 +761,7 @@ func FindCallees(db *sql.DB, symbolID string, limit, offset int) ([]CallRow, err
 		LIMIT ? OFFSET ?
 	`, symbolID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query callees for %s: %w", symbolID, err)
 	}
 	defer rows.Close()
 
@@ -804,7 +793,7 @@ func FindCallersForType(db *sql.DB, typeName string, limit, offset int) ([]CallR
 		LIMIT ? OFFSET ?
 	`, valueRecv, ptrRecv, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query callers for type %s: %w", typeName, err)
 	}
 	defer rows.Close()
 
@@ -835,7 +824,7 @@ func FindCalleesForType(db *sql.DB, typeName string, limit, offset int) ([]CallR
 		LIMIT ? OFFSET ?
 	`, valueRecv, ptrRecv, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query callees for type %s: %w", typeName, err)
 	}
 	defer rows.Close()
 
@@ -981,7 +970,7 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 	// that match every interface method name.
 	// Build placeholders for the IN clause
 	placeholders := make([]string, len(methodNames))
-	args := make([]interface{}, 0, len(methodNames)+3)
+	args := make([]any, 0, len(methodNames)+3)
 	for i, name := range methodNames {
 		placeholders[i] = "?"
 		args = append(args, name)
@@ -1039,7 +1028,7 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 
 	// Step 4: Fetch the full SymbolRow for each implementing type, matching by name AND pkg_path
 	var conditions []string
-	typeArgs := make([]interface{}, 0, len(candidates)*2+2)
+	typeArgs := make([]any, 0, len(candidates)*2+2)
 	for _, c := range candidates {
 		conditions = append(conditions, "(s.name = ? AND s.pkg_path = ?)")
 		typeArgs = append(typeArgs, c.name, c.pkgPath)
@@ -1125,9 +1114,20 @@ func ExtractInterfaceMethodNames(filePath string, lineStart, lineEnd int) []stri
 	return methods
 }
 
+// querySymbols runs a query and scans the results into SymbolRow slices.
+// Ensures rows are always closed, even on scan errors.
+func querySymbols(db *sql.DB, query string, args ...any) ([]SymbolRow, error) {
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSymbolRows(rows)
+}
+
 // FindPackageSymbols finds all exported symbols in files matching a package path pattern.
 // It filters to exported symbols only (those starting with uppercase).
-// Cascades: exact → suffix → substring, returning on first match to avoid leading-wildcard LIKE.
+// Cascades: exact -> suffix -> substring, returning on first match to avoid leading-wildcard LIKE.
 func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]SymbolRow, error) {
 	const selectCols = `
 		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
@@ -1152,15 +1152,10 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 		LIMIT ? OFFSET ?`
 
 	// Try exact match first (index-friendly).
-	rows, err := db.Query(selectCols+`
+	results, err := querySymbols(db, selectCols+`
 		WHERE s.pkg_path = ?`+filterAndOrder, pkgPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query package symbols: %w", err)
-	}
-	results, err := scanSymbolRows(rows)
-	rows.Close()
-	if err != nil {
-		return nil, err
 	}
 	if len(results) > 0 {
 		return results, nil
@@ -1168,15 +1163,10 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 
 	// Suffix match (e.g., "internal/handler" matching "github.com/.../internal/handler").
 	suffixPattern := "%/" + pkgPattern
-	rows, err = db.Query(selectCols+`
+	results, err = querySymbols(db, selectCols+`
 		WHERE s.pkg_path LIKE ?`+filterAndOrder, suffixPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query package symbols suffix: %w", err)
-	}
-	results, err = scanSymbolRows(rows)
-	rows.Close()
-	if err != nil {
-		return nil, err
 	}
 	if len(results) > 0 {
 		return results, nil
@@ -1184,14 +1174,12 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 
 	// Substring match as last resort.
 	substringPattern := "%" + pkgPattern + "%"
-	rows, err = db.Query(selectCols+`
+	results, err = querySymbols(db, selectCols+`
 		WHERE s.pkg_path LIKE ?`+filterAndOrder, substringPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query package symbols substring: %w", err)
 	}
-	defer rows.Close()
-
-	return scanSymbolRows(rows)
+	return results, nil
 }
 
 // FindSymbolAtPosition looks up a symbol by relative file path and line number.
