@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -103,9 +104,9 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	if dbPath == "" {
 		tmpDir, err := os.MkdirTemp("", "snipe-baseline-*")
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("create temp dir: %w", err)
 		}
-		dbPath = tmpDir + "/snipe.db"
+		dbPath = filepath.Join(tmpDir, "snipe.db")
 		defer os.RemoveAll(tmpDir)
 	}
 
@@ -118,7 +119,7 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 
 	s, err := store.Open(dbPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open store: %w", err)
 	}
 	defer s.Close()
 
@@ -126,7 +127,7 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	loadStart := time.Now()
 	result, err := index.Load(index.LoadConfig{Dir: cfg.Dir})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load packages: %w", err)
 	}
 	loadEnd := time.Now()
 
@@ -134,22 +135,22 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	extractStart := time.Now()
 	syms, err := index.ExtractSymbols(result)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("extract symbols: %w", err)
 	}
 	refs, err := index.ExtractRefs(result, syms)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("extract refs: %w", err)
 	}
 	calls, err := index.ExtractCallGraph(result, syms)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("extract call graph: %w", err)
 	}
 	extractEnd := time.Now()
 
 	// Persist
 	persistStart := time.Now()
 	if err := s.WriteIndex(syms, refs, calls); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("write index: %w", err)
 	}
 	persistEnd := time.Now()
 
@@ -173,9 +174,9 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	baseline.Codebase.CallEdges = len(calls)
 
 	// Count unique files
-	files := make(map[string]bool)
+	files := make(map[string]struct{}, len(syms))
 	for _, sym := range syms {
-		files[sym.FilePath] = true
+		files[sym.FilePath] = struct{}{}
 	}
 	baseline.Codebase.GoFiles = len(files)
 
@@ -260,9 +261,9 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	}
 
 	// Count funcs with outgoing call edges
-	funcsWithCalls := make(map[string]bool)
+	funcsWithCalls := make(map[string]struct{}, len(calls))
 	for _, c := range calls {
-		funcsWithCalls[c.CallerID] = true
+		funcsWithCalls[c.CallerID] = struct{}{}
 	}
 	if funcCount > 0 {
 		baseline.Quality.CallGraphCoverage = float64(len(funcsWithCalls)) / float64(funcCount) * 100

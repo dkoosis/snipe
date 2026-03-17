@@ -3,14 +3,16 @@ package metrics
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 )
 
-// LoadHistory loads baseline history from a JSONL file
+// LoadHistory loads baseline history from a JSONL file.
+// Malformed lines are silently skipped.
 func LoadHistory(path string) ([]Baseline, error) {
 	f, err := os.Open(path) // #nosec G304 -- path from caller (metrics history file)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open history %s: %w", path, err)
 	}
 	defer f.Close()
 
@@ -25,8 +27,11 @@ func LoadHistory(path string) ([]Baseline, error) {
 		}
 		history = append(history, b)
 	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan history %s: %w", path, err)
+	}
 
-	return history, scanner.Err()
+	return history, nil
 }
 
 // HistoryEntry represents a single point in history for display
