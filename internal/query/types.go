@@ -3,8 +3,6 @@ package query
 import (
 	"database/sql"
 	"fmt"
-
-	"github.com/dkoosis/snipe/internal/output"
 )
 
 // TypeInfo contains type relationship information.
@@ -230,25 +228,4 @@ func getFieldsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([
 		fields = append(fields, f)
 	}
 	return fields, rows.Err()
-}
-
-// ToTypeResult converts TypeInfo to output format.
-func (ti *TypeInfo) ToTypeResult() output.Result {
-	// Build a custom result for type info
-	filePath := ti.Symbol.FilePathRel
-	if filePath == "" {
-		filePath = ti.Symbol.FilePath
-	}
-
-	return output.Result{
-		ID:    ti.Symbol.ID,
-		Name:  ti.Symbol.Name,
-		Kind:  ti.Symbol.Kind,
-		File:  filePath,
-		Match: ti.Symbol.Signature.String,
-		Range: output.Range{
-			Start: output.Position{Line: ti.Symbol.LineStart, Col: ti.Symbol.ColStart},
-			End:   output.Position{Line: ti.Symbol.LineEnd, Col: ti.Symbol.ColEnd},
-		},
-	}
 }

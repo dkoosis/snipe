@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-// FuzzyMatch represents a fuzzy match result with its distance score.
-type FuzzyMatch struct {
-	Name     string
-	Distance int
+// fuzzyMatch represents a fuzzy match result with its distance score.
+type fuzzyMatch struct {
+	name     string
+	distance int
 }
 
 // LevenshteinDistance computes the edit distance between two strings.
@@ -71,7 +71,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 	}
 	defer rows.Close()
 
-	var matches []FuzzyMatch
+	var matches []fuzzyMatch
 	for rows.Next() {
 		var symName string
 		if err := rows.Scan(&symName); err != nil {
@@ -80,7 +80,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 
 		dist := LevenshteinDistance(name, symName)
 		if dist <= maxDistance && dist > 0 { // Exclude exact matches (dist == 0)
-			matches = append(matches, FuzzyMatch{Name: symName, Distance: dist})
+			matches = append(matches, fuzzyMatch{name: symName, distance: dist})
 		}
 	}
 
@@ -102,7 +102,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 
 		seen := make(map[string]bool)
 		for _, m := range matches {
-			seen[m.Name] = true
+			seen[m.name] = true
 		}
 
 		for rows2.Next() {
@@ -117,7 +117,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 
 			dist := LevenshteinDistance(name, symName)
 			if dist <= maxDistance && dist > 0 {
-				matches = append(matches, FuzzyMatch{Name: symName, Distance: dist})
+				matches = append(matches, fuzzyMatch{name: symName, distance: dist})
 				seen[symName] = true
 			}
 		}
@@ -129,17 +129,17 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 
 	// Sort by distance (closest matches first)
 	sort.Slice(matches, func(i, j int) bool {
-		if matches[i].Distance != matches[j].Distance {
-			return matches[i].Distance < matches[j].Distance
+		if matches[i].distance != matches[j].distance {
+			return matches[i].distance < matches[j].distance
 		}
 		// Secondary sort by name length (prefer shorter names)
-		return len(matches[i].Name) < len(matches[j].Name)
+		return len(matches[i].name) < len(matches[j].name)
 	})
 
 	// Return top results
 	result := make([]string, 0, maxResults)
 	for i := 0; i < len(matches) && i < maxResults; i++ {
-		result = append(result, matches[i].Name)
+		result = append(result, matches[i].name)
 	}
 
 	return result, nil

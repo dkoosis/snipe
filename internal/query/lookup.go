@@ -12,9 +12,6 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 )
 
-// TODO: Add context.Context to all query functions for cancellation support.
-// This is a future improvement - see https://github.com/dkoosis/snipe/issues/XX
-
 // SymbolRow represents a row from the symbols table
 type SymbolRow struct {
 	ID          string

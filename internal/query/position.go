@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-// Note: strings is still used in ParsePosition for Join and Split
-
 // PositionQuery represents a file:line:col query
 type PositionQuery struct {
 	File string
