@@ -264,14 +264,17 @@ func (w *Writer) writeClaudeSummary(b *strings.Builder, results []Summary, meta 
 	for _, s := range results {
 		fmt.Fprintf(b, "%d results", s.Total)
 		if len(s.Kinds) > 0 {
+			kinds := make([]string, 0, len(s.Kinds))
+			for k := range s.Kinds {
+				kinds = append(kinds, k)
+			}
+			sort.Strings(kinds)
 			b.WriteString(" (")
-			first := true
-			for k, v := range s.Kinds {
-				if !first {
+			for i, k := range kinds {
+				if i > 0 {
 					b.WriteString(", ")
 				}
-				fmt.Fprintf(b, "%d %s", v, k)
-				first = false
+				fmt.Fprintf(b, "%d %s", s.Kinds[k], k)
 			}
 			b.WriteString(")")
 		}
@@ -719,10 +722,13 @@ func BuildSummary(results []Result) Summary {
 		}
 	}
 
-	var files []FileSummary
+	files := make([]FileSummary, 0, len(fileCounts))
 	for file, count := range fileCounts {
 		files = append(files, FileSummary{File: file, Count: count})
 	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].File < files[j].File
+	})
 
 	return Summary{
 		Total: len(results),
