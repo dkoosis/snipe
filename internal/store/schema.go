@@ -409,7 +409,7 @@ func (s *Store) GetMeta(key string) (string, error) {
 	var value string
 	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = ?`, key).Scan(&value)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get meta %q: %w", key, err)
 	}
 	return value, nil
 }
@@ -417,7 +417,10 @@ func (s *Store) GetMeta(key string) (string, error) {
 // SetMeta sets a metadata value.
 func (s *Store) SetMeta(key, value string) error {
 	_, err := s.db.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`, key, value)
-	return err
+	if err != nil {
+		return fmt.Errorf("set meta %q: %w", key, err)
+	}
+	return nil
 }
 
 // GetPurpose retrieves the stored purpose for a symbol.
@@ -425,7 +428,7 @@ func (s *Store) GetPurpose(symbolID string) (string, error) {
 	var purpose string
 	err := s.db.QueryRow(`SELECT purpose FROM symbol_purposes WHERE symbol_id = ?`, symbolID).Scan(&purpose)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get purpose for symbol %s: %w", symbolID, err)
 	}
 	return purpose, nil
 }

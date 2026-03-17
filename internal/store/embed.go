@@ -29,7 +29,7 @@ func (s *Store) GetEmbedding(symbolID string) ([]float32, string, error) {
 		symbolID,
 	).Scan(&data, &model)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("get embedding for symbol %s: %w", symbolID, err)
 	}
 	return vector.DeserializeEmbedding(data), model, nil
 }
@@ -53,7 +53,7 @@ func (s *Store) GetAllEmbeddings() ([]EmbeddingRow, error) {
 		JOIN symbols s ON e.symbol_id = s.id
 	`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query embeddings: %w", err)
 	}
 	defer rows.Close()
 
@@ -62,18 +62,23 @@ func (s *Store) GetAllEmbeddings() ([]EmbeddingRow, error) {
 		var r EmbeddingRow
 		var data []byte
 		if err := rows.Scan(&r.SymbolID, &data, &r.Model, &r.Name, &r.Kind, &r.FilePath, &r.Signature); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan embedding row: %w", err)
 		}
 		r.Embedding = vector.DeserializeEmbedding(data)
 		results = append(results, r)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate embeddings: %w", err)
+	}
 
-	return results, rows.Err()
+	return results, nil
 }
 
 // CountEmbeddings returns the number of stored embeddings.
 func (s *Store) CountEmbeddings() (int, error) {
 	var count int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM embeddings`).Scan(&count)
-	return count, err
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM embeddings`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count embeddings: %w", err)
+	}
+	return count, nil
 }

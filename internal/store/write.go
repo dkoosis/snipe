@@ -422,7 +422,7 @@ func (s *Store) WriteFiles(files []index.FileInfo) error {
 func (s *Store) GetAllFiles() (map[string]index.FileInfo, error) {
 	rows, err := s.db.Query(`SELECT path, mtime, COALESCE(hash, '') FROM files`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query files: %w", err)
 	}
 	defer rows.Close()
 
@@ -434,7 +434,10 @@ func (s *Store) GetAllFiles() (map[string]index.FileInfo, error) {
 		}
 		files[f.Path] = f
 	}
-	return files, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate files: %w", err)
+	}
+	return files, nil
 }
 
 // IncrementalResult holds stats from an incremental index write.
@@ -701,19 +704,23 @@ func (s *Store) WritePackageDocs(docs []index.PackageDoc) error {
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+	return nil
 }
 
 // GetStats returns index statistics
-func (s *Store) GetStats() (symbols, refs, calls int, err error) {
-	err = s.db.QueryRow("SELECT COUNT(*) FROM symbols").Scan(&symbols)
-	if err != nil {
-		return
+func (s *Store) GetStats() (int, int, int, error) {
+	var symbols, refs, calls int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM symbols").Scan(&symbols); err != nil {
+		return 0, 0, 0, fmt.Errorf("count symbols: %w", err)
 	}
-	err = s.db.QueryRow("SELECT COUNT(*) FROM refs").Scan(&refs)
-	if err != nil {
-		return
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM refs").Scan(&refs); err != nil {
+		return 0, 0, 0, fmt.Errorf("count refs: %w", err)
 	}
-	err = s.db.QueryRow("SELECT COUNT(*) FROM call_graph").Scan(&calls)
-	return
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM call_graph").Scan(&calls); err != nil {
+		return 0, 0, 0, fmt.Errorf("count call_graph: %w", err)
+	}
+	return symbols, refs, calls, nil
 }

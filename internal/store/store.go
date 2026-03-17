@@ -38,53 +38,51 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
+	// Close db on any error after this point
+	ok := false
+	defer func() {
+		if !ok {
+			_ = db.Close() // G104: cleanup on error path
+		}
+	}()
+
 	// Enable WAL mode for better concurrent read performance
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("enable WAL mode: %w", err)
 	}
 	if err := verifyPragmaString(db, "journal_mode", "wal"); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, err
 	}
 
 	// Balance durability and latency for WAL workloads
 	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("set synchronous: %w", err)
 	}
 	if err := verifyPragmaInt(db, "synchronous", 1); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, err
 	}
 
 	// Keep temporary data in memory for speed
 	if _, err := db.Exec("PRAGMA temp_store=MEMORY"); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("set temp_store: %w", err)
 	}
 	if err := verifyPragmaInt(db, "temp_store", 2); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, err
 	}
 
 	// Set busy timeout to avoid "database is locked" errors during concurrent access
 	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("set busy_timeout: %w", err)
 	}
 	if err := verifyPragmaInt(db, "busy_timeout", 5000); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, err
 	}
 
 	// Enable foreign keys
 	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
 	}
 	if err := verifyPragmaInt(db, "foreign_keys", 1); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, err
 	}
 
@@ -96,10 +94,10 @@ func Open(path string) (*Store, error) {
 
 	// Initialize schema
 	if err := s.initSchema(); err != nil {
-		_ = db.Close() // G104: cleanup on error path
 		return nil, fmt.Errorf("initialize schema: %w", err)
 	}
 
+	ok = true
 	return s, nil
 }
 
