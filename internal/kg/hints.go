@@ -46,14 +46,11 @@ func GetHints(cfg Config) []Hint {
 		hints = append(hints, symHints...)
 	}
 
-	// Query for package-related hints
+	// Query for package-related hints (last path component)
 	if cfg.Package != "" {
-		// Extract last component of package path
 		parts := strings.Split(cfg.Package, "/")
-		if len(parts) > 0 {
-			pkgHints := queryOrcaHints(orcaPath, "pkg:"+parts[len(parts)-1])
-			hints = append(hints, pkgHints...)
-		}
+		pkgHints := queryOrcaHints(orcaPath, "pkg:"+parts[len(parts)-1])
+		hints = append(hints, pkgHints...)
 	}
 
 	return hints
