@@ -2,7 +2,6 @@ package index
 
 import (
 	"go/ast"
-	"path/filepath"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -79,82 +78,4 @@ func extractFileImports(pkg *packages.Package, file *ast.File, filePath string, 
 	}
 
 	return imports
-}
-
-// FindImportedPackageFiles returns file paths for a given import path
-// This is used to resolve "what files belong to this import"
-func FindImportedPackageFiles(result *LoadResult, importPath string) []string {
-	for _, pkg := range result.Packages {
-		if pkg.PkgPath == importPath {
-			return pkg.GoFiles
-		}
-	}
-	return nil
-}
-
-// ResolveImportToRelative converts an import path to a relative path within the repo
-// For local packages like "github.com/foo/bar/internal/pkg", returns "internal/pkg"
-func ResolveImportToRelative(importPath, modulePath, repoRoot string) string {
-	// If it's a local package, strip the module prefix
-	if strings.HasPrefix(importPath, modulePath) {
-		rel := strings.TrimPrefix(importPath, modulePath)
-		rel = strings.TrimPrefix(rel, "/")
-		if rel == "" {
-			return "."
-		}
-		return rel
-	}
-
-	// External package - return as-is
-	return importPath
-}
-
-// IsLocalImport checks if an import is from the same module
-func IsLocalImport(importPath, modulePath string) bool {
-	return strings.HasPrefix(importPath, modulePath)
-}
-
-// GetModulePath extracts the module path from a file path
-// This is a heuristic based on the go.mod location
-func GetModulePath(repoRoot string) string {
-	// This would need to parse go.mod - for now return empty
-	// The caller should get this from packages.Module.Path
-	return ""
-}
-
-// GroupImportsByFile groups imports by their source file
-func GroupImportsByFile(imports []Import) map[string][]Import {
-	grouped := make(map[string][]Import)
-	for _, imp := range imports {
-		grouped[imp.FilePath] = append(grouped[imp.FilePath], imp)
-	}
-	return grouped
-}
-
-// GroupImportsByPackage groups imports by the imported package
-func GroupImportsByPackage(imports []Import) map[string][]Import {
-	grouped := make(map[string][]Import)
-	for _, imp := range imports {
-		grouped[imp.PkgPath] = append(grouped[imp.PkgPath], imp)
-	}
-	return grouped
-}
-
-// FilterLocalImports returns only imports from within the same module
-func FilterLocalImports(imports []Import, modulePath string) []Import {
-	var local []Import
-	for _, imp := range imports {
-		if IsLocalImport(imp.PkgPath, modulePath) {
-			local = append(local, imp)
-		}
-	}
-	return local
-}
-
-// NormalizeFilePath converts absolute paths to relative within repo
-func NormalizeFilePath(absPath, repoRoot string) string {
-	if rel, err := filepath.Rel(repoRoot, absPath); err == nil {
-		return rel
-	}
-	return absPath
 }

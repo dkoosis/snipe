@@ -3,7 +3,6 @@ package index
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -30,29 +29,7 @@ func DetectChanges(dir string, stored map[string]FileInfo, exclude []string) (*C
 	result := &ChangeResult{}
 	current := make(map[string]struct{})
 
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil //nolint:nilerr // Skip unreadable entries rather than aborting walk
-		}
-
-		if d.IsDir() {
-			base := d.Name()
-			// Skip hidden directories (.git, .snipe, etc.)
-			if strings.HasPrefix(base, ".") && base != "." {
-				return filepath.SkipDir
-			}
-			for _, pat := range exclude {
-				if base == pat {
-					return filepath.SkipDir
-				}
-			}
-			return nil
-		}
-
-		if !strings.HasSuffix(d.Name(), ".go") {
-			return nil
-		}
-
+	err := walkGoFiles(dir, exclude, func(path string, d os.DirEntry) error {
 		current[path] = struct{}{}
 
 		prev, exists := stored[path]

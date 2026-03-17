@@ -79,43 +79,6 @@ func TestFingerprintChangesWithGoMod(t *testing.T) {
 	}
 }
 
-func TestCheckIndexState(t *testing.T) {
-	tests := []struct {
-		name    string
-		current *Fingerprint
-		stored  *Fingerprint
-		want    IndexState
-	}{
-		{
-			name:    "no stored fingerprint",
-			current: &Fingerprint{Combined: "abc"},
-			stored:  nil,
-			want:    StateMissing,
-		},
-		{
-			name:    "matching fingerprints",
-			current: &Fingerprint{Combined: "abc"},
-			stored:  &Fingerprint{Combined: "abc"},
-			want:    StateFresh,
-		},
-		{
-			name:    "different fingerprints",
-			current: &Fingerprint{Combined: "abc"},
-			stored:  &Fingerprint{Combined: "def"},
-			want:    StateStale,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := CheckIndexState(tt.current, tt.stored)
-			if got != tt.want {
-				t.Errorf("CheckIndexState() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestFingerprintString(t *testing.T) {
 	fp := &Fingerprint{Combined: "abc123"}
 	if fp.String() != "abc123" {

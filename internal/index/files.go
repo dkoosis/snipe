@@ -21,15 +21,25 @@ type FileInfo struct {
 // match exactly — go/packages omits some files (build-tagged, integration
 // tests) and includes cache paths, causing perpetual change detection.
 func ExtractFileInfo(repoRoot string) ([]FileInfo, error) {
-	return WalkFileInfo(repoRoot, DefaultExclude())
+	var files []FileInfo
+	err := walkGoFiles(repoRoot, DefaultExclude(), func(path string, _ os.DirEntry) error {
+		info, fErr := computeFileInfo(path)
+		if fErr != nil {
+			return nil //nolint:nilerr // Skip unhashable files
+		}
+		files = append(files, info)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
 }
 
-// WalkFileInfo walks a directory tree collecting FileInfo for all .go files,
-// applying the same exclusion rules as DetectChanges.
-func WalkFileInfo(dir string, exclude []string) ([]FileInfo, error) {
-	var files []FileInfo
-
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+// walkGoFiles walks a directory tree visiting each .go file, skipping hidden
+// directories and excluded directory names. Shared by WalkFileInfo and DetectChanges.
+func walkGoFiles(dir string, exclude []string, fn func(path string, d os.DirEntry) error) error {
+	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil //nolint:nilerr // Skip unreadable entries
 		}
@@ -48,17 +58,8 @@ func WalkFileInfo(dir string, exclude []string) ([]FileInfo, error) {
 		if !strings.HasSuffix(d.Name(), ".go") {
 			return nil
 		}
-		info, fErr := computeFileInfo(path)
-		if fErr != nil {
-			return nil //nolint:nilerr // Skip unhashable files
-		}
-		files = append(files, info)
-		return nil
+		return fn(path, d)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
 }
 
 // computeFileInfo computes the hash and mtime for a file

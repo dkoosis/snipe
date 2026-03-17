@@ -3,7 +3,6 @@ package index
 import (
 	"context"
 	"fmt"
-	"go/ast"
 	"go/token"
 	"path/filepath"
 	"strings"
@@ -264,20 +263,4 @@ func matchesExclude(pkgPath, pattern string) bool {
 		}
 	}
 	return false
-}
-
-// WalkFiles walks all Go files in the loaded packages
-func WalkFiles(result *LoadResult, fn func(pkg *packages.Package, file *ast.File, path string) error) error {
-	for _, pkg := range result.Packages {
-		for i, file := range pkg.Syntax {
-			if i >= len(pkg.GoFiles) {
-				continue
-			}
-			path := pkg.GoFiles[i]
-			if err := fn(pkg, file, path); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }

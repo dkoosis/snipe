@@ -3,9 +3,7 @@ package index
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -26,17 +24,17 @@ func ComputeFingerprint(dir, version string) (*Fingerprint, error) {
 	fp := &Fingerprint{Version: version}
 
 	// Hash go.mod
-	if h, err := hashFile(filepath.Join(dir, "go.mod")); err == nil {
+	if h, err := HashFileSHA256(filepath.Join(dir, "go.mod")); err == nil {
 		fp.GoMod = h
 	}
 
 	// Hash go.sum
-	if h, err := hashFile(filepath.Join(dir, "go.sum")); err == nil {
+	if h, err := HashFileSHA256(filepath.Join(dir, "go.sum")); err == nil {
 		fp.GoSum = h
 	}
 
 	// Hash go.work (optional)
-	if h, err := hashFile(filepath.Join(dir, "go.work")); err == nil {
+	if h, err := HashFileSHA256(filepath.Join(dir, "go.work")); err == nil {
 		fp.GoWork = h
 	}
 
@@ -49,48 +47,16 @@ func ComputeFingerprint(dir, version string) (*Fingerprint, error) {
 	return fp, nil
 }
 
-func hashFile(path string) (string, error) {
-	f, err := os.Open(path) // #nosec G304 -- path is go.mod/go.sum/go.work in repo
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-
-	return hex.EncodeToString(h.Sum(nil)[:8]), nil
-}
-
-func getGoEnvHash(dir string) string {
+func getGoEnvHash(_ string) string {
 	// Only include build-config values that affect type-checking output.
-	// GOMOD/GOWORK are absolute paths that change per-machine and cause
-	// false "build config changed" invalidations. CGO_ENABLED affects
-	// which files get compiled.
+	// These are standard env vars readable directly — no need to shell out
+	// to `go env`, which costs 50-200ms and runs on every query-time
+	// staleness check.
 	envVars := []string{"CGO_ENABLED", "GOARCH", "GOOS"}
-
-	cmd := exec.Command("go", "env")
-	cmd.Dir = dir
-	output, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-
-	envMap := make(map[string]string)
-	for _, line := range strings.Split(string(output), "\n") {
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			key := parts[0]
-			value := strings.Trim(parts[1], "\"'")
-			envMap[key] = value
-		}
-	}
 
 	var values []string
 	for _, key := range envVars {
-		if val, ok := envMap[key]; ok {
+		if val := os.Getenv(key); val != "" {
 			values = append(values, key+"="+val)
 		}
 	}
@@ -118,24 +84,4 @@ func computeCombinedHash(fp *Fingerprint) string {
 // String returns a string representation of the fingerprint
 func (fp *Fingerprint) String() string {
 	return fp.Combined
-}
-
-// IndexState represents the state of the index
-type IndexState string
-
-const (
-	StateFresh   IndexState = "fresh"
-	StateStale   IndexState = "stale"
-	StateMissing IndexState = "missing"
-)
-
-// CheckIndexState compares fingerprints and returns the index state
-func CheckIndexState(current, stored *Fingerprint) IndexState {
-	if stored == nil {
-		return StateMissing
-	}
-	if current.Combined != stored.Combined {
-		return StateStale
-	}
-	return StateFresh
 }

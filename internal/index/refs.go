@@ -176,10 +176,10 @@ func (idx *SymbolPosIndex) Lookup(file string, line, col int) (string, bool) {
 	if id, ok := idx.exact[key]; ok {
 		return id, true
 	}
-	// Fallback for chunked loading where col may be 1 (declaration start)
+	// Fallback for chunked loading where col may be 1 (declaration start).
+	// When col == 1, key is already "file:line:1" so reuse it.
 	if col == 1 {
-		fallbackKey := posKey(file, line, 1)
-		if id, ok := idx.fallback[fallbackKey]; ok {
+		if id, ok := idx.fallback[key]; ok {
 			return id, true
 		}
 	}
