@@ -40,7 +40,6 @@ func TestLoadFileLines_ReturnsExpectedLines_When_FileExists(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -93,7 +92,6 @@ func TestFileCache_EvictsOldestEntry_When_CapacityExceeded(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -139,7 +137,6 @@ func TestFileCache_RemovesEntries_When_ClearIsCalled(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
