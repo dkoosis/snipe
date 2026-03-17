@@ -39,7 +39,7 @@ func ComputeFingerprint(dir, version string) (*Fingerprint, error) {
 	}
 
 	// Get relevant go env values
-	fp.GoEnv = getGoEnvHash(dir)
+	fp.GoEnv = getGoEnvHash()
 
 	// Compute combined hash
 	fp.Combined = computeCombinedHash(fp)
@@ -47,7 +47,7 @@ func ComputeFingerprint(dir, version string) (*Fingerprint, error) {
 	return fp, nil
 }
 
-func getGoEnvHash(_ string) string {
+func getGoEnvHash() string {
 	// Only include build-config values that affect type-checking output.
 	// These are standard env vars readable directly — no need to shell out
 	// to `go env`, which costs 50-200ms and runs on every query-time

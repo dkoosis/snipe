@@ -3,6 +3,7 @@ package index
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -31,7 +32,7 @@ func ExtractFileInfo(repoRoot string) ([]FileInfo, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("walk %s: %w", repoRoot, err)
 	}
 	return files, nil
 }
@@ -66,12 +67,12 @@ func walkGoFiles(dir string, exclude []string, fn func(path string, d os.DirEntr
 func computeFileInfo(path string) (FileInfo, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
-		return FileInfo{}, err
+		return FileInfo{}, fmt.Errorf("stat %s: %w", path, err)
 	}
 
 	hash, err := HashFileSHA256(path)
 	if err != nil {
-		return FileInfo{}, err
+		return FileInfo{}, err // HashFileSHA256 already includes path context
 	}
 
 	return FileInfo{
@@ -86,13 +87,13 @@ func computeFileInfo(path string) (FileInfo, error) {
 func HashFileSHA256(path string) (string, error) {
 	f, err := os.Open(path) // #nosec G304 -- path from go/packages load result
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("hash %s: %w", path, err)
 	}
 	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return "", err
+		return "", fmt.Errorf("hash %s: %w", path, err)
 	}
 
 	// Return first 8 bytes as hex (16 characters)

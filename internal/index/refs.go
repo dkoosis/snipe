@@ -1,10 +1,10 @@
 package index
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/util"
@@ -204,7 +204,7 @@ func (idx *SymbolPosIndex) LookupMethodsByNameInPkgs(name string, importedPkgs m
 }
 
 func posKey(file string, line, col int) string {
-	return fmt.Sprintf("%s:%d:%d", file, line, col)
+	return file + ":" + strconv.Itoa(line) + ":" + strconv.Itoa(col)
 }
 
 // enclosingFunc tracks function/method ranges for finding enclosing scope
