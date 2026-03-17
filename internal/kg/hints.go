@@ -23,45 +23,47 @@ type Hint struct {
 }
 
 // GetHints queries the Orca KG for hints related to the given config.
-// Returns empty slice if Orca is not available or no hints found.
+// Returns nil if Orca is not available or no hints found.
 func GetHints(cfg Config) []Hint {
-	// Check if orca CLI is available
 	orcaPath, err := exec.LookPath("orca")
 	if err != nil {
 		return nil
 	}
 
-	// Build query: look for traps/patterns related to file or symbol
-	var hints []Hint
+	env := append(os.Environ(), "ORCA_QUIET=1")
 
-	// Query for file-anchored hints
+	var queries []string
 	if cfg.File != "" {
-		fileHints := queryOrcaHints(orcaPath, "file:"+cfg.File)
-		hints = append(hints, fileHints...)
+		queries = append(queries, "file:"+cfg.File)
 	}
-
-	// Query for symbol-specific hints
 	if cfg.Symbol != "" {
-		symHints := queryOrcaHints(orcaPath, "sym:"+cfg.Symbol)
-		hints = append(hints, symHints...)
+		queries = append(queries, "sym:"+cfg.Symbol)
 	}
-
-	// Query for package-related hints (last path component)
 	if cfg.Package != "" {
-		parts := strings.Split(cfg.Package, "/")
-		pkgHints := queryOrcaHints(orcaPath, "pkg:"+parts[len(parts)-1])
-		hints = append(hints, pkgHints...)
+		pkg := cfg.Package
+		if idx := strings.LastIndex(pkg, "/"); idx >= 0 {
+			pkg = pkg[idx+1:]
+		}
+		queries = append(queries, "pkg:"+pkg)
 	}
 
+	var hints []Hint
+	seen := make(map[string]struct{})
+	for _, q := range queries {
+		for _, h := range queryOrcaHints(orcaPath, env, q) {
+			if _, dup := seen[h.ID]; dup {
+				continue
+			}
+			seen[h.ID] = struct{}{}
+			hints = append(hints, h)
+		}
+	}
 	return hints
 }
 
-// queryOrcaHints runs orca search_nugs and parses results.
-func queryOrcaHints(orcaPath, query string) []Hint {
-	// Use environment to pass query to orca
-	// Format: orca search_nugs --query <query> --format json
+func queryOrcaHints(orcaPath string, env []string, query string) []Hint {
 	cmd := exec.Command(orcaPath, "search_nugs", "--query", query, "--limit", "3", "--format", "oneline")
-	cmd.Env = append(os.Environ(), "ORCA_QUIET=1")
+	cmd.Env = env
 
 	output, err := cmd.Output()
 	if err != nil {

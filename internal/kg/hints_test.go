@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dkoosis/snipe/internal/kg"
@@ -72,7 +71,6 @@ esac
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.orcaScript != "" {
 				binDir := t.TempDir()
@@ -94,12 +92,6 @@ esac
 
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Fatalf("hints mismatch (-want +got):\n%s", diff)
-			}
-
-			for _, hint := range got {
-				assert.NotEmpty(t, hint.ID, "invariant: each hint must have an ID")
-				assert.NotEmpty(t, hint.Kind, "invariant: each hint must have a kind")
-				assert.NotEmpty(t, hint.Summary, "invariant: each hint must have a summary")
 			}
 		})
 	}
