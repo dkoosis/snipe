@@ -1,7 +1,6 @@
 package bench
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,56 +14,56 @@ import (
 var testRepo = filepath.Join("..", "..")
 
 func BenchmarkIndex(b *testing.B) {
-	dir, _ := filepath.Abs(testRepo)
-	dbPath := filepath.Join(b.TempDir(), "snipe.db")
+	dir, err := filepath.Abs(testRepo)
+	if err != nil {
+		b.Fatalf("resolve repo root: %v", err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		dbPath := filepath.Join(b.TempDir(), "snipe.db")
 		s, err := store.Open(dbPath)
 		if err != nil {
 			b.Fatal(err)
 		}
 
-		// Load packages
 		result, err := index.Load(index.LoadConfig{Dir: dir})
 		if err != nil {
 			s.Close()
 			b.Fatal(err)
 		}
 
-		// Extract symbols
 		syms, err := index.ExtractSymbols(result)
 		if err != nil {
 			s.Close()
 			b.Fatal(err)
 		}
 
-		// Extract refs
 		refs, err := index.ExtractRefs(result, syms)
 		if err != nil {
 			s.Close()
 			b.Fatal(err)
 		}
 
-		// Extract call graph
 		calls, err := index.ExtractCallGraph(result, syms)
 		if err != nil {
 			s.Close()
 			b.Fatal(err)
 		}
 
-		// Write to store
 		if err := s.WriteIndex(syms, refs, calls); err != nil {
 			s.Close()
 			b.Fatal(err)
 		}
 		s.Close()
-		os.Remove(dbPath)
 	}
 }
 
 func BenchmarkDefByName(b *testing.B) {
-	dir, _ := filepath.Abs(testRepo)
+	dir, err := filepath.Abs(testRepo)
+	if err != nil {
+		b.Fatalf("resolve repo root: %v", err)
+	}
 	s := setupIndex(b, dir)
 	defer s.Close()
 
@@ -75,7 +74,10 @@ func BenchmarkDefByName(b *testing.B) {
 }
 
 func BenchmarkDefByPosition(b *testing.B) {
-	dir, _ := filepath.Abs(testRepo)
+	dir, err := filepath.Abs(testRepo)
+	if err != nil {
+		b.Fatalf("resolve repo root: %v", err)
+	}
 	s := setupIndex(b, dir)
 	defer s.Close()
 
@@ -92,7 +94,10 @@ func BenchmarkDefByPosition(b *testing.B) {
 }
 
 func BenchmarkRefsBySymbolID(b *testing.B) {
-	dir, _ := filepath.Abs(testRepo)
+	dir, err := filepath.Abs(testRepo)
+	if err != nil {
+		b.Fatalf("resolve repo root: %v", err)
+	}
 	s := setupIndex(b, dir)
 	defer s.Close()
 
@@ -110,7 +115,10 @@ func BenchmarkRefsBySymbolID(b *testing.B) {
 }
 
 func BenchmarkSearch(b *testing.B) {
-	dir, _ := filepath.Abs(testRepo)
+	dir, err := filepath.Abs(testRepo)
+	if err != nil {
+		b.Fatalf("resolve repo root: %v", err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -119,7 +127,10 @@ func BenchmarkSearch(b *testing.B) {
 }
 
 func BenchmarkSearchRegex(b *testing.B) {
-	dir, _ := filepath.Abs(testRepo)
+	dir, err := filepath.Abs(testRepo)
+	if err != nil {
+		b.Fatalf("resolve repo root: %v", err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
