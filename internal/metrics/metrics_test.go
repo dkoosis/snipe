@@ -72,7 +72,6 @@ func TestComparison_SetsStatus_When_MetricsCompared(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -129,7 +128,6 @@ func TestLoadHistory_SkipsMalformedLines_When_JSONLContainsInvalid(t *testing.T)
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -183,7 +181,6 @@ func TestLoadBaseline_ReturnsExpectedResult_When_ReadingBaseline(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -274,7 +271,6 @@ func TestHistoryEntries_SetsDeltas_When_MetricsChangeAcrossRuns(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
