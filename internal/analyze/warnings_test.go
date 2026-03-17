@@ -50,6 +50,17 @@ func good() {
 			wantWarn: false,
 		},
 		{
+			name: "defer after loop is safe",
+			code: `package test
+func safe() {
+	for i := 0; i < 10; i++ {
+		println(i)
+	}
+	defer println("cleanup")
+}`,
+			wantWarn: false,
+		},
+		{
 			name: "no defer",
 			code: `package test
 func simple() {

@@ -3,6 +3,7 @@
 package analyze
 
 import (
+	"bytes"
 	"go/ast"
 	"go/token"
 	"strings"
@@ -12,9 +13,10 @@ import (
 
 // Analyzer performs static analysis on a function AST.
 type Analyzer struct {
-	fset *token.FileSet
-	src  []byte // Source for evidence extraction
-	mode output.WarningsMode
+	fset  *token.FileSet
+	src   []byte // Source for evidence extraction
+	mode  output.WarningsMode
+	lines [][]byte // lazily split source lines
 }
 
 // NewAnalyzer creates a new analyzer for warning detection.
@@ -54,28 +56,43 @@ func (a *Analyzer) AnalyzeFunc(fn *ast.FuncDecl) []output.Warning {
 // High precision: defer in loop always accumulates resources until function returns.
 func (a *Analyzer) detectDeferInLoop(body *ast.BlockStmt) []output.Warning {
 	var warnings []output.Warning
-	var loopDepth int
-
-	ast.Inspect(body, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.ForStmt, *ast.RangeStmt:
-			loopDepth++
-		case *ast.DeferStmt:
-			if loopDepth > 0 {
-				pos := a.fset.Position(n.Pos())
-				warnings = append(warnings, output.Warning{
-					Code:     output.WarnDeferInLoop,
-					Severity: "high",
-					Line:     pos.Line,
-					Message:  "defer inside loop accumulates resources until function returns",
-					Evidence: a.extractLine(pos.Line),
-				})
-			}
-		}
-		return true
-	})
-
+	a.walkDeferInLoop(body, 0, &warnings)
 	return warnings
+}
+
+// walkDeferInLoop recursively walks the AST tracking loop nesting depth.
+// Using explicit recursion instead of ast.Inspect so loopDepth decrements
+// correctly when leaving a loop's subtree.
+func (a *Analyzer) walkDeferInLoop(n ast.Node, loopDepth int, warnings *[]output.Warning) {
+	if n == nil {
+		return
+	}
+
+	switch n := n.(type) {
+	case *ast.ForStmt, *ast.RangeStmt:
+		loopDepth++
+	case *ast.DeferStmt:
+		if loopDepth > 0 {
+			pos := a.fset.Position(n.Pos())
+			*warnings = append(*warnings, output.Warning{
+				Code:     output.WarnDeferInLoop,
+				Severity: "high",
+				Line:     pos.Line,
+				Message:  "defer inside loop accumulates resources until function returns",
+				Evidence: a.extractLine(pos.Line),
+			})
+		}
+	}
+
+	// Visit children with the current loopDepth (which is stack-local,
+	// so it automatically "decrements" when we return from a loop node).
+	ast.Inspect(n, func(child ast.Node) bool {
+		if child == nil || child == n {
+			return true
+		}
+		a.walkDeferInLoop(child, loopDepth, warnings)
+		return false // we handle recursion ourselves
+	})
 }
 
 // detectIgnoredError finds explicitly ignored error returns.
@@ -285,14 +302,15 @@ func (a *Analyzer) extractLine(lineNum int) string {
 		return ""
 	}
 
-	lines := strings.Split(string(a.src), "\n")
-	if lineNum < 1 || lineNum > len(lines) {
+	if a.lines == nil {
+		a.lines = bytes.Split(a.src, []byte("\n"))
+	}
+
+	if lineNum < 1 || lineNum > len(a.lines) {
 		return ""
 	}
 
-	line := lines[lineNum-1]
-	// Trim and cap length for readability
-	line = strings.TrimSpace(line)
+	line := strings.TrimSpace(string(a.lines[lineNum-1]))
 	if len(line) > 80 {
 		line = line[:77] + "..."
 	}
