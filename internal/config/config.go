@@ -3,6 +3,8 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -39,38 +41,46 @@ func projectConfigPath(projectRoot string) string {
 
 // Load loads and merges configuration from global and project sources.
 // Project config overrides global config, which overrides defaults.
+// Returns an error if a config file exists but cannot be parsed.
 func Load(projectRoot string) (*Config, error) {
 	cfg := defaultConfig()
 
-	// Load global config if exists
 	globalPath, err := globalConfigPath()
 	if err == nil {
-		if globalCfg, err := loadFile(globalPath); err == nil {
-			cfg = merge(cfg, globalCfg)
+		globalCfg, err := loadFile(globalPath)
+		if err != nil {
+			return nil, fmt.Errorf("global config: %w", err)
 		}
+		cfg = merge(cfg, globalCfg)
 	}
 
-	// Load project config if exists (overrides global)
 	if projectRoot != "" {
 		projectPath := projectConfigPath(projectRoot)
-		if projectCfg, err := loadFile(projectPath); err == nil {
-			cfg = merge(cfg, projectCfg)
+		projectCfg, err := loadFile(projectPath)
+		if err != nil {
+			return nil, fmt.Errorf("project config: %w", err)
 		}
+		cfg = merge(cfg, projectCfg)
 	}
 
 	return cfg, nil
 }
 
-// loadFile loads a config from a JSON file. Returns nil if file doesn't exist.
+// loadFile loads a config from a JSON file.
+// Returns (nil, nil) if the file does not exist.
+// Returns a non-nil error for permission failures or malformed JSON.
 func loadFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path) // #nosec G304 -- path from globalConfigPath/projectConfigPath
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 
 	return &cfg, nil
@@ -80,6 +90,9 @@ func loadFile(path string) (*Config, error) {
 func merge(dst, src *Config) *Config {
 	if src == nil {
 		return dst
+	}
+	if dst == nil {
+		return src
 	}
 
 	result := *dst

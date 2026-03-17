@@ -92,6 +92,36 @@ func TestLoad_ProjectOverridesGlobal(t *testing.T) {
 	}
 }
 
+func TestLoad_MalformedProjectConfig(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".snipe.json"), []byte(`{bad json`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(dir)
+	if err == nil {
+		t.Fatal("Load should fail on malformed JSON, got nil error")
+	}
+}
+
+func TestLoad_MalformedGlobalConfig(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	globalDir := filepath.Join(homeDir, ".config", "snipe")
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "config.json"), []byte(`not json`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(t.TempDir())
+	if err == nil {
+		t.Fatal("Load should fail on malformed global config, got nil error")
+	}
+}
+
 func TestProjectConfigPath(t *testing.T) {
 	got := projectConfigPath("/home/user/project")
 	want := filepath.Join("/home/user/project", ".snipe.json")
