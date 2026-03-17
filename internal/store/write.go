@@ -55,7 +55,7 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 
 	// Preserve existing embeddings and symbol purposes before clearing data
 	for _, pt := range preservedTables {
-		if _, err := preserveTable(tx, pt); err != nil {
+		if err := preserveTable(tx, pt); err != nil {
 			return err
 		}
 	}
@@ -72,7 +72,7 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 
 	// Restore preserved data for symbols that still exist
 	for _, pt := range preservedTables {
-		if _, err := restoreTable(tx, pt); err != nil {
+		if err := restoreTable(tx, pt); err != nil {
 			return err
 		}
 	}
@@ -180,49 +180,44 @@ var preservedTables = []preservableTable{
 }
 
 // preserveTable copies rows from table to a temp table for later restoration.
-// Returns 0 silently if the source table doesn't exist.
-func preserveTable(tx *sql.Tx, pt preservableTable) (int64, error) {
+// Returns nil silently if the source table doesn't exist.
+func preserveTable(tx *sql.Tx, pt preservableTable) error {
 	_, err := tx.Exec(fmt.Sprintf(
 		"CREATE TEMP TABLE IF NOT EXISTS %s AS SELECT %s FROM %s WHERE 1=0",
 		pt.temp, pt.columns, pt.table)) // #nosec G201 -- table/column names from hardcoded preservedTables
 	if err != nil {
 		if isNoSuchTableErr(err, pt.table) {
-			return 0, nil
+			return nil
 		}
-		return 0, fmt.Errorf("create %s temp table: %w", pt.temp, err)
+		return fmt.Errorf("create %s temp table: %w", pt.temp, err)
 	}
 
-	result, err := tx.Exec(fmt.Sprintf(
+	if _, err := tx.Exec(fmt.Sprintf(
 		"INSERT INTO %s (%s) SELECT %s FROM %s",
-		pt.temp, pt.columns, pt.columns, pt.table)) // #nosec G201 -- hardcoded table/column names
-	if err != nil {
-		return 0, fmt.Errorf("copy %s to temp: %w", pt.table, err)
+		pt.temp, pt.columns, pt.columns, pt.table)); err != nil { // #nosec G201 -- hardcoded table/column names
+		return fmt.Errorf("copy %s to temp: %w", pt.table, err)
 	}
 
-	count, _ := result.RowsAffected()
-	return count, nil
+	return nil
 }
 
 // restoreTable restores rows from temp table for symbols that still exist, then drops temp.
-// Returns 0 silently if the temp table doesn't exist.
-func restoreTable(tx *sql.Tx, pt preservableTable) (int64, error) {
-	result, err := tx.Exec(fmt.Sprintf(
+// Returns nil silently if the temp table doesn't exist.
+func restoreTable(tx *sql.Tx, pt preservableTable) error {
+	if _, err := tx.Exec(fmt.Sprintf(
 		"INSERT OR IGNORE INTO %s (%s) SELECT %s FROM %s p WHERE p.symbol_id IN (SELECT id FROM symbols)",
-		pt.table, pt.columns, "p."+strings.ReplaceAll(pt.columns, ", ", ", p."), pt.temp)) // #nosec G201 -- hardcoded table/column names
-	if err != nil {
+		pt.table, pt.columns, "p."+strings.ReplaceAll(pt.columns, ", ", ", p."), pt.temp)); err != nil { // #nosec G201 -- hardcoded table/column names
 		if isNoSuchTableErr(err, pt.temp) {
-			return 0, nil
+			return nil
 		}
-		return 0, fmt.Errorf("restore %s: %w", pt.table, err)
+		return fmt.Errorf("restore %s: %w", pt.table, err)
 	}
-
-	count, _ := result.RowsAffected()
 
 	if _, err := tx.Exec("DROP TABLE IF EXISTS " + pt.temp); err != nil { // #nosec G201 -- hardcoded temp name
-		return 0, fmt.Errorf("drop %s temp table: %w", pt.temp, err)
+		return fmt.Errorf("drop %s temp table: %w", pt.temp, err)
 	}
 
-	return count, nil
+	return nil
 }
 
 func writeSymbols(tx *sql.Tx, symbols []index.Symbol, repoRoot string) error {
@@ -318,11 +313,22 @@ func writeCallEdges(tx *sql.Tx, edges []index.CallEdge) error {
 	return nil
 }
 
-func nullString(s string) interface{} {
+func nullString(s string) any {
 	if s == "" {
 		return nil
 	}
 	return s
+}
+
+// toPlaceholders converts a string slice to SQL placeholder args.
+func toPlaceholders(ss []string) (placeholders []string, args []any) {
+	placeholders = make([]string, len(ss))
+	args = make([]any, len(ss))
+	for i, s := range ss {
+		placeholders[i] = "?"
+		args[i] = s
+	}
+	return
 }
 
 // WriteImports writes import records to the database
@@ -437,33 +443,6 @@ type IncrementalResult struct {
 	IncrementalCount int // how many incremental writes since last full reindex
 }
 
-// DeleteFileEntries removes specific file paths from the files table.
-func (s *Store) DeleteFileEntries(paths []string) error {
-	if len(paths) == 0 {
-		return nil
-	}
-	tx, err := s.db.Begin()
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			_ = rbErr
-		}
-	}()
-	placeholders := make([]string, len(paths))
-	args := make([]interface{}, len(paths))
-	for i, p := range paths {
-		placeholders[i] = "?"
-		args[i] = p
-	}
-	query := fmt.Sprintf("DELETE FROM files WHERE path IN (%s)", strings.Join(placeholders, ","))
-	if _, err := tx.Exec(query, args...); err != nil {
-		return fmt.Errorf("delete files: %w", err)
-	}
-	return tx.Commit()
-}
-
 // WriteIndexIncremental updates the index for changed/deleted files only.
 // Symbols for changed files are replaced; refs, call edges, and imports from
 // changed files are deleted and re-inserted. Unchanged files are left in place.
@@ -545,6 +524,15 @@ func (s *Store) WriteIndexIncremental(
 		}
 	}
 
+	// Remove file entries for deleted files (within same transaction for atomicity)
+	if len(deletedFiles) > 0 {
+		placeholders, args := toPlaceholders(deletedFiles)
+		query := fmt.Sprintf("DELETE FROM files WHERE path IN (%s)", strings.Join(placeholders, ",")) // #nosec G201 -- values are parameterized
+		if _, err := tx.Exec(query, args...); err != nil {
+			return nil, fmt.Errorf("delete file entries: %w", err)
+		}
+	}
+
 	// Insert new symbols for changed files
 	if err := writeSymbols(tx, changedSymbols, repoRoot); err != nil {
 		return nil, fmt.Errorf("write symbols: %w", err)
@@ -594,12 +582,7 @@ func deleteFromFileSet(tx *sql.Tx, table string, files []string) error {
 	if len(files) == 0 {
 		return nil
 	}
-	placeholders := make([]string, len(files))
-	args := make([]interface{}, len(files))
-	for i, f := range files {
-		placeholders[i] = "?"
-		args[i] = f
-	}
+	placeholders, args := toPlaceholders(files)
 	query := fmt.Sprintf("DELETE FROM %s WHERE file_path IN (%s)", table, strings.Join(placeholders, ",")) // #nosec G201 -- table name is hardcoded constant
 	_, err := tx.Exec(query, args...)
 	return err
@@ -611,12 +594,7 @@ func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []stri
 		return nil
 	}
 	// Find symbol IDs in affected files (by absolute path)
-	placeholders := make([]string, len(files))
-	args := make([]interface{}, len(files))
-	for i, f := range files {
-		placeholders[i] = "?"
-		args[i] = f
-	}
+	placeholders, args := toPlaceholders(files)
 	query := fmt.Sprintf("%s WHERE file_path IN (%s)", selectQuery, strings.Join(placeholders, ",")) // #nosec G201 -- query parts are hardcoded
 	rows, err := tx.Query(query, args...)
 	if err != nil {
@@ -638,7 +616,7 @@ func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []stri
 
 	if len(ids) == 0 {
 		// Also try relative paths
-		relArgs := make([]interface{}, len(files))
+		relArgs := make([]any, len(files))
 		for i, f := range files {
 			relArgs[i] = toRelPath(f, repoRoot)
 		}
@@ -665,12 +643,7 @@ func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []stri
 	}
 
 	// Delete from target table
-	idPlaceholders := make([]string, len(ids))
-	idArgs := make([]interface{}, len(ids))
-	for i, id := range ids {
-		idPlaceholders[i] = "?"
-		idArgs[i] = id
-	}
+	idPlaceholders, idArgs := toPlaceholders(ids)
 	delQuery := fmt.Sprintf("%s (%s)", deleteQuery, strings.Join(idPlaceholders, ",")) // #nosec G201 -- query parts are hardcoded
 	_, err = tx.Exec(delQuery, idArgs...)
 	return err
