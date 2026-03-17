@@ -1,6 +1,9 @@
 package output
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ProtocolVersion is the snipe wire protocol version.
 // Bump when the response envelope schema changes in a breaking way.
@@ -267,15 +270,8 @@ func joinSuggestions(suggestions []string) string {
 		return suggestions[0] + "?"
 	}
 	// Join all but the last with commas, then add "or" before the last
-	result := ""
-	for i, s := range suggestions[:len(suggestions)-1] {
-		if i > 0 {
-			result += ", "
-		}
-		result += s
-	}
-	result += ", or " + suggestions[len(suggestions)-1] + "?"
-	return result
+	return strings.Join(suggestions[:len(suggestions)-1], ", ") +
+		", or " + suggestions[len(suggestions)-1] + "?"
 }
 
 // NewAmbiguousError creates an AMBIGUOUS_SYMBOL error

@@ -113,28 +113,28 @@ func TestFormatEditTarget(t *testing.T) {
 	}
 
 	// Without hash
-	got := FormatEditTarget("main.go", r, "")
+	got := formatEditTarget("main.go", r, "")
 	want := "main.go:42:10-42:25"
 	if got != want {
-		t.Errorf("FormatEditTarget() without hash = %q, want %q", got, want)
+		t.Errorf("formatEditTarget() without hash = %q, want %q", got, want)
 	}
 
 	// With hash
-	got = FormatEditTarget("main.go", r, "abc123def456")
+	got = formatEditTarget("main.go", r, "abc123def456")
 	want = "main.go:42:10-42:25@abc123def456"
 	if got != want {
-		t.Errorf("FormatEditTarget() with hash = %q, want %q", got, want)
+		t.Errorf("formatEditTarget() with hash = %q, want %q", got, want)
 	}
 }
 
 func TestComputeRangeHash(t *testing.T) {
 	// Test with invalid file returns empty string
-	hash := ComputeRangeHash("/nonexistent/file.go", Range{
+	hash := computeRangeHash("/nonexistent/file.go", Range{
 		Start: Position{Line: 1, Col: 1},
 		End:   Position{Line: 1, Col: 10},
 	})
 	if hash != "" {
-		t.Errorf("ComputeRangeHash() for nonexistent file = %q, want empty string", hash)
+		t.Errorf("computeRangeHash() for nonexistent file = %q, want empty string", hash)
 	}
 
 	// Test with invalid range returns empty string
@@ -343,7 +343,7 @@ func TestEstimateResultTokens(t *testing.T) {
 func TestTruncateBodySemantic(t *testing.T) {
 	t.Run("no truncation needed", func(t *testing.T) {
 		result := Result{Body: "line1\nline2\nline3"}
-		truncated := TruncateBodySemantic(&result, 5)
+		truncated := truncateBodySemantic(&result, 5)
 		if truncated {
 			t.Error("should not truncate when lines fit")
 		}
@@ -351,7 +351,7 @@ func TestTruncateBodySemantic(t *testing.T) {
 
 	t.Run("empty body", func(t *testing.T) {
 		result := Result{Body: ""}
-		truncated := TruncateBodySemantic(&result, 5)
+		truncated := truncateBodySemantic(&result, 5)
 		if truncated {
 			t.Error("should not truncate empty body")
 		}
@@ -365,7 +365,7 @@ func TestTruncateBodySemantic(t *testing.T) {
 	return x + y + z;
 }`
 		result := Result{Body: body}
-		truncated := TruncateBodySemantic(&result, 4)
+		truncated := truncateBodySemantic(&result, 4)
 		if !truncated {
 			t.Error("should truncate")
 		}
@@ -393,7 +393,7 @@ func TestTruncateBodySemantic(t *testing.T) {
 	return 0
 }`
 		result := Result{Body: body}
-		truncated := TruncateBodySemantic(&result, 5)
+		truncated := truncateBodySemantic(&result, 5)
 		if !truncated {
 			t.Error("should truncate")
 		}
@@ -451,7 +451,7 @@ func TestTruncateResultsSemantic(t *testing.T) {
 	}
 
 	t.Run("zero budget returns all", func(t *testing.T) {
-		got, truncated, _ := TruncateResultsSemantic(results, 0, 10)
+		got, truncated, _ := truncateResultsSemantic(results, 0, 10)
 		if truncated {
 			t.Error("should not truncate with zero budget")
 		}
@@ -461,7 +461,7 @@ func TestTruncateResultsSemantic(t *testing.T) {
 	})
 
 	t.Run("large budget keeps all", func(t *testing.T) {
-		got, truncated, tokens := TruncateResultsSemantic(results, 10000, 10)
+		got, truncated, tokens := truncateResultsSemantic(results, 10000, 10)
 		if truncated {
 			t.Error("should not truncate with large budget")
 		}
@@ -474,7 +474,7 @@ func TestTruncateResultsSemantic(t *testing.T) {
 	})
 
 	t.Run("small budget truncates", func(t *testing.T) {
-		got, truncated, _ := TruncateResultsSemantic(results, 300, 5)
+		got, truncated, _ := truncateResultsSemantic(results, 300, 5)
 		if !truncated {
 			t.Error("should truncate with small budget")
 		}
@@ -553,7 +553,7 @@ func TestSortByScore(t *testing.T) {
 		{Name: "b", Score: 50},
 	}
 
-	SortByScore(results)
+	sortByScore(results)
 
 	if results[0].Name != "a" || results[1].Name != "b" || results[2].Name != "c" {
 		t.Errorf("SortByScore() order = [%s, %s, %s], want [a, b, c]",

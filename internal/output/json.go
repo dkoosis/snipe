@@ -529,9 +529,9 @@ func TruncateToTokenBudget(results []Result, maxTokens int) ([]Result, bool) {
 	return truncated, false
 }
 
-// FormatEditTarget formats a range as an edit target string.
+// formatEditTarget formats a range as an edit target string.
 // If hash is non-empty, appends it for change detection: file:L:C-L:C@hash
-func FormatEditTarget(file string, r Range, hash string) string {
+func formatEditTarget(file string, r Range, hash string) string {
 	target := fmt.Sprintf("%s:%d:%d-%d:%d",
 		file,
 		r.Start.Line, r.Start.Col,
@@ -543,10 +543,10 @@ func FormatEditTarget(file string, r Range, hash string) string {
 	return target
 }
 
-// ComputeRangeHash computes a SHA256 hash of the content within a line range.
+// computeRangeHash computes a SHA256 hash of the content within a line range.
 // Returns a truncated hash (16 hex chars) for embedding in edit_target.
 // If the range cannot be read, returns an empty string.
-func ComputeRangeHash(file string, r Range) string {
+func computeRangeHash(file string, r Range) string {
 	lines, err := readFileLines(file)
 	if err != nil {
 		return ""
@@ -581,8 +581,8 @@ func ComputeRangeHash(file string, r Range) string {
 // and formats the edit target in one call.
 // fileRel is the relative path (for output), fileAbs is the absolute path (for reading file to compute hash).
 func FormatEditTargetWithHash(fileRel, fileAbs string, r Range) string {
-	hash := ComputeRangeHash(fileAbs, r)
-	return FormatEditTarget(fileRel, r, hash)
+	hash := computeRangeHash(fileAbs, r)
+	return formatEditTarget(fileRel, r, hash)
 }
 
 // AddContext loads N lines of context before and after the result's range
@@ -680,16 +680,16 @@ func ScoreResult(result *Result, query string) float64 {
 	return score
 }
 
-// ScoreResults applies relevance scoring to all results.
-func ScoreResults(results []Result, query string) {
+// scoreResults applies relevance scoring to all results.
+func scoreResults(results []Result, query string) {
 	for i := range results {
 		results[i].Score = ScoreResult(&results[i], query)
 	}
 }
 
-// SortByScore sorts results by score in descending order (highest first).
+// sortByScore sorts results by score in descending order (highest first).
 // Uses stable sort with deterministic tie-breaking by File, then Name.
-func SortByScore(results []Result) {
+func sortByScore(results []Result) {
 	sort.SliceStable(results, func(i, j int) bool {
 		if results[i].Score != results[j].Score {
 			return results[i].Score > results[j].Score
@@ -703,8 +703,8 @@ func SortByScore(results []Result) {
 
 // ScoreAndSort scores results by relevance and sorts by score descending.
 func ScoreAndSort(results []Result, query string) {
-	ScoreResults(results, query)
-	SortByScore(results)
+	scoreResults(results, query)
+	sortByScore(results)
 }
 
 // BuildSummary creates a summary from a slice of results
@@ -751,22 +751,14 @@ func AddBody(result *Result) error {
 	}
 
 	// Extract lines from startLine to endLine (1-indexed)
-	var body string
-	for i := startLine; i <= endLine && i <= len(lines); i++ {
-		if i > startLine {
-			body += "\n"
-		}
-		body += lines[i-1]
-	}
-
-	result.Body = body
+	result.Body = strings.Join(lines[startLine-1:endLine], "\n")
 	return nil
 }
 
-// TruncateBodySemantic truncates the Body field at a semantic boundary
+// truncateBodySemantic truncates the Body field at a semantic boundary
 // (complete statement or declaration) to fit within maxLines.
 // Returns true if truncation occurred.
-func TruncateBodySemantic(result *Result, maxLines int) bool {
+func truncateBodySemantic(result *Result, maxLines int) bool {
 	if result.Body == "" || maxLines <= 0 {
 		return false
 	}
@@ -822,10 +814,10 @@ func findSemanticBoundary(lines []string, maxLines int) int {
 	return bestLine
 }
 
-// TruncateResultsSemantic truncates results to fit within a token budget,
+// truncateResultsSemantic truncates results to fit within a token budget,
 // preferring to keep complete results and truncating bodies at semantic boundaries.
 // Returns the truncated slice, whether truncation occurred, and the estimated token count.
-func TruncateResultsSemantic(results []Result, maxTokens int, maxBodyLines int) ([]Result, bool, int) {
+func truncateResultsSemantic(results []Result, maxTokens int, maxBodyLines int) ([]Result, bool, int) {
 	if maxTokens <= 0 {
 		total := 0
 		for i := range results {
@@ -859,7 +851,7 @@ func TruncateResultsSemantic(results []Result, maxTokens int, maxBodyLines int) 
 
 		// Result doesn't fit - try truncating its body
 		if result.Body != "" && maxBodyLines > 0 {
-			if TruncateBodySemantic(&result, maxBodyLines) {
+			if truncateBodySemantic(&result, maxBodyLines) {
 				didTruncate = true
 				resultTokens = EstimateResultTokens(&result)
 				if totalTokens+resultTokens <= budget {
