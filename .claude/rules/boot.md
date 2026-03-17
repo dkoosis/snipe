@@ -1,4 +1,4 @@
-sha: c8c69e4 | qa: pass | updated: 2026-03-06
+sha: e57fc70 | qa: pass | updated: 2026-03-16
 
 ## Do next
 
@@ -6,12 +6,11 @@ Pick one: un-skip impl test | #121 search index fallback | #123 root detection
 
 ## Done
 
-- Impact query layer: FindImpactCallers/Multi, FindMethodIDs, FindTests/Multi with tests
-- Orca updated to pass `--format json` to snipe
-- Claude-optimized text output as default (~68% token reduction vs JSON)
-- Fuzzy method name resolution: `callers ListFiles` finds methods without receiver syntax (#120)
-- Decision table D1-D6 in CLAUDE.md + guard-rails.md (trixi-style)
-- Created issues: #120 fuzzy names, #121 search fallback, #122 human format, #123 root detection
+- Full /sweep simplify: 15/17 packages simplified, -600+ lines dead code/duplication
+- Full /sweep craft: 14/17 packages improved, found+fixed 6 bugs (token estimate accumulation, defer-in-loop false positive, search ID ambiguity, config silent fallback, impl panic on empty args, magefile qa fallback)
+- Error wrapping added across store, metrics, index, query, config
+- Deterministic output ordering in output package
+- test/bench deduplicated 350 lines of shadowed types
 
 ## Backlog
 
@@ -23,4 +22,3 @@ un-skip impl test | #121 search index fallback | #123 root detection | #112 vagu
 - `knownSubcommands` map in cmd/root.go must be updated when adding new commands
 - No interfaces in snipe's own source — impl can only be tested via blackbox fixture
 - Do NOT optimize eval until telemetry provides ground truth
-- `generatePurpose()` runs every index writing placeholder strings
