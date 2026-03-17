@@ -8,7 +8,6 @@ import (
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
-	"github.com/dkoosis/snipe/internal/store"
 )
 
 var pkgCmd = &cobra.Command{
@@ -48,28 +47,9 @@ func runPkg(cmd *cobra.Command, args []string) error {
 
 	pkgPattern := args[0]
 
-	dir, err := os.Getwd()
+	s, dir, err := OpenStore(w, "pkg")
 	if err != nil {
-		return w.WriteError("pkg", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to get working directory: " + err.Error(),
-		})
-	}
-
-	dbPath := store.DefaultIndexPath(dir)
-	if store.IsIndexing(dbPath) {
-		return w.WriteError("pkg", output.NewIndexInProgressError())
-	}
-	if !store.Exists(dbPath) {
-		return w.WriteError("pkg", output.NewMissingIndexError())
-	}
-
-	s, err := store.Open(dbPath)
-	if err != nil {
-		return w.WriteError("pkg", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to open index: " + err.Error(),
-		})
+		return err
 	}
 	defer s.Close()
 

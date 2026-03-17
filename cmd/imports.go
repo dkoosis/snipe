@@ -9,7 +9,6 @@ import (
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
-	"github.com/dkoosis/snipe/internal/store"
 )
 
 var importsCmd = &cobra.Command{
@@ -37,35 +36,16 @@ func runImports(cmd *cobra.Command, args []string) error {
 
 	filePath := args[0]
 
-	dir, err := os.Getwd()
+	s, dir, err := OpenStore(w, "imports")
 	if err != nil {
-		return w.WriteError("imports", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to get working directory: " + err.Error(),
-		})
+		return err
 	}
+	defer s.Close()
 
 	// Make path absolute if relative
 	if !filepath.IsAbs(filePath) {
 		filePath = filepath.Join(dir, filePath)
 	}
-
-	dbPath := store.DefaultIndexPath(dir)
-	if store.IsIndexing(dbPath) {
-		return w.WriteError("imports", output.NewIndexInProgressError())
-	}
-	if !store.Exists(dbPath) {
-		return w.WriteError("imports", output.NewMissingIndexError())
-	}
-
-	s, err := store.Open(dbPath)
-	if err != nil {
-		return w.WriteError("imports", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to open index: " + err.Error(),
-		})
-	}
-	defer s.Close()
 
 	imports, err := query.FindImports(s.DB(), filePath, lim, offset)
 	if err != nil {

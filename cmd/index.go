@@ -266,27 +266,13 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Output result
-	resp := output.Response[any]{
-		Protocol: output.ProtocolVersion,
-		Ok:       true,
-		Results:  nil,
-		Meta: output.Meta{
-			Command:    "index",
-			RepoRoot:   absDir,
-			IndexState: output.IndexFresh,
-			Ms:         time.Since(start).Milliseconds(),
-			Total:      len(symbols),
-		},
-	}
-
 	if embedCount > 0 {
 		fmt.Fprintf(os.Stderr, "Generated %d embeddings\n", embedCount)
 	} else if embedStatus == "batch_started" {
 		fmt.Fprintf(os.Stderr, "Batch embedding started (async). Use 'snipe embed-status' to check progress.\n")
 	}
 
-	return w.WriteResponse(resp)
+	return w.WriteResponse(indexResponse(absDir, start, len(symbols), nil))
 }
 
 // filterEmbeddableSymbols returns symbols suitable for embedding (functions, methods,
@@ -640,34 +626,8 @@ func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadRes
 	fmt.Fprintf(os.Stderr, "Incremental: updated %d files (%d modified, %d added, %d deleted)\n",
 		nMod+nAdd+nDel, nMod, nAdd, nDel)
 
-	// Build suggestions
-	var suggestions []output.Suggestion
-	if incResult.OrphanedRefs > 0 {
-		suggestions = append(suggestions, output.Suggestion{
-			Command:     "snipe index --force",
-			Description: fmt.Sprintf("Full rebuild to clear %d orphaned refs", incResult.OrphanedRefs),
-			Priority:    3,
-			Condition:   "incremental_orphans",
-		})
-	}
-
-	// Output result
 	symCount, _, _, _ := s.GetStats()
-	resp := output.Response[any]{
-		Protocol:    output.ProtocolVersion,
-		Ok:          true,
-		Results:     nil,
-		Suggestions: suggestions,
-		Meta: output.Meta{
-			Command:    "index",
-			RepoRoot:   absDir,
-			IndexState: output.IndexFresh,
-			Ms:         time.Since(start).Milliseconds(),
-			Total:      symCount,
-		},
-	}
-
-	return w.WriteResponse(resp)
+	return w.WriteResponse(indexResponse(absDir, start, symCount, orphanSuggestion(incResult)))
 }
 
 // runDeleteOnlyIndex handles the case where only files were deleted.
@@ -676,15 +636,11 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 	nDel := len(changes.Deleted)
 	fmt.Fprintf(os.Stderr, "Delete-only: removing %d files (skipping package load)\n", nDel)
 
-	// Remove symbols, refs, edges, imports, embeddings, purposes for deleted files
+	// Remove symbols, refs, edges, imports, embeddings, purposes, and file entries
+	// for deleted files (all within a single transaction in WriteIndexIncremental)
 	incResult, err := s.WriteIndexIncremental(nil, nil, nil, nil, nil, changes.Deleted)
 	if err != nil {
 		return fmt.Errorf("delete-only incremental: %w", err)
-	}
-
-	// Remove file entries for deleted files
-	if err := s.DeleteFileEntries(changes.Deleted); err != nil {
-		return fmt.Errorf("delete file entries: %w", err)
 	}
 
 	// Update metadata
@@ -694,21 +650,15 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 
 	fmt.Fprintf(os.Stderr, "Deleted %d files\n", nDel)
 
-	var suggestions []output.Suggestion
-	if incResult.OrphanedRefs > 0 {
-		suggestions = append(suggestions, output.Suggestion{
-			Command:     "snipe index --force",
-			Description: fmt.Sprintf("Full rebuild to clear %d orphaned refs", incResult.OrphanedRefs),
-			Priority:    3,
-			Condition:   "incremental_orphans",
-		})
-	}
-
 	symCount, _, _, _ := s.GetStats()
-	resp := output.Response[any]{
+	return w.WriteResponse(indexResponse(absDir, start, symCount, orphanSuggestion(incResult)))
+}
+
+// indexResponse builds a standard index command response.
+func indexResponse(absDir string, start time.Time, symCount int, suggestions []output.Suggestion) output.Response[any] {
+	return output.Response[any]{
 		Protocol:    output.ProtocolVersion,
 		Ok:          true,
-		Results:     nil,
 		Suggestions: suggestions,
 		Meta: output.Meta{
 			Command:    "index",
@@ -718,7 +668,19 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 			Total:      symCount,
 		},
 	}
-	return w.WriteResponse(resp)
+}
+
+// orphanSuggestion returns a suggestion to rebuild if orphaned refs exist.
+func orphanSuggestion(inc *store.IncrementalResult) []output.Suggestion {
+	if inc == nil || inc.OrphanedRefs == 0 {
+		return nil
+	}
+	return []output.Suggestion{{
+		Command:     "snipe index --force",
+		Description: fmt.Sprintf("Full rebuild to clear %d orphaned refs", inc.OrphanedRefs),
+		Priority:    3,
+		Condition:   "incremental_orphans",
+	}}
 }
 
 // skipResult describes the outcome of change detection.

@@ -43,9 +43,6 @@ var (
 	// Internal: auto-compact when piped
 	autoCompact bool
 
-	// loadedConfig holds the merged config (loaded lazily)
-	loadedConfig *config.Config
-
 	// cmdCtx is the context for the current command (with timeout and signal handling)
 	cmdCtx    context.Context
 	cmdCancel context.CancelFunc
@@ -100,7 +97,6 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
-		loadedConfig = cfg
 
 		// Apply config defaults only if flags weren't explicitly set
 		if !cmd.Flags().Changed("limit") && cfg.Limit > 0 {
@@ -292,14 +288,6 @@ func uniqueStrings(ss []string) []string {
 	return result
 }
 
-// GetConfig returns the loaded configuration.
-func GetConfig() *config.Config {
-	if loadedConfig == nil {
-		return config.DefaultConfig()
-	}
-	return loadedConfig
-}
-
 // ApplySelection truncates results based on the --select flag.
 // Should be called after ScoreAndSort.
 func ApplySelection(results []output.Result) []output.Result {
@@ -320,12 +308,6 @@ func ApplySelection(results []output.Result) []output.Result {
 	// "all" or unrecognized: return everything
 	return results
 }
-
-// GetCaller returns the --caller flag value.
-func GetCaller() string { return caller }
-
-// GetRequestID returns the --request-id flag value.
-func GetRequestID() string { return requestID }
 
 // OpenStore opens the index for query commands.
 // Returns the store, working directory, and any error.

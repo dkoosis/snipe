@@ -9,7 +9,6 @@ import (
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
-	"github.com/dkoosis/snipe/internal/store"
 )
 
 var simCmd = &cobra.Command{
@@ -47,28 +46,9 @@ func runSim(cmd *cobra.Command, args []string) error {
 	summary := format == FormatSummary
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
-	dir, err := os.Getwd()
+	s, dir, err := OpenStore(w, "sim")
 	if err != nil {
-		return w.WriteError("sim", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to get working directory: " + err.Error(),
-		})
-	}
-
-	dbPath := store.DefaultIndexPath(dir)
-	if store.IsIndexing(dbPath) {
-		return w.WriteError("sim", output.NewIndexInProgressError())
-	}
-	if !store.Exists(dbPath) {
-		return w.WriteError("sim", output.NewMissingIndexError())
-	}
-
-	s, err := store.Open(dbPath)
-	if err != nil {
-		return w.WriteError("sim", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "failed to open index: " + err.Error(),
-		})
+		return err
 	}
 	defer s.Close()
 
