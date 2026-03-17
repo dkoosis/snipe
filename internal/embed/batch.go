@@ -117,28 +117,9 @@ type BatchCreateResponse struct {
 
 // NewBatchClient creates a new batch embedding client.
 func NewBatchClient(stateDir string) (*BatchClient, error) {
-	apiKey := os.Getenv("VOYAGE_API_KEY")
-	model := os.Getenv("VOYAGE_MODEL")
-
-	// Fall back to credentials file
-	if apiKey == "" {
-		creds, err := loadCredentials()
-		if err != nil {
-			return nil, fmt.Errorf("no API key: set VOYAGE_API_KEY or create ~/.config/snipe/credentials: %w", err)
-		}
-		if apiKey == "" {
-			apiKey = creds["VOYAGE_API_KEY"]
-		}
-		if model == "" {
-			model = creds["VOYAGE_MODEL"]
-		}
-	}
-
-	if apiKey == "" {
-		return nil, fmt.Errorf("VOYAGE_API_KEY not set")
-	}
-	if model == "" {
-		model = "voyage-code-3"
+	apiKey, model, _, err := resolveCredentials()
+	if err != nil {
+		return nil, err
 	}
 
 	return &BatchClient{

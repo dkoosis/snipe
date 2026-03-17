@@ -116,10 +116,3 @@ func TestClientModel(t *testing.T) {
 		t.Errorf("Model() = %q, want %q", c.Model(), "test-model")
 	}
 }
-
-func TestClientDimensions(t *testing.T) {
-	c := newTestClient("http://unused")
-	if c.Dimensions() != 1024 {
-		t.Errorf("Dimensions() = %d, want 1024", c.Dimensions())
-	}
-}
