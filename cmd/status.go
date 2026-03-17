@@ -45,7 +45,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	// Find repo root
-	dir := findProjectRoot(".")
+	cwd, err := os.Getwd()
+	if err != nil {
+		return w.WriteError("status", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "failed to get working directory: " + err.Error(),
+		})
+	}
+	dir := findProjectRoot(cwd)
 	if dir == "" {
 		return w.WriteError("status", &output.Error{
 			Code:    output.ErrInternal,

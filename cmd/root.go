@@ -277,11 +277,11 @@ func uniqueStrings(ss []string) []string {
 	if len(ss) == 0 {
 		return nil
 	}
-	seen := make(map[string]bool)
+	seen := make(map[string]struct{}, len(ss))
 	result := make([]string, 0, len(ss))
 	for _, s := range ss {
-		if !seen[s] {
-			seen[s] = true
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
 			result = append(result, s)
 		}
 	}

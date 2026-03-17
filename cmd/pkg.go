@@ -99,7 +99,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 		results[i] = result
 		tokenEstimate += output.EstimateTokens(sym.Signature.String)
 		if result.Body != "" {
-			tokenEstimate = output.EstimateTokens(result.Body)
+			tokenEstimate += output.EstimateTokens(result.Body)
 		}
 	}
 

@@ -273,7 +273,7 @@ findRefs:
 		results[i] = result
 		tokenEstimate += output.EstimateTokens(ref.Snippet)
 		if result.Body != "" {
-			tokenEstimate = output.EstimateTokens(result.Body)
+			tokenEstimate += output.EstimateTokens(result.Body)
 		}
 	}
 

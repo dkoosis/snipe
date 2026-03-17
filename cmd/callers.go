@@ -170,7 +170,7 @@ findCallers:
 		results = append(results, result)
 		tokenEstimate += output.EstimateTokens(call.CallerSignature.String)
 		if result.Body != "" {
-			tokenEstimate = output.EstimateTokens(result.Body)
+			tokenEstimate += output.EstimateTokens(result.Body)
 		}
 	}
 

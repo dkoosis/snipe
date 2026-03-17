@@ -153,7 +153,7 @@ findImplementers:
 		results[i] = result
 		tokenEstimate += output.EstimateTokens(impl.Signature.String)
 		if result.Body != "" {
-			tokenEstimate = output.EstimateTokens(result.Body)
+			tokenEstimate += output.EstimateTokens(result.Body)
 		}
 	}
 
@@ -161,9 +161,11 @@ findImplementers:
 	degraded = uniqueStrings(degraded)
 
 	// Score, sort, and apply selection
-	queryName := args[0]
+	var queryName string
 	if implID != "" {
 		queryName = implID
+	} else if len(args) > 0 {
+		queryName = args[0]
 	}
 	output.ScoreAndSort(results, queryName)
 	results = ApplySelection(results)

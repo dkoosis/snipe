@@ -170,7 +170,7 @@ findCallees:
 		results = append(results, result)
 		tokenEstimate += output.EstimateTokens(call.CalleeSignature.String)
 		if result.Body != "" {
-			tokenEstimate = output.EstimateTokens(result.Body)
+			tokenEstimate += output.EstimateTokens(result.Body)
 		}
 	}
 
