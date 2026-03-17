@@ -12,10 +12,9 @@ import (
 
 // Analyzer performs static analysis on a function AST.
 type Analyzer struct {
-	fset    *token.FileSet
-	src     []byte // Source for evidence extraction
-	mode    output.WarningsMode
-	funcPos token.Pos // Start of function being analyzed
+	fset *token.FileSet
+	src  []byte // Source for evidence extraction
+	mode output.WarningsMode
 }
 
 // NewAnalyzer creates a new analyzer for warning detection.
@@ -37,8 +36,6 @@ func (a *Analyzer) AnalyzeFunc(fn *ast.FuncDecl) []output.Warning {
 	if fn.Body == nil {
 		return nil
 	}
-
-	a.funcPos = fn.Pos()
 
 	var warnings []output.Warning
 
@@ -74,15 +71,6 @@ func (a *Analyzer) detectDeferInLoop(body *ast.BlockStmt) []output.Warning {
 					Evidence: a.extractLine(pos.Line),
 				})
 			}
-		}
-		return true
-	})
-
-	// Track loop exits
-	ast.Inspect(body, func(n ast.Node) bool {
-		switch n.(type) {
-		case *ast.ForStmt, *ast.RangeStmt:
-			loopDepth--
 		}
 		return true
 	})
@@ -154,7 +142,6 @@ func (a *Analyzer) detectLostCancel(body *ast.BlockStmt) []output.Warning {
 	type cancelInfo struct {
 		varName string
 		line    int
-		pos     token.Pos
 	}
 	var cancels []cancelInfo
 
@@ -190,7 +177,6 @@ func (a *Analyzer) detectLostCancel(body *ast.BlockStmt) []output.Warning {
 		cancels = append(cancels, cancelInfo{
 			varName: cancelIdent.Name,
 			line:    pos.Line,
-			pos:     assign.Pos(),
 		})
 
 		return true
@@ -259,32 +245,38 @@ func extractCallName(call *ast.CallExpr) string {
 	return ""
 }
 
+// nonErrorFuncs lists functions unlikely to return meaningful errors.
+var nonErrorFuncs = map[string]bool{
+	"fmt.Println":  true,
+	"fmt.Printf":   true,
+	"fmt.Print":    true,
+	"fmt.Fprintln": true,
+	"fmt.Fprintf":  true,
+	"fmt.Fprint":   true,
+	"copy":         true,
+	"append":       true,
+	"len":          true,
+	"cap":          true,
+}
+
 // isLikelyNonError returns true for functions unlikely to return meaningful errors.
 func isLikelyNonError(name string) bool {
-	// Common functions that don't return errors or where ignoring is acceptable
-	nonErrorFuncs := map[string]bool{
-		"fmt.Println":  true,
-		"fmt.Printf":   true,
-		"fmt.Print":    true,
-		"fmt.Fprintln": true,
-		"fmt.Fprintf":  true,
-		"fmt.Fprint":   true,
-		"copy":         true,
-		"append":       true,
-		"len":          true,
-		"cap":          true,
-	}
 	return nonErrorFuncs[name]
+}
+
+// contextCreators lists context creation functions that return cancel funcs.
+var contextCreators = map[string]bool{
+	"context.WithCancel":   true,
+	"context.WithTimeout":  true,
+	"context.WithDeadline": true,
+	"WithCancel":           true,
+	"WithTimeout":          true,
+	"WithDeadline":         true,
 }
 
 // isContextCreator returns true for context creation functions that return cancel funcs.
 func isContextCreator(name string) bool {
-	return name == "context.WithCancel" ||
-		name == "context.WithTimeout" ||
-		name == "context.WithDeadline" ||
-		name == "WithCancel" ||
-		name == "WithTimeout" ||
-		name == "WithDeadline"
+	return contextCreators[name]
 }
 
 // extractLine extracts a single line from source for evidence.

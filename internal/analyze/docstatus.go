@@ -3,10 +3,34 @@ package analyze
 import (
 	"go/ast"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/output"
 )
+
+// Package-level compiled regexps for extractDocReferences.
+var (
+	backtickRe = regexp.MustCompile("`([a-zA-Z_][a-zA-Z0-9_]*)`")
+	paramRe    = regexp.MustCompile(`\b([a-zA-Z_][a-zA-Z0-9_]*)\s+parameter\b`)
+	returnsRe  = regexp.MustCompile(`returns?\s+([a-zA-Z_][a-zA-Z0-9_]*)\b`)
+)
+
+// nonVarWords lists common words that appear after "returns" but aren't variable names.
+var nonVarWords = map[string]bool{
+	"true": true, "false": true, "nil": true, "error": true,
+	"the": true, "a": true, "an": true, "if": true, "whether": true,
+	"bool": true, "int": true, "string": true, "slice": true,
+}
+
+// commonDocWords lists words that commonly appear in doc comments but aren't parameter names.
+var commonDocWords = map[string]bool{
+	"the": true, "is": true, "it": true, "to": true, "for": true,
+	"this": true, "that": true, "with": true, "from": true, "by": true,
+	"returns": true, "takes": true, "uses": true, "creates": true,
+	"new": true, "old": true, "first": true, "last": true,
+	"error": true, "err": true, "nil": true, "true": true, "false": true,
+}
 
 // CheckDocStatus evaluates documentation freshness for a function.
 // Uses strict criteria: only marks stale when doc references params/returns that don't exist.
@@ -30,7 +54,7 @@ func CheckDocStatus(fn *ast.FuncDecl, doc string) output.DocStatus {
 	for _, ref := range docRefs {
 		// Check if this looks like a parameter reference
 		if isParamLike(ref) {
-			if !contains(actualParams, ref) && !contains(actualReturns, ref) {
+			if !slices.Contains(actualParams, ref) && !slices.Contains(actualReturns, ref) {
 				// This might be a renamed/removed parameter
 				if couldBeParam(ref, actualParams) {
 					reasons = append(reasons, "param '"+ref+"' not in signature")
@@ -97,7 +121,6 @@ func extractDocReferences(doc string) []string {
 	seen := make(map[string]bool)
 
 	// Pattern 1: backtick-quoted identifiers like `paramName`
-	backtickRe := regexp.MustCompile("`([a-zA-Z_][a-zA-Z0-9_]*)`")
 	for _, match := range backtickRe.FindAllStringSubmatch(doc, -1) {
 		if len(match) > 1 && !seen[match[1]] {
 			refs = append(refs, match[1])
@@ -106,7 +129,6 @@ func extractDocReferences(doc string) []string {
 	}
 
 	// Pattern 2: "the X parameter" or "X parameter"
-	paramRe := regexp.MustCompile(`\b([a-zA-Z_][a-zA-Z0-9_]*)\s+parameter\b`)
 	for _, match := range paramRe.FindAllStringSubmatch(doc, -1) {
 		if len(match) > 1 && !seen[match[1]] && match[1] != "the" {
 			refs = append(refs, match[1])
@@ -115,10 +137,8 @@ func extractDocReferences(doc string) []string {
 	}
 
 	// Pattern 3: "returns X" where X is an identifier
-	returnsRe := regexp.MustCompile(`returns?\s+([a-zA-Z_][a-zA-Z0-9_]*)\b`)
 	for _, match := range returnsRe.FindAllStringSubmatch(strings.ToLower(doc), -1) {
 		if len(match) > 1 && !seen[match[1]] {
-			// Only include if it looks like a variable name
 			if isVarLike(match[1]) {
 				refs = append(refs, match[1])
 				seen[match[1]] = true
@@ -129,30 +149,14 @@ func extractDocReferences(doc string) []string {
 	return refs
 }
 
-// isParamLike returns true if the string looks like a parameter name.
+// isParamLike returns true if the string looks like a parameter name (starts with lowercase letter).
 func isParamLike(s string) bool {
-	// Single letter or camelCase starting with lowercase
-	if len(s) == 0 {
-		return false
-	}
-
-	// Check first char is lowercase letter
-	if s[0] < 'a' || s[0] > 'z' {
-		return false
-	}
-
-	return true
+	return len(s) > 0 && s[0] >= 'a' && s[0] <= 'z'
 }
 
 // isVarLike returns true if the string looks like a variable name (not a type/keyword).
 func isVarLike(s string) bool {
-	// Common non-variable words that appear after "returns"
-	nonVars := map[string]bool{
-		"true": true, "false": true, "nil": true, "error": true,
-		"the": true, "a": true, "an": true, "if": true, "whether": true,
-		"bool": true, "int": true, "string": true, "slice": true,
-	}
-	return !nonVars[strings.ToLower(s)]
+	return !nonVarWords[strings.ToLower(s)]
 }
 
 // couldBeParam returns true if ref could plausibly be a parameter reference.
@@ -163,15 +167,7 @@ func couldBeParam(ref string, actualParams []string) bool {
 		return false
 	}
 
-	// Skip common words that appear in docs
-	commonWords := map[string]bool{
-		"the": true, "is": true, "it": true, "to": true, "for": true,
-		"this": true, "that": true, "with": true, "from": true, "by": true,
-		"returns": true, "takes": true, "uses": true, "creates": true,
-		"new": true, "old": true, "first": true, "last": true,
-		"error": true, "err": true, "nil": true, "true": true, "false": true,
-	}
-	if commonWords[strings.ToLower(ref)] {
+	if commonDocWords[strings.ToLower(ref)] {
 		return false
 	}
 
@@ -186,16 +182,6 @@ func couldBeParam(ref string, actualParams []string) bool {
 	}
 
 	return true
-}
-
-// contains checks if slice contains string.
-func contains(slice []string, s string) bool {
-	for _, item := range slice {
-		if item == s {
-			return true
-		}
-	}
-	return false
 }
 
 // levenshteinDistance computes edit distance between two strings.
@@ -286,49 +272,49 @@ func extractFirstSentence(doc string) string {
 	return doc
 }
 
+// purposePrefixes maps function name prefixes to purpose verbs.
+var purposePrefixes = map[string]string{
+	"New":      "Creates a new ",
+	"Make":     "Creates ",
+	"Create":   "Creates ",
+	"Get":      "Retrieves ",
+	"Set":      "Sets ",
+	"Update":   "Updates ",
+	"Delete":   "Deletes ",
+	"Remove":   "Removes ",
+	"Add":      "Adds ",
+	"Is":       "Checks if ",
+	"Has":      "Checks if has ",
+	"Can":      "Checks if can ",
+	"Should":   "Determines if should ",
+	"Must":     "Ensures ",
+	"Validate": "Validates ",
+	"Check":    "Checks ",
+	"Parse":    "Parses ",
+	"Format":   "Formats ",
+	"Convert":  "Converts ",
+	"Open":     "Opens ",
+	"Close":    "Closes ",
+	"Read":     "Reads ",
+	"Write":    "Writes ",
+	"Load":     "Loads ",
+	"Save":     "Saves ",
+	"Find":     "Finds ",
+	"Search":   "Searches for ",
+	"Init":     "Initializes ",
+	"Start":    "Starts ",
+	"Stop":     "Stops ",
+	"Run":      "Runs ",
+	"Execute":  "Executes ",
+	"Handle":   "Handles ",
+	"Process":  "Processes ",
+}
+
 // generatePurposeTemplate creates a purpose string from function signature patterns.
 func generatePurposeTemplate(fn *ast.FuncDecl) string {
 	name := fn.Name.Name
 
-	// Check for common prefixes
-	prefixes := map[string]string{
-		"New":      "Creates a new ",
-		"Make":     "Creates ",
-		"Create":   "Creates ",
-		"Get":      "Retrieves ",
-		"Set":      "Sets ",
-		"Update":   "Updates ",
-		"Delete":   "Deletes ",
-		"Remove":   "Removes ",
-		"Add":      "Adds ",
-		"Is":       "Checks if ",
-		"Has":      "Checks if has ",
-		"Can":      "Checks if can ",
-		"Should":   "Determines if should ",
-		"Must":     "Ensures ",
-		"Validate": "Validates ",
-		"Check":    "Checks ",
-		"Parse":    "Parses ",
-		"Format":   "Formats ",
-		"Convert":  "Converts ",
-		"Open":     "Opens ",
-		"Close":    "Closes ",
-		"Read":     "Reads ",
-		"Write":    "Writes ",
-		"Load":     "Loads ",
-		"Save":     "Saves ",
-		"Find":     "Finds ",
-		"Search":   "Searches for ",
-		"Init":     "Initializes ",
-		"Start":    "Starts ",
-		"Stop":     "Stops ",
-		"Run":      "Runs ",
-		"Execute":  "Executes ",
-		"Handle":   "Handles ",
-		"Process":  "Processes ",
-	}
-
-	for prefix, verb := range prefixes {
+	for prefix, verb := range purposePrefixes {
 		if strings.HasPrefix(name, prefix) {
 			rest := name[len(prefix):]
 			if rest == "" {
