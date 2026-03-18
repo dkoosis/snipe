@@ -1258,7 +1258,7 @@ func TestSearch_NoFallback_WhenNoCredentials(t *testing.T) {
 	indexRepo(t, repoDir)
 
 	// Search for something that won't match literally, with credentials stripped
-	env := envWithout("VOYAGE_API_KEY", "VOYAGE_MODEL", "VOYAGE_API_URL")
+	env := envWithout("SNIPE_VOYAGE_API_KEY", "VOYAGE_MODEL", "VOYAGE_API_URL")
 	// Also prevent credentials file from being read by setting HOME to temp dir
 	env = append(env, "HOME="+t.TempDir())
 	stdout, stderr, exitCode := runWithEnv(t, repoDir, env, "search", "xyzzy_nonexistent_pattern_42")

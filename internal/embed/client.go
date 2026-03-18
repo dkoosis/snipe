@@ -51,9 +51,9 @@ func credentialsPath() string {
 }
 
 // HasCredentials checks if embedding credentials are available.
-// Returns true if VOYAGE_API_KEY env var is set or credentials file exists.
+// Returns true if SNIPE_VOYAGE_API_KEY env var is set or credentials file exists.
 func HasCredentials() bool {
-	if os.Getenv("VOYAGE_API_KEY") != "" {
+	if os.Getenv("SNIPE_VOYAGE_API_KEY") != "" {
 		return true
 	}
 	path := credentialsPath()
@@ -64,13 +64,13 @@ func HasCredentials() bool {
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(data), "VOYAGE_API_KEY=")
+	return strings.Contains(string(data), "SNIPE_VOYAGE_API_KEY=")
 }
 
 // resolveCredentials reads API key and model from env vars, falling back to the
 // credentials file. Returns (apiKey, model, endpoint, error).
 func resolveCredentials() (string, string, string, error) {
-	apiKey := os.Getenv("VOYAGE_API_KEY")
+	apiKey := os.Getenv("SNIPE_VOYAGE_API_KEY")
 	model := os.Getenv("VOYAGE_MODEL")
 	endpoint := os.Getenv("VOYAGE_API_URL")
 
@@ -78,9 +78,9 @@ func resolveCredentials() (string, string, string, error) {
 	if apiKey == "" {
 		creds, err := loadCredentials()
 		if err != nil {
-			return "", "", "", fmt.Errorf("no API key: set VOYAGE_API_KEY or create ~/.config/snipe/credentials: %w", err)
+			return "", "", "", fmt.Errorf("no API key: set SNIPE_VOYAGE_API_KEY or create ~/.config/snipe/credentials: %w", err)
 		}
-		apiKey = creds["VOYAGE_API_KEY"]
+		apiKey = creds["SNIPE_VOYAGE_API_KEY"]
 		if model == "" {
 			model = creds["VOYAGE_MODEL"]
 		}
@@ -90,7 +90,7 @@ func resolveCredentials() (string, string, string, error) {
 	}
 
 	if apiKey == "" {
-		return "", "", "", fmt.Errorf("VOYAGE_API_KEY not set")
+		return "", "", "", fmt.Errorf("SNIPE_VOYAGE_API_KEY not set")
 	}
 	if model == "" {
 		model = "voyage-code-3"

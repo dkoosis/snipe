@@ -279,7 +279,7 @@ func checkEmbeddings() DoctorCheck {
 		check.OK = true // Not a failure, just informational
 		check.Code = DoctorEmbedAuthMissing
 		check.Message = "no embedding credentials (embeddings disabled)"
-		check.Remediation = "export VOYAGE_API_KEY=your-key"
+		check.Remediation = "export SNIPE_VOYAGE_API_KEY=your-key"
 	}
 
 	return check

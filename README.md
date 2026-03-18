@@ -206,7 +206,7 @@ Every command returns JSON with a stable envelope:
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
-| `VOYAGE_API_KEY` | Semantic embeddings (Voyage AI) | No |
+| `SNIPE_VOYAGE_API_KEY` | Semantic embeddings (Voyage AI) | No |
 | `VOYAGE_MODEL` | Override embedding model (default: `voyage-code-3`) | No |
 | `VOYAGE_API_URL` | Override Voyage API endpoint | No |
 | `ANTHROPIC_API_KEY` | LLM-generated symbol purposes | No |
