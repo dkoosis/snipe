@@ -331,9 +331,10 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	}
 
 	dbPath := store.DefaultIndexPath(root)
+	dbExists := store.Exists(dbPath)
 
 	// Mismatch detection: old index built at wrong location by previous bug
-	if !store.Exists(dbPath) && root != cwd {
+	if !dbExists && root != cwd {
 		cwdPath := store.DefaultIndexPath(cwd)
 		if store.Exists(cwdPath) {
 			if w != nil {
@@ -355,7 +356,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	}
 
 	// Check for missing index
-	if !store.Exists(dbPath) {
+	if !dbExists {
 		if w != nil {
 			_ = w.WriteError(cmdName, output.NewMissingIndexError())
 		}

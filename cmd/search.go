@@ -14,6 +14,7 @@ import (
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/search"
 	"github.com/dkoosis/snipe/internal/store"
+	"github.com/dkoosis/snipe/internal/util"
 )
 
 var identifierRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*$`)
@@ -67,8 +68,14 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		})
 	}
 
+	// Resolve to project root for index lookup (D3)
+	root := util.FindProjectRoot(dir)
+	if root == "" {
+		root = dir
+	}
+
 	// Open store once — used for both enrichment and potential semantic fallback
-	dbPath := store.DefaultIndexPath(dir)
+	dbPath := store.DefaultIndexPath(root)
 	var s *store.Store
 	if store.Exists(dbPath) && !store.IsIndexing(dbPath) {
 		if opened, err := store.Open(dbPath); err == nil {
@@ -98,7 +105,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
 	// Index name fallback — when rg returns 0 results for an identifier-like pattern,
 	// check the symbols table directly. Faster than semantic search, no API call needed.
-	usedIndexFallback := false
+	indexFallbackFound := false
 	var decisionPath []string
 	if len(results) == 0 && searchFile == "" && s != nil && identifierRe.MatchString(pattern) {
 		symRows, lookupErr := query.LookupByName(s.DB(), pattern)
@@ -110,7 +117,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 				results = append(results, symRows[i].ToResult())
 			}
 			decisionPath = []string{"rg:0_results", fmt.Sprintf("index_fallback:%d_results", len(results))}
-			usedIndexFallback = true
+			indexFallbackFound = true
 		}
 	}
 
@@ -120,7 +127,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	// Note: identifier-like patterns add a *.go glob to rg but the semantic search
 	// operates over the full embedding space regardless of file type.
 	usedFallback := false
-	if len(results) == 0 && searchFile == "" && !usedIndexFallback && s != nil && embed.HasCredentials() {
+	if len(results) == 0 && searchFile == "" && !indexFallbackFound && s != nil && embed.HasCredentials() {
 		client, clientErr := embed.NewClient()
 		if clientErr != nil {
 			decisionPath = append(decisionPath, "rg:0_results", "sim:client_error")
@@ -142,7 +149,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	// Enrich rg results with index metadata if available (skip for semantic results)
 	var indexState output.IndexState
 	enriched := false
-	if s != nil && !usedFallback && !usedIndexFallback {
+	if s != nil && !usedFallback && !indexFallbackFound {
 		for i := range results {
 			if sym := query.FindSymbolAtPosition(s.DB(), results[i].File, results[i].Range.Start.Line); sym != nil {
 				results[i].Name = sym.Name
@@ -160,7 +167,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		// search gets staleness support generally.
 		indexState = query.CheckIndexState(s.DB(), dir, Version)
 		enriched = true
-	} else if usedIndexFallback && s != nil {
+	} else if indexFallbackFound && s != nil {
 		indexState = query.CheckIndexState(s.DB(), dir, Version)
 		enriched = true
 	}
