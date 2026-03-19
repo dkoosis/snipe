@@ -1,18 +1,20 @@
-sha: 79c1851 | qa: pass | updated: 2026-03-18
+sha: c344076 | qa: pass | updated: 2026-03-19
 
 ## Do next
 
-Pick one: un-skip impl test | #121 search index fallback | #123 root detection
+Pick one: #127 un-skip impl test | #117 semsearch unit tests | #128 v0.1.1 tag
 
 ## Done
 
-- Renamed VOYAGE_API_KEY → SNIPE_VOYAGE_API_KEY throughout (env var, credentials file, docs, tests)
-- Full /sweep simplify: 15/17 packages simplified, -600+ lines dead code/duplication
-- Full /sweep craft: 14/17 packages improved, found+fixed 6 bugs
+- #123 root detection: FindProjectRoot in internal/util, OpenStore resolves git root, doctor mismatch check
+- #121 search index fallback: LookupByName fallback between rg and semantic, renamed no_index → rg_only
+- Simplify review: search.go resolves git root for store, cached Exists in OpenStore, renamed flag
+- Renamed VOYAGE_API_KEY → SNIPE_VOYAGE_API_KEY throughout
+- Full /sweep simplify + craft across all 17 packages
 
 ## Backlog
 
-un-skip impl test | #121 search index fallback | #123 root detection | #112 vague-intent search | #117 semsearch unit tests | v0.1.1 tag | Homebrew tap
+#127 un-skip impl test | #112 vague-intent search | #117 semsearch unit tests | #128 v0.1.1 tag | #129 Homebrew tap | #122 human/table format | #126 trixi audit
 
 ## Traps
 
@@ -21,3 +23,4 @@ un-skip impl test | #121 search index fallback | #123 root detection | #112 vagu
 - `knownSubcommands` map in cmd/root.go must be updated when adding new commands
 - No interfaces in snipe's own source — impl can only be tested via blackbox fixture
 - Do NOT optimize eval until telemetry provides ground truth
+- search.go bypasses OpenStore (by design — works without index). Root resolution added separately in simplify review.

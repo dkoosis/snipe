@@ -186,6 +186,16 @@ Default output changed from JSON envelope to Claude-optimized structured text.
 
 ---
 
+## Issue fixes (2026-03-19)
+
+| Issue | Fix | PR | Notes |
+|-------|-----|-----|-------|
+| #123 | index: repo root detection causes misleading MISSING_INDEX errors | #130 | FindProjectRoot in internal/util, OpenStore resolves git root, doctor mismatch check, blackbox test |
+| #121 | search: 0 results with no_index degradation after indexing | #131 | LookupByName fallback between rg and semantic, renamed no_index → rg_only |
+| — | simplify review | c344076 | search.go resolves git root for store, cached Exists in OpenStore, renamed usedIndexFallback → indexFallbackFound |
+
+---
+
 ## Decisions log
 
 Canonical decision table now in CLAUDE.md (D1-D6). Below is history.
