@@ -11,6 +11,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -42,16 +43,13 @@ func All() error {
 }
 
 func allDashboard() error {
-	return runFoDashboard(allCLI,
-		// Build (go install puts binary on PATH)
-		"Build/snipe:go install .",
-		// Test
-		"Test/unit:go test -json -cover ./...",
-		// Lint - essential
-		"Lint/vet:go vet ./...",
-		"Lint/gofmt:gofmt -l cmd internal test main.go magefile.go",
-		"Lint/staticcheck:golangci-lint run --allow-parallel-runners --enable-only staticcheck ./...",
-	)
+	return runFoDashboard(allCLI, []foTask{
+		{tool: "build", format: "text", cmd: "go", args: []string{"install", "."}},
+		{tool: "test", format: "testjson", cmd: "go", args: []string{"test", "-json", "-cover", "./..."}},
+		{tool: "vet", format: "text", cmd: "go", args: []string{"vet", "./..."}},
+		{tool: "gofmt", format: "text", cmd: "gofmt", args: []string{"-l", "cmd", "internal", "test", "main.go", "magefile.go"}, failOnOutput: true},
+		{tool: "staticcheck", format: "text", cmd: "golangci-lint", args: []string{"run", "--allow-parallel-runners", "--enable-only", "staticcheck", "./..."}},
+	})
 }
 
 func allCLI() error {
@@ -78,20 +76,15 @@ func Qa() error {
 }
 
 func qaDashboard() error {
-	return runFoDashboard(qaCLI,
-		// Build (go install puts binary on PATH)
-		"Build/snipe:go install .",
-		// Test - comprehensive (note: -cover omitted to avoid "no such tool covdata" false failures)
-		"Test/unit:go test -json ./...",
-		"Test/race:go test -race -json -timeout=5m ./...",
-		"Test/blackbox:go test -json -tags=blackbox ./test/blackbox/...",
-		// Lint - full suite
-		"Lint/golangci:golangci-lint run ./...",
-		// Security
-		"Security/govulncheck:govulncheck ./...",
-		// Metrics - performance and quality baseline
-		"Metrics/snipe:cat BASELINE.json",
-	)
+	return runFoDashboard(qaCLI, []foTask{
+		{tool: "build", format: "text", cmd: "go", args: []string{"install", "."}},
+		{tool: "test-unit", format: "testjson", cmd: "go", args: []string{"test", "-json", "./..."}},
+		{tool: "test-race", format: "testjson", cmd: "go", args: []string{"test", "-race", "-json", "-timeout=5m", "./..."}},
+		{tool: "test-blackbox", format: "testjson", cmd: "go", args: []string{"test", "-json", "-tags=blackbox", "./test/blackbox/..."}},
+		{tool: "golangci", format: "text", cmd: "golangci-lint", args: []string{"run", "./..."}},
+		{tool: "govulncheck", format: "text", cmd: "govulncheck", args: []string{"./..."}},
+		{tool: "baseline", format: "text", cmd: "cat", args: []string{"BASELINE.json"}},
+	})
 }
 
 func qaCLI() error {
@@ -526,31 +519,66 @@ func runSequential(steps ...step) error {
 	return nil
 }
 
-func runFoDashboard(fallback func() error, tasks ...string) error {
-	// Find fo binary
-	foBin := os.Getenv("HOME") + "/Projects/fo/bin/fo"
-	if _, err := os.Stat(foBin); err != nil {
-		var lookupErr error
-		foBin, lookupErr = exec.LookPath("fo")
-		if lookupErr != nil {
-			fmt.Println("fo not found, falling back to CLI mode")
-			return fallback()
+// foTask describes a single command whose output becomes a report section.
+type foTask struct {
+	tool         string // section name in the report (e.g. "test", "vet")
+	format       string // "testjson", "sarif", or "text"
+	cmd          string
+	args         []string
+	failOnOutput bool // mark text section as fail when stdout is non-empty (e.g. gofmt -l)
+}
+
+// runFoDashboard runs each task, assembles a multi-section report, and pipes it
+// to fo for rendering. Falls back to the CLI function if fo is not installed.
+//
+// Report format: sections delimited by "--- tool:<name> format:<fmt> ---"
+// See https://github.com/dkoosis/fo for details.
+func runFoDashboard(fallback func() error, tasks []foTask) error {
+	foBin, err := exec.LookPath("fo")
+	if err != nil {
+		fmt.Println("fo not found, falling back to CLI mode")
+		return fallback()
+	}
+
+	var report bytes.Buffer
+	for _, t := range tasks {
+		cmd := exec.Command(t.cmd, t.args...)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		runErr := cmd.Run()
+
+		var status string
+		content := stdout.Bytes()
+
+		switch t.format {
+		case "text":
+			// Combine stderr into content for text sections
+			if stderr.Len() > 0 {
+				content = append(stderr.Bytes(), content...)
+			}
+			failed := runErr != nil || (t.failOnOutput && stdout.Len() > 0)
+			if failed {
+				status = " status:fail"
+			} else {
+				status = " status:pass"
+			}
+		default:
+			// Structured formats (testjson, sarif): fo derives status from content
+		}
+
+		fmt.Fprintf(&report, "--- tool:%s format:%s%s ---\n", t.tool, t.format, status)
+		report.Write(content)
+		if len(content) == 0 || content[len(content)-1] != '\n' {
+			report.WriteByte('\n')
 		}
 	}
 
-	// Build task args
-	args := []string{"--dashboard"}
-	for _, t := range tasks {
-		args = append(args, "--task", t)
-	}
-
-	// Run dashboard with TTY attached
-	cmd := exec.Command(foBin, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+os.Getenv("HOME")+"/go/bin")
-	return cmd.Run()
+	foCmd := exec.Command(foBin)
+	foCmd.Stdin = &report
+	foCmd.Stdout = os.Stdout
+	foCmd.Stderr = os.Stderr
+	return foCmd.Run()
 }
 
 func getVersion() string {
