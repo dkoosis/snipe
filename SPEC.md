@@ -339,7 +339,7 @@ snipe refs ProcessOrder | jq '.results[].edit_target'
 
 | Condition | Behavior | meta.degraded |
 |-----------|----------|---------------|
-| No index | `search` uses rg; LSP commands fail with actionable error | `["no_index"]` |
+| No index | `search` uses rg; LSP commands fail with actionable error | `["rg_only"]` |
 | Stale index | Commands work, flag staleness | `["stale_index"]` |
 | rg missing | `search` fails with install instructions | - |
 | Embeddings unconfigured | `sim` fails with config instructions | - |
