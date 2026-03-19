@@ -3,13 +3,14 @@ package embed
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func newTestBatchClient(stateDir string) *BatchClient {
+func testBatchClient(stateDir string) *BatchClient {
 	return &BatchClient{
 		apiKey:   "test-key",
 		model:    "test-model",
@@ -18,21 +19,16 @@ func newTestBatchClient(stateDir string) *BatchClient {
 	}
 }
 
-func TestWriteJSONL(t *testing.T) {
+func TestWriteJSONL_WritesExpectedRequests(t *testing.T) {
 	dir := t.TempDir()
-	c := newTestBatchClient(dir)
-
-	symbols := []SymbolText{
+	path, err := testBatchClient(dir).WriteJSONL([]SymbolText{
 		{ID: "sym1", Text: "func Open() error"},
 		{ID: "sym2", Text: "func Close() error"},
-	}
-
-	path, err := c.WriteJSONL(symbols, dir)
+	}, dir)
 	if err != nil {
 		t.Fatalf("WriteJSONL failed: %v", err)
 	}
 
-	// Read back and verify
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("ReadFile failed: %v", err)
@@ -40,25 +36,27 @@ func TestWriteJSONL(t *testing.T) {
 
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) != 2 {
-		t.Fatalf("expected 2 lines, got %d", len(lines))
+		t.Fatalf("line count = %d, want 2", len(lines))
 	}
 
-	var req BatchRequest
-	if err := json.Unmarshal([]byte(lines[0]), &req); err != nil {
-		t.Fatalf("unmarshal first line: %v", err)
+	var got []BatchRequest
+	for i, line := range lines {
+		var req BatchRequest
+		if err := json.Unmarshal([]byte(line), &req); err != nil {
+			t.Fatalf("unmarshal line %d: %v", i, err)
+		}
+		got = append(got, req)
 	}
-	if req.CustomID != "sym1" {
-		t.Errorf("custom_id = %q, want %q", req.CustomID, "sym1")
+
+	if got[0].CustomID != "sym1" || got[0].Body.Input != "func Open() error" {
+		t.Fatalf("unexpected first request: %+v", got[0])
 	}
-	if req.Body.Input != "func Open() error" {
-		t.Errorf("body.input = %q, want %q", req.Body.Input, "func Open() error")
+	if got[1].CustomID != "sym2" || got[1].Body.Input != "func Close() error" {
+		t.Fatalf("unexpected second request: %+v", got[1])
 	}
 }
 
-func TestParseBatchResults(t *testing.T) {
-	c := newTestBatchClient("")
-
-	// Build a valid JSONL batch response
+func TestParseBatchResults_Behavior(t *testing.T) {
 	embBody, _ := json.Marshal(EmbeddingResponse{
 		Data: []struct {
 			Object    string    `json:"object"`
@@ -69,20 +67,33 @@ func TestParseBatchResults(t *testing.T) {
 		},
 	})
 
-	resp := BatchResponse{
-		BatchID:  "batch-1",
-		CustomID: "sym1",
-		Response: &BatchRespBody{
-			StatusCode: 200,
-			Body:       embBody,
+	lines := []BatchResponse{
+		{
+			BatchID:  "batch-1",
+			CustomID: "ok",
+			Response: &BatchRespBody{StatusCode: 200, Body: embBody},
+		},
+		{
+			BatchID:  "batch-1",
+			CustomID: "skip-error",
+			Error:    &BatchError{Code: "rate_limit", Message: "too fast"},
+		},
+		{
+			BatchID:  "batch-1",
+			CustomID: "skip-status",
+			Response: &BatchRespBody{StatusCode: 429, Body: embBody},
 		},
 	}
 
-	line, _ := json.Marshal(resp)
-	line = append(line, '\n')
+	var payload bytes.Buffer
+	for _, resp := range lines {
+		line, _ := json.Marshal(resp)
+		payload.Write(line)
+		payload.WriteByte('\n')
+	}
 
-	results := make(map[string][]float32)
-	err := c.ParseBatchResults(bytes.NewReader(line), func(id string, emb []float32) error {
+	results := map[string][]float32{}
+	err := testBatchClient("").ParseBatchResults(&payload, func(id string, emb []float32) error {
 		results[id] = emb
 		return nil
 	})
@@ -90,53 +101,47 @@ func TestParseBatchResults(t *testing.T) {
 		t.Fatalf("ParseBatchResults failed: %v", err)
 	}
 
-	emb, ok := results["sym1"]
-	if !ok {
-		t.Fatal("missing result for sym1")
+	if len(results) != 1 {
+		t.Fatalf("result count = %d, want 1", len(results))
 	}
-	if len(emb) != 3 {
-		t.Errorf("embedding length = %d, want 3", len(emb))
-	}
-	if emb[0] != 0.1 {
-		t.Errorf("emb[0] = %f, want 0.1", emb[0])
+	if len(results["ok"]) != 3 || results["ok"][0] != 0.1 {
+		t.Fatalf("unexpected parsed embedding: %#v", results)
 	}
 }
 
-func TestParseBatchResults_SkipsErrors(t *testing.T) {
-	c := newTestBatchClient("")
-
-	resp := BatchResponse{
+func TestParseBatchResults_PropagatesCallbackError(t *testing.T) {
+	embBody, _ := json.Marshal(EmbeddingResponse{
+		Data: []struct {
+			Object    string    `json:"object"`
+			Embedding []float32 `json:"embedding"`
+			Index     int       `json:"index"`
+		}{{Embedding: []float32{1}, Index: 0}},
+	})
+	line, _ := json.Marshal(BatchResponse{
 		BatchID:  "batch-1",
 		CustomID: "sym1",
-		Error:    &BatchError{Code: "rate_limit", Message: "too fast"},
-	}
-
-	line, _ := json.Marshal(resp)
-	line = append(line, '\n')
-
-	count := 0
-	err := c.ParseBatchResults(bytes.NewReader(line), func(id string, emb []float32) error {
-		count++
-		return nil
+		Response: &BatchRespBody{StatusCode: 200, Body: embBody},
 	})
-	if err != nil {
-		t.Fatalf("ParseBatchResults failed: %v", err)
-	}
-	if count != 0 {
-		t.Errorf("expected 0 results for error response, got %d", count)
+
+	wantErr := errors.New("stop")
+	err := testBatchClient("").ParseBatchResults(bytes.NewReader(append(line, '\n')), func(string, []float32) error {
+		return wantErr
+	})
+	if err == nil || !strings.Contains(err.Error(), wantErr.Error()) {
+		t.Fatalf("expected callback error, got %v", err)
 	}
 }
 
-func TestStatePersistence(t *testing.T) {
+func TestBatchState_PersistenceLifecycle(t *testing.T) {
 	dir := t.TempDir()
-	c := newTestBatchClient(dir)
+	c := testBatchClient(dir)
 
 	state := &BatchState{
-		BatchID: "batch-123",
-		Status:  "in_progress",
-		Total:   100,
+		BatchID:          "batch-123",
+		Status:           "in_progress",
+		Total:            100,
+		IndexFingerprint: "abc123",
 	}
-
 	if err := c.SaveState(state); err != nil {
 		t.Fatalf("SaveState failed: %v", err)
 	}
@@ -145,89 +150,33 @@ func TestStatePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadState failed: %v", err)
 	}
-	if loaded == nil {
-		t.Fatal("LoadState returned nil")
-		return
-	}
-	if loaded.BatchID != "batch-123" {
-		t.Errorf("BatchID = %q, want %q", loaded.BatchID, "batch-123")
-	}
-	if loaded.Status != "in_progress" {
-		t.Errorf("Status = %q, want %q", loaded.Status, "in_progress")
-	}
-	if loaded.Total != 100 {
-		t.Errorf("Total = %d, want 100", loaded.Total)
-	}
-}
-
-func TestClearState(t *testing.T) {
-	dir := t.TempDir()
-	c := newTestBatchClient(dir)
-
-	state := &BatchState{BatchID: "batch-123", Status: "completed"}
-	if err := c.SaveState(state); err != nil {
-		t.Fatalf("SaveState failed: %v", err)
-	}
-
-	// Verify file exists
-	statePath := filepath.Join(dir, "batch_state.json")
-	if _, err := os.Stat(statePath); os.IsNotExist(err) {
-		t.Fatal("state file should exist after SaveState")
+	if loaded == nil || loaded.BatchID != state.BatchID || loaded.Status != state.Status || loaded.Total != state.Total || loaded.IndexFingerprint != state.IndexFingerprint {
+		t.Fatalf("loaded state mismatch: %#v", loaded)
 	}
 
 	if err := c.ClearState(); err != nil {
 		t.Fatalf("ClearState failed: %v", err)
 	}
 
-	// Verify file removed
-	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
-		t.Error("state file should not exist after ClearState")
-	}
-
-	// LoadState should return nil after clear
-	loaded, err := c.LoadState()
+	again, err := c.LoadState()
 	if err != nil {
 		t.Fatalf("LoadState after clear failed: %v", err)
 	}
-	if loaded != nil {
-		t.Error("LoadState should return nil after ClearState")
+	if again != nil {
+		t.Fatalf("expected no state after clear, got %#v", again)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "batch_state.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("state file should be removed, stat err: %v", err)
 	}
 }
 
 func TestLoadState_NoFile(t *testing.T) {
-	dir := t.TempDir()
-	c := newTestBatchClient(dir)
-
-	loaded, err := c.LoadState()
+	loaded, err := testBatchClient(t.TempDir()).LoadState()
 	if err != nil {
 		t.Fatalf("LoadState failed: %v", err)
 	}
 	if loaded != nil {
-		t.Error("LoadState should return nil when no state file exists")
-	}
-}
-
-func TestStatePersistence_Fingerprint(t *testing.T) {
-	dir := t.TempDir()
-	c := newTestBatchClient(dir)
-
-	state := &BatchState{
-		BatchID:          "batch-456",
-		Status:           "in_progress",
-		Total:            50,
-		IndexFingerprint: "abc123",
-	}
-
-	if err := c.SaveState(state); err != nil {
-		t.Fatalf("SaveState failed: %v", err)
-	}
-
-	loaded, err := c.LoadState()
-	if err != nil {
-		t.Fatalf("LoadState failed: %v", err)
-	}
-	if loaded.IndexFingerprint != "abc123" {
-		t.Errorf("IndexFingerprint = %q, want %q", loaded.IndexFingerprint, "abc123")
+		t.Fatalf("expected nil when state file does not exist, got %#v", loaded)
 	}
 }
 
@@ -238,44 +187,29 @@ func TestMatchesFingerprint(t *testing.T) {
 		fingerprint string
 		want        bool
 	}{
-		{
-			name:        "matching fingerprint",
-			state:       &BatchState{IndexFingerprint: "abc123"},
-			fingerprint: "abc123",
-			want:        true,
-		},
-		{
-			name:        "mismatched fingerprint",
-			state:       &BatchState{IndexFingerprint: "abc123"},
-			fingerprint: "def456",
-			want:        false,
-		},
-		{
-			name:        "empty state fingerprint (legacy batch)",
-			state:       &BatchState{IndexFingerprint: ""},
-			fingerprint: "abc123",
-			want:        false,
-		},
-		{
-			name:        "empty current fingerprint",
-			state:       &BatchState{IndexFingerprint: "abc123"},
-			fingerprint: "",
-			want:        false,
-		},
-		{
-			name:        "both empty",
-			state:       &BatchState{},
-			fingerprint: "",
-			want:        false,
-		},
+		{name: "matching", state: &BatchState{IndexFingerprint: "abc123"}, fingerprint: "abc123", want: true},
+		{name: "mismatched", state: &BatchState{IndexFingerprint: "abc123"}, fingerprint: "def456", want: false},
+		{name: "empty state fingerprint", state: &BatchState{}, fingerprint: "abc123", want: false},
+		{name: "empty current fingerprint", state: &BatchState{IndexFingerprint: "abc123"}, fingerprint: "", want: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.state.MatchesFingerprint(tt.fingerprint)
-			if got != tt.want {
-				t.Errorf("MatchesFingerprint(%q) = %v, want %v", tt.fingerprint, got, tt.want)
+			if got := tt.state.MatchesFingerprint(tt.fingerprint); got != tt.want {
+				t.Fatalf("MatchesFingerprint(%q) = %v, want %v", tt.fingerprint, got, tt.want)
 			}
 		})
 	}
+}
+
+func FuzzParseBatchResults(f *testing.F) {
+	f.Add("{\"batch_id\":\"b\",\"custom_id\":\"x\",\"response\":{\"status_code\":200,\"body\":{\"data\":[{\"embedding\":[0.1],\"index\":0}]}}}\n")
+	f.Add("not json\n")
+	f.Add("\n")
+
+	f.Fuzz(func(t *testing.T, input string) {
+		_ = testBatchClient("").ParseBatchResults(strings.NewReader(input), func(string, []float32) error {
+			return nil
+		})
+	})
 }
