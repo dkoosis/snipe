@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -98,6 +99,13 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	if indexCheck.OK {
 		staleCheck := checkStaleness()
 		checks = append(checks, staleCheck)
+	}
+
+	// Check for root mismatch
+	mismatchCheck := checkRootMismatch()
+	checks = append(checks, mismatchCheck)
+	if !mismatchCheck.OK {
+		allOK = false
 	}
 
 	// Find repo root for meta (best-effort)
@@ -378,6 +386,56 @@ func checkStaleness() DoctorCheck {
 		check.Message = fmt.Sprintf("index state: %s", state)
 	}
 
+	return check
+}
+
+func checkRootMismatch() DoctorCheck {
+	check := DoctorCheck{Name: "root-mismatch"}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		check.OK = true // can't check, skip
+		return check
+	}
+
+	detectedRoot := util.FindProjectRoot(cwd)
+	if detectedRoot == "" || detectedRoot == cwd {
+		check.OK = true
+		check.Message = "no root mismatch detected"
+		return check
+	}
+
+	// Index should be at detected root
+	rootIndex := store.DefaultIndexPath(detectedRoot)
+	cwdIndex := store.DefaultIndexPath(cwd)
+
+	rootExists := store.Exists(rootIndex)
+	cwdExists := store.Exists(cwdIndex)
+
+	if cwdExists && !rootExists {
+		check.OK = false
+		check.Code = "ROOT_MISMATCH"
+		check.Message = fmt.Sprintf("index at %s but project root is %s", cwd, detectedRoot)
+		check.Remediation = "cd " + detectedRoot + " && snipe index"
+		check.Details = fmt.Sprintf(
+			"Running snipe commands from %s will fail with MISSING_INDEX.\n"+
+				"Index found at: %s\n"+
+				"Expected at:    %s",
+			cwd, cwdIndex, rootIndex,
+		)
+		return check
+	}
+
+	// Dual-index: both exist — the CWD index is a stale orphan (wastes disk, no functional impact)
+	if cwdExists && rootExists {
+		check.OK = true // not an error; snipe uses root index correctly
+		check.Message = fmt.Sprintf("stale orphan index at %s (root index at %s is used)", cwdIndex, rootIndex)
+		check.Details = "Safe to remove: rm -rf " + filepath.Join(cwd, ".snipe")
+		return check
+	}
+
+	check.OK = true
+	check.Message = "index root matches project root"
 	return check
 }
 
