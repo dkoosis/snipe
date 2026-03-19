@@ -14,6 +14,7 @@ import (
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/store"
+	"github.com/dkoosis/snipe/internal/util"
 )
 
 var (
@@ -310,9 +311,9 @@ func ApplySelection(results []output.Result) []output.Result {
 }
 
 // OpenStore opens the index for query commands.
-// Returns the store, working directory, and any error.
+// Returns the store, project root, and any error.
 func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
-	dir, err := os.Getwd()
+	cwd, err := os.Getwd()
 	if err != nil {
 		if w != nil {
 			_ = w.WriteError(cmdName, &output.Error{
@@ -323,14 +324,34 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		return nil, "", err
 	}
 
-	dbPath := store.DefaultIndexPath(dir)
+	// Resolve to git/go.mod root — index always lives at project root (D3)
+	root := util.FindProjectRoot(cwd)
+	if root == "" {
+		root = cwd // fallback: not in a git/go.mod repo, use CWD
+	}
+
+	dbPath := store.DefaultIndexPath(root)
+
+	// Mismatch detection: old index built at wrong location by previous bug
+	if !store.Exists(dbPath) && root != cwd {
+		cwdPath := store.DefaultIndexPath(cwd)
+		if store.Exists(cwdPath) {
+			if w != nil {
+				_ = w.WriteError(cmdName, &output.Error{
+					Code:    output.ErrIndexMismatch,
+					Message: fmt.Sprintf("index found at %s but project root is %s — run: snipe index", cwd, root),
+				})
+			}
+			return nil, root, fmt.Errorf("index root mismatch")
+		}
+	}
 
 	// Check if indexing is in progress
 	if store.IsIndexing(dbPath) {
 		if w != nil {
 			_ = w.WriteError(cmdName, output.NewIndexInProgressError())
 		}
-		return nil, dir, fmt.Errorf("indexing in progress")
+		return nil, root, fmt.Errorf("indexing in progress")
 	}
 
 	// Check for missing index
@@ -338,7 +359,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		if w != nil {
 			_ = w.WriteError(cmdName, output.NewMissingIndexError())
 		}
-		return nil, dir, fmt.Errorf("index missing")
+		return nil, root, fmt.Errorf("index missing")
 	}
 
 	s, err := store.Open(dbPath)
@@ -349,10 +370,10 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 				Message: "failed to open index: " + err.Error(),
 			})
 		}
-		return nil, dir, err
+		return nil, root, err
 	}
 
-	return s, dir, nil
+	return s, root, nil
 }
 
 // recordSessionQuery records a symbol query in the session for active work tracking.

@@ -239,6 +239,7 @@ const (
 	ErrStaleIndex      = "STALE_INDEX"
 	ErrRgNotFound      = "RG_NOT_FOUND"
 	ErrInternal        = "INTERNAL_ERROR"
+	ErrIndexMismatch   = "INDEX_MISMATCH"
 )
 
 // VersionInfo is the JSON output for the version command with --json.

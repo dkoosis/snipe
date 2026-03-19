@@ -30,3 +30,4 @@ coverage.out
 # Eval benchmark repos and results
 .eval-repos/
 docs/eval/EVAL_RESULTS.json
+.worktrees/

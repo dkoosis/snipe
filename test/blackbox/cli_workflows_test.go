@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -1325,5 +1326,28 @@ func TestSearch_NoFallback_WhenFileFilterSet(t *testing.T) {
 	meta := requireMap(t, resp["meta"], "meta")
 	if dp, ok := meta["decision_path"]; ok && dp != nil {
 		t.Fatalf("unexpected decision_path with --file filter: %v", dp)
+	}
+}
+
+func TestRootDetection_FindsIndexFromSubdirectory_When_IndexedAtGitRoot(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+
+	// Add .git so FindProjectRoot walks up to repoDir
+	if err := os.Mkdir(filepath.Join(repoDir, ".git"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Index from root
+	indexRepo(t, repoDir)
+
+	// Run def from a subdirectory — should find the index at repoDir, not fail with MISSING_INDEX
+	subDir := filepath.Join(repoDir, "greet")
+	stdout, _, exitCode := run(t, subDir, "def", "Callee")
+	if exitCode != 0 {
+		t.Fatalf("expected exit 0 from subdir, got %d; stdout: %s", exitCode, stdout)
+	}
+	resp := parseJSON(t, stdout)
+	if errObj, hasErr := resp["error"]; hasErr && errObj != nil {
+		t.Fatalf("unexpected error from subdir: %v", errObj)
 	}
 }
