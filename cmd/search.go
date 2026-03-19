@@ -26,9 +26,11 @@ var searchCmd = &cobra.Command{
 	GroupID: "core",
 	Long: `Searches for a pattern using ripgrep. Works without an index.
 
-If no text matches are found and embeddings are available, automatically
-falls back to semantic similarity search. Use 'snipe sim' directly for
-more control over semantic search parameters.
+If no text matches are found for an identifier-like query and an index exists,
+falls back to symbol name lookup in the index. If still no results and embeddings
+are available, falls back to semantic similarity search.
+
+Use 'snipe sim' directly for more control over semantic search parameters.
 
 Examples:
   snipe search "func.*Error"              # Search all files
@@ -94,14 +96,31 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		})
 	}
 
+	// Index name fallback — when rg returns 0 results for an identifier-like pattern,
+	// check the symbols table directly. Faster than semantic search, no API call needed.
+	usedIndexFallback := false
+	var decisionPath []string
+	if len(results) == 0 && searchFile == "" && s != nil && identifierRe.MatchString(pattern) {
+		symRows, lookupErr := query.LookupByName(s.DB(), pattern)
+		if lookupErr == nil && len(symRows) > 0 {
+			for i := range symRows {
+				if i >= lim {
+					break
+				}
+				results = append(results, symRows[i].ToResult())
+			}
+			decisionPath = []string{"rg:0_results", fmt.Sprintf("index_fallback:%d_results", len(results))}
+			usedIndexFallback = true
+		}
+	}
+
 	// Semantic fallback — only on zero rg results, no --file filter.
 	// Threshold 0.3 is intentionally lower than sim's default: fallback is a safety net
 	// for "find the thing that does X" queries, not a precision tool.
 	// Note: identifier-like patterns add a *.go glob to rg but the semantic search
 	// operates over the full embedding space regardless of file type.
 	usedFallback := false
-	var decisionPath []string
-	if len(results) == 0 && searchFile == "" && s != nil && embed.HasCredentials() {
+	if len(results) == 0 && searchFile == "" && !usedIndexFallback && s != nil && embed.HasCredentials() {
 		client, clientErr := embed.NewClient()
 		if clientErr != nil {
 			decisionPath = append(decisionPath, "rg:0_results", "sim:client_error")
@@ -123,7 +142,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	// Enrich rg results with index metadata if available (skip for semantic results)
 	var indexState output.IndexState
 	enriched := false
-	if s != nil && !usedFallback {
+	if s != nil && !usedFallback && !usedIndexFallback {
 		for i := range results {
 			if sym := query.FindSymbolAtPosition(s.DB(), results[i].File, results[i].Range.Start.Line); sym != nil {
 				results[i].Name = sym.Name
@@ -139,6 +158,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		// TODO: semantic results reference indexed symbols — CheckFileStaleness
 		// is relevant here but search has never included stale_files. Add when
 		// search gets staleness support generally.
+		indexState = query.CheckIndexState(s.DB(), dir, Version)
+		enriched = true
+	} else if usedIndexFallback && s != nil {
 		indexState = query.CheckIndexState(s.DB(), dir, Version)
 		enriched = true
 	}
@@ -162,7 +184,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	if enriched {
 		searchIndexState = indexState
 	} else {
-		searchDegraded = []string{"no_index"}
+		searchDegraded = []string{"rg_only"}
 	}
 
 	// If summary mode, return condensed output
