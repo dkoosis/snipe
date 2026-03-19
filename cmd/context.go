@@ -11,6 +11,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/store"
+	"github.com/dkoosis/snipe/internal/util"
 )
 
 var (
@@ -67,7 +68,7 @@ func runContext(cmd *cobra.Command, args []string) error {
 	}
 
 	// Find project root
-	projectRoot := findProjectRoot(absDir)
+	projectRoot := util.FindProjectRoot(absDir)
 	if projectRoot == "" {
 		return fmt.Errorf("not in a git repository")
 	}

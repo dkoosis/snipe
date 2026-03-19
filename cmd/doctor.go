@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
+	"github.com/dkoosis/snipe/internal/util"
 )
 
 // DoctorCheck represents a single diagnostic check.
@@ -102,7 +102,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	// Find repo root for meta (best-effort)
 	cwd, _ := os.Getwd()
-	repoRoot := findProjectRoot(cwd)
+	repoRoot := util.FindProjectRoot(cwd)
 
 	resp := output.Response[DoctorCheck]{
 		Protocol: output.ProtocolVersion,
@@ -166,11 +166,11 @@ func checkIndex() DoctorCheck {
 		return check
 	}
 
-	projectRoot := findProjectRoot(cwd)
+	projectRoot := util.FindProjectRoot(cwd)
 	if projectRoot == "" {
 		check.OK = false
-		check.Message = "not in a git repository"
-		check.Details = "Run 'snipe index' in a git repository to create an index"
+		check.Message = "not in a git repository or Go module"
+		check.Details = "Run 'snipe index' from a directory containing .git or go.mod"
 		return check
 	}
 
@@ -297,7 +297,7 @@ func checkOrphans() DoctorCheck {
 		return check
 	}
 
-	projectRoot := findProjectRoot(cwd)
+	projectRoot := util.FindProjectRoot(cwd)
 	if projectRoot == "" {
 		check.OK = true
 		check.Message = "skipped (not in git repo)"
@@ -346,7 +346,7 @@ func checkStaleness() DoctorCheck {
 		return check
 	}
 
-	projectRoot := findProjectRoot(cwd)
+	projectRoot := util.FindProjectRoot(cwd)
 	if projectRoot == "" {
 		check.OK = true
 		check.Message = "skipped (not in git repo)"
@@ -379,20 +379,6 @@ func checkStaleness() DoctorCheck {
 	}
 
 	return check
-}
-
-func findProjectRoot(start string) string {
-	dir := start
-	for {
-		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
 }
 
 func formatDuration(d time.Duration) string {

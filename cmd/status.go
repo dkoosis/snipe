@@ -8,6 +8,7 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
+	"github.com/dkoosis/snipe/internal/util"
 )
 
 var statusCmd = &cobra.Command{
@@ -52,7 +53,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			Message: "failed to get working directory: " + err.Error(),
 		})
 	}
-	dir := findProjectRoot(cwd)
+	dir := util.FindProjectRoot(cwd)
 	if dir == "" {
 		return w.WriteError("status", &output.Error{
 			Code:    output.ErrInternal,
