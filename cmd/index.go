@@ -73,6 +73,11 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve path: %w", err)
 	}
 
+	// Always index relative to project root — not CWD or an arbitrary subdir (D3)
+	if root := util.FindProjectRoot(absDir); root != "" {
+		absDir = root
+	}
+
 	// Setup output writer
 	compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
