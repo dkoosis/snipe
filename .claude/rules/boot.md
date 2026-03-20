@@ -1,4 +1,4 @@
-sha: c344076 | qa: pass | updated: 2026-03-19
+sha: 4d93f11 | qa: pass | updated: 2026-03-20
 
 ## Do next
 
@@ -6,6 +6,7 @@ Pick one: #127 un-skip impl test | #117 semsearch unit tests | #128 v0.1.1 tag
 
 ## Done
 
+- #132 go.work workspace support: WorkspacePatterns parses use directives, per-module load patterns, 108 packages on trixi
 - #123 root detection: FindProjectRoot in internal/util, OpenStore resolves git root, doctor mismatch check
 - #121 search index fallback: LookupByName fallback between rg and semantic, renamed no_index → rg_only
 - Simplify review: search.go resolves git root for store, cached Exists in OpenStore, renamed flag
