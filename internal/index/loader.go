@@ -57,7 +57,10 @@ func Load(cfg LoadConfig) (*LoadResult, error) {
 		cfg.Dir = "."
 	}
 	if len(cfg.Patterns) == 0 {
-		cfg.Patterns = []string{"./..."}
+		cfg.Patterns, _ = WorkspacePatterns(cfg.Dir)
+		if len(cfg.Patterns) == 0 {
+			cfg.Patterns = []string{"./..."}
+		}
 	}
 	if cfg.Exclude == nil {
 		cfg.Exclude = DefaultExclude()
