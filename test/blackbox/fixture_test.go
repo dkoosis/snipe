@@ -187,6 +187,49 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
+// writeWorkspaceFixture creates a multi-module go.work project.
+// Returns the repo dir and a map of useful paths.
+func writeWorkspaceFixture(t *testing.T) (repoDir string, paths map[string]string) {
+	t.Helper()
+
+	repoDir = t.TempDir()
+	paths = make(map[string]string)
+
+	// Workspace root
+	writeFile(t, filepath.Join(repoDir, "go.work"), `go 1.21
+
+use (
+	.
+	./lib
+)
+`)
+
+	// Root module
+	writeFile(t, filepath.Join(repoDir, "go.mod"), "module example.com/workspace\n\ngo 1.21\n")
+	writeFile(t, filepath.Join(repoDir, "main.go"), `package workspace
+
+import "example.com/workspace/lib"
+
+func UseLib() string {
+	return lib.Hello()
+}
+`)
+	paths["main"] = filepath.Join(repoDir, "main.go")
+
+	// Lib module (sibling workspace module)
+	writeFile(t, filepath.Join(repoDir, "lib", "go.mod"), "module example.com/workspace/lib\n\ngo 1.21\n")
+	writeFile(t, filepath.Join(repoDir, "lib", "lib.go"), `package lib
+
+// Hello returns a greeting from the lib module.
+func Hello() string {
+	return "hello from lib"
+}
+`)
+	paths["lib"] = filepath.Join(repoDir, "lib", "lib.go")
+
+	return repoDir, paths
+}
+
 func positionAfterMarker(t *testing.T, content, marker, symbol string) (line, col int) {
 	t.Helper()
 

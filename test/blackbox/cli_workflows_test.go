@@ -1351,3 +1351,39 @@ func TestRootDetection_FindsIndexFromSubdirectory_When_IndexedAtGitRoot(t *testi
 		t.Fatalf("unexpected error from subdir: %v", errObj)
 	}
 }
+
+func TestIndex_WorkspaceFixture_IndexesAllModules(t *testing.T) {
+	repoDir, _ := writeWorkspaceFixture(t)
+
+	// Index the workspace
+	stdout, stderr, exitCode := run(t, repoDir, "index", repoDir)
+	if exitCode != 0 {
+		t.Fatalf("index exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:           "index",
+		requireRepoRoot:   true,
+		requireIndexState: true,
+	})
+
+	// Verify lib.Hello is findable (proves lib module was indexed)
+	stdout, stderr, exitCode = run(t, repoDir, "def", "Hello")
+	if exitCode != 0 {
+		t.Fatalf("def exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	defResp := parseJSON(t, stdout)
+	results := requireSlice(t, defResp["results"], "results")
+	if len(results) == 0 {
+		t.Fatal("expected to find Hello in lib module, got 0 results")
+	}
+
+	// Verify the result is from the lib module
+	first := requireMap(t, results[0], "results[0]")
+	file, _ := first["file"].(string)
+	if !strings.Contains(file, "lib") {
+		t.Errorf("expected Hello from lib module, got file: %s", file)
+	}
+}
