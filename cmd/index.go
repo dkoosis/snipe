@@ -132,10 +132,15 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(os.Stderr, "Loading packages from %s...\n", absDir)
 	loadStart := time.Now()
 
+	patterns, err := index.WorkspacePatterns(absDir)
+	if err != nil {
+		return fmt.Errorf("resolve workspace patterns: %w", err)
+	}
+
 	result, err := index.Load(index.LoadConfig{
 		Context:  GetContext(),
 		Dir:      absDir,
-		Patterns: []string{"./..."},
+		Patterns: patterns,
 		Tests:    true,
 	})
 	if err != nil {
