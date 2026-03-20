@@ -25,14 +25,25 @@ func WorkspacePatterns(dir string) ([]string, error)
 **Logic:**
 1. Check if `go.work` exists at `dir`
 2. If yes: parse with `golang.org/x/mod/modfile.ParseWork`
-3. For each `Use` directive, generate `<dir>/...` pattern
-4. Deduplicate: skip `./...` for `use .` since root pattern already covers it
-5. Return combined patterns (e.g., `["./...", "./graph/...", "./store/..."]`)
-6. If no `go.work`: return `["./..."]` (current behavior unchanged)
+3. For each `Use` directive, generate `<use-path>/...` pattern (e.g., `use ./graph` → `./graph/...`)
+4. If no `go.work`: return `["./..."]` (current behavior unchanged)
 
-### Call site: `cmd/index.go`
+One pattern per `use` directive. No base pattern, no dedup — the `use` directives are the complete list of modules.
 
-Replace hardcoded `[]string{"./..."}` (line ~138) with `index.WorkspacePatterns(absDir)`.
+### Call sites
+
+**Primary: `internal/index/loader.go`** — the loader's default fallback (lines 59-61) should resolve workspace patterns when `Patterns` is empty. This makes it defensive: any caller that omits patterns gets workspace-aware behavior automatically.
+
+```go
+if len(cfg.Patterns) == 0 {
+    cfg.Patterns, _ = WorkspacePatterns(cfg.Dir)
+    if len(cfg.Patterns) == 0 {
+        cfg.Patterns = []string{"./..."}
+    }
+}
+```
+
+**Secondary: `cmd/index.go`** — also passes explicit patterns. Update to use `WorkspacePatterns(absDir)` instead of hardcoded `[]string{"./..."}`.
 
 ### Why nothing else changes
 
@@ -43,14 +54,20 @@ Replace hardcoded `[]string{"./..."}` (line ~138) with `index.WorkspacePatterns(
 - Fingerprinting already hashes `go.work` — cache invalidation works
 - `FindProjectRoot` finds `.git` at workspace root — correct for go.work repos
 
+### Assumptions
+
+- All `use` directives are children of the git root (standard monorepo layout). `use ../sibling` (directories outside the repo) is out of scope — would require multi-root file walking, which is a different problem.
+
 ### Edge cases
 
 | Case | Behavior |
 |------|----------|
 | No `go.work` | Returns `["./..."]`, zero impact |
-| `use .` present | Deduplicated — root `./...` covers it |
+| `use .` present | Generates `./...` — one pattern like any other |
 | Malformed `go.work` | Return error (don't silently fall back) |
 | `use ./sub` with nested pkgs | `./sub/...` picks up all nested packages |
+| `use` dir doesn't exist | Let `go/packages` surface the error |
+| `GOWORK=off` in env | `go.work` file still parsed; `go/packages` will ignore workspace semantics — acceptable since explicit per-module patterns still load correctly |
 
 ## Files
 
@@ -58,14 +75,15 @@ Replace hardcoded `[]string{"./..."}` (line ~138) with `index.WorkspacePatterns(
 |------|--------|
 | `internal/index/workspace.go` | New — `WorkspacePatterns()` |
 | `internal/index/workspace_test.go` | New — unit tests |
-| `cmd/index.go` | One-line: call `WorkspacePatterns` instead of hardcoded pattern |
-| `go.mod` | Promote `golang.org/x/mod` from indirect to direct |
+| `internal/index/loader.go` | Default pattern fallback uses `WorkspacePatterns` |
+| `cmd/index.go` | Call `WorkspacePatterns` instead of hardcoded pattern |
 
 ## Testing
 
 - Unit: `WorkspacePatterns` with synthetic `go.work` in temp dir
 - Unit: no-go.work returns `["./..."]`
 - Unit: malformed go.work returns error
+- Unit: `use` dir that doesn't exist (still returns pattern, go/packages errors)
 - Manual: run `snipe index` on trixi, verify all 23 packages indexed
 
 ## Non-goals
@@ -73,3 +91,4 @@ Replace hardcoded `[]string{"./..."}` (line ~138) with `index.WorkspacePatterns(
 - `FindProjectRoot` changes (already works — `.git` and `go.work` co-located)
 - Per-command changes (all query the index DB — fixed by fixing indexing)
 - Cross-repo test fixtures (trixi is external)
+- `use ../sibling` support (outside git root)
