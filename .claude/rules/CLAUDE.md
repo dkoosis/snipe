@@ -4,7 +4,7 @@ Make it easier for Claude to work with Go repos. Static indexing, <50ms queries,
 
 ## verify
 
-`mage` (build+lint+test) or `mage qa` (full: race, blackbox, govulncheck)
+`make` (vet+lint+test) or `make ci` (full: race, blackbox, govulncheck)
 
 ## layout
 
@@ -57,9 +57,9 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 | D3 | Index root = git root | Always resolve to repo root, not CWD. Eliminates MISSING_INDEX confusion |
 | D4 | Token budget is a first-class concern | Every byte of output must earn its place. No envelope noise in default output |
 | D5 | Hex IDs chain across commands | 16-char IDs enable follow-up queries without re-lookup |
-| D6 | `mage qa` is the merge gate | No exceptions |
+| D6 | `make ci` is the merge gate | No exceptions |
 
 ## invariants
 
-- `mage qa` passes before merge
+- `make ci` passes before merge
 - hex IDs: 16-char, chain across commands

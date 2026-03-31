@@ -164,8 +164,8 @@ snipe context --full          # Include all symbols, not just key ones
     "name": "snipe",
     "root": "/path/to/repo",
     "lang": ["go"],
-    "build": "mage",
-    "test": "mage test"
+    "build": "make",
+    "test": "make test"
   },
   "architecture": {
     "components": [

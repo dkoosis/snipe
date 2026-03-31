@@ -31,7 +31,7 @@ Initial environment setup for Claude sandbox. Installs tools, downloads dependen
 
 **What it does:**
 - Links prebuilt binaries from `.codex/bin/` (shared resources)
-- Installs Go 1.25+, golangci-lint, mage if missing
+- Installs Go 1.25+, golangci-lint if missing
 - Downloads Go modules
 - Builds snipe binary if needed
 - Verifies/builds snipe index
@@ -76,7 +76,6 @@ Shared resources:
   .codex/bin/linux-amd64/snipe          → ./bin/snipe
   .codex/bin/linux-amd64/golangci-lint  → ./bin/golangci-lint
   .codex/bin/linux-amd64/govulncheck    → ./bin/govulncheck
-  .codex/bin/linux-amd64/mage           → ./bin/mage
   .codex/bin/linux-amd64/rg             → ./bin/rg
 
 Isolated resources:
@@ -119,7 +118,7 @@ Complete QA before PR (runs lint + tests + build):
 bash .codex/validate.sh
 
 # Or run directly:
-mage qa
+make ci
 ```
 
 ### Custom Validation
@@ -205,7 +204,7 @@ snipe index
 snipe doctor
 
 # Full QA (lint + tests + build)
-bash .codex/validate.sh  # or: mage qa
+bash .codex/validate.sh  # or: make ci
 ```
 
 ## Troubleshooting

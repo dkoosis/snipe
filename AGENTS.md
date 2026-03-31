@@ -14,7 +14,7 @@ Fallback: `source .codex/activate.sh` (auto-detects platform, links prebuilt bin
 | Tool | Purpose | Example |
 |------|---------|---------|
 | `snipe` | Go symbol navigation (self-hosted) | `snipe def Open`, `snipe callers FindPackageDeps` |
-| `mage` | Go task runner (build/test/lint) | `mage`, `mage qa` |
+| `make` | Build system (build/test/lint) | `make`, `make ci` |
 | `golangci-lint` | Go linting | `golangci-lint run ./...` |
 | `gofumpt` | Strict Go formatting | `gofumpt -w file.go` |
 | `goimports` | Fix imports | `goimports -w file.go` |
@@ -63,17 +63,17 @@ test/blackbox/ integration tests
 
 | Command | What | Duration |
 |---------|------|----------|
-| `mage` | build + lint + test | ~15s |
-| `mage qa` | race, blackbox, golangci, govulncheck | ~90s |
+| `make` | build + lint + test | ~15s |
+| `make ci` | race, blackbox, golangci, govulncheck | ~90s |
 | `go test ./...` | unit tests only | ~10s |
 
-`mage qa` is the merge gate. Must pass before commit.
+`make ci` is the merge gate. Must pass before commit.
 
 ## Task Execution
 
 - Read `docs/progress.md` for current state
 - Pick tasks from `.claude/rules/boot.md` "do next"
-- Commit after each logical unit that passes `mage`
+- Commit after each logical unit that passes `make`
 - Prefer small, surgical changes
 - Don't add features, abstractions, or refactors beyond what's requested
 
@@ -81,4 +81,4 @@ test/blackbox/ integration tests
 
 - Final code only — no placeholders, no TODOs
 - Must compile: `go build ./...`
-- Must validate: `mage qa`
+- Must validate: `make ci`

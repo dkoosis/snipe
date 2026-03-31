@@ -1,0 +1,163 @@
+# Snipe Makefile
+#
+# Primary: check ci deploy doctor
+# Run `make help` for full target list.
+
+.DEFAULT_GOAL := check
+
+.PHONY: help check ci deploy report doctor \
+        vet lint-fast lint test race blackbox vuln \
+        install cross clean \
+        baseline bench eval eval-setup \
+        changed
+
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+LDFLAGS := -X github.com/dkoosis/snipe/cmd.Version=$(VERSION) -X github.com/dkoosis/snipe/cmd.GitCommit=$(COMMIT)
+
+# Report stream — fo dashboard format
+REPORT_CMD = \
+	echo '--- tool:build format:text ---'; \
+	go build ./... 2>&1; echo; \
+	echo '--- tool:vet format:text ---'; \
+	go vet ./... 2>&1; echo; \
+	echo '--- tool:lint format:text ---'; \
+	golangci-lint run ./... 2>&1; echo; \
+	echo '--- tool:test format:testjson ---'; \
+	go test -json -cover -count=1 ./... 2>&1; echo
+
+## ---------------------------------------------------------------------
+## Primary
+## ---------------------------------------------------------------------
+
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} \
+		/^## [^-]/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 4) } \
+		/^[a-zA-Z0-9_-]+:.*?## / { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+
+check: vet lint-fast test ## Fast validation: vet + staticcheck + test + build
+	@go build ./...
+	@echo "=== check pass ==="
+
+ci: vet lint test race blackbox vuln ## Full CI suite
+	@go build ./...
+	@echo "=== ci pass ==="
+
+deploy: install ## Build, install, and verify
+	@echo "=== deployed ($$(snipe --version 2>/dev/null || echo unknown)) ==="
+
+report: ## Structured QA output for agents/tools (always exits 0)
+	@( $(REPORT_CMD) ) | fo --format llm || true
+
+doctor: ## Validate required toolchain
+	@echo "=== doctor ==="
+	@MISSING=0; \
+	for tool in go golangci-lint govulncheck; do \
+		if command -v "$$tool" >/dev/null 2>&1; then \
+			printf "  ok  %-20s %s\n" "$$tool" "$$(command -v $$tool)"; \
+		else \
+			printf "  MISSING  %s\n" "$$tool"; \
+			MISSING=$$((MISSING + 1)); \
+		fi; \
+	done; \
+	for tool in fo snipe; do \
+		if command -v "$$tool" >/dev/null 2>&1; then \
+			printf "  ok  %-20s %s (optional)\n" "$$tool" "$$(command -v $$tool)"; \
+		else \
+			printf "  skip  %-20s (optional)\n" "$$tool"; \
+		fi; \
+	done; \
+	echo ""; \
+	echo "  go: $$(go version 2>/dev/null | cut -d' ' -f3)"; \
+	if [ "$$MISSING" -gt 0 ]; then \
+		echo ""; \
+		echo "$$MISSING required tool(s) missing"; \
+		exit 1; \
+	fi; \
+	echo "=== doctor pass ==="
+
+## ---------------------------------------------------------------------
+## Checks
+## ---------------------------------------------------------------------
+
+vet: ## Run go vet
+	go vet ./...
+
+lint-fast: ## Run staticcheck only (fast)
+	golangci-lint run --enable-only staticcheck ./...
+
+lint: ## Run golangci-lint (full)
+	golangci-lint run ./...
+
+test: ## Run tests with coverage
+	go test -count=1 -cover ./...
+
+race: ## Run tests with race detector (slow)
+	go test -race -timeout=5m -count=1 ./...
+
+blackbox: ## Run blackbox integration tests
+	go test -tags=blackbox -v ./test/blackbox/...
+
+vuln: ## Scan for known vulnerabilities
+	govulncheck ./...
+
+## ---------------------------------------------------------------------
+## Build
+## ---------------------------------------------------------------------
+
+install: ## Build and install snipe to $GOPATH/bin
+	go install -ldflags '$(LDFLAGS)' .
+
+cross: ## Cross-compile for linux/amd64 + linux/arm64
+	@mkdir -p .bin/linux-amd64 .bin/linux-arm64
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-s -w $(LDFLAGS)' -o .bin/linux-amd64/snipe .
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags '-s -w $(LDFLAGS)' -o .bin/linux-arm64/snipe .
+	@du -h .bin/linux-amd64/snipe .bin/linux-arm64/snipe
+
+clean: ## Remove build artifacts
+	rm -rf .bin .snipe
+
+## ---------------------------------------------------------------------
+## Metrics & Eval
+## ---------------------------------------------------------------------
+
+baseline: ## Capture performance/quality metrics
+	SNIPE_BASELINE=1 go test -v -run TestCaptureBaseline ./test/bench/
+
+bench: ## Run Go benchmarks
+	go test -bench=. -benchmem ./test/bench/
+
+eval-setup: ## Clone and index benchmark repos
+	@go install . && \
+	mkdir -p .eval-repos && \
+	for repo in "chi:https://github.com/go-chi/chi" "cobra:https://github.com/spf13/cobra" "bbolt:https://github.com/etcd-io/bbolt" "fzf:https://github.com/junegunn/fzf"; do \
+		name=$${repo%%:*}; url=$${repo#*:}; \
+		if [ -d ".eval-repos/$$name" ]; then \
+			echo "$$name: already cloned"; \
+		else \
+			echo "$$name: cloning..."; \
+			git clone --depth=1 "$$url" ".eval-repos/$$name"; \
+		fi; \
+		echo "$$name: indexing..."; \
+		snipe index "$$(cd .eval-repos/$$name && pwd)" --enrich=false --embed-mode=off; \
+	done
+
+eval: ## Run localization benchmark
+	go test -v -tags=eval -run TestEval -timeout=10m ./test/eval/
+
+## ---------------------------------------------------------------------
+## Utilities
+## ---------------------------------------------------------------------
+
+changed: ## Vet + lint + test changed packages only
+	@PKGS=$$( { git diff --name-only HEAD -- '*.go'; git ls-files --others --exclude-standard -- '*.go'; } \
+		| xargs dirname 2>/dev/null | sort -u | sed 's|^|./|' | grep -v '^\./$$'); \
+	if [ -z "$$PKGS" ]; then \
+		echo "no changed Go packages"; \
+	else \
+		echo "changed packages: $$PKGS"; \
+		go vet $$PKGS && \
+		golangci-lint run $$PKGS && \
+		go test -count=1 -cover $$PKGS && \
+		echo "=== changed pass ==="; \
+	fi

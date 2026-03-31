@@ -5,7 +5,6 @@ go 1.24.0
 toolchain go1.25.8
 
 require (
-	github.com/magefile/mage v1.15.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/tools v0.41.0
