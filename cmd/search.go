@@ -149,7 +149,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	// Enrich rg results with index metadata if available (skip for semantic results)
 	var indexState output.IndexState
 	enriched := false
-	if s != nil && !usedFallback && !indexFallbackFound {
+	switch {
+	case s != nil && !usedFallback && !indexFallbackFound:
 		for i := range results {
 			if sym := query.FindSymbolAtPosition(s.DB(), results[i].File, results[i].Range.Start.Line); sym != nil {
 				results[i].Name = sym.Name
@@ -161,13 +162,13 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			}
 		}
 		indexState = query.CheckIndexState(s.DB(), dir, Version)
-	} else if usedFallback && s != nil {
+	case usedFallback && s != nil:
 		// TODO: semantic results reference indexed symbols — CheckFileStaleness
 		// is relevant here but search has never included stale_files. Add when
 		// search gets staleness support generally.
 		indexState = query.CheckIndexState(s.DB(), dir, Version)
 		enriched = true
-	} else if indexFallbackFound && s != nil {
+	case indexFallbackFound && s != nil:
 		indexState = query.CheckIndexState(s.DB(), dir, Version)
 		enriched = true
 	}
