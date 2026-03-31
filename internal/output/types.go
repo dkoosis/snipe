@@ -566,8 +566,8 @@ func SuggestionsForPack(result *Result) []Suggestion {
 			Priority:    1,
 		},
 		{
-			Command:     "snipe context --boot",
-			Description: "Get project-level boot context",
+			Command:     "snipe context",
+			Description: "Get project-level orientation context",
 			Priority:    2,
 		},
 	}

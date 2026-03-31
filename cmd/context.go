@@ -17,7 +17,7 @@ import (
 var (
 	contextFormat      string
 	contextFull        bool
-	contextBoot        bool
+	contextOrient      bool
 	contextOutputNug   bool
 	contextConventions bool
 )
@@ -26,30 +26,28 @@ var contextCmd = &cobra.Command{
 	Use:     "context [path]",
 	Short:   "Generate Claude-optimized project context",
 	GroupID: "advanced",
-	Long: `Generates a structured JSON/YAML output describing the project architecture,
-files, and key symbols - optimized for providing context to Claude.
+	Long: `Generate Claude-optimized project orientation context.
 
-The output includes:
-- Project metadata (name, root, build commands)
-- Architecture components and data flows
-- Files organized by concern
-- Key types and functions (ranked by reference count)
-- Generation metadata
+By default, outputs a lean orientation (~5k tokens) with project metadata,
+key symbols, packages, conventions, and active work context.
+
+Use --full for the complete architecture dump with all components, data flows,
+boundaries, and files organized by concern.
 
 Examples:
-  snipe context                    # Generate context for current directory
-  snipe context .                  # Same as above
+  snipe context                    # Claude-optimized orientation (default)
+  snipe context --orient           # Same — explicit orientation mode
+  snipe context --full             # Full architecture dump
   snipe context --format=yaml      # Output as YAML
-  snipe context --full             # Include all symbols, not just key ones
-  snipe context --boot             # Minimal context for LLM boot (~2000 tokens)`,
+  snipe context --conventions      # Coding conventions only`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runContext,
 }
 
 func init() {
 	contextCmd.Flags().StringVar(&contextFormat, "format", "json", "Output format: json or yaml")
-	contextCmd.Flags().BoolVar(&contextFull, "full", false, "Include all symbols, not just key ones")
-	contextCmd.Flags().BoolVar(&contextBoot, "boot", false, "Minimal context for LLM boot (~2000 tokens)")
+	contextCmd.Flags().BoolVar(&contextFull, "full", false, "Full architecture dump (all components, flows, boundaries)")
+	contextCmd.Flags().BoolVar(&contextOrient, "orient", false, "Claude-optimized orientation (default)")
 	contextCmd.Flags().BoolVar(&contextOutputNug, "output-nug", false, "Output as Orca nugget YAML (for save_nug)")
 	contextCmd.Flags().BoolVar(&contextConventions, "conventions", false, "Detect coding conventions")
 	rootCmd.AddCommand(contextCmd)
@@ -92,40 +90,38 @@ func runContext(cmd *cobra.Command, args []string) error {
 		Full:     contextFull,
 	}
 
-	if contextBoot {
-		// Generate minimal boot context
-		bootCtx, err := context.GenerateBoot(cfg)
-		if err != nil {
-			return fmt.Errorf("generate boot context: %w", err)
-		}
-
-		// Output as nuggets if requested
-		if contextOutputNug {
-			nugs := bootCtx.ToNuggets()
-			return outputNuggets(nugs)
-		}
-
-		return outputContext(bootCtx, contextFormat)
-	}
-
 	if contextConventions {
 		conv := context.DetectConventions(s.DB(), projectRoot)
 		return outputContext(conv, contextFormat)
 	}
 
-	// Generate full context
-	ctx, err := context.Generate(cfg)
-	if err != nil {
-		return fmt.Errorf("generate context: %w", err)
+	if contextFull {
+		// Full architecture dump (--full)
+		ctx, err := context.Generate(cfg)
+		if err != nil {
+			return fmt.Errorf("generate context: %w", err)
+		}
+
+		if contextOutputNug {
+			nugs := ctx.ToNuggets()
+			return outputNuggets(nugs)
+		}
+
+		return outputContext(ctx, contextFormat)
 	}
 
-	// Output as nuggets if requested
+	// Default: Claude-optimized orientation (bare or --orient)
+	orientCtx, err := context.GenerateBoot(cfg)
+	if err != nil {
+		return fmt.Errorf("generate orientation context: %w", err)
+	}
+
 	if contextOutputNug {
-		nugs := ctx.ToNuggets()
+		nugs := orientCtx.ToNuggets()
 		return outputNuggets(nugs)
 	}
 
-	return outputContext(ctx, contextFormat)
+	return outputContext(orientCtx, contextFormat)
 }
 
 func outputContext(output interface{}, format string) error {

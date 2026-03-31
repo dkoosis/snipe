@@ -462,7 +462,7 @@ func TestContext(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	initGitRepo(t, repoDir)
 	indexRepo(t, repoDir)
-	stdout, _, _ := run(t, repoDir, "context", "--boot", repoDir)
+	stdout, _, _ := run(t, repoDir, "context", repoDir)
 	out := strings.TrimSpace(string(stdout))
 	if out == "" {
 		t.Fatalf("expected non-empty context output")

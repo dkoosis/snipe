@@ -846,20 +846,20 @@ func TestContext_Boot_IncludesConventions_When_IndexPresent(t *testing.T) {
 	initGitRepo(t, repoDir)
 	indexRepo(t, repoDir)
 
-	stdout, stderr, exitCode := run(t, repoDir, "context", "--boot", repoDir)
+	stdout, stderr, exitCode := run(t, repoDir, "context", repoDir)
 	if exitCode != 0 {
-		t.Fatalf("context --boot exit %d stderr=%s", exitCode, string(stderr))
+		t.Fatalf("context exit %d stderr=%s", exitCode, string(stderr))
 	}
 
 	resp := parseJSON(t, stdout)
 
-	// Boot context should include conventions field
+	// Default orientation context should include conventions field
 	conv, ok := resp["conventions"]
 	if !ok {
-		t.Fatalf("boot context missing conventions field")
+		t.Fatalf("orientation context missing conventions field")
 	}
 	if conv == nil {
-		t.Fatalf("boot context conventions is null")
+		t.Fatalf("orientation context conventions is null")
 	}
 	convMap := requireMap(t, conv, "conventions")
 	assertHasConventions(t, convMap)

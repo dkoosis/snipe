@@ -62,7 +62,8 @@ var rootCmd = &cobra.Command{
   snipe search "TODO"      Text search (no index needed)
 
   snipe doctor             Check index health
-  snipe context --boot     LLM boot context`,
+  snipe context            Claude-optimized orientation
+  snipe context --full     Full architecture dump`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set up context with signal handling for graceful cancellation
 		ctx := context.Background()
