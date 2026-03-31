@@ -182,7 +182,7 @@ func buildFlowPath(startID, startName, startReceiver string, callGraph map[strin
 			break
 		}
 
-		nextID := pickBestCallee(callees, visited, symbolNames)
+		nextID := pickBestCallee(callees, visited, symbolNames, callGraph)
 		if nextID == "" {
 			break
 		}
@@ -404,10 +404,17 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 	return results, nil
 }
 
+// terminalMethods are infrastructure methods that don't reveal architectural intent.
+// Flows that end at these tell Claude the plumbing, not the purpose.
+var terminalMethods = map[string]bool{
+	"DB": true, "Close": true, "String": true, "Error": true, "Err": true,
+	"Bytes": true, "Len": true, "Reset": true,
+}
+
 // pickBestCallee selects the most architecturally significant callee from candidates.
-// Prefers cross-package method calls (Type.Method) and exported symbols over
-// internal helpers like isX/hasX.
-func pickBestCallee(callees []string, visited map[string]bool, symbolNames map[string]string) string {
+// Prefers cross-package method calls and exported symbols. Avoids infrastructure
+// terminals (DB, Close) and prefers callees that have their own callees (deeper paths).
+func pickBestCallee(callees []string, visited map[string]bool, symbolNames map[string]string, callGraph map[string][]string) string {
 	var bestID string
 	var bestScore int
 
@@ -440,6 +447,14 @@ func pickBestCallee(callees []string, visited map[string]bool, symbolNames map[s
 		if strings.HasPrefix(lower, "is") || strings.HasPrefix(lower, "has") {
 			score -= 2
 		}
+		// Deprioritize infrastructure terminals — they reveal plumbing, not intent
+		if terminalMethods[checkName] {
+			score -= 4
+		}
+		// Prefer callees that have their own callees (deeper paths available)
+		if _, hasCallees := callGraph[calleeID]; hasCallees {
+			score += 3
+		}
 
 		if score > bestScore {
 			bestScore = score
@@ -469,7 +484,7 @@ func compressToCommandTable(details []EntryPointRef) *CommandTable {
 	// Filter out trivial entry points (main, Execute — not real commands)
 	var commands []EntryPointRef
 	for _, ep := range details {
-		if ep.Name == "main" || ep.Name == "Execute" {
+		if ep.Name == epMain || ep.Name == epExecute {
 			continue
 		}
 		commands = append(commands, ep)

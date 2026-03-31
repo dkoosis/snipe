@@ -38,6 +38,12 @@ const (
 	kindType      = "type"
 )
 
+// Entry point name constants (shared across role inference and flow analysis).
+const (
+	epMain    = "main"
+	epExecute = "Execute"
+)
+
 // Visibility represents the export status of a symbol.
 type Visibility string
 
@@ -187,7 +193,7 @@ func inferRole(db *sql.DB, symbolID, name, kind, signature, pkgPath string) Role
 // - is called by main or init functions
 func isEntryPoint(db *sql.DB, symbolID, name, kind, pkgPath string) bool {
 	// Check if this is main function
-	if name == "main" && strings.HasSuffix(pkgPath, "/main") {
+	if name == epMain && strings.HasSuffix(pkgPath, "/main") {
 		return true
 	}
 
@@ -215,7 +221,7 @@ func isEntryPoint(db *sql.DB, symbolID, name, kind, pkgPath string) bool {
 	}
 
 	// Check for cobra Execute patterns (often called from main)
-	if name == "Execute" && kind == kindMethod {
+	if name == epExecute && kind == kindMethod {
 		return true
 	}
 

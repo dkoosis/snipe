@@ -76,7 +76,7 @@ func TestDetectConstructors(t *testing.T) {
 	if result.Pattern != "New* constructors return (T, error)" {
 		t.Errorf("pattern: got %q", result.Pattern)
 	}
-	if result.Confidence != "medium" {
+	if result.Confidence != confidenceMedium {
 		t.Errorf("confidence: got %q, want medium", result.Confidence)
 	}
 }
@@ -189,7 +189,7 @@ func TestDetectInterfaces(t *testing.T) {
 	if result.Pattern != "-er/-or suffix naming" {
 		t.Errorf("pattern: got %q", result.Pattern)
 	}
-	if result.Confidence != "medium" {
+	if result.Confidence != confidenceMedium {
 		t.Errorf("confidence: got %q, want medium", result.Confidence)
 	}
 }
@@ -265,8 +265,8 @@ func TestDetectFileOrg(t *testing.T) {
 	if result.MultiType != 1 {
 		t.Errorf("multi_type: got %d, want 1", result.MultiType)
 	}
-	if result.Pattern != "mixed (no dominant pattern)" {
-		t.Errorf("pattern: got %q, want %q", result.Pattern, "mixed (no dominant pattern)")
+	if result.Pattern != patternMixed {
+		t.Errorf("pattern: got %q, want %q", result.Pattern, patternMixed)
 	}
 }
 
@@ -292,11 +292,11 @@ func TestDetectFileOrg_NearEqual(t *testing.T) {
 		t.Fatal("expected non-nil result")
 	}
 	// 3 single vs 2 multi — ratio = 3/5 = 0.60, below 70% threshold → mixed
-	if result.Pattern != "mixed (no dominant pattern)" {
-		t.Errorf("pattern: got %q, want %q", result.Pattern, "mixed (no dominant pattern)")
+	if result.Pattern != patternMixed {
+		t.Errorf("pattern: got %q, want %q", result.Pattern, patternMixed)
 	}
-	// ratio=0.60, sampleSize=5 → confidence returns "medium" (ratio >= 0.6 && size >= 3)
-	if result.Confidence != "medium" {
+	// ratio=0.60, sampleSize=5 → confidence returns confidenceMedium (ratio >= 0.6 && size >= 3)
+	if result.Confidence != confidenceMedium {
 		t.Errorf("confidence: got %q, want medium", result.Confidence)
 	}
 }

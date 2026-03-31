@@ -24,6 +24,8 @@ const (
 	confidenceHigh   = "high"
 	confidenceMedium = "medium"
 	confidenceLow    = "low"
+
+	patternMixed = "mixed (no dominant pattern)"
 )
 
 // confidence returns "high", "medium", or "low" based on consistency ratio and sample size.
@@ -359,9 +361,14 @@ func detectFileOrg(db *sql.DB) *FileOrgConvention {
 	}
 
 	ratio := float64(max(singleType, multiType)) / float64(fileCount)
-	pattern := "one type per file"
-	if multiType > singleType {
+	var pattern string
+	switch {
+	case ratio >= 0.7 && singleType > multiType:
+		pattern = "one type per file"
+	case ratio >= 0.7 && multiType > singleType:
 		pattern = "multiple types per file"
+	default:
+		pattern = patternMixed
 	}
 
 	return &FileOrgConvention{
