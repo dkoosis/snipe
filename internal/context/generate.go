@@ -122,6 +122,12 @@ func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 	// Get entry point details using batch queries
 	entryPointDetails, _ := GetEntryPointDetails(db, repoRoot)
 
+	// Compress into command table
+	var commands *CommandTable
+	if len(entryPointDetails) > 0 {
+		commands = compressToCommandTable(entryPointDetails)
+	}
+
 	// Get primary flows — deeper traces (6 levels) to reach meaningful terminals
 	primaryFlows, _ := ExtractPrimaryFlows(db, repoRoot, 6)
 
@@ -132,15 +138,15 @@ func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 	interfaceMap, _ := GetInterfaceMap(db, repoRoot)
 
 	// Only return BootViews if we have meaningful content
-	if len(entryPointDetails) == 0 && len(primaryFlows) == 0 && len(changeBoundaries) == 0 && len(interfaceMap) == 0 {
+	if commands == nil && len(primaryFlows) == 0 && len(changeBoundaries) == 0 && len(interfaceMap) == 0 {
 		return nil
 	}
 
 	return &BootViews{
-		EntryPointDetails: entryPointDetails,
-		PrimaryFlows:      primaryFlows,
-		ChangeBoundaries:  changeBoundaries,
-		InterfaceMap:      interfaceMap,
+		Commands:         commands,
+		PrimaryFlows:     primaryFlows,
+		ChangeBoundaries: changeBoundaries,
+		InterfaceMap:     interfaceMap,
 	}
 }
 

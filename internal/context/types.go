@@ -10,9 +10,10 @@ type ProjectContext struct {
 	Meta         Meta         `json:"meta" yaml:"meta"`
 }
 
-// BootContext is a minimal context for LLM boot sequences (~2000 tokens).
+// BootContext is a minimal context for LLM orientation (~3-5k tokens).
 type BootContext struct {
 	Project     string      `json:"project" yaml:"project"`
+	Purpose     string      `json:"purpose,omitempty" yaml:"purpose,omitempty"`
 	Lang        string      `json:"lang" yaml:"lang"`
 	Build       string      `json:"build" yaml:"build"`
 	Test        string      `json:"test" yaml:"test"`
@@ -35,10 +36,10 @@ type BootContext struct {
 
 // BootViews contains the three orientation views for LLM boot sequences.
 type BootViews struct {
-	EntryPointDetails []EntryPointRef     `json:"entry_point_details,omitempty" yaml:"entry_point_details,omitempty"`
-	PrimaryFlows      []string            `json:"primary_flows,omitempty" yaml:"primary_flows,omitempty"`
-	ChangeBoundaries  map[string][]string `json:"change_boundaries,omitempty" yaml:"change_boundaries,omitempty"`
-	InterfaceMap      []InterfaceEntry    `json:"interface_map,omitempty" yaml:"interface_map,omitempty"`
+	Commands         *CommandTable       `json:"commands,omitempty" yaml:"commands,omitempty"`
+	PrimaryFlows     []string            `json:"primary_flows,omitempty" yaml:"primary_flows,omitempty"`
+	ChangeBoundaries map[string][]string `json:"change_boundaries,omitempty" yaml:"change_boundaries,omitempty"`
+	InterfaceMap     []InterfaceEntry    `json:"interface_map,omitempty" yaml:"interface_map,omitempty"`
 }
 
 // InterfaceEntry describes a key interface and its known implementors in the repo.
@@ -90,6 +91,21 @@ type EntryPointRef struct {
 	Line    int      `json:"line" yaml:"line"`
 	Purpose string   `json:"purpose,omitempty" yaml:"purpose,omitempty"`
 	Callees []string `json:"callees,omitempty" yaml:"callees,omitempty"`
+}
+
+// CommandTable compresses entry point details into a compact command list.
+// Declares the common boilerplate callee pattern once, then lists commands
+// with only their purpose and any notable (non-boilerplate) callees.
+type CommandTable struct {
+	BoilerplatePattern []string       `json:"boilerplate_pattern" yaml:"boilerplate_pattern"`
+	Commands           []CommandEntry `json:"commands" yaml:"commands"`
+}
+
+// CommandEntry describes a single CLI command entry point.
+type CommandEntry struct {
+	Name    string   `json:"name" yaml:"name"`
+	Purpose string   `json:"purpose,omitempty" yaml:"purpose,omitempty"`
+	Callees []string `json:"callees,omitempty" yaml:"callees,omitempty"` // only non-boilerplate callees
 }
 
 // PackageRef describes a package with its purpose and role counts.

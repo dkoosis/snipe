@@ -4,6 +4,99 @@ import (
 	"testing"
 )
 
+func TestCompressToCommandTable_BoilerplateDetection(t *testing.T) {
+	details := []EntryPointRef{
+		{Name: "runDef", Purpose: "Look up definitions", Callees: []string{"GetOutputConfig", "NewWriter", "OpenStore"}},
+		{Name: "runRefs", Purpose: "Find references", Callees: []string{"GetOutputConfig", "NewWriter", "OpenStore"}},
+		{Name: "runCallers", Callees: []string{"GetOutputConfig", "NewWriter", "OpenStore"}},
+		{Name: "runContext", Purpose: "Generate boot context", Callees: []string{"FindProjectRoot", "GenerateBoot"}},
+		{Name: "main", Callees: []string{"Execute"}},
+	}
+
+	table := compressToCommandTable(details)
+
+	if table == nil {
+		t.Fatal("expected non-nil command table")
+	}
+
+	// Boilerplate should contain the common callees
+	boilerplateSet := make(map[string]bool)
+	for _, c := range table.BoilerplatePattern {
+		boilerplateSet[c] = true
+	}
+	if !boilerplateSet["GetOutputConfig"] || !boilerplateSet["NewWriter"] || !boilerplateSet["OpenStore"] {
+		t.Errorf("boilerplate should contain common callees, got %v", table.BoilerplatePattern)
+	}
+
+	// main and Execute should be excluded
+	for _, cmd := range table.Commands {
+		if cmd.Name == "main" || cmd.Name == "Execute" {
+			t.Errorf("trivial entry point %q should be excluded", cmd.Name)
+		}
+	}
+
+	// runContext should have notable callees (non-boilerplate)
+	var contextCmd *CommandEntry
+	for i, cmd := range table.Commands {
+		if cmd.Name == "runContext" {
+			contextCmd = &table.Commands[i]
+			break
+		}
+	}
+	if contextCmd == nil {
+		t.Fatal("expected runContext in commands")
+	}
+	if len(contextCmd.Callees) == 0 {
+		t.Error("runContext should have notable callees (non-boilerplate)")
+	}
+
+	// runDef should have NO callees (all boilerplate)
+	for _, cmd := range table.Commands {
+		if cmd.Name == "runDef" && len(cmd.Callees) > 0 {
+			t.Errorf("runDef callees should be empty (all boilerplate), got %v", cmd.Callees)
+		}
+	}
+}
+
+func TestCompressToCommandTable_Empty(t *testing.T) {
+	table := compressToCommandTable(nil)
+	if table != nil {
+		t.Error("expected nil for empty input")
+	}
+}
+
+func TestCompressToCommandTable_OnlyTrivial(t *testing.T) {
+	details := []EntryPointRef{
+		{Name: "main", Callees: []string{"Execute"}},
+		{Name: "Execute", Callees: []string{"rootCmd.Execute"}},
+	}
+	table := compressToCommandTable(details)
+	if table != nil {
+		t.Error("expected nil when only trivial entry points exist")
+	}
+}
+
+func TestCompressToCommandTable_DeduplicatesCallees(t *testing.T) {
+	details := []EntryPointRef{
+		{Name: "runShow", Callees: []string{"WriteError", "WriteError", "OpenStore"}},
+		{Name: "runDef", Callees: []string{"OpenStore", "WriteError"}},
+		{Name: "runRefs", Callees: []string{"OpenStore", "WriteError"}},
+	}
+	table := compressToCommandTable(details)
+	if table == nil {
+		t.Fatal("expected non-nil")
+	}
+	for _, cmd := range table.Commands {
+		seen := make(map[string]bool)
+		for _, c := range cmd.Callees {
+			if seen[c] {
+				t.Errorf("duplicate callee %q in %s", c, cmd.Name)
+			}
+			seen[c] = true
+		}
+	}
+}
+
 func TestBuildFlowPath_SkipsShallowPaths(t *testing.T) {
 	// Flow with only 1 node should return empty
 	callGraph := map[string][]string{}

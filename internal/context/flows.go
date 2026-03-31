@@ -2,6 +2,7 @@ package context
 
 import (
 	"database/sql"
+	"sort"
 	"strings"
 )
 
@@ -46,7 +47,7 @@ func ExtractPrimaryFlows(db *sql.DB, repoRoot string, maxDepth int) ([]string, e
 
 	// Build flows in memory (no more DB queries)
 	var flows []string
-	maxFlows := 10 // Limit total flows for performance
+	maxFlows := 5 // Fewer but deeper flows — quality over quantity
 
 	for _, ep := range entryPoints {
 		if len(flows) >= maxFlows {
@@ -371,8 +372,9 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 	}
 	defer calleeRows.Close()
 
-	// Build callee map
+	// Build callee map (deduplicated)
 	calleeMap := make(map[string][]string)
+	calleeSeen := make(map[string]map[string]bool)
 	for calleeRows.Next() {
 		var callerID, name, receiver string
 		if err := calleeRows.Scan(&callerID, &name, &receiver); err != nil {
@@ -383,7 +385,13 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 			typeName := strings.TrimPrefix(receiver, "*")
 			displayName = typeName + "." + name
 		}
-		calleeMap[callerID] = append(calleeMap[callerID], displayName)
+		if calleeSeen[callerID] == nil {
+			calleeSeen[callerID] = make(map[string]bool)
+		}
+		if !calleeSeen[callerID][displayName] {
+			calleeSeen[callerID][displayName] = true
+			calleeMap[callerID] = append(calleeMap[callerID], displayName)
+		}
 	}
 
 	// Build final result
@@ -448,4 +456,81 @@ func placeholders(n int) string {
 		return ""
 	}
 	return strings.Repeat("?,", n-1) + "?"
+}
+
+// compressToCommandTable converts verbose entry point details into a compact command table.
+// Detects the boilerplate callee pattern (callees appearing in >40% of commands),
+// strips it from individual commands, and only includes notable deviations.
+func compressToCommandTable(details []EntryPointRef) *CommandTable {
+	if len(details) == 0 {
+		return nil
+	}
+
+	// Filter out trivial entry points (main, Execute — not real commands)
+	var commands []EntryPointRef
+	for _, ep := range details {
+		if ep.Name == "main" || ep.Name == "Execute" {
+			continue
+		}
+		commands = append(commands, ep)
+	}
+	if len(commands) == 0 {
+		return nil
+	}
+
+	// Count callee frequency across all commands (deduplicated per command)
+	calleeFreq := make(map[string]int)
+	for _, cmd := range commands {
+		seen := make(map[string]bool)
+		for _, c := range cmd.Callees {
+			if !seen[c] {
+				seen[c] = true
+				calleeFreq[c]++
+			}
+		}
+	}
+
+	// Boilerplate = callees appearing in >40% of commands (minimum 2)
+	threshold := len(commands) * 40 / 100
+	if threshold < 2 {
+		threshold = 2
+	}
+	boilerplate := make(map[string]bool)
+	var boilerplateList []string
+	for name, count := range calleeFreq {
+		if count >= threshold {
+			boilerplate[name] = true
+			boilerplateList = append(boilerplateList, name)
+		}
+	}
+	sort.Strings(boilerplateList)
+
+	// Build compressed command entries
+	var entries []CommandEntry
+	for _, cmd := range commands {
+		entry := CommandEntry{
+			Name:    cmd.Name,
+			Purpose: cmd.Purpose,
+		}
+
+		// Only include non-boilerplate callees (deduplicated)
+		seen := make(map[string]bool)
+		var notable []string
+		for _, c := range cmd.Callees {
+			if !boilerplate[c] && !seen[c] {
+				seen[c] = true
+				notable = append(notable, c)
+			}
+		}
+		if len(notable) > 0 {
+			entry.Callees = notable
+		}
+
+		entries = append(entries, entry)
+	}
+
+	return &CommandTable{
+		BoilerplatePattern: boilerplateList,
+		Commands:           entries,
+	}
 }
