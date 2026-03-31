@@ -139,8 +139,16 @@ func (s *Session) RecordQuery(symbol, file string, line int, kind, command strin
 }
 
 // GetActiveWork returns the ActiveWork structure for boot context.
+// Returns nil on main/master — bare symbol lists without branch context
+// don't orient Claude on what work is happening.
 func (s *Session) GetActiveWork() *ActiveWork {
 	if len(s.Queries) == 0 {
+		return nil
+	}
+
+	// On main/master, recent symbols lack narrative context — suppress
+	isMainBranch := s.Branch == "" || s.Branch == epMain || s.Branch == "master"
+	if isMainBranch {
 		return nil
 	}
 
@@ -160,14 +168,10 @@ func (s *Session) GetActiveWork() *ActiveWork {
 		}
 	}
 
-	aw := &ActiveWork{
+	return &ActiveWork{
+		Branch:        s.Branch,
 		RecentSymbols: symbols,
 	}
-	// Only include branch when it's not main/master (feature branches orient better)
-	if s.Branch != "" && s.Branch != "main" && s.Branch != "master" {
-		aw.Branch = s.Branch
-	}
-	return aw
 }
 
 // getCurrentBranch returns the current git branch for a directory.

@@ -15,8 +15,6 @@ type BootContext struct {
 	Project     string      `json:"project" yaml:"project"`
 	Purpose     string      `json:"purpose,omitempty" yaml:"purpose,omitempty"`
 	Lang        string      `json:"lang" yaml:"lang"`
-	Build       string      `json:"build" yaml:"build"`
-	Test        string      `json:"test" yaml:"test"`
 	BuildInfo   *BuildInfo  `json:"build_info,omitempty" yaml:"build_info,omitempty"`
 	EntryPoints []string    `json:"entry_points" yaml:"entry_points"`
 	KeySymbols  []SymbolRef `json:"key_symbols" yaml:"key_symbols"`

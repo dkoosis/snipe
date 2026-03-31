@@ -45,7 +45,7 @@ func TestSessionRecordQuery(t *testing.T) {
 func TestSessionActiveWork(t *testing.T) {
 	session := &Session{
 		Project: "/test",
-		Branch:  "main",
+		Branch:  "feat/test",
 	}
 
 	// Empty session should return nil
@@ -54,13 +54,14 @@ func TestSessionActiveWork(t *testing.T) {
 		t.Error("expected nil active work for empty session")
 	}
 
-	// Add some queries
+	// Add some queries, then set branch (RecordQuery overrides branch via git)
 	session.RecordQuery("Foo", "foo.go", 1, "func", "def")
 	session.RecordQuery("Bar", "bar.go", 2, "type", "refs")
+	session.Branch = "feat/test"
 
 	aw = session.GetActiveWork()
 	if aw == nil {
-		t.Fatal("expected active work, got nil")
+		t.Fatal("expected active work on feature branch, got nil")
 		return
 	}
 
@@ -123,11 +124,8 @@ func TestGetActiveWork_SuppressesMainBranch(t *testing.T) {
 		},
 	}
 	aw := s.GetActiveWork()
-	if aw == nil {
-		t.Fatal("expected non-nil ActiveWork")
-	}
-	if aw.Branch != "" {
-		t.Errorf("branch should be empty on main, got %q", aw.Branch)
+	if aw != nil {
+		t.Error("expected nil ActiveWork on main — bare symbol lists don't orient")
 	}
 }
 
@@ -139,11 +137,8 @@ func TestGetActiveWork_SuppressesMasterBranch(t *testing.T) {
 		},
 	}
 	aw := s.GetActiveWork()
-	if aw == nil {
-		t.Fatal("expected non-nil ActiveWork")
-	}
-	if aw.Branch != "" {
-		t.Errorf("branch should be empty on master, got %q", aw.Branch)
+	if aw != nil {
+		t.Error("expected nil ActiveWork on master — bare symbol lists don't orient")
 	}
 }
 

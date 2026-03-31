@@ -104,8 +104,6 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		Project:     proj.Name,
 		Purpose:     purpose,
 		Lang:        lang,
-		Build:       proj.Build,
-		Test:        proj.Test,
 		BuildInfo:   &buildInfo,
 		EntryPoints: entryPoints,
 		KeySymbols:  keySymbols,

@@ -21,8 +21,10 @@ func (b *BootContext) ToNuggets() []Nugget {
 	// Build the body content
 	var body strings.Builder
 	fmt.Fprintf(&body, "lang: %s\n", b.Lang)
-	fmt.Fprintf(&body, "build: %s\n", b.Build)
-	fmt.Fprintf(&body, "test: %s\n", b.Test)
+	if b.BuildInfo != nil {
+		fmt.Fprintf(&body, "build: %s\n", b.BuildInfo.Build)
+		fmt.Fprintf(&body, "test: %s\n", b.BuildInfo.Test)
+	}
 
 	if len(b.EntryPoints) > 0 {
 		body.WriteString("entry_points:\n")

@@ -95,6 +95,8 @@ func TestInferPackagePurpose_SpecificPackages(t *testing.T) {
 		{"test/blackbox", "Integration tests (blackbox)"},
 		{"test/bench", "Benchmarks and baseline capture"},
 		{"internal/util", "Shared utility functions (project root, caching)"},
+		{"snipe", "Project root package"},
+		{"myproject", "Project root package"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.pkg, func(t *testing.T) {

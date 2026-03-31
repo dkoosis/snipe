@@ -374,23 +374,14 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 		ids[i] = ep.id
 	}
 
-	// Use a CTE to rank callees and limit to 5 per caller
+	// Fetch all callees (no LIMIT) — we rank by significance in Go
 	calleeQuery := `
-		WITH RankedCallees AS (
-			SELECT
-				cg.caller_id,
-				callee.name,
-				COALESCE(callee.receiver, '') as receiver,
-				ROW_NUMBER() OVER (PARTITION BY cg.caller_id ORDER BY cg.line, cg.col) as rank
-			FROM call_graph cg
-			JOIN symbols callee ON cg.callee_id = callee.id
-			WHERE cg.caller_id IN (` + placeholders(len(ids)) + `)
-			  AND callee.file_path LIKE ? || '/%'
-		)
-		SELECT caller_id, name, receiver
-		FROM RankedCallees
-		WHERE rank <= 5
-		ORDER BY caller_id, rank
+		SELECT DISTINCT cg.caller_id, callee.name, COALESCE(callee.receiver, '') as receiver
+		FROM call_graph cg
+		JOIN symbols callee ON cg.callee_id = callee.id
+		WHERE cg.caller_id IN (` + placeholders(len(ids)) + `)
+		  AND callee.file_path LIKE ? || '/%'
+		ORDER BY caller_id
 	`
 
 	// Build args: IDs first, then repoRoot for LIKE clause
@@ -431,10 +422,10 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 	// Backfill purposes from Cobra Short descriptions when doc comments are empty
 	cobraShorts := extractCobraShorts(repoRoot)
 
-	// Build final result
+	// Build final result — rank callees by architectural significance, keep top 5
 	var results []EntryPointRef
 	for _, ep := range entryPoints {
-		ep.ref.Callees = calleeMap[ep.id]
+		ep.ref.Callees = rankCallees(calleeMap[ep.id], 5)
 		if ep.ref.Purpose == "" && cobraShorts != nil {
 			ep.ref.Purpose = cobraShorts[ep.ref.Name]
 		}
@@ -442,6 +433,71 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 	}
 
 	return results, nil
+}
+
+// rankCallees scores callees by architectural significance and returns the top N.
+// Deprioritizes infrastructure (DB, Close, Error), format helpers, and boolean checks.
+// Promotes cross-package calls, exported symbols, and domain-specific operations.
+func rankCallees(callees []string, limit int) []string {
+	if len(callees) <= limit {
+		return callees
+	}
+
+	type scored struct {
+		name  string
+		score int
+	}
+
+	var items []scored
+	for _, c := range callees {
+		s := calleeSignificance(c)
+		items = append(items, scored{name: c, score: s})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].score != items[j].score {
+			return items[i].score > items[j].score
+		}
+		return items[i].name < items[j].name
+	})
+
+	result := make([]string, 0, limit)
+	for i := 0; i < limit && i < len(items); i++ {
+		result = append(result, items[i].name)
+	}
+	return result
+}
+
+// calleeSignificance scores a callee name for architectural importance.
+func calleeSignificance(name string) int {
+	score := 5 // baseline
+
+	// Infrastructure terminals — low value
+	bare := name
+	if idx := strings.LastIndex(name, "."); idx >= 0 {
+		bare = name[idx+1:]
+	}
+	if terminalMethods[bare] {
+		score -= 4
+	}
+
+	// Method calls (Type.Method) = cross-package significance
+	if strings.Contains(name, ".") {
+		score += 3
+	}
+
+	// Exported symbols
+	if len(bare) > 0 && bare[0] >= 'A' && bare[0] <= 'Z' {
+		score += 2
+	}
+
+	// Boolean helpers (isX, hasX) — low architectural signal
+	lower := strings.ToLower(bare)
+	if strings.HasPrefix(lower, "is") || strings.HasPrefix(lower, "has") {
+		score -= 2
+	}
+
+	return score
 }
 
 // flowPriority returns a priority score for flow selection. Lower = more important.
@@ -489,24 +545,36 @@ func pickBestCallee(callees []string, visited map[string]bool, symbolNames map[s
 		}
 
 		score := 1
-		// Prefer method calls (Type.Method pattern — cross-package significance)
-		if strings.Contains(name, ".") {
-			score += 3
-		}
-		// Prefer exported names (uppercase first char of the function/method name)
+		// Extract bare function name
 		parts := strings.SplitN(name, ".", 2)
 		checkName := parts[len(parts)-1]
+		lower := strings.ToLower(checkName)
+
+		// Deprioritize infrastructure terminals — they reveal plumbing, not intent
+		if terminalMethods[checkName] {
+			score -= 4
+		}
+		// Deprioritize error/write infrastructure — these are output paths, not domain logic
+		if strings.HasPrefix(checkName, "Write") || strings.HasPrefix(checkName, "New") && strings.HasSuffix(checkName, "Error") {
+			score -= 3
+		}
+		// Boost domain operations (Lookup, Find, Search, Resolve, Extract, Detect)
+		if strings.HasPrefix(checkName, "Lookup") || strings.HasPrefix(checkName, "Find") ||
+			strings.HasPrefix(checkName, "Search") || strings.HasPrefix(checkName, "Resolve") ||
+			strings.HasPrefix(checkName, "Extract") || strings.HasPrefix(checkName, "Detect") {
+			score += 4
+		}
+		// Prefer method calls (Type.Method pattern — cross-package significance)
+		if strings.Contains(name, ".") {
+			score += 2
+		}
+		// Prefer exported names
 		if len(checkName) > 0 && checkName[0] >= 'A' && checkName[0] <= 'Z' {
 			score += 2
 		}
 		// Deprioritize boolean helpers (isX, hasX)
-		lower := strings.ToLower(checkName)
 		if strings.HasPrefix(lower, "is") || strings.HasPrefix(lower, "has") {
 			score -= 2
-		}
-		// Deprioritize infrastructure terminals — they reveal plumbing, not intent
-		if terminalMethods[checkName] {
-			score -= 4
 		}
 		// Prefer callees that have their own callees (deeper paths available)
 		if _, hasCallees := callGraph[calleeID]; hasCallees {

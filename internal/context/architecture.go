@@ -153,6 +153,11 @@ func inferPackagePurpose(pkg string) string {
 		}
 	}
 
+	// Root package (no path separator) — it's the project itself, not a subpackage
+	if !strings.Contains(pkg, "/") {
+		return "Project root package"
+	}
+
 	// Infer from last segment of package path
 	parts := strings.Split(pkg, "/")
 	lastPart := parts[len(parts)-1]
