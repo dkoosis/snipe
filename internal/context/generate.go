@@ -196,7 +196,8 @@ func getKeySymbolsByRefCount(db *sql.DB, repoRoot string, limit int) []SymbolRef
 	var symbols []SymbolRef
 
 	rows, err := db.Query(`
-		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
+		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count,
+			COALESCE(s.doc, '') as doc
 		FROM symbols s
 		LEFT JOIN refs r ON s.id = r.symbol_id
 		WHERE s.file_path LIKE ? || '/%'
@@ -215,10 +216,14 @@ func getKeySymbolsByRefCount(db *sql.DB, repoRoot string, limit int) []SymbolRef
 		var ref SymbolRef
 		var fullPath string
 		var refCount int
-		if err := rows.Scan(&ref.Name, &fullPath, &ref.Line, &refCount); err != nil {
+		var doc string
+		if err := rows.Scan(&ref.Name, &fullPath, &ref.Line, &refCount, &doc); err != nil {
 			continue
 		}
 		ref.File = strings.TrimPrefix(fullPath, repoRoot+"/")
+		if doc != "" {
+			ref.Purpose = ExtractFirstSentence(doc)
+		}
 		symbols = append(symbols, ref)
 	}
 
