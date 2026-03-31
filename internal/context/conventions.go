@@ -2,6 +2,7 @@ package context
 
 import (
 	"database/sql"
+	"math"
 	"path/filepath"
 	"strings"
 )
@@ -374,7 +375,7 @@ func detectFileOrg(db *sql.DB) *FileOrgConvention {
 	return &FileOrgConvention{
 		Pattern:      pattern,
 		Confidence:   confidence(ratio, fileCount),
-		AvgTypesFile: float64(totalTypes) / float64(fileCount),
+		AvgTypesFile: math.Round(float64(totalTypes)/float64(fileCount)*10) / 10,
 		SingleType:   singleType,
 		MultiType:    multiType,
 	}

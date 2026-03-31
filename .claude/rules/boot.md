@@ -1,6 +1,6 @@
 # Boot
 
-sha: a4b5cbb | updated: 2026-03-31
+sha: 8ead52d | updated: 2026-03-31
 
 ## Do next
 
@@ -8,8 +8,9 @@ Pick one: #127 un-skip impl test | #117 semsearch unit tests | #128 v0.1.1 tag
 
 ## Done
 
-- Switched from mage to make — Makefile modeled after trixi's, `make` (check) + `make ci` (full) + `make deploy`
-- Pre-existing gocritic lint issue in cmd/search.go:152 (ifElseChain) — not blocking check, will surface in `make ci`
+- Context output quality: 9 fixes landed (820→624 lines), command table compression, flow depth, purpose strings, build target filter, README fallback
+- `make ci` passes clean — goconst fixes included
+- Plan: `docs/superpowers/plans/2026-03-31-context-output-quality.md`
 
 ## Backlog
 
@@ -22,3 +23,4 @@ Pick one: #127 un-skip impl test | #117 semsearch unit tests | #128 v0.1.1 tag
 - `knownSubcommands` map in cmd/root.go must be updated when adding new commands
 - No interfaces in snipe's own source — impl can only be tested via blackbox fixture
 - `make check` uses staticcheck only; `make ci` runs full golangci-lint (gocritic etc.)
+- `BootViews.EntryPointDetails` replaced by `BootViews.Commands` — any downstream consumers of the JSON field name need updating

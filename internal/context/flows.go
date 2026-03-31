@@ -1,7 +1,11 @@
 package context
 
 import (
+	"bufio"
 	"database/sql"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -45,20 +49,50 @@ func ExtractPrimaryFlows(db *sql.DB, repoRoot string, maxDepth int) ([]string, e
 		return nil, err
 	}
 
-	// Build flows in memory (no more DB queries)
-	var flows []string
-	maxFlows := 5 // Fewer but deeper flows — quality over quantity
+	// Build all candidate flows, then select diverse set
+	type candidateFlow struct {
+		name     string
+		flow     string
+		priority int // lower = higher priority
+	}
 
+	var candidates []candidateFlow
 	for _, ep := range entryPoints {
+		flow := buildFlowPath(ep.id, ep.name, ep.receiver, callGraph, symbolNames, maxDepth)
+		if flow == "" {
+			continue
+		}
+		pri := flowPriority(ep.name)
+		candidates = append(candidates, candidateFlow{name: ep.name, flow: flow, priority: pri})
+	}
+
+	// Sort by priority (core commands first), then alphabetically
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].priority != candidates[j].priority {
+			return candidates[i].priority < candidates[j].priority
+		}
+		return candidates[i].name < candidates[j].name
+	})
+
+	// Select diverse flows — skip if terminal path overlaps an existing flow
+	maxFlows := 5
+	var flows []string
+	seen := make(map[string]bool) // track terminal segments to avoid duplicates
+	for _, c := range candidates {
 		if len(flows) >= maxFlows {
 			break
 		}
-
-		// Build flow from this entry point
-		flow := buildFlowPath(ep.id, ep.name, ep.receiver, callGraph, symbolNames, maxDepth)
-		if flow != "" {
-			flows = append(flows, flow)
+		// Extract the last 2 segments as the terminal signature
+		parts := strings.Split(c.flow, " -> ")
+		terminal := ""
+		if len(parts) >= 2 {
+			terminal = parts[len(parts)-2] + " -> " + parts[len(parts)-1]
 		}
+		if seen[terminal] {
+			continue // skip — this traces the same path as another flow
+		}
+		seen[terminal] = true
+		flows = append(flows, c.flow)
 	}
 
 	return flows, nil
@@ -394,14 +428,37 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 		}
 	}
 
+	// Backfill purposes from Cobra Short descriptions when doc comments are empty
+	cobraShorts := extractCobraShorts(repoRoot)
+
 	// Build final result
 	var results []EntryPointRef
 	for _, ep := range entryPoints {
 		ep.ref.Callees = calleeMap[ep.id]
+		if ep.ref.Purpose == "" && cobraShorts != nil {
+			ep.ref.Purpose = cobraShorts[ep.ref.Name]
+		}
 		results = append(results, ep.ref)
 	}
 
 	return results, nil
+}
+
+// flowPriority returns a priority score for flow selection. Lower = more important.
+// Core navigation commands are prioritized over utility commands.
+func flowPriority(name string) int {
+	switch name {
+	case "main", "Execute":
+		return 0 // always include
+	case "runDef", "runRefs", "runCallers", "runCallees", "runSearch":
+		return 1 // core navigation
+	case "runIndex", "runContext", "runPack", "runImpl":
+		return 2 // important operations
+	case "runEdit", "runImpact", "runTests", "runSim", "runDeps":
+		return 3 // secondary commands
+	default:
+		return 4 // utility/admin
+	}
 }
 
 // terminalMethods are infrastructure methods that don't reveal architectural intent.
@@ -473,6 +530,50 @@ func placeholders(n int) string {
 	return strings.Repeat("?,", n-1) + "?"
 }
 
+// extractCobraShorts scans cmd/*.go files for Cobra Short descriptions and returns
+// a map from runX function name to the Short string. Uses the convention that each
+// cmd file has one cobra.Command with a Short field and one runX handler.
+func extractCobraShorts(repoRoot string) map[string]string {
+	cmdDir := filepath.Join(repoRoot, "cmd")
+	entries, err := os.ReadDir(cmdDir)
+	if err != nil {
+		return nil
+	}
+
+	shortRe := regexp.MustCompile(`Short:\s*"([^"]+)"`)
+	runRe := regexp.MustCompile(`^func (run[A-Z]\w*)\(`)
+
+	result := make(map[string]string)
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+
+		f, err := os.Open(filepath.Join(cmdDir, entry.Name()))
+		if err != nil {
+			continue
+		}
+
+		var short, runFunc string
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if m := shortRe.FindStringSubmatch(line); m != nil && short == "" {
+				short = m[1]
+			}
+			if m := runRe.FindStringSubmatch(line); m != nil && runFunc == "" {
+				runFunc = m[1]
+			}
+		}
+		f.Close()
+
+		if short != "" && runFunc != "" {
+			result[runFunc] = short
+		}
+	}
+	return result
+}
+
 // compressToCommandTable converts verbose entry point details into a compact command table.
 // Detects the boilerplate callee pattern (callees appearing in >40% of commands),
 // strips it from individual commands, and only includes notable deviations.
@@ -505,8 +606,8 @@ func compressToCommandTable(details []EntryPointRef) *CommandTable {
 		}
 	}
 
-	// Boilerplate = callees appearing in >40% of commands (minimum 2)
-	threshold := len(commands) * 40 / 100
+	// Boilerplate = callees appearing in >25% of commands (minimum 2)
+	threshold := len(commands) * 25 / 100
 	if threshold < 2 {
 		threshold = 2
 	}
