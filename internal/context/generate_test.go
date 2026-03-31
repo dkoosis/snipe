@@ -50,6 +50,27 @@ func TestCategorizeByConcern(t *testing.T) {
 	}
 }
 
+func TestInferPackagePurpose_SpecificPackages(t *testing.T) {
+	tests := []struct {
+		pkg  string
+		want string
+	}{
+		{"internal/vector", "Vector math for embedding similarity"},
+		{"bench", "Benchmarks and baseline capture"},
+		{"test/blackbox", "Integration tests (blackbox)"},
+		{"test/bench", "Benchmarks and baseline capture"},
+		{"internal/util", "Shared utility functions (project root, caching)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.pkg, func(t *testing.T) {
+			got := inferPackagePurpose(tt.pkg)
+			if got != tt.want {
+				t.Errorf("inferPackagePurpose(%q) = %q, want %q", tt.pkg, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDescribeFile(t *testing.T) {
 	tests := []struct {
 		relPath string
