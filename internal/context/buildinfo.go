@@ -114,7 +114,7 @@ func parseMakefileTargets(content string) []string {
 		if strings.HasPrefix(line, ".PHONY:") {
 			rest := strings.TrimPrefix(line, ".PHONY:")
 			for _, t := range strings.Fields(rest) {
-				if !seen[t] {
+				if isValidMakeTarget(t) && !seen[t] {
 					seen[t] = true
 					targets = append(targets, t)
 				}
@@ -124,7 +124,7 @@ func parseMakefileTargets(content string) []string {
 
 		if strings.Contains(line, ":") && strings.Contains(line, "##") {
 			name := strings.TrimSpace(strings.SplitN(line, ":", 2)[0])
-			if name != "" && !strings.ContainsAny(name, " \t$()") && !seen[name] {
+			if isValidMakeTarget(name) && !seen[name] {
 				seen[name] = true
 				targets = append(targets, name)
 			}
@@ -184,6 +184,22 @@ func parseJustfileRecipes(content string) []string {
 		}
 	}
 	return recipes
+}
+
+// isValidMakeTarget filters out parsing artifacts from Makefile target extraction.
+func isValidMakeTarget(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	// Reject names with shell/regex metacharacters or whitespace
+	if strings.ContainsAny(name, " \t$()\\^[]{}|*+?%\"'") {
+		return false
+	}
+	// Reject names starting with / (regex fragments) or . (special targets)
+	if name[0] == '/' || name[0] == '.' {
+		return false
+	}
+	return true
 }
 
 // detectCI checks for known CI configuration files.

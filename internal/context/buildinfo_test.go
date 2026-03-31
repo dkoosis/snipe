@@ -111,6 +111,31 @@ func TestDetectBuildInfo_Mage(t *testing.T) {
 	}
 }
 
+func TestIsValidMakeTarget_RejectsArtifacts(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"backslash", `\`, false},
+		{"regex_fragment", `/^[a-zA-Z0-9_-]+`, false},
+		{"empty", "", false},
+		{"valid_simple", "test", true},
+		{"valid_hyphen", "lint-fast", true},
+		{"valid_underscore", "eval_setup", true},
+		{"dollar_var", "$(FOO)", false},
+		{"percent_pattern", "%.o", false},
+		{"dot_target", ".DEFAULT", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isValidMakeTarget(tt.input); got != tt.want {
+				t.Errorf("isValidMakeTarget(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDetectBuildInfo_DefaultGo(t *testing.T) {
 	dir := t.TempDir()
 	info := DetectBuildInfo(dir, nil)
