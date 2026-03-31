@@ -98,8 +98,11 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 
 	conventions := DetectConventions(cfg.DB, cfg.RepoRoot)
 
+	purpose := inferProjectPurpose(cfg.DB, cfg.RepoRoot, proj.Name)
+
 	return &BootContext{
 		Project:     proj.Name,
+		Purpose:     purpose,
 		Lang:        lang,
 		Build:       proj.Build,
 		Test:        proj.Test,
@@ -119,8 +122,8 @@ func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 	// Get entry point details using batch queries
 	entryPointDetails, _ := GetEntryPointDetails(db, repoRoot)
 
-	// Get primary flows using batch queries
-	primaryFlows, _ := ExtractPrimaryFlows(db, repoRoot, 4)
+	// Get primary flows — deeper traces (6 levels) to reach meaningful terminals
+	primaryFlows, _ := ExtractPrimaryFlows(db, repoRoot, 6)
 
 	// Get change boundaries using batch query
 	changeBoundaries, _ := GetChangeBoundaries(db, repoRoot)
@@ -141,7 +144,7 @@ func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 	}
 }
 
-// rankedToSymbolRefs converts ranked symbols to SymbolRef with role information.
+// rankedToSymbolRefs converts ranked symbols to SymbolRef with role and purpose.
 func rankedToSymbolRefs(ranked []RankedSymbol, repoRoot string) []SymbolRef {
 	refs := make([]SymbolRef, 0, len(ranked))
 	for _, rs := range ranked {
@@ -150,6 +153,9 @@ func rankedToSymbolRefs(ranked []RankedSymbol, repoRoot string) []SymbolRef {
 			File: strings.TrimPrefix(rs.File, repoRoot+"/"),
 			Line: rs.Line,
 			Role: rs.Role,
+		}
+		if rs.Doc != "" {
+			ref.Purpose = ExtractFirstSentence(rs.Doc)
 		}
 		refs = append(refs, ref)
 	}
@@ -827,4 +833,49 @@ func generateMeta(db *sql.DB) Meta {
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+// inferProjectPurpose extracts a one-line project purpose from the main package doc,
+// falling back to the first paragraph of the README.
+func inferProjectPurpose(db *sql.DB, repoRoot string, projectName string) string {
+	if db != nil {
+		// Try main package doc first
+		var doc sql.NullString
+		err := db.QueryRow(`
+			SELECT doc FROM package_docs
+			WHERE pkg_path LIKE '%/' || ? OR pkg_path = ?
+			LIMIT 1
+		`, projectName, projectName).Scan(&doc)
+		if err == nil && doc.Valid && doc.String != "" {
+			return ExtractFirstSentence(doc.String)
+		}
+	}
+
+	// Fallback: extract first paragraph after heading from README
+	for _, name := range []string{"README.md", "README", "readme.md"} {
+		path := filepath.Join(repoRoot, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if purpose := extractReadmePurpose(string(data)); purpose != "" {
+			return purpose
+		}
+	}
+
+	return ""
+}
+
+// extractReadmePurpose extracts the first non-heading, non-empty paragraph from README content.
+func extractReadmePurpose(content string) string {
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Skip headings, badges, empty lines
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "[!") || strings.HasPrefix(trimmed, "[![") {
+			continue
+		}
+		return ExtractFirstSentence(trimmed)
+	}
+	return ""
 }

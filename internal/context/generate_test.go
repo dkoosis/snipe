@@ -1,6 +1,8 @@
 package context
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -90,5 +92,28 @@ func TestDescribeFile(t *testing.T) {
 				t.Errorf("describeFile(%q) = %q, want %q", tt.relPath, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestInferProjectPurpose_Fallback(t *testing.T) {
+	// With no DB, should return empty
+	purpose := inferProjectPurpose(nil, "/nonexistent", "myproject")
+	if purpose != "" {
+		t.Errorf("expected empty for nil DB, got %q", purpose)
+	}
+}
+
+func TestInferProjectPurpose_FromReadme(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "README.md"), []byte(
+		"# myproject\n\nA fast CLI tool for indexing Go code.\n\nMore stuff here.\n",
+	), 0644)
+
+	purpose := inferProjectPurpose(nil, dir, "myproject")
+	if purpose == "" {
+		t.Error("expected purpose from README, got empty")
+	}
+	if purpose != "A fast CLI tool for indexing Go code." {
+		t.Errorf("purpose = %q, want %q", purpose, "A fast CLI tool for indexing Go code.")
 	}
 }
