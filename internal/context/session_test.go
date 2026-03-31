@@ -115,6 +115,54 @@ func TestSessionPersistence(t *testing.T) {
 	}
 }
 
+func TestGetActiveWork_SuppressesMainBranch(t *testing.T) {
+	s := &Session{
+		Branch: "main",
+		Queries: []QueryRecord{
+			{Symbol: "Foo", File: "foo.go", Line: 1, Command: "def"},
+		},
+	}
+	aw := s.GetActiveWork()
+	if aw == nil {
+		t.Fatal("expected non-nil ActiveWork")
+	}
+	if aw.Branch != "" {
+		t.Errorf("branch should be empty on main, got %q", aw.Branch)
+	}
+}
+
+func TestGetActiveWork_SuppressesMasterBranch(t *testing.T) {
+	s := &Session{
+		Branch: "master",
+		Queries: []QueryRecord{
+			{Symbol: "Foo", File: "foo.go", Line: 1, Command: "def"},
+		},
+	}
+	aw := s.GetActiveWork()
+	if aw == nil {
+		t.Fatal("expected non-nil ActiveWork")
+	}
+	if aw.Branch != "" {
+		t.Errorf("branch should be empty on master, got %q", aw.Branch)
+	}
+}
+
+func TestGetActiveWork_KeepsFeatureBranch(t *testing.T) {
+	s := &Session{
+		Branch: "feat/context-improvements",
+		Queries: []QueryRecord{
+			{Symbol: "Foo", File: "foo.go", Line: 1, Command: "def"},
+		},
+	}
+	aw := s.GetActiveWork()
+	if aw == nil {
+		t.Fatal("expected non-nil ActiveWork")
+	}
+	if aw.Branch != "feat/context-improvements" {
+		t.Errorf("branch should be kept for feature branch, got %q", aw.Branch)
+	}
+}
+
 func TestSessionMaxQueries(t *testing.T) {
 	session := &Session{Project: "/test"}
 
