@@ -265,8 +265,39 @@ func TestDetectFileOrg(t *testing.T) {
 	if result.MultiType != 1 {
 		t.Errorf("multi_type: got %d, want 1", result.MultiType)
 	}
-	if result.Pattern != "one type per file" {
-		t.Errorf("pattern: got %q", result.Pattern)
+	if result.Pattern != "mixed (no dominant pattern)" {
+		t.Errorf("pattern: got %q, want %q", result.Pattern, "mixed (no dominant pattern)")
+	}
+}
+
+func TestDetectFileOrg_NearEqual(t *testing.T) {
+	db := setupConventionsDB(t)
+	defer db.Close()
+
+	// 3 single-type files
+	insertSym(t, db, "f1", "Store", "struct", "/repo/store.go", "pkg", "", "")
+	insertSym(t, db, "f2", "Index", "struct", "/repo/index.go", "pkg", "", "")
+	insertSym(t, db, "f3", "Config", "struct", "/repo/config.go", "pkg", "", "")
+
+	// 2 multi-type files
+	insertSym(t, db, "f4", "ReqA", "struct", "/repo/types_a.go", "pkg", "", "")
+	insertSym(t, db, "f5", "ReqB", "struct", "/repo/types_a.go", "pkg", "", "")
+	insertSym(t, db, "f6", "ReqC", "struct", "/repo/types_a.go", "pkg", "", "")
+	insertSym(t, db, "f7", "ResA", "struct", "/repo/types_b.go", "pkg", "", "")
+	insertSym(t, db, "f8", "ResB", "struct", "/repo/types_b.go", "pkg", "", "")
+	insertSym(t, db, "f9", "ResC", "struct", "/repo/types_b.go", "pkg", "", "")
+
+	result := detectFileOrg(db)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	// 3 single vs 2 multi — ratio = 3/5 = 0.60, below 70% threshold → mixed
+	if result.Pattern != "mixed (no dominant pattern)" {
+		t.Errorf("pattern: got %q, want %q", result.Pattern, "mixed (no dominant pattern)")
+	}
+	// ratio=0.60, sampleSize=5 → confidence returns "medium" (ratio >= 0.6 && size >= 3)
+	if result.Confidence != "medium" {
+		t.Errorf("confidence: got %q, want medium", result.Confidence)
 	}
 }
 
