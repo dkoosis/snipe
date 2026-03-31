@@ -1,0 +1,624 @@
+{
+  "project": "snipe",
+  "purpose": "Static code navigation for Go, built for LLM tool use.",
+  "lang": "go",
+  "build": "make",
+  "test": "make test",
+  "build_info": {
+    "system": "make",
+    "build": "make",
+    "test": "make test",
+    "targets": [
+      "help",
+      "check",
+      "ci",
+      "deploy",
+      "report",
+      "doctor",
+      "vet",
+      "lint-fast",
+      "lint",
+      "test",
+      "race",
+      "blackbox",
+      "vuln",
+      "install",
+      "cross",
+      "clean",
+      "baseline",
+      "bench",
+      "eval-setup",
+      "eval",
+      "changed"
+    ],
+    "ci": [
+      {
+        "system": "github-actions",
+        "file": ".github/workflows/release.yml"
+      }
+    ]
+  },
+  "entry_points": [
+    "main.go"
+  ],
+  "key_symbols": [
+    {
+      "name": "DB",
+      "file": "internal/store/store.go",
+      "line": 110,
+      "role": "persistence",
+      "purpose": "DB returns the underlying database connection for advanced queries"
+    },
+    {
+      "name": "WriteError",
+      "file": "internal/output/json.go",
+      "line": 441,
+      "role": "api_boundary",
+      "purpose": "WriteError writes an error response"
+    },
+    {
+      "name": "Result",
+      "file": "internal/output/types.go",
+      "line": 85,
+      "role": "api_boundary",
+      "purpose": "Result represents a single navigation result"
+    },
+    {
+      "name": "Error",
+      "file": "internal/output/types.go",
+      "line": 60,
+      "role": "api_boundary",
+      "purpose": "Error represents an error response"
+    },
+    {
+      "name": "HasCredentials",
+      "file": "internal/embed/client.go",
+      "line": 55,
+      "role": "entry_point",
+      "purpose": "HasCredentials checks if embedding credentials are available."
+    },
+    {
+      "name": "Meta",
+      "file": "internal/output/types.go",
+      "line": 31,
+      "role": "api_boundary",
+      "purpose": "Meta contains metadata about the query execution"
+    },
+    {
+      "name": "Response",
+      "file": "internal/output/types.go",
+      "line": 13,
+      "role": "api_boundary",
+      "purpose": "Response is the top-level response structure for all commands"
+    },
+    {
+      "name": "Open",
+      "file": "internal/store/store.go",
+      "line": 29,
+      "role": "persistence",
+      "purpose": "Open opens or creates an index database at the given path"
+    },
+    {
+      "name": "Position",
+      "file": "internal/output/types.go",
+      "line": 199,
+      "role": "api_boundary",
+      "purpose": "Position represents a line:col position"
+    },
+    {
+      "name": "WriteResponse",
+      "file": "internal/output/json.go",
+      "line": 49,
+      "role": "api_boundary",
+      "purpose": "WriteResponse writes a response in the configured format."
+    },
+    {
+      "name": "Suggestion",
+      "file": "internal/output/types.go",
+      "line": 23,
+      "role": "api_boundary",
+      "purpose": "Suggestion provides actionable next steps for LLM consumers"
+    },
+    {
+      "name": "Symbol",
+      "file": "internal/index/symbols.go",
+      "line": 31,
+      "role": "api_boundary",
+      "purpose": "Symbol represents a code symbol (function, type, etc.)"
+    },
+    {
+      "name": "Store",
+      "file": "internal/store/store.go",
+      "line": 18,
+      "role": "persistence",
+      "purpose": "Store manages the SQLite index database"
+    },
+    {
+      "name": "SymbolRow",
+      "file": "internal/query/lookup.go",
+      "line": 16,
+      "role": "api_boundary",
+      "purpose": "SymbolRow represents a row from the symbols table"
+    },
+    {
+      "name": "FileInfo",
+      "file": "internal/index/files.go",
+      "line": 14,
+      "role": "api_boundary",
+      "purpose": "FileInfo represents file metadata for change detection"
+    }
+  ],
+  "active_work": {
+    "recent_symbols": [
+      {
+        "name": "KindConst",
+        "file": "internal/index/symbols.go",
+        "line": 26
+      },
+      {
+        "name": "Store",
+        "file": "internal/store/store.go",
+        "line": 18
+      },
+      {
+        "name": "Writer",
+        "file": "internal/output/json.go",
+        "line": 20
+      },
+      {
+        "name": "LookupByName",
+        "file": "internal/query/lookup.go",
+        "line": 125
+      },
+      {
+        "name": "Open",
+        "file": "internal/store/store.go",
+        "line": 29
+      },
+      {
+        "name": "WriteIndex",
+        "file": "internal/store/write.go",
+        "line": 34
+      },
+      {
+        "name": "runDef",
+        "file": "cmd/def.go",
+        "line": 51
+      },
+      {
+        "name": "Close",
+        "file": "internal/store/store.go",
+        "line": 107
+      },
+      {
+        "name": "FindCallers",
+        "file": "internal/query/lookup.go",
+        "line": 702
+      },
+      {
+        "name": "DepRef",
+        "file": "internal/output/types.go",
+        "line": 528
+      }
+    ]
+  },
+  "commit": "1bce6b0",
+  "boot_views": {
+    "commands": {
+      "boilerplate_pattern": [
+        "(*Writer).WriteError",
+        "GetOutputConfig",
+        "GetOutputFormat",
+        "NewWriter"
+      ],
+      "commands": [
+        {
+          "name": "runBaseline",
+          "callees": [
+            "Capture"
+          ]
+        },
+        {
+          "name": "runBatchEdit",
+          "callees": [
+            "OpenStore",
+            "(*Store).Close",
+            "LookupByName"
+          ]
+        },
+        {
+          "name": "runCallees",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runCallers",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runCheck",
+          "callees": [
+            "LoadBaseline"
+          ]
+        },
+        {
+          "name": "runContext",
+          "callees": [
+            "FindProjectRoot",
+            "DefaultIndexPath",
+            "Exists",
+            "Open",
+            "(*Store).Close"
+          ]
+        },
+        {
+          "name": "runDef",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runDefScoped",
+          "purpose": "runDefScoped handles --file and --pkg scoped queries.",
+          "callees": [
+            "OpenStore",
+            "(*Store).Close",
+            "FindSymbolsInFile"
+          ]
+        },
+        {
+          "name": "runDeleteOnlyIndex",
+          "purpose": "runDeleteOnlyIndex handles the case where only files were deleted.",
+          "callees": [
+            "(*Store).WriteIndexIncremental",
+            "(*Store).SetMeta",
+            "(*Store).GetStats",
+            "(*Writer).WriteResponse",
+            "indexResponse"
+          ]
+        },
+        {
+          "name": "runDeps",
+          "callees": [
+            "OpenStore",
+            "(*Store).Close"
+          ]
+        },
+        {
+          "name": "runDepsSingle",
+          "callees": [
+            "FindPackageDeps",
+            "depsMeta",
+            "(*Writer).WriteResponse"
+          ]
+        },
+        {
+          "name": "runDepsTree",
+          "callees": [
+            "FindDepGraph",
+            "depsMeta",
+            "(*Writer).WriteResponse"
+          ]
+        },
+        {
+          "name": "runDoctor",
+          "callees": [
+            "checkRipgrep",
+            "checkIndex"
+          ]
+        },
+        {
+          "name": "runEdit",
+          "callees": [
+            "runBatchEdit"
+          ]
+        },
+        {
+          "name": "runEmbedStatus",
+          "callees": [
+            "DefaultIndexPath",
+            "NewBatchClient"
+          ]
+        },
+        {
+          "name": "runExplain",
+          "callees": [
+            "OpenStore"
+          ]
+        },
+        {
+          "name": "runHistory",
+          "callees": [
+            "LoadHistory"
+          ]
+        },
+        {
+          "name": "runImpact",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runImpl",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runImporters",
+          "callees": [
+            "OpenStore",
+            "(*Store).Close"
+          ]
+        },
+        {
+          "name": "runImports",
+          "callees": [
+            "OpenStore",
+            "(*Store).Close"
+          ]
+        },
+        {
+          "name": "runIncrementalIndex",
+          "purpose": "runIncrementalIndex performs an incremental index update for changed files only.",
+          "callees": [
+            "NewFileCache",
+            "ExtractRefsFiltered",
+            "ExtractCallGraphFiltered",
+            "ExtractImportsFiltered",
+            "(*Store).WriteIndexIncremental"
+          ]
+        },
+        {
+          "name": "runIndex",
+          "callees": [
+            "FindProjectRoot",
+            "DefaultIndexPath"
+          ]
+        },
+        {
+          "name": "runPack",
+          "callees": [
+            "OpenStore"
+          ]
+        },
+        {
+          "name": "runPackMulti",
+          "purpose": "runPackMulti handles multi-ID mode: snipe pack id1 id2 id3",
+          "callees": [
+            "buildPackForSymbol",
+            "estimatePackTokens",
+            "uniqueStrings"
+          ]
+        },
+        {
+          "name": "runPkg",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runRefs",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runReindex",
+          "purpose": "runReindex runs 'snipe index' as a subprocess.",
+          "callees": [
+            "GetContext"
+          ]
+        },
+        {
+          "name": "runSchema"
+        },
+        {
+          "name": "runSearch",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runShow"
+        },
+        {
+          "name": "runSim",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runStatus",
+          "callees": [
+            "FindProjectRoot"
+          ]
+        },
+        {
+          "name": "runSym",
+          "callees": [
+            "OpenStore"
+          ]
+        },
+        {
+          "name": "runTests",
+          "callees": [
+            "GetResponseFormat",
+            "ApplyFormatOverrides"
+          ]
+        },
+        {
+          "name": "runTypes",
+          "callees": [
+            "OpenStore"
+          ]
+        },
+        {
+          "name": "runWatch",
+          "callees": [
+            "addWatchDirs",
+            "emitEvent",
+            "runReindex"
+          ]
+        }
+      ]
+    },
+    "primary_flows": [
+      "main -\u003e Execute",
+      "runBaseline -\u003e (*Writer).WriteError -\u003e (*Writer).writeClaudeError -\u003e writeClaudeSuggestions",
+      "runBatchEdit -\u003e (*Writer).WriteError -\u003e (*Writer).writeClaudeError -\u003e writeClaudeSuggestions",
+      "runCallees -\u003e (*CallRow).ToCalleeResult -\u003e FormatEditTargetWithHash -\u003e computeRangeHash -\u003e readFileLines -\u003e (*FileCache).LoadLines",
+      "runCallers -\u003e (*CallRow).ToCallerResult -\u003e FormatEditTargetWithHash -\u003e computeRangeHash -\u003e readFileLines -\u003e (*FileCache).LoadLines"
+    ],
+    "change_boundaries": {
+      "cli": [
+        "GetOutputConfig",
+        "GetOutputFormat",
+        "OpenStore",
+        "DoctorCheck",
+        "GetMaxTokens"
+      ],
+      "output": [
+        "WriteError",
+        "Result",
+        "Error",
+        "Meta",
+        "Response"
+      ],
+      "persistence": [
+        "DB",
+        "Close",
+        "Open",
+        "Store",
+        "GetMeta"
+      ],
+      "query": [
+        "SymbolRow",
+        "CheckIndexState",
+        "CheckFileStaleness",
+        "CallRow",
+        "LookupByName"
+      ]
+    }
+  },
+  "packages": [
+    {
+      "name": "snipe",
+      "purpose": "Application logic"
+    },
+    {
+      "name": "cmd",
+      "purpose": "CLI commands and entry points"
+    },
+    {
+      "name": "internal/analyze",
+      "purpose": "Package analyze provides static analysis for Go source code."
+    },
+    {
+      "name": "internal/config",
+      "purpose": "Package config handles global and project-level configuration for snipe."
+    },
+    {
+      "name": "internal/context",
+      "purpose": "Package context provides role-weighted symbol ranking for boot context generation."
+    },
+    {
+      "name": "internal/edit",
+      "purpose": "Package edit provides AST-aware editing operations for Go source code."
+    },
+    {
+      "name": "internal/embed",
+      "purpose": "Vector embeddings and similarity"
+    },
+    {
+      "name": "internal/index",
+      "purpose": "Go package loading and symbol extraction"
+    },
+    {
+      "name": "internal/kg",
+      "purpose": "Package kg provides integration with Orca knowledge graph for contextual hints."
+    },
+    {
+      "name": "internal/metrics",
+      "purpose": "Index and query metrics collection"
+    },
+    {
+      "name": "internal/output",
+      "purpose": "JSON/human output formatting"
+    },
+    {
+      "name": "internal/query",
+      "purpose": "Symbol lookup and reference queries"
+    },
+    {
+      "name": "internal/search",
+      "purpose": "Ripgrep integration and search"
+    },
+    {
+      "name": "internal/store",
+      "purpose": "SQLite persistence and database operations"
+    },
+    {
+      "name": "internal/util",
+      "purpose": "Package util provides shared utilities for snipe operations."
+    },
+    {
+      "name": "internal/vector",
+      "purpose": "Vector math for embedding similarity"
+    },
+    {
+      "name": "bench",
+      "purpose": "Benchmarks and baseline capture"
+    }
+  ],
+  "conventions": {
+    "constructors": {
+      "pattern": "New* constructors return T (no error)",
+      "confidence": "medium",
+      "total": 9,
+      "with_error": 2,
+      "without_error": 7
+    },
+    "receivers": {
+      "pattern": "descriptive receivers",
+      "confidence": "high",
+      "total": 84,
+      "single_letter": 0,
+      "descriptive": 84,
+      "pointer_pct": 100
+    },
+    "testing": {
+      "pattern": "colocated test files",
+      "confidence": "high",
+      "test_files": 41,
+      "colocated": 38,
+      "separate": 3,
+      "helpers": 23
+    },
+    "errors": {
+      "pattern": "mixed: sentinel errors + inline returns",
+      "confidence": "high",
+      "sentinels": 6,
+      "error_returning_funcs": 167
+    },
+    "file_organization": {
+      "pattern": "mixed (no dominant pattern)",
+      "confidence": "low",
+      "avg_types_per_file": 3.2962962962962963,
+      "single_type_files": 28,
+      "multi_type_files": 26
+    }
+  }
+}
