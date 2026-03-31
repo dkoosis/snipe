@@ -28,6 +28,7 @@ type RankedSymbol struct {
 	RefCount int     `json:"ref_count"`
 	Role     string  `json:"role"`
 	Priority float64 `json:"priority"`
+	Doc      string  `json:"doc,omitempty"`
 }
 
 // CalculatePriority computes the priority score for a symbol.
@@ -73,7 +74,8 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 			s.name,
 			s.file_path,
 			s.line_start,
-			COUNT(r.id) as ref_count
+			COUNT(r.id) as ref_count,
+			COALESCE(s.doc, '') as doc
 		FROM symbols s
 		LEFT JOIN refs r ON r.symbol_id = s.id
 		WHERE s.kind IN ('func', 'method', 'type', 'interface', 'struct')
@@ -92,7 +94,7 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 	var results []RankedSymbol
 	for rows.Next() {
 		var rs RankedSymbol
-		if err := rows.Scan(&rs.ID, &rs.Name, &rs.File, &rs.Line, &rs.RefCount); err != nil {
+		if err := rows.Scan(&rs.ID, &rs.Name, &rs.File, &rs.Line, &rs.RefCount, &rs.Doc); err != nil {
 			continue // Skip malformed rows
 		}
 

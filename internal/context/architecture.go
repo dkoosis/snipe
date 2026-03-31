@@ -46,6 +46,10 @@ func getPackagePurposes(db *sql.DB, repoRoot string) ([]PackagePurpose, error) {
 		if name == "" || seen[name] {
 			continue
 		}
+		// Skip _test pseudo-packages — they duplicate the real package
+		if strings.HasSuffix(name, "_test") {
+			continue
+		}
 		seen[name] = true
 
 		purpose := docMap[pkgPath]
@@ -127,9 +131,14 @@ func inferPackagePurpose(pkg string) string {
 		"internal/edit":    "AST-safe code editing operations",
 		"internal/kg":      "Knowledge graph integration (orca)",
 		"internal/metrics": "Index and query metrics collection",
+		"internal/util":    "Shared utility functions (project root, caching)",
+		"internal/vector":  "Vector math for embedding similarity",
 		"pkg":              "Public library packages",
 		"api":              "API definitions and handlers",
 		"test":             "Test utilities and fixtures",
+		"bench":            "Benchmarks and baseline capture",
+		"test/blackbox":    "Integration tests (blackbox)",
+		"test/bench":       "Benchmarks and baseline capture",
 	}
 
 	// Check for exact match first

@@ -126,6 +126,27 @@ func TestBuildFlowPath_TracesCallChain(t *testing.T) {
 	}
 }
 
+func TestPickBestCallee_AvoidsTerminals(t *testing.T) {
+	callGraph := map[string][]string{
+		"writeIndex_id": {"doWork_id"},
+	}
+	symbolNames := map[string]string{
+		"db_id":         "Store.DB",
+		"close_id":      "Store.Close",
+		"writeIndex_id": "Store.WriteIndex",
+		"doWork_id":     "doWork",
+	}
+	visited := map[string]bool{}
+
+	candidates := []string{"db_id", "close_id", "writeIndex_id"}
+	best := pickBestCallee(candidates, visited, symbolNames, callGraph)
+
+	if best != "writeIndex_id" {
+		got := symbolNames[best]
+		t.Errorf("expected WriteIndex (non-terminal), got %q", got)
+	}
+}
+
 func TestBuildFlowPath_PrefersExportedOverInternal(t *testing.T) {
 	// When two callees exist, prefer the exported cross-package call
 	callGraph := map[string][]string{

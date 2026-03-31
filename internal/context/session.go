@@ -160,10 +160,14 @@ func (s *Session) GetActiveWork() *ActiveWork {
 		}
 	}
 
-	return &ActiveWork{
+	aw := &ActiveWork{
 		RecentSymbols: symbols,
-		Branch:        s.Branch,
 	}
+	// Only include branch when it's not main/master (feature branches orient better)
+	if s.Branch != "" && s.Branch != "main" && s.Branch != "master" {
+		aw.Branch = s.Branch
+	}
+	return aw
 }
 
 // getCurrentBranch returns the current git branch for a directory.

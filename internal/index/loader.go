@@ -220,6 +220,11 @@ func filterPackages(pkgs []*packages.Package, exclude []string) []*packages.Pack
 
 	var result []*packages.Package
 	for _, pkg := range pkgs {
+		// Skip synthetic external test packages (e.g. "foo/bar_test") —
+		// go/packages synthesizes these under -mod=vendor but they can't be resolved.
+		if strings.HasSuffix(pkg.PkgPath, "_test") {
+			continue
+		}
 		excluded := false
 		for _, pattern := range exclude {
 			if matchesExclude(pkg.PkgPath, pattern) {
