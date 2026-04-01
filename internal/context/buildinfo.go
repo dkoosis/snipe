@@ -101,10 +101,14 @@ func mageTargetsFromIndex(db *sql.DB, repoRoot string) []string {
 	return targets
 }
 
-// parseMakefileTargets extracts target names from a Makefile.
-// Collects .PHONY entries and targets with ## comments.
+// maxBuildTargets limits target output to primary user-facing targets.
+// Full target list discoverable via `make help` or equivalent.
+const maxBuildTargets = 6
+
+// parseMakefileTargets extracts user-facing target names from a Makefile.
+// Prefers documented targets (those with ## comments) over bare .PHONY entries.
 func parseMakefileTargets(content string) []string {
-	var targets []string
+	var documented, phony []string
 	seen := make(map[string]bool)
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
@@ -116,7 +120,7 @@ func parseMakefileTargets(content string) []string {
 			for _, t := range strings.Fields(rest) {
 				if isValidMakeTarget(t) && !seen[t] {
 					seen[t] = true
-					targets = append(targets, t)
+					phony = append(phony, t)
 				}
 			}
 			continue
@@ -124,11 +128,19 @@ func parseMakefileTargets(content string) []string {
 
 		if strings.Contains(line, ":") && strings.Contains(line, "##") {
 			name := strings.TrimSpace(strings.SplitN(line, ":", 2)[0])
-			if isValidMakeTarget(name) && !seen[name] {
-				seen[name] = true
-				targets = append(targets, name)
+			if isValidMakeTarget(name) {
+				documented = append(documented, name)
 			}
 		}
+	}
+
+	// Prefer documented targets; fall back to .PHONY if none documented
+	targets := documented
+	if len(targets) == 0 {
+		targets = phony
+	}
+	if len(targets) > maxBuildTargets {
+		targets = targets[:maxBuildTargets]
 	}
 	return targets
 }

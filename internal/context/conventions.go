@@ -141,7 +141,7 @@ func detectReceivers(db *sql.DB) *ReceiverConvention {
 		Total:        total,
 		SingleLetter: singleLetter,
 		Descriptive:  descriptive,
-		PointerPct:   float64(pointer) / float64(total) * 100,
+		PointerPct:   math.Round(float64(pointer)/float64(total)*1000) / 10,
 	}
 }
 
@@ -150,7 +150,7 @@ func detectTesting(db *sql.DB) *TestConvention {
 	// Get distinct test files
 	rows, err := db.Query(`
 		SELECT DISTINCT file_path FROM symbols
-		WHERE file_path LIKE '%_test.go'
+		WHERE file_path LIKE '%\_test.go' ESCAPE '\'
 	`)
 	if err != nil {
 		return nil
@@ -178,7 +178,7 @@ func detectTesting(db *sql.DB) *TestConvention {
 	srcRows, err := db.Query(`
 		SELECT DISTINCT file_path FROM symbols
 		WHERE file_path LIKE '%.go'
-		  AND file_path NOT LIKE '%_test.go'
+		  AND file_path NOT LIKE '%\_test.go' ESCAPE '\'
 	`)
 	if err == nil {
 		defer srcRows.Close()
@@ -205,7 +205,7 @@ func detectTesting(db *sql.DB) *TestConvention {
 	var helpers int
 	err = db.QueryRow(`
 		SELECT COUNT(*) FROM symbols
-		WHERE file_path LIKE '%_test.go'
+		WHERE file_path LIKE '%\_test.go' ESCAPE '\'
 		  AND kind = 'func'
 		  AND name GLOB '[a-z]*'
 	`).Scan(&helpers)
@@ -291,7 +291,7 @@ func detectErrors(db *sql.DB) *ErrorConvention {
 		SELECT COUNT(*) FROM symbols
 		WHERE kind = 'func'
 		  AND (signature LIKE '%error)' OR signature LIKE '% error')
-		  AND file_path NOT LIKE '%_test.go'
+		  AND file_path NOT LIKE '%\_test.go' ESCAPE '\'
 	`).Scan(&errorFuncs)
 	if err != nil {
 		errorFuncs = 0
@@ -329,7 +329,7 @@ func detectFileOrg(db *sql.DB) *FileOrgConvention {
 	rows, err := db.Query(`
 		SELECT file_path, COUNT(*) as cnt FROM symbols
 		WHERE kind IN ('struct', 'interface', 'type')
-		  AND file_path NOT LIKE '%_test.go'
+		  AND file_path NOT LIKE '%\_test.go' ESCAPE '\'
 		GROUP BY file_path
 	`)
 	if err != nil {

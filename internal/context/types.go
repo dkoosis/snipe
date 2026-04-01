@@ -95,7 +95,7 @@ type EntryPointRef struct {
 // Declares the common boilerplate callee pattern once, then lists commands
 // with only their purpose and any notable (non-boilerplate) callees.
 type CommandTable struct {
-	BoilerplatePattern []string       `json:"boilerplate_pattern" yaml:"boilerplate_pattern"`
+	BoilerplatePattern []string       `json:"boilerplate_pattern,omitempty" yaml:"boilerplate_pattern,omitempty"`
 	Commands           []CommandEntry `json:"commands" yaml:"commands"`
 }
 

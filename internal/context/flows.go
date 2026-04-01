@@ -74,24 +74,33 @@ func ExtractPrimaryFlows(db *sql.DB, repoRoot string, maxDepth int) ([]string, e
 		return candidates[i].name < candidates[j].name
 	})
 
-	// Select diverse flows — skip if terminal path overlaps an existing flow
-	maxFlows := 5
+	// Select diverse flows — ensure core commands get representation while
+	// avoiding redundant traces of the same call chain.
+	maxFlows := 7
 	var flows []string
-	seen := make(map[string]bool) // track terminal segments to avoid duplicates
+	seenTerminal := make(map[string]bool) // terminal path dedup for non-core
+	seenSuffix := make(map[string]bool)   // full suffix dedup for core commands
 	for _, c := range candidates {
 		if len(flows) >= maxFlows {
 			break
 		}
-		// Extract the last 2 segments as the terminal signature
 		parts := strings.Split(c.flow, " -> ")
 		terminal := ""
 		if len(parts) >= 2 {
 			terminal = parts[len(parts)-2] + " -> " + parts[len(parts)-1]
 		}
-		if seen[terminal] {
-			continue // skip — this traces the same path as another flow
+		// For core commands: dedup on the call chain (everything after entry point)
+		// so runDef and runCallees don't both show "LookupByName → lookupMethod → scanSymbolRows"
+		if c.priority <= 2 && len(parts) >= 2 {
+			suffix := strings.Join(parts[1:], " -> ")
+			if seenSuffix[suffix] {
+				continue
+			}
+			seenSuffix[suffix] = true
+		} else if seenTerminal[terminal] {
+			continue
 		}
-		seen[terminal] = true
+		seenTerminal[terminal] = true
 		flows = append(flows, c.flow)
 	}
 
@@ -105,6 +114,7 @@ func queryEntryPointSymbols(db *sql.DB, repoRoot string) ([]flowNode, error) {
 		SELECT id, name, COALESCE(receiver, '') as receiver
 		FROM symbols
 		WHERE file_path LIKE ? || '/%'
+		  AND file_path NOT LIKE '%\_test.go' ESCAPE '\'
 		  AND kind IN ('func', 'method')
 		  AND (
 		      name = 'main'
@@ -259,6 +269,7 @@ func GetChangeBoundaries(db *sql.DB, repoRoot string) (map[string][]string, erro
 			FROM symbols s
 			LEFT JOIN refs r ON s.id = r.symbol_id
 			WHERE s.file_path LIKE ? || '/%'
+			  AND s.file_path NOT LIKE '%\_test.go' ESCAPE '\'
 			  AND s.kind IN ('func', 'method', 'type', 'interface', 'struct')
 			  AND s.name GLOB '[A-Z]*'
 			GROUP BY s.id
@@ -309,6 +320,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 			COALESCE(s.doc, '') as doc
 		FROM symbols s
 		WHERE s.file_path LIKE ? || '/%'
+		  AND s.file_path NOT LIKE '%\_test.go' ESCAPE '\'
 		  AND s.kind IN ('func', 'method')
 		  AND (
 		      s.name = 'main'
@@ -429,6 +441,10 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 		if ep.ref.Purpose == "" && cobraShorts != nil {
 			ep.ref.Purpose = cobraShorts[ep.ref.Name]
 		}
+		// Fallback for sub-handlers that don't have their own Cobra command
+		if ep.ref.Purpose == "" {
+			ep.ref.Purpose = subHandlerPurpose(ep.ref.Name)
+		}
 		results = append(results, ep.ref)
 	}
 
@@ -500,20 +516,33 @@ func calleeSignificance(name string) int {
 	return score
 }
 
+// subHandlerPurpose returns a purpose string for sub-handler functions that lack
+// their own Cobra command and doc comment. Returns "" if unknown.
+func subHandlerPurpose(name string) string {
+	purposes := map[string]string{
+		"runBatchEdit":  "Apply multiple AST-aware edits from JSON stdin",
+		"runDepsSingle": "Show bidirectional dependencies for one package",
+		"runDepsTree":   "Show full internal dependency graph with cycle detection",
+	}
+	return purposes[name]
+}
+
 // flowPriority returns a priority score for flow selection. Lower = more important.
-// Core navigation commands are prioritized over utility commands.
+// runDef and runRefs get highest core priority — they're the bread-and-butter commands.
 func flowPriority(name string) int {
 	switch name {
 	case "main", "Execute":
 		return 0 // always include
-	case "runDef", "runRefs", "runCallers", "runCallees", "runSearch":
-		return 1 // core navigation
+	case "runDef", "runRefs":
+		return 1 // most-used navigation
+	case "runCallers", "runCallees", "runSearch":
+		return 2 // other core navigation
 	case "runIndex", "runContext", "runPack", "runImpl":
-		return 2 // important operations
+		return 3 // important operations
 	case "runEdit", "runImpact", "runTests", "runSim", "runDeps":
-		return 3 // secondary commands
+		return 4 // secondary commands
 	default:
-		return 4 // utility/admin
+		return 5 // utility/admin
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"math"
 	"sort"
+	"strings"
 )
 
 // roleWeights defines priority multipliers for each architectural role.
@@ -82,7 +83,9 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 		  AND s.file_path LIKE ? || '/%'
 		  AND s.file_path NOT LIKE '%/example%'
 		  AND s.file_path NOT LIKE '%/testdata%'
-		  AND s.file_path NOT LIKE '%_test.go'
+		  AND s.file_path NOT LIKE '%/testutil/%'
+		  AND s.file_path NOT LIKE '%test/%'
+		  AND s.file_path NOT LIKE '%\_test.go' ESCAPE '\'
 		GROUP BY s.id
 	`, repoRoot)
 	if err != nil {
@@ -130,10 +133,34 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 		return results[i].Name < results[j].Name
 	})
 
-	// Step 5: Apply limit
+	// Step 5: Enforce per-package diversity — no single package dominates key symbols.
+	// Cap at 3 symbols per package directory to ensure architectural breadth.
+	const maxPerPackage = 3
+	pkgCount := make(map[string]int)
+	diverse := make([]RankedSymbol, 0, len(results))
+	for _, rs := range results {
+		pkg := packageDir(rs.File, repoRoot)
+		if pkgCount[pkg] >= maxPerPackage {
+			continue
+		}
+		pkgCount[pkg]++
+		diverse = append(diverse, rs)
+	}
+	results = diverse
+
+	// Step 6: Apply limit
 	if limit > 0 && len(results) > limit {
 		results = results[:limit]
 	}
 
 	return results, nil
+}
+
+// packageDir extracts the package directory from a file path for diversity grouping.
+func packageDir(filePath, repoRoot string) string {
+	rel := strings.TrimPrefix(filePath, repoRoot+"/")
+	if idx := strings.LastIndex(rel, "/"); idx >= 0 {
+		return rel[:idx]
+	}
+	return rel
 }

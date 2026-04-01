@@ -95,9 +95,72 @@ func loadPackageDocs(db *sql.DB, pkgPaths []string) map[string]string {
 		if err := rows.Scan(&pkgPath, &doc); err != nil {
 			continue
 		}
-		result[pkgPath] = ExtractFirstSentence(doc)
+		purpose := tersePurpose(ExtractFirstSentence(doc))
+		// Discard placeholder purposes that don't convey real information
+		if !isPlaceholderPurpose(purpose) {
+			result[pkgPath] = purpose
+		}
 	}
 	return result
+}
+
+// tersePurpose strips godoc-style "Package X provides/handles/implements..." prefix
+// to normalize all purposes to terse fragment voice.
+func tersePurpose(s string) string {
+	// Match "Package <name> <verb>s ..." — strip prefix through the verb
+	if !strings.HasPrefix(s, "Package ") {
+		return s
+	}
+	// Find the verb after "Package <name> "
+	rest := strings.TrimPrefix(s, "Package ")
+	spaceIdx := strings.IndexByte(rest, ' ')
+	if spaceIdx < 0 {
+		return s
+	}
+	afterName := rest[spaceIdx+1:]
+	// Common godoc verbs — strip and capitalize the remainder
+	for _, verb := range []string{"provides ", "handles ", "implements ", "contains ", "defines ", "manages ", "offers ", "exposes "} {
+		if strings.HasPrefix(afterName, verb) {
+			remainder := afterName[len(verb):]
+			if len(remainder) > 0 {
+				// Capitalize first letter
+				return strings.ToUpper(remainder[:1]) + remainder[1:]
+			}
+		}
+	}
+	// Also handle "is a ..." / "is the ..."
+	for _, verb := range []string{"is a ", "is the ", "is "} {
+		if strings.HasPrefix(afterName, verb) {
+			remainder := afterName[len(verb):]
+			if len(remainder) > 0 {
+				return strings.ToUpper(remainder[:1]) + remainder[1:]
+			}
+		}
+	}
+	// Fall through: strip "Package <name> " prefix entirely, keep the rest as-is
+	// Handles any pattern not matching known verbs above
+	if len(afterName) > 0 {
+		return strings.ToUpper(afterName[:1]) + afterName[1:]
+	}
+	return s
+}
+
+// isPlaceholderPurpose returns true if the purpose string is a generic placeholder
+// that doesn't convey real architectural information.
+func isPlaceholderPurpose(purpose string) bool {
+	lower := strings.ToLower(purpose)
+	placeholders := []string{
+		"project root package",
+		"application logic",
+		"implementation",
+		"package",
+	}
+	for _, p := range placeholders {
+		if lower == p {
+			return true
+		}
+	}
+	return false
 }
 
 // normalizePackageName cleans up package names for display.
@@ -153,10 +216,8 @@ func inferPackagePurpose(pkg string) string {
 		}
 	}
 
-	// Root package (no path separator) — it's the project itself, not a subpackage
-	if !strings.Contains(pkg, "/") {
-		return "Project root package"
-	}
+	// Leaf packages without a path separator and no doc comment — use last-segment heuristic
+	// (Don't label everything "Project root package" — only the actual root gets that via doc)
 
 	// Infer from last segment of package path
 	parts := strings.Split(pkg, "/")

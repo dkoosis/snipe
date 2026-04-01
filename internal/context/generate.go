@@ -173,11 +173,14 @@ func getEntryPoints(db *sql.DB, repoRoot string) []string {
 	rows, err := db.Query(`
 		SELECT DISTINCT file_path
 		FROM symbols
-		WHERE file_path LIKE ? || '/cmd/%/main.go'
-		   OR file_path LIKE ? || '/main.go'
+		WHERE file_path LIKE ? || '/%'
+		  AND name = 'main'
+		  AND kind = 'func'
+		  AND (receiver IS NULL OR receiver = '')
+		  AND file_path LIKE '%/main.go'
 		ORDER BY file_path
 		LIMIT 5
-	`, repoRoot, repoRoot)
+	`, repoRoot)
 	if err != nil {
 		return entryPoints
 	}
@@ -610,25 +613,52 @@ func generateFiles(db *sql.DB, repoRoot string) Files {
 }
 
 // ExtractFirstSentence returns the first sentence of a doc comment.
+// Handles line-wrapped sentences in godoc (single newline = space, blank line = paragraph break).
 func ExtractFirstSentence(doc string) string {
 	doc = strings.TrimSpace(doc)
+
+	// Collapse single newlines into spaces; stop at blank lines (paragraph break)
+	var buf strings.Builder
+	lines := strings.Split(doc, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			break // paragraph break
+		}
+		if trimmed[0] == '#' {
+			break // heading = new section
+		}
+		if i > 0 {
+			buf.WriteByte(' ')
+		}
+		buf.WriteString(trimmed)
+	}
+	text := buf.String()
+
 	// Find first period followed by space or end of string
-	for i, r := range doc {
+	for i, r := range text {
 		if r == '.' {
-			if i+1 >= len(doc) || doc[i+1] == ' ' || doc[i+1] == '\n' {
-				return doc[:i+1]
+			if i+1 >= len(text) || text[i+1] == ' ' {
+				return text[:i+1]
 			}
 		}
-		// Stop at newline too
-		if r == '\n' {
-			return strings.TrimSpace(doc[:i])
+	}
+	// No period found — try to break at a clause boundary (comma, dash, semicolon)
+	if len(text) > 120 {
+		// Look for a natural break point between 80-200 chars
+		for i := 120; i < len(text) && i < 200; i++ {
+			if text[i] == ',' || text[i] == ';' || (text[i] == ' ' && i >= 3 && text[i-3:i] == "—") {
+				return text[:i]
+			}
 		}
+		// No clause boundary, break at last space before 200
+		limit := min(len(text), 200)
+		if idx := strings.LastIndex(text[:limit], " "); idx > 80 {
+			return text[:idx]
+		}
+		return text[:limit]
 	}
-	// No period found, return first 100 chars
-	if len(doc) > 100 {
-		return doc[:100] + "..."
-	}
-	return doc
+	return text
 }
 
 func categorizeByConcern(relPath string) string {
@@ -848,15 +878,33 @@ func fileExists(path string) bool {
 // falling back to the first paragraph of the README.
 func inferProjectPurpose(db *sql.DB, repoRoot string, projectName string) string {
 	if db != nil {
-		// Try main package doc first
+		// Try main package doc — prefer cmd/main entry point package,
+		// then root module package. Avoids picking up unrelated packages
+		// that happen to share the project name (e.g., embed packages).
 		var doc sql.NullString
+		for _, pattern := range []string{
+			"%/cmd/" + projectName,   // cmd/<project> (standard layout)
+			"%/cmd/%/" + projectName, // nested cmd path (e.g., app/cmd/<project>)
+		} {
+			err := db.QueryRow(`
+				SELECT doc FROM package_docs
+				WHERE pkg_path LIKE ? AND doc != ''
+				LIMIT 1
+			`, pattern).Scan(&doc)
+			if err == nil && doc.Valid && doc.String != "" {
+				return tersePurpose(ExtractFirstSentence(doc.String))
+			}
+		}
+		// Fall back to module root package
 		err := db.QueryRow(`
 			SELECT doc FROM package_docs
-			WHERE pkg_path LIKE '%/' || ? OR pkg_path = ?
+			WHERE (pkg_path LIKE '%/' || ? OR pkg_path = ?)
+			  AND doc != ''
+			ORDER BY LENGTH(pkg_path) ASC
 			LIMIT 1
 		`, projectName, projectName).Scan(&doc)
 		if err == nil && doc.Valid && doc.String != "" {
-			return ExtractFirstSentence(doc.String)
+			return tersePurpose(ExtractFirstSentence(doc.String))
 		}
 	}
 

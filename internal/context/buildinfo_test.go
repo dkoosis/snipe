@@ -7,19 +7,64 @@ import (
 )
 
 func TestParseMakefileTargets(t *testing.T) {
-	content := `.PHONY: build test lint
+	content := `.PHONY: build test lint clean vet race
 build: ## Build the binary
 	go build ./...
+test: ## Run tests
+	go test ./...
 lint: ## Run linter
 	golangci-lint run
+clean:
+	rm -rf bin/
+vet:
+	go vet ./...
+race:
+	go test -race ./...
 `
 	targets := parseMakefileTargets(content)
+	// Only documented targets (with ## comments) should appear
 	want := map[string]bool{"build": true, "test": true, "lint": true}
 	for _, tgt := range targets {
+		if !want[tgt] {
+			t.Errorf("unexpected undocumented target %q", tgt)
+		}
 		delete(want, tgt)
 	}
 	for missing := range want {
-		t.Errorf("missing target %q", missing)
+		t.Errorf("missing documented target %q", missing)
+	}
+}
+
+func TestParseMakefileTargets_FallbackToPhony(t *testing.T) {
+	// When no targets have ## comments, fall back to .PHONY entries
+	content := `.PHONY: build test lint
+build:
+	go build ./...
+test:
+	go test ./...
+`
+	targets := parseMakefileTargets(content)
+	if len(targets) != 3 {
+		t.Errorf("expected 3 fallback targets, got %d: %v", len(targets), targets)
+	}
+}
+
+func TestParseMakefileTargets_RespectsCap(t *testing.T) {
+	content := `.PHONY: a b c d e f g h i j k
+a: ## Target a
+b: ## Target b
+c: ## Target c
+d: ## Target d
+e: ## Target e
+f: ## Target f
+g: ## Target g
+h: ## Target h
+i: ## Target i
+j: ## Target j
+`
+	targets := parseMakefileTargets(content)
+	if len(targets) > maxBuildTargets {
+		t.Errorf("expected at most %d targets, got %d", maxBuildTargets, len(targets))
 	}
 }
 

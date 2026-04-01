@@ -77,7 +77,7 @@ func queryRepoInterfaces(db *sql.DB, repoRoot string) ([]ifaceInfo, error) {
 		WHERE kind = 'interface'
 		  AND file_path LIKE ? || '/%'
 		  AND name GLOB '[A-Z]*'
-		  AND file_path NOT LIKE '%_test.go'
+		  AND file_path NOT LIKE '%\_test.go' ESCAPE '\'
 		ORDER BY name
 		LIMIT 50
 	`, repoRoot)
@@ -102,10 +102,8 @@ func queryImplementorsBatch(db *sql.DB, repoRoot string, ifaces []ifaceInfo) map
 
 	for _, iface := range ifaces {
 		if len(iface.methods) == 0 {
-			impls, err := queryImplementorsByCooccurrence(db, repoRoot, iface.id)
-			if err == nil {
-				result[iface.id] = impls
-			}
+			// Skip interfaces where we can't extract methods —
+			// co-occurrence is too noisy (picks up random types in same file)
 			continue
 		}
 
@@ -140,6 +138,7 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 		WHERE m.kind = 'method'
 		  AND m.name IN (%s)
 		  AND m.file_path LIKE ? || '/%%'
+		  AND m.file_path NOT LIKE '%%\_test.go' ESCAPE '\'
 		GROUP BY type_name, m.pkg_path
 		HAVING COUNT(DISTINCT m.name) >= ?
 		  AND type_name != ?
@@ -183,31 +182,10 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 		WHERE (%s)
 		  AND s.kind IN ('struct', 'type')
 		  AND s.file_path LIKE ? || '/%%'
+		  AND s.file_path NOT LIKE '%%\_test.go' ESCAPE '\'
 		ORDER BY s.name
 		LIMIT 20
 	`, strings.Join(conditions, " OR ")), typeArgs...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	return scanImplementorRefs(rows, repoRoot)
-}
-
-func queryImplementorsByCooccurrence(db *sql.DB, repoRoot, interfaceID string) ([]ImplementorRef, error) {
-	rows, err := db.Query(`
-		SELECT DISTINCT s.name, s.file_path, s.line_start
-		FROM symbols s
-		WHERE s.kind IN ('struct', 'type')
-		  AND s.file_path LIKE ? || '/%'
-		  AND EXISTS (
-		    SELECT 1 FROM refs r
-		    WHERE r.symbol_id = ?
-		      AND r.file_path = s.file_path
-		  )
-		ORDER BY s.name
-		LIMIT 10
-	`, repoRoot, interfaceID)
 	if err != nil {
 		return nil, err
 	}

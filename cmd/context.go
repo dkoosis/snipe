@@ -83,6 +83,12 @@ func runContext(cmd *cobra.Command, args []string) error {
 	}
 	defer s.Close()
 
+	// Use the repo_root stored at index time — this ensures path stripping
+	// matches the paths in the DB (avoids macOS case-sensitivity mismatches).
+	if storedRoot, err := s.GetMeta("repo_root"); err == nil && storedRoot != "" {
+		projectRoot = storedRoot
+	}
+
 	// Generate context
 	cfg := context.GenerateConfig{
 		RepoRoot: projectRoot,
@@ -119,6 +125,13 @@ func runContext(cmd *cobra.Command, args []string) error {
 	if contextOutputNug {
 		nugs := orientCtx.ToNuggets()
 		return outputNuggets(nugs)
+	}
+
+	// Claudish text is the default for orient mode (D1: Claude is the consumer).
+	// --format json/yaml overrides for orca/toolchain integration.
+	if !cmd.Flags().Changed("format") {
+		fmt.Print(context.FormatText(orientCtx))
+		return nil
 	}
 
 	return outputContext(orientCtx, contextFormat)

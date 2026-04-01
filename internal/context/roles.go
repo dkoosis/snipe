@@ -77,7 +77,7 @@ func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 		  AND file_path LIKE ? || '/%'
 		  AND file_path NOT LIKE '%/example%'
 		  AND file_path NOT LIKE '%/testdata%'
-		  AND file_path NOT LIKE '%_test.go'
+		  AND file_path NOT LIKE '%\_test.go' ESCAPE '\'
 	`, repoRoot)
 	if err != nil {
 		return nil, err
