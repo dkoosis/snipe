@@ -556,6 +556,14 @@ func (s *Store) WriteIndexIncremental(
 		return nil, fmt.Errorf("write imports: %w", err)
 	}
 
+	// Sweep orphaned refs: refs from unchanged files may still point at
+	// symbols whose defining files *were* changed, where the symbol no
+	// longer exists. Without this, orphaned_refs grows monotonically over
+	// many incremental reindexes — which was the user-visible symptom.
+	if _, err := tx.Exec(`DELETE FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`); err != nil {
+		return nil, fmt.Errorf("sweep orphaned refs: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}

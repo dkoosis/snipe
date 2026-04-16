@@ -359,23 +359,19 @@ func TestWriteIndexIncremental(t *testing.T) {
 		t.Fatalf("WriteIndexIncremental failed: %v", err)
 	}
 
-	// Verify: 3 symbols (sym1, sym2v2, sym3), old sym2 deleted
+	// Verify: 3 symbols (sym1, sym2v2, sym3), old sym2 deleted.
+	// ref2 in c.go pointed at sym2 — the incremental orphan sweep (#126 F10)
+	// removes it, leaving only ref1v2 from b.go.
 	symCount, refCount, callCount, _ = s.GetStats()
+	_ = callCount
 	if symCount != 3 {
 		t.Errorf("After incremental: sym=%d, want 3", symCount)
 	}
-	// ref2 from c.go still exists + ref1v2 from b.go
-	if refCount != 2 {
-		t.Errorf("After incremental: ref=%d, want 2", refCount)
+	if refCount != 1 {
+		t.Errorf("After incremental: ref=%d, want 1 (orphan swept)", refCount)
 	}
-	if callCount != 1 {
-		t.Errorf("After incremental: call=%d, want 1", callCount)
-	}
-
-	// ref2 still references sym2 which no longer exists — it's orphaned
-	// The orphan count should reflect this
-	if result.OrphanedRefs < 1 {
-		t.Errorf("Expected at least 1 orphaned ref, got %d", result.OrphanedRefs)
+	if result.OrphanedRefs != 0 {
+		t.Errorf("OrphanedRefs = %d, want 0 after sweep", result.OrphanedRefs)
 	}
 	if result.IncrementalCount != 1 {
 		t.Errorf("IncrementalCount = %d, want 1", result.IncrementalCount)
@@ -456,9 +452,20 @@ func TestWriteIndexIncremental_OrphanedRefs(t *testing.T) {
 		t.Fatalf("WriteIndexIncremental failed: %v", err)
 	}
 
-	// ref1 in b.go still points to "sym1" which no longer exists
-	if result.OrphanedRefs != 1 {
-		t.Errorf("OrphanedRefs = %d, want 1", result.OrphanedRefs)
+	// ref1 in b.go pointed to "sym1" which no longer exists. The incremental
+	// pass sweeps those rows so the post-reindex count is zero — the audit
+	// (snipe #126 F10) surfaced user-visible buildup across many reindexes.
+	if result.OrphanedRefs != 0 {
+		t.Errorf("OrphanedRefs = %d, want 0 (swept)", result.OrphanedRefs)
+	}
+
+	// Verify the orphan is actually gone from the table.
+	var leftover int
+	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`).Scan(&leftover); err != nil {
+		t.Fatalf("count orphans: %v", err)
+	}
+	if leftover != 0 {
+		t.Errorf("refs table still has %d orphan rows after incremental sweep", leftover)
 	}
 
 	// Verify sym1v2 exists and sym1 is gone

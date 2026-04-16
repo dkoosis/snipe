@@ -22,6 +22,14 @@ type Hint struct {
 	Summary  string
 }
 
+// IsAvailable reports whether the Orca KG bridge is usable in this process —
+// i.e., whether an `orca` binary is resolvable via PATH. Callers that pass
+// --kg-hints can distinguish "no hints" from "KG unreachable" using this.
+func IsAvailable() bool {
+	_, err := exec.LookPath("orca")
+	return err == nil
+}
+
 // GetHints queries the Orca KG for hints related to the given config.
 // Returns nil if Orca is not available or no hints found.
 func GetHints(cfg Config) []Hint {
