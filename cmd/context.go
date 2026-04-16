@@ -45,7 +45,7 @@ Examples:
 }
 
 func init() {
-	contextCmd.Flags().StringVar(&contextFormat, "format", "json", "Output format: json or yaml")
+	contextCmd.Flags().StringVar(&contextFormat, "format", "", "Structured output format: json or yaml (default: claudish text)")
 	contextCmd.Flags().BoolVar(&contextFull, "full", false, "Full architecture dump (all components, flows, boundaries)")
 	contextCmd.Flags().BoolVar(&contextOrient, "orient", false, "Claude-optimized orientation (default)")
 	contextCmd.Flags().BoolVar(&contextOutputNug, "output-nug", false, "Output as Orca nugget YAML (for save_nug)")

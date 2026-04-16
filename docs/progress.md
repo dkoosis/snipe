@@ -9,7 +9,7 @@ Go code nav CLI for LLMs. Static indexing, <50ms queries, Claude-optimized outpu
 Goal: replace `go_symbol()` + Explore agents in orca.
 
 Integration: orca calls snipe as subprocess. Commands consumed:
-`def`, `refs`, `callers`, `callees`, `search`, `pack`, `show`, `context --boot`.
+`def`, `refs`, `callers`, `callees`, `search`, `pack`, `show`, `context`.
 
 ---
 
@@ -193,6 +193,19 @@ Default output changed from JSON envelope to Claude-optimized structured text.
 | #123 | index: repo root detection causes misleading MISSING_INDEX errors | #130 | FindProjectRoot in internal/util, OpenStore resolves git root, doctor mismatch check, blackbox test |
 | #121 | search: 0 results with no_index degradation after indexing | #131 | LookupByName fallback between rg and semantic, renamed no_index → rg_only |
 | — | simplify review | c344076 | search.go resolves git root for store, cached Exists in OpenStore, renamed usedIndexFallback → indexFallbackFound |
+
+---
+
+## Context output quality (2026-04-16)
+
+| Change | Commit | Notes |
+|--------|--------|-------|
+| Command purposes, flow diversity, callee ranking | ad42a17 | context.go enrichment improvements |
+| Test exclusion, placeholder purposes, truncation | 76c518e | cleaner boot context output |
+| format_text.go: compact claudish rendering | 5bcb91a | no markdown tables, emDash→∅ |
+| LLM-optimal defaults (#136) | 5bcb91a | --limit 10, --context 2, --format concise; pack sub-limits 5/5/5 |
+| def: preserve body with --format concise | 5bcb91a | def always shows body unless --no-body |
+| Closed #134 | — | --boot→--orient already done in code |
 
 ---
 
