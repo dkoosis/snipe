@@ -601,6 +601,33 @@ func TestTypes(t *testing.T) {
 			t.Fatalf("expected non-empty interface type payload")
 		}
 	})
+
+	t.Run("package_path", func(t *testing.T) {
+		// `types <pkg-path>` should enumerate every type in that package
+		// (previously errored with "Symbol not found").
+		stdout, _, _ := run(t, repoDir, "types", "example.com/fixture/greet")
+		resp := assertEnvelope(t, stdout, "types")
+		if !getBool(t, resp["ok"], "ok") {
+			t.Fatalf("expected ok=true for pkg-path lookup, got %v", resp)
+		}
+		results := requireSlice(t, resp["results"], "results")
+		if len(results) < 2 {
+			t.Fatalf("expected >=2 types from greet package, got %d", len(results))
+		}
+		// All results must be struct / interface / type kinds.
+		names := map[string]bool{}
+		for i, r := range results {
+			m := requireMap(t, r, fmt.Sprintf("results[%d]", i))
+			kind := getString(t, m["kind"], "kind")
+			if kind != "struct" && kind != "interface" && kind != "type" {
+				t.Errorf("unexpected kind %q in pkg-path types output", kind)
+			}
+			names[getString(t, m["symbol"], "symbol")] = true
+		}
+		if !names["Greeter"] {
+			t.Fatalf("expected Greeter in package types output, got %v", names)
+		}
+	})
 }
 
 func TestExplain(t *testing.T) {

@@ -389,6 +389,27 @@ func TestAmbiguousSymbol_ReturnsCandidates_When_NameIsNotUnique(t *testing.T) {
 	}
 }
 
+func TestAmbiguousSymbol_SelectBest_ResolvesToTopCandidate(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	// Without --select, ambiguous names error out (covered by sibling test).
+	// With --select best, def should pick one candidate and succeed.
+	stdout, stderr, exitCode := run(t, repoDir, "def", "Ambiguous", "--select", "best")
+	resp := parseJSON(t, stdout)
+	if !getBool(t, resp["ok"], "ok") {
+		t.Fatalf("expected ok=true with --select best, got exit=%d stderr=%s resp=%v", exitCode, string(stderr), resp)
+	}
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result with --select best, got %d", len(results))
+	}
+	first := requireMap(t, results[0], "results[0]")
+	if getString(t, first["name"], "name") != "Ambiguous" {
+		t.Fatalf("expected Ambiguous, got %v", first["name"])
+	}
+}
+
 func TestPagination_OffsetAndLimit_Work(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)

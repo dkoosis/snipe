@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -63,6 +64,15 @@ func runTypes(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer s.Close()
+
+	// Package-path shortcut: `snipe types internal/store` lists all types
+	// declared in that package. Falls through to name lookup when the path
+	// matches no package, so a (rare) slash-bearing symbol name still works.
+	if typesAt == "" && len(args) == 1 && looksLikePkgPath(args[0]) {
+		if handled, err := runTypesForPackage(w, s, dir, args[0], start); handled {
+			return err
+		}
+	}
 
 	var symbolID string
 	var queryInfo map[string]string
@@ -239,4 +249,107 @@ getTypes:
 	}
 
 	return w.WriteResponse(resp)
+}
+
+// looksLikePkgPath reports whether s is plausibly a Go package path
+// (slash present, no leading dot, not obviously a filename with a
+// Go-source extension). Conservative: returns true only when the
+// path has at least one `/` and none of the trailing path segment
+// contains `.go` — otherwise it might be a file like `foo/bar.go`.
+func looksLikePkgPath(s string) bool {
+	if !strings.Contains(s, "/") {
+		return false
+	}
+	if strings.HasSuffix(s, ".go") {
+		return false
+	}
+	// Receiver syntax like "(*Foo).Bar" or hex IDs never contain slashes;
+	// this is a cheap sanity filter only.
+	return !strings.ContainsAny(s, "()")
+}
+
+// runTypesForPackage lists every struct/interface/type-alias declared in
+// a package. Returns handled=false when the package has no matching symbols
+// so the caller can fall back to the regular symbol-name lookup.
+func runTypesForPackage(w *output.Writer, s interface {
+	DB() *sql.DB
+}, dir, pkgPath string, start time.Time) (bool, error) {
+	// Wide limit — we filter to types only, which is typically a small subset.
+	symbols, err := query.FindPackageSymbols(s.DB(), pkgPath, 500, 0)
+	if err != nil {
+		return false, nil // fall through; lookup path will surface the error
+	}
+
+	var typeSymbols []query.SymbolRow
+	for _, sym := range symbols {
+		if isTypeKind(sym.Kind) {
+			typeSymbols = append(typeSymbols, sym)
+		}
+	}
+	if len(typeSymbols) == 0 {
+		return false, nil
+	}
+
+	results := make([]output.TypesResult, 0, len(typeSymbols))
+	for _, sym := range typeSymbols {
+		info, err := query.GetTypeInfo(s.DB(), sym.ID)
+		if err != nil {
+			continue
+		}
+		results = append(results, buildTypesResult(info))
+	}
+
+	resp := output.Response[output.TypesResult]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  results,
+		Meta: output.Meta{
+			Command:    "types",
+			Query:      map[string]string{"pkg": pkgPath},
+			RepoRoot:   dir,
+			IndexState: query.CheckIndexState(s.DB(), dir, Version),
+			Ms:         time.Since(start).Milliseconds(),
+			Total:      len(results),
+		},
+	}
+
+	return true, w.WriteResponse(resp)
+}
+
+// buildTypesResult converts a query.TypeInfo into the output rendering form.
+func buildTypesResult(info *query.TypeInfo) output.TypesResult {
+	r := output.TypesResult{
+		Symbol:    info.Symbol.Name,
+		Kind:      info.Symbol.Kind,
+		File:      info.Symbol.FilePathRel,
+		Signature: info.Symbol.Signature.String,
+		Doc:       info.Symbol.Doc.String,
+		Implements: output.TypesImplementsOut{
+			Status: info.Implements.Status,
+			Note:   info.Implements.Note,
+		},
+	}
+	for _, m := range info.Methods {
+		r.Methods = append(r.Methods, output.TypesMethodOut{
+			Name:      m.Name,
+			Signature: m.Signature,
+			File:      m.File,
+			Line:      m.Line,
+		})
+	}
+	for _, e := range info.Embeds {
+		r.Embeds = append(r.Embeds, output.TypesEmbedOut{
+			TypeName:  e.TypeName,
+			FieldName: e.FieldName,
+			File:      e.File,
+		})
+	}
+	for _, f := range info.Fields {
+		r.Fields = append(r.Fields, output.TypesFieldOut{
+			Name:     f.Name,
+			TypeExpr: f.TypeExpr,
+			Tag:      f.Tag,
+		})
+	}
+	return r
 }

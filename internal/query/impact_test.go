@@ -229,6 +229,84 @@ func TestFindImpactCallersMulti_Dedup(t *testing.T) {
 	}
 }
 
+func setupImpactRefsDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db := setupImpactTestDB(t)
+	_, err := db.Exec(`
+		CREATE TABLE refs (
+			id TEXT PRIMARY KEY,
+			symbol_id TEXT NOT NULL,
+			file_path TEXT NOT NULL,
+			file_path_rel TEXT,
+			line INTEGER,
+			col INTEGER,
+			enclosing_id TEXT,
+			snippet TEXT
+		)`)
+	if err != nil {
+		t.Fatalf("create refs: %v", err)
+	}
+	return db
+}
+
+func TestFindImpactRefs_ReturnsDistinctEnclosingSymbols(t *testing.T) {
+	db := setupImpactRefsDB(t)
+
+	// Struct Widget referenced by two enclosing funcs and a method.
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('widget','Widget','struct','/w.go','w.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('make1','makeWidget1','func','/a.go','a.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('make2','makeWidget2','func','/b.go','b.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('method1','doIt','method','/c.go','c.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/w.go',0,'h0')`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/a.go',0,'h1')`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/b.go',0,'h2')`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/c.go',0,'h3')`)
+
+	// Five refs, three distinct enclosing symbols.
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r1','widget','/a.go','a.go',10,1,'make1','')`)
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r2','widget','/a.go','a.go',15,1,'make1','')`)
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r3','widget','/b.go','b.go',20,1,'make2','')`)
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r4','widget','/c.go','c.go',30,1,'method1','')`)
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r5','widget','/c.go','c.go',31,1,'method1','')`)
+
+	rows, err := FindImpactRefs(db, "widget", 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("expected 3 distinct enclosing symbols, got %d", len(rows))
+	}
+	for _, r := range rows {
+		if r.Hop != 1 {
+			t.Errorf("hop=%d, want 1", r.Hop)
+		}
+	}
+}
+
+func TestFindImpactRefs_ExcludesTestFilesAndSelfRefs(t *testing.T) {
+	db := setupImpactRefsDB(t)
+
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('widget','Widget','struct','/w.go','w.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('prod','useWidget','func','/a.go','a.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('test','TestWidget','func','/a_test.go','a_test.go','pkg',1,1,10,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/w.go',0,'h0')`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/a.go',0,'h1')`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/a_test.go',0,'h2')`)
+
+	// self-ref + prod + test — only prod should survive
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('rs','widget','/w.go','w.go',1,1,'widget','')`)
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r1','widget','/a.go','a.go',10,1,'prod','')`)
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r2','widget','/a_test.go','a_test.go',10,1,'test','')`)
+
+	rows, err := FindImpactRefs(db, "widget", 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Name != "useWidget" {
+		t.Fatalf("expected 1 prod caller (useWidget), got %#v", rows)
+	}
+}
+
 func TestFindImpactCallers_ExcludesTestFiles(t *testing.T) {
 	db := setupImpactTestDB(t)
 

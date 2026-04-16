@@ -56,16 +56,17 @@ func runDeps(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	if depsTreeFlag {
+	// No argument and no --tree → show the full internal DAG. Previously this
+	// resolved `.` to the cwd package, which was nearly always useless (ran from
+	// repo root it returned only the module root). The full graph is what
+	// Claude needs for architecture questions.
+	if depsTreeFlag || len(args) == 0 {
 		return runDepsTree(w, s.DB(), modulePath, dir, start)
 	}
 
 	// Resolve package argument
 	repoRoot, _ := s.GetMeta("repo_root")
-	arg := "."
-	if len(args) > 0 {
-		arg = args[0]
-	}
+	arg := args[0]
 	pkgPath := query.ResolvePkgPattern(s.DB(), arg, dir, repoRoot)
 
 	// Ensure we have the full package path as stored in the imports table.

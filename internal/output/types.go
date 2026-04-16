@@ -147,6 +147,7 @@ const (
 	HintImplementer      = "implementer"
 	HintDirectTest       = "direct_test"
 	HintTransitiveTest   = "transitive_test"
+	HintRefSite          = "ref_site" // Symbol references the target outside of a call (field, literal, type assertion, embed)
 	HintExported         = "exported" // Symbol is part of the public API surface
 )
 

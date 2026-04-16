@@ -147,6 +147,7 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	// --- Phase 1: Transitive callers (non-test files) ---
 	// Use internal limit 3x to avoid phase 1 starving phases 2-3
 	internalLim := lim * 3
+	const kindInterface = "interface"
 
 	// For structs/types, expand to include callers of methods on the type
 	var callerRows []query.ImpactRow
@@ -167,9 +168,24 @@ func runImpact(cmd *cobra.Command, args []string) error {
 		callerRows = nil
 	}
 
+	// --- Phase 1b: Ref-sites for struct/type/interface targets ---
+	// call_graph only records function→function edges, so types of their own
+	// are invisible to Phase 1 (a struct is never a call-graph callee).
+	// The refs table catches field access, struct literals, type assertions,
+	// embeds, and similar non-call references. Capped independently of `lim`
+	// because a widely-referenced type can swamp the merged output otherwise.
+	const refCap = 50
+	var refRows []query.ImpactRow
+	if isType || symKind == kindInterface {
+		refRows, err = query.FindImpactRefs(s.DB(), symbolID, refCap, 0)
+		if err != nil {
+			degraded = append(degraded, "refs_failed")
+			refRows = nil
+		}
+	}
+
 	// --- Phase 2: Interface implementers ---
 	var implRows []query.SymbolRow
-	const kindInterface = "interface"
 	if symKind == kindInterface {
 		implRows, err = query.FindImplementers(s.DB(), symbolID, internalLim, 0)
 		if err != nil {
@@ -225,6 +241,11 @@ func runImpact(cmd *cobra.Command, args []string) error {
 			directCallerCount++
 		}
 		addOrMerge(cr.ID, cr.ToResult(), hint)
+	}
+
+	// Phase 1b: ref-site results (struct/type/interface only)
+	for _, rr := range refRows {
+		addOrMerge(rr.ID, rr.ToResult(), output.HintRefSite)
 	}
 
 	// Phase 2 results

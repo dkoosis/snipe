@@ -170,6 +170,15 @@ func runDef(cmd *cobra.Command, args []string) error {
 		}
 
 		if len(symbols) > 1 {
+			// Ambiguity fallback: if --select narrows to one/few, pick the
+			// highest-scored candidate(s) instead of raising an error.
+			// Satisfies D2: "one command should just work".
+			if picked, ok := pickSelectedSymbol(symbols, name); ok {
+				symbolID = picked.ID
+				queryInfo = map[string]string{"symbol": name}
+				decisionPath = append(decisionPath, "lookup:name_select")
+				goto lookup
+			}
 			candidates := make([]output.Candidate, len(symbols))
 			for i, s := range symbols {
 				candidates[i] = s.ToCandidate()

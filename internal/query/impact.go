@@ -114,6 +114,41 @@ func FindImpactCallersMulti(db *sql.DB, symbolIDs []string, direct bool, limit, 
 	return scanTestRows(rows)
 }
 
+// FindImpactRefs returns distinct non-test symbols that reference the given
+// target (via the `refs` table's enclosing_id). This catches references that
+// the call graph misses: field access, struct literals, type assertions,
+// embedding declarations, etc.
+//
+// Every row is reported at hop=1. Limit is applied as a hard cap inside the
+// query; callers do not need to inflate a scaled budget here — unlike
+// FindImpactCallers which participates in a merged budget across multiple
+// phases, refs can be very numerous and need an independent ceiling.
+func FindImpactRefs(db *sql.DB, symbolID string, limit, offset int) ([]ImpactRow, error) {
+	const q = `
+		SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
+		       s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash,
+		       1 AS hop
+		FROM refs r
+		JOIN symbols s ON s.id = r.enclosing_id
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE r.symbol_id = ?
+		  AND r.enclosing_id IS NOT NULL
+		  AND r.enclosing_id != ''
+		  AND s.id != ?
+		  AND s.file_path NOT GLOB '*_test.go'
+		ORDER BY s.file_path, s.name
+		LIMIT ? OFFSET ?`
+
+	rows, err := db.Query(q, symbolID, symbolID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query impact refs: %w", err)
+	}
+	defer rows.Close()
+
+	return scanTestRows(rows)
+}
+
 // FindImpactCallers returns non-test callers of a symbol with hop distance.
 // When direct=true, only 1-hop callers. Otherwise includes 2-hop transitive.
 // Test files (*_test.go) are excluded — use FindTests() for test coverage.

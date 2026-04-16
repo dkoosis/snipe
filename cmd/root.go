@@ -13,6 +13,7 @@ import (
 	"github.com/dkoosis/snipe/internal/config"
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/util"
 )
@@ -316,6 +317,31 @@ func ApplySelection(results []output.Result) []output.Result {
 	}
 	// "all" or unrecognized: return everything
 	return results
+}
+
+// pickSelectedSymbol returns the highest-scored candidate when --select is
+// set to a narrowing mode (best/top3/top5). It is the ambiguity fallback
+// path: instead of erroring when several symbols share a name, take the
+// top-scoring one. Returns ok=false when --select is "all" (or empty),
+// preserving the explicit ambiguity error for users who did not opt in.
+func pickSelectedSymbol(symbols []query.SymbolRow, name string) (query.SymbolRow, bool) {
+	switch selectMode {
+	case "best", "top3", "top5":
+	default:
+		return query.SymbolRow{}, false
+	}
+	results := make([]output.Result, len(symbols))
+	for i, s := range symbols {
+		results[i] = s.ToResult()
+	}
+	output.ScoreAndSort(results, name)
+	topID := results[0].ID
+	for _, s := range symbols {
+		if s.ID == topID {
+			return s, true
+		}
+	}
+	return symbols[0], true
 }
 
 // OpenStore opens the index for query commands.
