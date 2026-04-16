@@ -7,6 +7,7 @@ type ProjectContext struct {
 	Architecture Architecture `json:"architecture" yaml:"architecture"`
 	Files        Files        `json:"files,omitempty" yaml:"files,omitempty"`
 	Symbols      Symbols      `json:"symbols" yaml:"symbols"`
+	DBSchemas    []DBSchema   `json:"db_schemas,omitempty" yaml:"db_schemas,omitempty"`
 	Meta         Meta         `json:"meta" yaml:"meta"`
 }
 
@@ -30,6 +31,9 @@ type BootContext struct {
 
 	// Conventions detected from index
 	Conventions *Conventions `json:"conventions,omitempty" yaml:"conventions,omitempty"`
+
+	// DBSchemas is statically-detected SQLite DDL (migrations, schema.sql, or embedded Go literals).
+	DBSchemas []DBSchema `json:"db_schemas,omitempty" yaml:"db_schemas,omitempty"`
 }
 
 // BootViews contains the three orientation views for LLM boot sequences.

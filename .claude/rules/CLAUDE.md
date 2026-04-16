@@ -31,7 +31,8 @@ snipe def --at file:L:C      # definition at position
 snipe refs/callers/callees   # graph traversal
 snipe show <hex-id>          # expand by 16-char ID
 snipe search "pattern"       # ripgrep fallback
-snipe context --boot         # LLM boot context with entry points, flows, boundaries
+snipe context                # Claude-optimized orientation (entry points, flows, boundaries)
+snipe context --full         # Full architecture dump
 ```
 
 ## focus

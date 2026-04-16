@@ -34,6 +34,9 @@ var (
 	// KG integration
 	withKGHints bool
 
+	// Opt-in suggestion output (off by default in Claude mode)
+	showSuggestions bool
+
 	// Selection mode for multi-result commands
 	selectMode string
 
@@ -111,6 +114,9 @@ var rootCmd = &cobra.Command{
 		// Auto-compact when output is piped (not a TTY)
 		autoCompact = true
 
+		// Wire suggestion opt-in into output package
+		output.SetShowSuggestions(showSuggestions)
+
 		return nil
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -178,15 +184,16 @@ func init() {
 		&cobra.Group{ID: "advanced", Title: "Advanced Commands:"},
 	)
 
-	rootCmd.PersistentFlags().IntVar(&limit, "limit", 50, "Cap results")
+	rootCmd.PersistentFlags().IntVar(&limit, "limit", 10, "Cap results")
 	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Pagination offset")
-	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 3, "Context lines around match")
+	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 2, "Context lines around match")
 	rootCmd.PersistentFlags().BoolVar(&noBody, "no-body", false, "Exclude function body")
 	rootCmd.PersistentFlags().BoolVar(&noSiblings, "no-siblings", false, "Exclude sibling declarations")
 	rootCmd.PersistentFlags().BoolVar(&signatureOnly, "signature-only", false, "Return only signature (no body, no context)")
 	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Token budget (0 = unlimited)")
-	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "", "concise | detailed | summary | json")
+	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "concise", "concise | detailed | summary | json")
 	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
+	rootCmd.PersistentFlags().BoolVar(&showSuggestions, "suggestions", false, "Include next-step suggestions in Claude output")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for command (e.g., 30s, 5m)")
 	rootCmd.PersistentFlags().StringVar(&selectMode, "select", "all", "Result selection: all, best, top3, top5")
 	// Reserved for orca telemetry — hidden until persistToolCall is wired.

@@ -44,9 +44,9 @@ Examples:
 
 func init() {
 	packCmd.Flags().StringVar(&packAt, "at", "", "Position to look up (file:line:col)")
-	packCmd.Flags().IntVar(&packRefsLimit, "refs-limit", 20, "Maximum references to return")
-	packCmd.Flags().IntVar(&packCallersLimit, "callers-limit", 10, "Maximum callers to return")
-	packCmd.Flags().IntVar(&packCalleesLimit, "callees-limit", 10, "Maximum callees to return")
+	packCmd.Flags().IntVar(&packRefsLimit, "refs-limit", 5, "Maximum references to return")
+	packCmd.Flags().IntVar(&packCallersLimit, "callers-limit", 5, "Maximum callers to return")
+	packCmd.Flags().IntVar(&packCalleesLimit, "callees-limit", 5, "Maximum callees to return")
 	rootCmd.AddCommand(packCmd)
 }
 

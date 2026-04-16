@@ -290,6 +290,7 @@ func TestDetectFileOrg_NearEqual(t *testing.T) {
 	result := detectFileOrg(db)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	// 3 single vs 2 multi — ratio = 3/5 = 0.60, below 70% threshold → mixed
 	if result.Pattern != patternMixed {

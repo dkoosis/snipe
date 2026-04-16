@@ -78,7 +78,7 @@ The optional enrichment layer adds semantic embeddings (for similarity search) a
 | `pack [symbol]` | Definition + refs + callers + callees + role + purpose |
 | `sym [symbol]` | Definition + refs + callers + callees |
 | `explain [symbol]` | Structured function explanation with mechanism steps |
-| `context [path]` | LLM-optimized project architecture summary |
+| `context [path]` | Claude-optimized orientation (~5k tokens); `--full` for full architecture dump |
 
 ### Type system
 
@@ -139,14 +139,14 @@ snipe index --force                            # Force full re-index
 |------|--------|
 | `--at file:line:col` | Query by source position |
 | `--with-body` | Include full function/method body |
-| `--limit N` | Cap results (default: 50) |
+| `--limit N` | Cap results (default: 10) |
 | `--offset N` | Skip first N results |
-| `--context N` | Surrounding lines per match (default: 3) |
-| `--format` | `concise` (default), `detailed`, or `summary` |
+| `--context N` | Surrounding lines per match (default: 2) |
+| `--format` | `concise` (default), `detailed`, `summary`, or `json` |
 | `--select` | `all` (default), `best`, `top3`, `top5` |
 | `--max-tokens N` | Truncate output to fit a token budget |
 | `--signature-only` | Signature only, no body or context |
-| `--human` | Pretty-print for terminal use |
+| `--no-body` | Exclude function body |
 
 ## Output format
 

@@ -17,6 +17,7 @@ func TestCompressToCommandTable_BoilerplateDetection(t *testing.T) {
 
 	if table == nil {
 		t.Fatal("expected non-nil command table")
+		return
 	}
 
 	// Boilerplate should contain the common callees
@@ -45,6 +46,7 @@ func TestCompressToCommandTable_BoilerplateDetection(t *testing.T) {
 	}
 	if contextCmd == nil {
 		t.Fatal("expected runContext in commands")
+		return
 	}
 	if len(contextCmd.Callees) == 0 {
 		t.Error("runContext should have notable callees (non-boilerplate)")
@@ -85,6 +87,7 @@ func TestCompressToCommandTable_DeduplicatesCallees(t *testing.T) {
 	table := compressToCommandTable(details)
 	if table == nil {
 		t.Fatal("expected non-nil")
+		return
 	}
 	for _, cmd := range table.Commands {
 		seen := make(map[string]bool)

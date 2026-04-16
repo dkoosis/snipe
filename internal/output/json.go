@@ -26,6 +26,14 @@ const (
 	OutputJSON OutputFormat = "json"
 )
 
+// showSuggestionsEnabled controls whether suggestions are emitted in Claude text mode.
+// Off by default — suggestions are toolchain metadata, not needed in Claude output.
+// Enable with --suggestions flag (SetShowSuggestions).
+var showSuggestionsEnabled = false
+
+// SetShowSuggestions configures suggestion output for Claude mode.
+func SetShowSuggestions(v bool) { showSuggestionsEnabled = v }
+
 // Writer handles output formatting for LLM consumers.
 type Writer struct {
 	out     io.Writer
@@ -199,13 +207,10 @@ func (w *Writer) writeClaudeMeta(b *strings.Builder, meta Meta) {
 	if len(meta.Degraded) > 0 {
 		parts = append(parts, meta.Degraded...)
 	}
-	if len(parts) > 0 {
-		b.WriteString("---\n")
-		for _, p := range parts {
-			b.WriteString("! ")
-			b.WriteString(p)
-			b.WriteString("\n")
-		}
+	for _, p := range parts {
+		b.WriteString("! ")
+		b.WriteString(p)
+		b.WriteString("\n")
 	}
 }
 
@@ -244,7 +249,7 @@ func (w *Writer) writeClaudeError(b *strings.Builder, err *Error) {
 }
 
 func writeClaudeSuggestions(b *strings.Builder, suggestions []Suggestion) {
-	if len(suggestions) == 0 {
+	if !showSuggestionsEnabled || len(suggestions) == 0 {
 		return
 	}
 	for _, s := range suggestions {

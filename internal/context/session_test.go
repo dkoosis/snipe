@@ -152,6 +152,7 @@ func TestGetActiveWork_KeepsFeatureBranch(t *testing.T) {
 	aw := s.GetActiveWork()
 	if aw == nil {
 		t.Fatal("expected non-nil ActiveWork")
+		return
 	}
 	if aw.Branch != "feat/context-improvements" {
 		t.Errorf("branch should be kept for feature branch, got %q", aw.Branch)

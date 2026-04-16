@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const emDash = "—"
+const empty = "∅"
 
 // FormatText renders a BootContext as compact claudish text.
 // Optimized for Claude consumption: tables, fragments, minimal noise.
@@ -48,15 +48,13 @@ func FormatText(bc *BootContext) string {
 	// Key symbols
 	if len(bc.KeySymbols) > 0 {
 		b.WriteString("\n## key symbols\n")
-		b.WriteString("| Name | Location | Role | Purpose |\n")
-		b.WriteString("|------|----------|------|---------|\n")
 		for _, s := range bc.KeySymbols {
 			loc := fmt.Sprintf("%s:%d", s.File, s.Line)
-			purpose := s.Purpose
-			if purpose == "" {
-				purpose = emDash
+			if s.Purpose != "" {
+				fmt.Fprintf(&b, "%s (%s) %s — %s\n", s.Name, loc, s.Role, s.Purpose)
+			} else {
+				fmt.Fprintf(&b, "%s (%s) %s\n", s.Name, loc, s.Role)
 			}
-			fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", s.Name, loc, s.Role, purpose)
 		}
 	}
 
@@ -71,14 +69,12 @@ func FormatText(bc *BootContext) string {
 	// Packages
 	if len(bc.Packages) > 0 {
 		b.WriteString("\n## packages\n")
-		b.WriteString("| Package | Purpose |\n")
-		b.WriteString("|---------|----------|\n")
 		for _, p := range bc.Packages {
-			purpose := p.Purpose
-			if purpose == "" {
-				purpose = emDash
+			if p.Purpose != "" {
+				fmt.Fprintf(&b, "%s: %s\n", p.Name, p.Purpose)
+			} else {
+				fmt.Fprintf(&b, "%s: %s\n", p.Name, empty)
 			}
-			fmt.Fprintf(&b, "| %s | %s |\n", p.Name, purpose)
 		}
 	}
 
@@ -86,6 +82,9 @@ func FormatText(bc *BootContext) string {
 	if conv := bc.Conventions; conv != nil {
 		formatConventions(&b, conv)
 	}
+
+	// DB schemas
+	formatDBSchemas(&b, bc.DBSchemas)
 
 	// Active work
 	if aw := bc.ActiveWork; aw != nil {
@@ -101,6 +100,20 @@ func FormatText(bc *BootContext) string {
 	return b.String()
 }
 
+// formatDBSchemas emits one "## db schema" section per detected schema.
+// Source and name are shown in the header; DDL follows in a fenced sql block.
+func formatDBSchemas(b *strings.Builder, schemas []DBSchema) {
+	for _, s := range schemas {
+		fmt.Fprintf(b, "\n## db schema: %s (%s)\n", s.Name, s.Source)
+		b.WriteString("```sql\n")
+		b.WriteString(s.DDL)
+		if !strings.HasSuffix(s.DDL, "\n") {
+			b.WriteByte('\n')
+		}
+		b.WriteString("```\n")
+	}
+}
+
 func formatCommands(b *strings.Builder, ct *CommandTable) {
 	if ct == nil || len(ct.Commands) == 0 {
 		return
@@ -109,18 +122,15 @@ func formatCommands(b *strings.Builder, ct *CommandTable) {
 	if len(ct.BoilerplatePattern) > 0 {
 		fmt.Fprintf(b, "‡ boilerplate: %s\n", strings.Join(ct.BoilerplatePattern, ", "))
 	}
-	b.WriteString("| Cmd | Purpose | → Callees |\n")
-	b.WriteString("|-----|---------|----------|\n")
 	for _, c := range ct.Commands {
-		purpose := c.Purpose
-		if purpose == "" {
-			continue // skip purposeless commands
+		if c.Purpose == "" {
+			continue
 		}
-		callees := emDash
 		if len(c.Callees) > 0 {
-			callees = strings.Join(c.Callees, ", ")
+			fmt.Fprintf(b, "%s — %s → %s\n", c.Name, c.Purpose, strings.Join(c.Callees, ", "))
+		} else {
+			fmt.Fprintf(b, "%s — %s\n", c.Name, c.Purpose)
 		}
-		fmt.Fprintf(b, "| %s | %s | %s |\n", c.Name, purpose, callees)
 	}
 }
 
@@ -150,58 +160,73 @@ func formatInterfaces(b *strings.Builder, ifaces []InterfaceEntry) {
 		return
 	}
 	b.WriteString("\n## interfaces\n")
-	b.WriteString("| Interface | Location | Methods | → Implementors |\n")
-	b.WriteString("|-----------|----------|---------|----------------|\n")
 	for _, i := range ifaces {
 		loc := fmt.Sprintf("%s:%d", i.File, i.Line)
-		methods := emDash
+		var methods string
 		if len(i.Methods) > 0 {
-			methods = strings.Join(i.Methods, ", ")
-			if len(methods) > 40 {
-				// Truncate long method lists
-				methods = strings.Join(i.Methods[:min(3, len(i.Methods))], ", ")
-				if len(i.Methods) > 3 {
-					methods += fmt.Sprintf(" +%d", len(i.Methods)-3)
-				}
+			shown := i.Methods[:min(3, len(i.Methods))]
+			methods = strings.Join(shown, ", ")
+			if len(i.Methods) > 3 {
+				methods += fmt.Sprintf(" +%d", len(i.Methods)-3)
 			}
 		}
-		impls := emDash
 		if len(i.Implementors) > 0 {
 			names := make([]string, len(i.Implementors))
 			for j, imp := range i.Implementors {
 				names[j] = imp.Name
 			}
-			impls = strings.Join(names, ", ")
+			if methods != "" {
+				fmt.Fprintf(b, "%s (%s): %s → %s\n", i.Interface, loc, methods, strings.Join(names, ", "))
+			} else {
+				fmt.Fprintf(b, "%s (%s) → %s\n", i.Interface, loc, strings.Join(names, ", "))
+			}
+		} else {
+			if methods != "" {
+				fmt.Fprintf(b, "%s (%s): %s\n", i.Interface, loc, methods)
+			} else {
+				fmt.Fprintf(b, "%s (%s)\n", i.Interface, loc)
+			}
 		}
-		fmt.Fprintf(b, "| %s | %s | %s | %s |\n", i.Interface, loc, methods, impls)
+	}
+}
+
+// confSym maps confidence string to claudish symbol.
+func confSym(confidence string) string {
+	switch confidence {
+	case "high":
+		return "✓"
+	case "medium":
+		return "≈"
+	default:
+		return confidence
 	}
 }
 
 func formatConventions(b *strings.Builder, conv *Conventions) {
 	b.WriteString("\n## conventions\n")
 	if c := conv.Constructors; c != nil {
-		fmt.Fprintf(b, "constructors: %s [%d total, %d err] (%s)\n",
-			c.Pattern, c.Total, c.WithError, c.Confidence)
+		fmt.Fprintf(b, "constructors: %s %d/%d %s\n",
+			c.Pattern, c.Total, c.WithError, confSym(c.Confidence))
 	}
 	if c := conv.Receivers; c != nil {
 		pct := int(math.Round(c.PointerPct))
-		fmt.Fprintf(b, "receivers: %s, %d%% ptr [%d] (%s)\n",
-			c.Pattern, pct, c.Total, c.Confidence)
+		fmt.Fprintf(b, "receivers: %s %d%%ptr/%d %s\n",
+			c.Pattern, pct, c.Total, confSym(c.Confidence))
 	}
 	if c := conv.Testing; c != nil {
-		fmt.Fprintf(b, "testing: %s [%d files, %d helpers] (%s)\n",
-			c.Pattern, c.TestFiles, c.Helpers, c.Confidence)
+		fmt.Fprintf(b, "testing: %s %df/%dh %s\n",
+			c.Pattern, c.TestFiles, c.Helpers, confSym(c.Confidence))
 	}
 	if c := conv.Interfaces; c != nil {
-		fmt.Fprintf(b, "interfaces: %s [%d total, %d -er] (%s)\n",
-			c.Pattern, c.Total, c.ErSuffix, c.Confidence)
+		fmt.Fprintf(b, "interfaces: %s %d/%d-er %s\n",
+			c.Pattern, c.Total, c.ErSuffix, confSym(c.Confidence))
 	}
 	if c := conv.ErrorHandling; c != nil {
-		fmt.Fprintf(b, "errors: %s [%d sentinels, %d err funcs] (%s)\n",
-			c.Pattern, c.Sentinels, c.ErrorFuncs, c.Confidence)
+		fmt.Fprintf(b, "errors: %s %d/%d %s\n",
+			c.Pattern, c.Sentinels, c.ErrorFuncs, confSym(c.Confidence))
 	}
 	if c := conv.FileOrg; c != nil {
-		fmt.Fprintf(b, "file org: %s [%.1f avg types/file] (%s)\n",
-			c.Pattern, c.AvgTypesFile, c.Confidence)
+		fmt.Fprintf(b, "file org: %s %.1ft/f %s\n",
+			c.Pattern, c.AvgTypesFile, confSym(c.Confidence))
 	}
 }
