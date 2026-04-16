@@ -54,8 +54,8 @@ func runDef(cmd *cobra.Command, args []string) error {
 	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
 	format := GetResponseFormat()
 
-	// Apply format overrides
-	withBody, withSiblings, contextLines = ApplyFormatOverrides(format, withBody, withSiblings, contextLines)
+	// Apply format overrides; def always shows body unless --no-body is explicit.
+	_, withSiblings, contextLines = ApplyFormatOverrides(format, withBody, withSiblings, contextLines)
 
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 

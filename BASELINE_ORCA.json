@@ -1,35 +1,37 @@
 {
-  "timestamp": "2026-03-08T18:13:11Z",
-  "git_commit": "511eee08",
-  "go_version": "go1.25.8",
+  "timestamp": "2026-04-16T15:34:57Z",
+  "git_commit": "972a433e",
+  "go_version": "go1.26.2",
   "codebase": {
-    "go_files": 428,
-    "symbols": 7732,
-    "refs": 22538,
-    "call_edges": 8236,
-    "db_size_kb": 27072
+    "name": "orca",
+    "path": "/Users/vcto/projects/orca",
+    "go_files": 427,
+    "symbols": 7690,
+    "refs": 22369,
+    "call_edges": 7945,
+    "db_size_kb": 26800
   },
   "index": {
-    "total_ms": 60942,
-    "load_ms": 30542,
-    "extract_ms": 16392,
-    "persist_ms": 13804,
-    "peak_mem_mb": 1566
+    "total_ms": 5433,
+    "load_ms": 3375,
+    "extract_ms": 1098,
+    "persist_ms": 951,
+    "peak_mem_mb": 1108
   },
   "query": {
-    "def_by_name_ms": 1.02632,
-    "def_by_pos_ms": 2.22699,
-    "refs_by_id_ms": 2.04711
+    "def_by_name_ms": 0.03616,
+    "def_by_pos_ms": 0.01409,
+    "refs_by_id_ms": 0.09888
   },
   "search": {
-    "simple_pattern_ms": 11.497399999999999,
-    "regex_pattern_ms": 18.41087
+    "simple_pattern_ms": 11.695229999999999,
+    "regex_pattern_ms": 20.85208
   },
   "quality": {
-    "symbols_with_doc": 4533,
-    "symbols_with_sig": 7732,
-    "doc_coverage_pct": 58.62648732540093,
-    "refs_per_symbol": 2.9148991205380237,
-    "callgraph_coverage_pct": 126.9208549971115
+    "symbols_with_doc": 4507,
+    "symbols_with_sig": 7690,
+    "doc_coverage_pct": 58.60858257477243,
+    "refs_per_symbol": 2.9088426527958386,
+    "callgraph_coverage_pct": 125.60693641618496
   }
 }
