@@ -103,6 +103,11 @@ func detectMigrations(repoRoot string) (DBSchema, bool) {
 			buf.WriteString("-- " + filepath.Base(f) + "\n")
 			buf.Write(content)
 		}
+		// Skip directories containing only DML/seed data — no CREATE statements
+		// means nothing Claude can use to reason about schema.
+		if !ddlRe.MatchString(buf.String()) {
+			continue
+		}
 		return DBSchema{
 			Source: relPath(repoRoot, dir),
 			Name:   "migrations",
@@ -173,24 +178,74 @@ func detectEmbeddedGo(repoRoot string) []DBSchema {
 
 // extractGoDDL pulls the contents of every backtick raw string literal in src
 // that contains a CREATE statement. Returns concatenated DDL, or "" if none.
+//
+// The scanner skips backticks inside line comments (// ... \n), block comments
+// (/* ... */), and double-quoted strings ("..."), which prevents a stray
+// backtick in a doc comment above a DDL constant from swallowing the real
+// literal.
 func extractGoDDL(src string) string {
 	var parts []string
-	remaining := src
-	for {
-		start := strings.IndexByte(remaining, '`')
-		if start < 0 {
-			break
+	i := 0
+	for i < len(src) {
+		c := src[i]
+		switch {
+		case c == '/' && i+1 < len(src) && src[i+1] == '/':
+			// Line comment — skip to newline.
+			if nl := strings.IndexByte(src[i:], '\n'); nl >= 0 {
+				i += nl + 1
+			} else {
+				i = len(src)
+			}
+		case c == '/' && i+1 < len(src) && src[i+1] == '*':
+			// Block comment — skip to closing */.
+			if end := strings.Index(src[i+2:], "*/"); end >= 0 {
+				i += end + 4
+			} else {
+				i = len(src)
+			}
+		case c == '"':
+			// Double-quoted string — skip to matching quote, honoring backslash escapes.
+			j := i + 1
+			for j < len(src) {
+				if src[j] == '\\' && j+1 < len(src) {
+					j += 2
+					continue
+				}
+				if src[j] == '"' || src[j] == '\n' {
+					break
+				}
+				j++
+			}
+			i = j + 1
+		case c == '\'':
+			// Rune literal — same skip-with-escape logic.
+			j := i + 1
+			for j < len(src) {
+				if src[j] == '\\' && j+1 < len(src) {
+					j += 2
+					continue
+				}
+				if src[j] == '\'' || src[j] == '\n' {
+					break
+				}
+				j++
+			}
+			i = j + 1
+		case c == '`':
+			// Raw string literal — content runs until next backtick (no escapes).
+			end := strings.IndexByte(src[i+1:], '`')
+			if end < 0 {
+				i = len(src)
+				continue
+			}
+			literal := src[i+1 : i+1+end]
+			if ddlRe.MatchString(literal) {
+				parts = append(parts, dedentString(literal))
+			}
+			i += end + 2
+		default:
+			i++
 		}
-		rest := remaining[start+1:]
-		end := strings.IndexByte(rest, '`')
-		if end < 0 {
-			break
-		}
-		literal := rest[:end]
-		if ddlRe.MatchString(literal) {
-			parts = append(parts, dedentString(literal))
-		}
-		remaining = rest[end+1:]
 	}
 	if len(parts) == 0 {
 		return ""
@@ -231,7 +286,6 @@ func compactDDL(ddl string) string {
 		kept = append(kept, trimmed)
 		prevBlank = false
 	}
-	kept = dedentLines(kept)
 	out := strings.TrimSpace(strings.Join(kept, "\n"))
 	if len(out) > maxDDLBytes {
 		out = out[:maxDDLBytes] + "\n-- ... (truncated; see source file for full DDL)"

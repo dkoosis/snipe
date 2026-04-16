@@ -81,6 +81,16 @@ func TestDetectDBSchemas_Migrations(t *testing.T) {
 	}
 }
 
+func TestDetectDBSchemas_BacktickInComment(t *testing.T) {
+	got := DetectDBSchemas("testdata/dbschema/backtick-in-comment")
+	if len(got) != 1 {
+		t.Fatalf("want 1 schema, got %d", len(got))
+	}
+	if !strings.Contains(got[0].DDL, "CREATE TABLE IF NOT EXISTS widgets") {
+		t.Errorf("scanner consumed by comment/string backticks; DDL: %q", got[0].DDL)
+	}
+}
+
 func TestDetectDBSchemas_None(t *testing.T) {
 	got := DetectDBSchemas("testdata/dbschema/none")
 	if len(got) != 0 {
