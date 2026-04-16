@@ -176,6 +176,13 @@ func writeResultHeader(b *strings.Builder, r *Result) {
 	}
 	b.WriteString("\n")
 
+	// Role on its own line if present (set in detailed format)
+	if r.Role != "" {
+		b.WriteString("role: ")
+		b.WriteString(r.Role)
+		b.WriteString("\n")
+	}
+
 	// Hints on their own line if present
 	if len(r.Hints) > 0 {
 		b.WriteString("hints: ")

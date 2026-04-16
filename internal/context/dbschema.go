@@ -144,7 +144,7 @@ func detectEmbeddedGo(repoRoot string) []DBSchema {
 	var out []DBSchema
 	_ = filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
 		if d.IsDir() {
 			if skipDirs[d.Name()] {
@@ -157,7 +157,7 @@ func detectEmbeddedGo(repoRoot string) []DBSchema {
 		}
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil
+			return err
 		}
 		ddl := extractGoDDL(string(content))
 		if ddl == "" {
