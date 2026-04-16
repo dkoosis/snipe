@@ -17,6 +17,11 @@ type searchResult struct {
 	similarity float32
 }
 
+// Embedder generates an embedding vector for a single text input.
+type Embedder interface {
+	EmbedOne(text, inputType string) ([]float32, error)
+}
+
 // Search embeds the query, compares against all stored embeddings,
 // and returns results above the threshold sorted by similarity descending.
 // Returns (nil, 0, nil) if no embeddings exist — caller decides how to handle.
@@ -25,7 +30,7 @@ type searchResult struct {
 // At 1024 dims × 4 bytes per float32, that's ~4KB per symbol. For 5,000 symbols
 // this is ~20MB — acceptable for current use. If this becomes a bottleneck,
 // the first optimization is an ANN index (HNSW or IVF) to avoid the full scan.
-func Search(queryText string, s *store.Store, client *Client, limit int, threshold float32) ([]output.Result, time.Duration, error) {
+func Search(queryText string, s *store.Store, client Embedder, limit int, threshold float32) ([]output.Result, time.Duration, error) {
 	start := time.Now()
 
 	count, err := s.CountEmbeddings()
