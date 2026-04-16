@@ -1,25 +1,20 @@
 # Boot
+updated: 2026-04-16
 
-sha: ad42a17 | updated: 2026-03-31
+→ Pick one from #126 remainder (M1/M3/M4/M5) or tackle #135 lifecycle.
+   Cheap M5 first: fold `deps` internal DAG into `context --boot` output.
 
-## Do next
+state: φ commit 5a56912 | `make check` green
 
-Pick one: #127 un-skip impl test | #117 semsearch unit tests | #128 v0.1.1 tag
+✓ done
+- Audit waves A/B/C shipped: F1/F2/F3/F4/F5/F6/F7/F8/F9/F10 + M2/M6
+- Plan review caught that F6 was mostly built (just routing bug), saved rework
+- #126 left open with progress comment; M1/M3/M4/M5 still open there
 
-## Done
-
-- Context output quality round 2: command purposes from Cobra Short (34/37), flow diversity via priority+dedup, callee ranking by significance
-- Removed build/test duplication, suppressed active_work on main, fixed root package purpose, rounded float noise
-- Output: 624→623 lines, `make ci` clean
-
-## Backlog
-
-#127 un-skip impl test | #112 vague-intent search | #117 semsearch unit tests | #128 v0.1.1 tag | #129 Homebrew tap | #122 human/table format | #126 trixi audit
-
-## Traps
-
-- Credentials file uses SNIPE_VOYAGE_API_KEY (renamed 2026-03-18) — old key name will silently not work
-- Orca passes `--format json`. If snipe's JSON envelope changes, re-verify orca.
-- `knownSubcommands` map in cmd/root.go must be updated when adding new commands
-- No interfaces in snipe's own source — impl can only be tested via blackbox fixture
-- `BootContext.Build`/`.Test` removed — use `BuildInfo.Build`/`.Test` now. Downstream consumers of top-level JSON `build`/`test` fields need updating.
+‡ traps
+- SNIPE_VOYAGE_API_KEY is the current name (not VOYAGE_API_KEY)
+- Orca consumes `--format json`; re-verify if envelope changes
+- `knownSubcommands` in cmd/root.go must be updated for any new command
+- No production interfaces — impl testable only via blackbox fixture
+- BASELINE_ORCA.json timestamp drifts on every run; ✗ stage it
+- Incremental writeRefs uses INSERT OR IGNORE — if ref.ID collides, row is not refreshed
