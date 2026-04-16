@@ -64,7 +64,9 @@ Examples:
   snipe edit Handler --operation replace_full --new-code-file handler.go.new
   snipe edit Config --operation insert_after --new-code "func NewConfig() Config { return Config{} }"
 
-By default, shows a preview without modifying files. Use --apply to write changes.`,
+By default, shows a preview without modifying files. The response includes
+a unified diff (original vs. rewritten) in results[0].diff so callers can
+review the exact change before committing. Use --apply to write changes.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runEdit,
 }
