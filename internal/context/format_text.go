@@ -83,6 +83,9 @@ func FormatText(bc *BootContext) string {
 		formatConventions(&b, conv)
 	}
 
+	// DB schemas
+	formatDBSchemas(&b, bc.DBSchemas)
+
 	// Active work
 	if aw := bc.ActiveWork; aw != nil {
 		b.WriteString("\n## active work\n")
@@ -95,6 +98,20 @@ func FormatText(bc *BootContext) string {
 	}
 
 	return b.String()
+}
+
+// formatDBSchemas emits one "## db schema" section per detected schema.
+// Source and name are shown in the header; DDL follows in a fenced sql block.
+func formatDBSchemas(b *strings.Builder, schemas []DBSchema) {
+	for _, s := range schemas {
+		fmt.Fprintf(b, "\n## db schema: %s (%s)\n", s.Name, s.Source)
+		b.WriteString("```sql\n")
+		b.WriteString(s.DDL)
+		if !strings.HasSuffix(s.DDL, "\n") {
+			b.WriteByte('\n')
+		}
+		b.WriteString("```\n")
+	}
 }
 
 func formatCommands(b *strings.Builder, ct *CommandTable) {
