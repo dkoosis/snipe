@@ -43,7 +43,7 @@ func FindTests(db *sql.DB, symbolID string, direct bool, limit, offset int) ([]T
 	var q string
 	if direct {
 		q = `
-			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
+			SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
 			       s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 			       s.signature, s.doc, s.receiver, f.hash,
 			       1 AS hop
@@ -58,7 +58,7 @@ func FindTests(db *sql.DB, symbolID string, direct bool, limit, offset int) ([]T
 	} else {
 		q = `
 			WITH direct_tests AS (
-				SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
+				SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
 				       s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 				       s.signature, s.doc, s.receiver, f.hash,
 				       1 AS hop
@@ -70,7 +70,7 @@ func FindTests(db *sql.DB, symbolID string, direct bool, limit, offset int) ([]T
 				  AND ` + testFuncFilterFor("s") + `
 			),
 			transitive_tests AS (
-				SELECT ts.id, ts.name, ts.kind, ts.file_path, ts.file_path_rel,
+				SELECT DISTINCT ts.id, ts.name, ts.kind, ts.file_path, ts.file_path_rel,
 				       ts.pkg_path, ts.line_start, ts.col_start, ts.line_end, ts.col_end,
 				       ts.signature, ts.doc, ts.receiver, f.hash,
 				       2 AS hop

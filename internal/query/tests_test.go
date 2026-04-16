@@ -170,6 +170,37 @@ func TestFindTests_Empty(t *testing.T) {
 	}
 }
 
+func TestFindTests_DeduplicatesMultipleCallEdges(t *testing.T) {
+	db := setupTestsDB(t)
+	defer db.Close()
+
+	// Test calls the target on three different lines.
+	// Should produce ONE result, not three.
+	insertTestSym(t, db, "s1", "Target", "/repo/target.go", "target.go", "pkg/t", "func Target()")
+	insertTestSym(t, db, "t1", "TestTarget", "/repo/target_test.go", "target_test.go", "pkg/t", "func TestTarget(t *testing.T)")
+	insertCallEdge(t, db, "t1", "s1", "/repo/target_test.go", 10, 5)
+	insertCallEdge(t, db, "t1", "s1", "/repo/target_test.go", 20, 5)
+	insertCallEdge(t, db, "t1", "s1", "/repo/target_test.go", 30, 5)
+
+	// direct=true path
+	results, err := FindTests(db, "s1", true, 50, 0)
+	if err != nil {
+		t.Fatalf("FindTests direct: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("direct: expected 1 (deduped), got %d", len(results))
+	}
+
+	// direct=false path (transitive)
+	results, err = FindTests(db, "s1", false, 50, 0)
+	if err != nil {
+		t.Fatalf("FindTests transitive: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("transitive: expected 1 (deduped), got %d", len(results))
+	}
+}
+
 func TestFindTests_DeduplicatesDirectAndTransitive(t *testing.T) {
 	db := setupTestsDB(t)
 	defer db.Close()

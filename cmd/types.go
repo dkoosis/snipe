@@ -181,13 +181,13 @@ getTypes:
 	}
 
 	// Build response
-	result := query.TypeResult{
+	result := output.TypesResult{
 		Symbol:    typeInfo.Symbol.Name,
 		Kind:      typeInfo.Symbol.Kind,
 		File:      typeInfo.Symbol.FilePathRel,
 		Signature: typeInfo.Symbol.Signature.String,
 		Doc:       typeInfo.Symbol.Doc.String,
-		Implements: query.ImplementsInfoOut{
+		Implements: output.TypesImplementsOut{
 			Status: typeInfo.Implements.Status,
 			Note:   typeInfo.Implements.Note,
 		},
@@ -195,7 +195,7 @@ getTypes:
 
 	// Add methods
 	for _, m := range typeInfo.Methods {
-		result.Methods = append(result.Methods, query.TypeMethodOut{
+		result.Methods = append(result.Methods, output.TypesMethodOut{
 			Name:      m.Name,
 			Signature: m.Signature,
 			File:      m.File,
@@ -205,7 +205,7 @@ getTypes:
 
 	// Add embeds
 	for _, e := range typeInfo.Embeds {
-		result.Embeds = append(result.Embeds, query.TypeEmbedOut{
+		result.Embeds = append(result.Embeds, output.TypesEmbedOut{
 			TypeName:  e.TypeName,
 			FieldName: e.FieldName,
 			File:      e.File,
@@ -214,7 +214,7 @@ getTypes:
 
 	// Add fields
 	for _, f := range typeInfo.Fields {
-		result.Fields = append(result.Fields, query.TypeFieldOut{
+		result.Fields = append(result.Fields, output.TypesFieldOut{
 			Name:     f.Name,
 			TypeExpr: f.TypeExpr,
 			Tag:      f.Tag,
@@ -223,10 +223,10 @@ getTypes:
 
 	staleFiles := query.CheckPathStaleness(s.DB(), dir, []string{typeInfo.Symbol.FilePath})
 
-	resp := output.Response[query.TypeResult]{
+	resp := output.Response[output.TypesResult]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
-		Results:  []query.TypeResult{result},
+		Results:  []output.TypesResult{result},
 		Meta: output.Meta{
 			Command:    "types",
 			Query:      queryInfo,

@@ -1,6 +1,7 @@
 package index
 
 import (
+	"fmt"
 	"go/ast"
 	"strings"
 
@@ -24,8 +25,14 @@ func ExtractImports(result *LoadResult) ([]Import, error) {
 
 // ExtractImportsFiltered extracts imports, optionally limited to specific files.
 // When onlyFiles is non-nil, only imports from those files are extracted.
+//
+// Deduplication: go/packages with Tests=true loads two variants of each package
+// containing non-test files (the regular package and the test-augmented variant).
+// This causes every non-test file to be visited twice. We deduplicate by
+// (file_path, line, col) so each import appears exactly once per file.
 func ExtractImportsFiltered(result *LoadResult, onlyFiles map[string]bool) ([]Import, error) {
 	var imports []Import
+	seen := make(map[string]struct{})
 
 	for _, pkg := range result.Packages {
 		for i, file := range pkg.Syntax {
@@ -39,8 +46,14 @@ func ExtractImportsFiltered(result *LoadResult, onlyFiles map[string]bool) ([]Im
 				continue
 			}
 
-			fileImports := extractFileImports(pkg, file, filePath, result)
-			imports = append(imports, fileImports...)
+			for _, imp := range extractFileImports(pkg, file, filePath, result) {
+				key := fmt.Sprintf("%s|%d|%d|%s", imp.FilePath, imp.Line, imp.Col, imp.PkgPath)
+				if _, dup := seen[key]; dup {
+					continue
+				}
+				seen[key] = struct{}{}
+				imports = append(imports, imp)
+			}
 		}
 	}
 

@@ -554,6 +554,48 @@ type DepTreeEdge struct {
 	FileCount int    `json:"file_count"`
 }
 
+// TypesResult is the output format for the `types` command.
+// Mirror of query layer fields so the Claude writer can render them.
+type TypesResult struct {
+	Symbol     string              `json:"symbol"`
+	Kind       string              `json:"kind"`
+	File       string              `json:"file"`
+	Signature  string              `json:"signature,omitempty"`
+	Doc        string              `json:"doc,omitempty"`
+	Methods    []TypesMethodOut    `json:"methods,omitempty"`
+	Embeds     []TypesEmbedOut     `json:"embeds,omitempty"`
+	Fields     []TypesFieldOut     `json:"fields,omitempty"`
+	Implements TypesImplementsOut  `json:"implements"`
+}
+
+// TypesMethodOut is the rendering form of a method on a type.
+type TypesMethodOut struct {
+	Name      string `json:"name"`
+	Signature string `json:"signature"`
+	File      string `json:"file"`
+	Line      int    `json:"line"`
+}
+
+// TypesEmbedOut is the rendering form of an embedded type.
+type TypesEmbedOut struct {
+	TypeName  string `json:"type_name"`
+	FieldName string `json:"field_name,omitempty"`
+	File      string `json:"file,omitempty"`
+}
+
+// TypesFieldOut is the rendering form of a struct field.
+type TypesFieldOut struct {
+	Name     string `json:"name"`
+	TypeExpr string `json:"type"`
+	Tag      string `json:"tag,omitempty"`
+}
+
+// TypesImplementsOut is the rendering form of implements info.
+type TypesImplementsOut struct {
+	Status string `json:"status"`
+	Note   string `json:"note,omitempty"`
+}
+
 // SuggestionsForPack generates suggestions after a pack command.
 func SuggestionsForPack(result *Result) []Suggestion {
 	if result == nil {

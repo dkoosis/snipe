@@ -89,6 +89,8 @@ func (w *Writer) writeClaude(resp any) error {
 		w.writeClaudeDeps(&b, r.Results, r.Meta)
 	case Response[DepTreeResult]:
 		w.writeClaudeDepTree(&b, r.Results, r.Meta)
+	case Response[TypesResult]:
+		w.writeClaudeTypes(&b, r.Results, r.Meta)
 	default:
 		// Fallback: JSON for unknown types
 		return w.writeJSON(resp)
@@ -428,6 +430,65 @@ func (w *Writer) writeClaudeDeps(b *strings.Builder, results []DepsResult, meta 
 			for _, c := range r.Cycles {
 				fmt.Fprintf(b, "  %s\n", strings.Join(c, " -> "))
 			}
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudeTypes(b *strings.Builder, results []TypesResult, meta Meta) {
+	for _, r := range results {
+		fmt.Fprintf(b, "# %s\n", r.Symbol)
+		fmt.Fprintf(b, "%s | %s", r.File, r.Kind)
+		if r.Signature != "" {
+			b.WriteString(" | ")
+			b.WriteString(r.Signature)
+		}
+		b.WriteString("\n")
+		if r.Doc != "" {
+			b.WriteString(r.Doc)
+			b.WriteString("\n")
+		}
+		if len(r.Fields) > 0 {
+			b.WriteString("fields:\n")
+			for _, f := range r.Fields {
+				fmt.Fprintf(b, "  %s %s", f.Name, f.TypeExpr)
+				if f.Tag != "" {
+					fmt.Fprintf(b, " `%s`", f.Tag)
+				}
+				b.WriteString("\n")
+			}
+		}
+		if len(r.Embeds) > 0 {
+			b.WriteString("embeds:\n")
+			for _, e := range r.Embeds {
+				b.WriteString("  ")
+				b.WriteString(e.TypeName)
+				if e.FieldName != "" {
+					fmt.Fprintf(b, " (as %s)", e.FieldName)
+				}
+				b.WriteString("\n")
+			}
+		}
+		if len(r.Methods) > 0 {
+			b.WriteString("methods:\n")
+			for _, m := range r.Methods {
+				fmt.Fprintf(b, "  %s", m.Name)
+				if m.Signature != "" {
+					b.WriteString(" — ")
+					b.WriteString(m.Signature)
+				}
+				if m.File != "" {
+					fmt.Fprintf(b, " (%s:%d)", m.File, m.Line)
+				}
+				b.WriteString("\n")
+			}
+		}
+		if r.Implements.Status != "" && r.Implements.Status != "unknown" {
+			fmt.Fprintf(b, "implements: %s", r.Implements.Status)
+			if r.Implements.Note != "" {
+				fmt.Fprintf(b, " (%s)", r.Implements.Note)
+			}
+			b.WriteString("\n")
 		}
 	}
 	w.writeClaudeMeta(b, meta)

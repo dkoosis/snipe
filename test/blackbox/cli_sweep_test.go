@@ -520,6 +520,20 @@ func TestImports(t *testing.T) {
 		if len(results) == 0 {
 			t.Fatalf("expected imports results")
 		}
+		// Each (pkg, line) tuple should appear exactly once.
+		// go/packages with Tests=true previously caused duplicates.
+		seen := map[string]bool{}
+		for i, r := range results {
+			m := requireMap(t, r, fmt.Sprintf("imports[%d]", i))
+			rng := requireMap(t, m["range"], "range")
+			start := requireMap(t, rng["start"], "range.start")
+			line := getFloat(t, start["line"], "line")
+			key := fmt.Sprintf("%s@%v", getString(t, m["match"], "match"), line)
+			if seen[key] {
+				t.Fatalf("duplicate import %q at line %v in imports output", getString(t, m["match"], "match"), line)
+			}
+			seen[key] = true
+		}
 	})
 
 	t.Run("unknown_file", func(t *testing.T) {

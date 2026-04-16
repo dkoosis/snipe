@@ -86,7 +86,25 @@ func scanImportRows(rows *sql.Rows) ([]ImportRow, error) {
 		if err != nil {
 			return nil, err
 		}
+		if isBuildCachePath(imp.FilePath) {
+			continue
+		}
 		imports = append(imports, imp)
 	}
 	return imports, rows.Err()
+}
+
+// isBuildCachePath reports whether a file path came from the Go build cache
+// or module cache rather than actual source. These paths leak in when the
+// indexer resolves dependency packages through go/packages.
+func isBuildCachePath(p string) bool {
+	switch {
+	case strings.Contains(p, "/Library/Caches/go-build/"):
+		return true
+	case strings.Contains(p, "/.cache/go-build/"):
+		return true
+	case strings.Contains(p, "/go-build/") && strings.Contains(p, "/Caches/"):
+		return true
+	}
+	return false
 }

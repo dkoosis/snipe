@@ -52,47 +52,6 @@ type ImplementsInfo struct {
 	Note       string   `json:"note,omitempty"`
 }
 
-// TypeResult is the output format for the types command.
-type TypeResult struct {
-	Symbol     string            `json:"symbol"`
-	Kind       string            `json:"kind"`
-	File       string            `json:"file"`
-	Signature  string            `json:"signature,omitempty"`
-	Doc        string            `json:"doc,omitempty"`
-	Methods    []TypeMethodOut   `json:"methods,omitempty"`
-	Embeds     []TypeEmbedOut    `json:"embeds,omitempty"`
-	Fields     []TypeFieldOut    `json:"fields,omitempty"`
-	Implements ImplementsInfoOut `json:"implements"`
-}
-
-// TypeMethodOut is the output format for a method.
-type TypeMethodOut struct {
-	Name      string `json:"name"`
-	Signature string `json:"signature"`
-	File      string `json:"file"`
-	Line      int    `json:"line"`
-}
-
-// TypeEmbedOut is the output format for an embedded type.
-type TypeEmbedOut struct {
-	TypeName  string `json:"type_name"`
-	FieldName string `json:"field_name,omitempty"`
-	File      string `json:"file,omitempty"`
-}
-
-// TypeFieldOut is the output format for a field.
-type TypeFieldOut struct {
-	Name     string `json:"name"`
-	TypeExpr string `json:"type"`
-	Tag      string `json:"tag,omitempty"`
-}
-
-// ImplementsInfoOut is the output format for implements info.
-type ImplementsInfoOut struct {
-	Status string `json:"status"`
-	Note   string `json:"note,omitempty"`
-}
-
 // GetTypeInfo retrieves type information for a symbol.
 func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 	sym, err := LookupByID(db, symbolID)
