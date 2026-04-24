@@ -770,7 +770,9 @@ func (s *Store) WriteLiteralsForFiles(refs []index.StringRef, changedFiles, dele
 		}
 	}()
 
-	allFiles := append(changedFiles, deletedFiles...)
+	allFiles := make([]string, 0, len(changedFiles)+len(deletedFiles))
+	allFiles = append(allFiles, changedFiles...)
+	allFiles = append(allFiles, deletedFiles...)
 	for _, f := range allFiles {
 		if _, err := tx.Exec(`DELETE FROM string_refs WHERE file_path = ?`, f); err != nil {
 			return fmt.Errorf("delete string_refs for %s: %w", f, err)

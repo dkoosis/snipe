@@ -210,6 +210,20 @@ Epic snipe-ahi: `snipe lifecycle <Type>` traces CRUD usage across the index.
 
 ---
 
+## zhs.3: String literal / env var tracking (2026-04-24)
+
+| Change | Commit | Notes |
+|--------|--------|-------|
+| `internal/index/literals.go`: `StringRef` type, AST extraction | 4fd8132 | env (os.Getenv/LookupEnv/Setenv) + named const |
+| `internal/store/schema.go`: migration 14, `string_refs` table | 8922ccd | indexed by value, file, kind+value |
+| `internal/store/write.go`: `WriteLiterals`, `WriteLiteralsForFiles` | 8922ccd | full + incremental write paths |
+| `internal/query/literals.go`: `FindLiteralRefs` | b67be87 | query by exact string value |
+| `cmd/lits.go`: `snipe lits <value>` command | 6c9ea4c | GroupID=core, JSON envelope |
+| `cmd/index.go`: wire extraction into full/incremental/delete-only | c3b59e9 | zero overhead on incremental |
+| Blackbox test: SNIPE_VOYAGE_API_KEY → 2 call sites | 3d93800 | test/blackbox/literals_test.go |
+
+---
+
 ## Context output quality (2026-04-16)
 
 | Change | Commit | Notes |
