@@ -100,19 +100,27 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 
 	result := buildLifecycleResult(s.DB(), sym, refRows, classifications, lifecycleIncludeTests, lifecycleCallerDepth)
 
+	tokenTruncated := false
+	if maxTok := GetMaxTokens(); maxTok > 0 {
+		result, tokenTruncated = output.TruncateLifecycleToTokenBudget(result, maxTok)
+	}
+
+	meta := output.Meta{
+		Command:  "lifecycle",
+		Query:    map[string]string{"type": typeName},
+		RepoRoot: dir,
+		Ms:       time.Since(start).Milliseconds(),
+		Total:    1,
+		Offset:   off,
+		Limit:    lim,
+		Truncated: tokenTruncated,
+	}
+
 	return w.WriteResponse(output.Response[output.LifecycleResult]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
 		Results:  []output.LifecycleResult{result},
-		Meta: output.Meta{
-			Command:  "lifecycle",
-			Query:    map[string]string{"type": typeName},
-			RepoRoot: dir,
-			Ms:       time.Since(start).Milliseconds(),
-			Total:    1,
-			Offset:   off,
-			Limit:    lim,
-		},
+		Meta:     meta,
 	})
 }
 

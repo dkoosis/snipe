@@ -91,6 +91,8 @@ func (w *Writer) writeClaude(resp any) error {
 		w.writeClaudeDepTree(&b, r.Results, r.Meta)
 	case Response[TypesResult]:
 		w.writeClaudeTypes(&b, r.Results, r.Meta)
+	case Response[LifecycleResult]:
+		w.writeClaudeLifecycle(&b, r.Results, r.Meta)
 	default:
 		// Fallback: JSON for unknown types
 		return w.writeJSON(resp)
@@ -492,6 +494,142 @@ func (w *Writer) writeClaudeTypes(b *strings.Builder, results []TypesResult, met
 		}
 	}
 	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudeLifecycle(b *strings.Builder, results []LifecycleResult, meta Meta) {
+	for _, r := range results {
+		fmt.Fprintf(b, "# Lifecycle: %s", r.Type)
+		if r.TypeID != "" {
+			fmt.Fprintf(b, " [%s]", r.TypeID)
+		}
+		b.WriteString("\n")
+		if r.TypeFile != "" {
+			fmt.Fprintf(b, "%s:%d", r.TypeFile, r.TypeLine)
+			if r.TypeKind != "" {
+				fmt.Fprintf(b, " | %s", r.TypeKind)
+			}
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(b, "%d refs across %d functions", r.TotalRefs, r.FunctionRefs)
+		if r.TestRefs > 0 {
+			fmt.Fprintf(b, " (+ %d in tests)", r.TestRefs)
+		}
+		b.WriteString("\n")
+
+		for _, g := range r.Groups {
+			if g.Count == 0 {
+				continue
+			}
+			fmt.Fprintf(b, "\n## %s (%d)\n", g.Role, g.Count)
+			for _, f := range g.Funcs {
+				fmt.Fprintf(b, "- %s  %s:%d", f.Name, f.File, f.Line)
+				if len(f.Mixed) > 0 {
+					fmt.Fprintf(b, "  mixed:[%s]", strings.Join(f.Mixed, ","))
+				}
+				b.WriteString("\n")
+				if f.Signal != "" {
+					fmt.Fprintf(b, "    signal: %s\n", f.Signal)
+				}
+				if chain := lifecycleCallerChain(f.Callers); chain != "" {
+					fmt.Fprintf(b, "    callers: %s\n", chain)
+				}
+			}
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+// lifecycleCallerChain formats a BFS caller list as "fn ← caller1 ← caller2 ← ...".
+// Depth-1 callers are listed in order; deeper hops follow sorted by depth then name.
+func lifecycleCallerChain(callers []LifecycleCallerNode) string {
+	if len(callers) == 0 {
+		return ""
+	}
+	// Sort by depth ascending, then name for stable output.
+	sorted := make([]LifecycleCallerNode, len(callers))
+	copy(sorted, callers)
+	for i := 1; i < len(sorted); i++ {
+		for j := i; j > 0 && (sorted[j].Depth < sorted[j-1].Depth ||
+			(sorted[j].Depth == sorted[j-1].Depth && sorted[j].Name < sorted[j-1].Name)); j-- {
+			sorted[j], sorted[j-1] = sorted[j-1], sorted[j]
+		}
+	}
+	names := make([]string, len(sorted))
+	for i, c := range sorted {
+		names[i] = c.Name
+	}
+	return strings.Join(names, " ← ")
+}
+
+// TruncateLifecycleToTokenBudget shrinks r to fit within maxTokens by dropping
+// callers first (least informative), then tail functions from each group, then
+// empty groups. Ordering within groups is preserved (stable).
+// Returns the modified result and whether truncation occurred.
+func TruncateLifecycleToTokenBudget(r LifecycleResult, maxTokens int) (LifecycleResult, bool) {
+	if maxTokens <= 0 {
+		return r, false
+	}
+	estimate := lifecycleTokenEstimate(r)
+	if estimate <= maxTokens {
+		return r, false
+	}
+
+	// Pass 1: drop all caller chains.
+	stripped := r
+	stripped.Groups = make([]LifecycleGroup, len(r.Groups))
+	for i, g := range r.Groups {
+		ng := g
+		ng.Funcs = make([]LifecycleFunction, len(g.Funcs))
+		for j, f := range g.Funcs {
+			nf := f
+			nf.Callers = nil
+			ng.Funcs[j] = nf
+		}
+		stripped.Groups[i] = ng
+	}
+	if estimate = lifecycleTokenEstimate(stripped); estimate <= maxTokens {
+		return stripped, true
+	}
+
+	// Pass 2: trim tail functions from groups (largest groups first).
+	trimmed := stripped
+	trimmed.Groups = make([]LifecycleGroup, len(stripped.Groups))
+	copy(trimmed.Groups, stripped.Groups)
+	for lifecycleTokenEstimate(trimmed) > maxTokens {
+		// Find the group with the most funcs and drop its last entry.
+		best := -1
+		for i, g := range trimmed.Groups {
+			if len(g.Funcs) > 0 && (best == -1 || len(g.Funcs) > len(trimmed.Groups[best].Funcs)) {
+				best = i
+			}
+		}
+		if best == -1 {
+			break
+		}
+		g := trimmed.Groups[best]
+		g.Funcs = g.Funcs[:len(g.Funcs)-1]
+		g.Count = len(g.Funcs)
+		trimmed.Groups[best] = g
+	}
+	return trimmed, true
+}
+
+// lifecycleTokenEstimate approximates token count for a LifecycleResult.
+// Uses 4 chars ≈ 1 token heuristic.
+func lifecycleTokenEstimate(r LifecycleResult) int {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# Lifecycle: %s %s:%d %s\n%d refs across %d functions\n",
+		r.Type, r.TypeFile, r.TypeLine, r.TypeKind, r.TotalRefs, r.FunctionRefs)
+	for _, g := range r.Groups {
+		fmt.Fprintf(&b, "## %s (%d)\n", g.Role, g.Count)
+		for _, f := range g.Funcs {
+			fmt.Fprintf(&b, "- %s  %s:%d\n    signal: %s\n", f.Name, f.File, f.Line, f.Signal)
+			if chain := lifecycleCallerChain(f.Callers); chain != "" {
+				fmt.Fprintf(&b, "    callers: %s\n", chain)
+			}
+		}
+	}
+	return b.Len() / 4
 }
 
 func (w *Writer) writeClaudeDepTree(b *strings.Builder, results []DepTreeResult, meta Meta) {
