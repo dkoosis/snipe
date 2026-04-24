@@ -4,7 +4,7 @@ Make it easier for Claude to work with Go repos. Static indexing, <50ms queries,
 
 ## verify
 
-`make` (vet+lint+test) or `make ci` (full: race, blackbox, govulncheck)
+`make` (vet+lint+test) or `make audit` (full: race, blackbox, govulncheck)
 
 ## layout
 
@@ -33,6 +33,8 @@ snipe show <hex-id>          # expand by 16-char ID
 snipe search "pattern"       # ripgrep fallback
 snipe context                # Claude-optimized orientation (entry points, flows, boundaries)
 snipe context --full         # Full architecture dump
+snipe lifecycle <Type>       # CRUD trace: Create/Mutate/Read/Delete funcs + caller chains
+snipe lifecycle T --include-tests  # fold _test.go refs into role buckets (default: separate)
 ```
 
 ## focus
@@ -58,11 +60,11 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 | D3 | Index root = git root | Always resolve to repo root, not CWD. Eliminates MISSING_INDEX confusion |
 | D4 | Token budget is a first-class concern | Every byte of output must earn its place. No envelope noise in default output |
 | D5 | Hex IDs chain across commands | 16-char IDs enable follow-up queries without re-lookup |
-| D6 | `make ci` is the merge gate | No exceptions |
+| D6 | `make audit` is the merge gate | No exceptions |
 
 ## invariants
 
-- `make ci` passes before merge
+- `make audit` passes before merge
 - hex IDs: 16-char, chain across commands
 
 ## lifecycle traps

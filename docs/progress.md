@@ -196,6 +196,20 @@ Default output changed from JSON envelope to Claude-optimized structured text.
 
 ---
 
+## Lifecycle command (2026-04-24)
+
+Epic snipe-ahi: `snipe lifecycle <Type>` traces CRUD usage across the index.
+
+| Phase | Commit | Notes |
+|-------|--------|-------|
+| ahi.1 scaffold: cobra wiring, knownSubcommands | cb24f83 | stub subcommand |
+| ahi.2 classify: R1–R5, R7 rules; Signal trail | f9c034b | snippet + name/sig heuristics; Mixed surfaces secondary roles |
+| ahi.3 caller chains: WalkCallers BFS + --depth | f9c034b | cycle detection, 7 unit tests |
+| ahi.4 output: text + JSON formatters | 97fd2d9 | `fn ← caller` chains, TruncateLifecycleToTokenBudget, --max-tokens wiring |
+| ahi.5 blackbox fixture test + docs | this | test/blackbox/lifecycle_test.go: 4 tests — all CRUD groups populated, stable ordering, --include-tests, token budget respected |
+
+---
+
 ## Context output quality (2026-04-16)
 
 | Change | Commit | Notes |
