@@ -527,6 +527,32 @@ type PackResult struct {
 	RelatedTypes []string        `json:"related_types,omitempty"`
 }
 
+// PackageExport summarizes a single exported symbol in a package pack response.
+type PackageExport struct {
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	Kind      string `json:"kind"`
+	Signature string `json:"signature,omitempty"`
+	Line      int    `json:"line,omitempty"`
+}
+
+// PackPackageResult is the combined response for `snipe pack <pkg-path>`.
+// Package-level counterpart of PackResult — orient Claude on a whole package
+// in one query: exports, imports, dependent count, tests, LOC, key types.
+type PackPackageResult struct {
+	Package        string          `json:"package"`
+	ModulePath     string          `json:"module_path,omitempty"`
+	Dir            string          `json:"dir,omitempty"`
+	FileCount      int             `json:"file_count"`
+	LOC            int             `json:"loc"`
+	TestCount      int             `json:"test_count"`
+	ExportCount    int             `json:"export_count"`
+	Exports        []PackageExport `json:"exports,omitempty"`
+	Imports        []DepRef        `json:"imports,omitempty"`
+	DependentCount int             `json:"dependent_count"`
+	KeyTypes       []string        `json:"key_types,omitempty"`
+}
+
 // DepsResult is the response for single-package dependency queries.
 type DepsResult struct {
 	Package      string     `json:"package"`

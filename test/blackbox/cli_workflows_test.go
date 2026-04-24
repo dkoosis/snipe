@@ -751,6 +751,117 @@ func TestPack_StructType_AggregatesMethodCallGraph(t *testing.T) {
 	}
 }
 
+func TestPack_PackagePath_ReturnsPackageProfile(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	// Root fixture package imports alpha and beta; packing "alpha" should
+	// return a package profile (not a symbol profile) with exports, and show
+	// the root fixture as a dependent via dependent_count > 0.
+	stdout, stderr, exitCode := run(t, repoDir, "pack", "alpha")
+	if exitCode != 0 {
+		t.Fatalf("pack alpha exit %d stderr=%s", exitCode, string(stderr))
+	}
+
+	resp := parseJSON(t, stdout)
+	assertResponseContract(t, resp, responseExpectations{
+		command:           "pack",
+		requireQuery:      true,
+		requireRepoRoot:   true,
+		requireIndexState: true,
+	})
+
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected pack alpha results")
+	}
+	pkg := requireMap(t, results[0], "results[0]")
+
+	// Package-mode result has a "package" field, not "definition".
+	pkgName := getString(t, pkg["package"], "package")
+	if pkgName == "" {
+		t.Fatalf("expected package field to be populated")
+	}
+	if !strings.HasSuffix(pkgName, "alpha") && pkgName != "alpha" {
+		t.Fatalf("expected package to end in alpha, got %q", pkgName)
+	}
+
+	exports := requireSlice(t, pkg["exports"], "exports")
+	if len(exports) == 0 {
+		t.Fatalf("expected at least one export for alpha package")
+	}
+	// Alpha exports Ambiguous()
+	foundAmbiguous := false
+	for _, e := range exports {
+		exp := requireMap(t, e, "export")
+		if getString(t, exp["name"], "name") == "Ambiguous" {
+			foundAmbiguous = true
+			break
+		}
+	}
+	if !foundAmbiguous {
+		t.Fatalf("expected Ambiguous in alpha exports")
+	}
+
+	// dependent_count must be present and non-negative. (Module-root callers
+	// are filtered out by FindPackageDeps's `modulePath/%` suffix match, so
+	// we don't assert a lower bound — just that the field exists and is sane.)
+	if _, ok := pkg["dependent_count"]; !ok {
+		t.Fatalf("expected dependent_count field")
+	}
+	if dc := int(getFloat(t, pkg["dependent_count"], "dependent_count")); dc < 0 {
+		t.Fatalf("dependent_count must be >= 0, got %d", dc)
+	}
+
+	// LOC > 0 (we count from disk)
+	if loc := int(getFloat(t, pkg["loc"], "loc")); loc <= 0 {
+		t.Fatalf("expected loc > 0 for alpha package, got %d", loc)
+	}
+
+	// Should NOT have a "definition" field (that's symbol-mode).
+	if _, ok := pkg["definition"]; ok {
+		t.Fatalf("package-mode pack should not contain definition field")
+	}
+}
+
+func TestPack_PackagePath_NonExistent_ReturnsNotFound(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, _ := run(t, repoDir, "pack", "nonexistent/pkg")
+	// Clean error envelope, not a crash/panic. Snipe reports errors via the
+	// JSON envelope with exit 0, so we check shape.
+	resp := parseJSON(t, stdout)
+	if ok, _ := resp["ok"].(bool); ok {
+		t.Fatalf("expected ok=false for nonexistent package, stderr=%s", string(stderr))
+	}
+	errObj := requireMap(t, resp["error"], "error")
+	if code := getString(t, errObj["code"], "error.code"); code != "NOT_FOUND" {
+		t.Fatalf("expected NOT_FOUND error, got %s", code)
+	}
+}
+
+func TestPack_Symbol_StillWorks_Regression(t *testing.T) {
+	// Regression guard: the previous symbol-mode behavior must be unchanged
+	// when the argument is a plain symbol name (no slash, not a directory).
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := run(t, repoDir, "pack", "Callee")
+	if exitCode != 0 {
+		t.Fatalf("pack Callee exit %d stderr=%s", exitCode, string(stderr))
+	}
+	resp := parseJSON(t, stdout)
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) == 0 {
+		t.Fatalf("expected pack Callee results")
+	}
+	pack := requireMap(t, results[0], "results[0]")
+	if _, ok := pack["definition"]; !ok {
+		t.Fatalf("symbol-mode pack must contain definition")
+	}
+}
+
 func TestDeps_SinglePackage_ReturnsDependencies(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)

@@ -81,6 +81,8 @@ func (w *Writer) writeClaude(resp any) error {
 		w.writeClaudeSummary(&b, r.Results, r.Meta)
 	case Response[PackResult]:
 		w.writeClaudePack(&b, r.Results, r.Meta)
+	case Response[PackPackageResult]:
+		w.writeClaudePackPackage(&b, r.Results, r.Meta)
 	case Response[ExplainResult]:
 		w.writeClaudeExplain(&b, r.Results, r.Meta)
 	case Response[SymResult]:
@@ -340,6 +342,44 @@ func (w *Writer) writeClaudePack(b *strings.Builder, results []PackResult, meta 
 				fmt.Fprintf(b, ", %d refs", r.RefCount)
 			}
 			b.WriteString("\n")
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudePackPackage(b *strings.Builder, results []PackPackageResult, meta Meta) {
+	for _, r := range results {
+		fmt.Fprintf(b, "# package %s\n", r.Package)
+		if r.Dir != "" {
+			fmt.Fprintf(b, "dir: %s\n", r.Dir)
+		}
+		fmt.Fprintf(b, "files: %d  loc: %d  tests: %d  exports: %d\n",
+			r.FileCount, r.LOC, r.TestCount, r.ExportCount)
+		fmt.Fprintf(b, "imports: %d  dependents: %d\n", len(r.Imports), r.DependentCount)
+		if len(r.KeyTypes) > 0 {
+			b.WriteString("key_types: ")
+			b.WriteString(strings.Join(r.KeyTypes, ", "))
+			b.WriteString("\n")
+		}
+		if len(r.Exports) > 0 {
+			b.WriteString("exports:\n")
+			for _, e := range r.Exports {
+				fmt.Fprintf(b, "  %s %s", e.Kind, e.Name)
+				if e.Signature != "" {
+					fmt.Fprintf(b, " — %s", e.Signature)
+				}
+				b.WriteString("\n")
+			}
+		}
+		if len(r.Imports) > 0 {
+			b.WriteString("imports:\n")
+			for _, dep := range r.Imports {
+				fmt.Fprintf(b, "  %s", dep.Package)
+				if dep.FileCount > 0 {
+					fmt.Fprintf(b, " (%d files)", dep.FileCount)
+				}
+				b.WriteString("\n")
+			}
 		}
 	}
 	w.writeClaudeMeta(b, meta)

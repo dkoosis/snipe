@@ -25,20 +25,23 @@ var (
 )
 
 var packCmd = &cobra.Command{
-	Use:     "pack [symbol...]",
-	Short:   "Full symbol profile: def + refs + callers + callees + role + purpose",
+	Use:     "pack [symbol|package...]",
+	Short:   "Full symbol or package profile in a single query",
 	GroupID: "core",
-	Long: `Returns everything an LLM needs about a symbol in a single query.
-Combines definition, references, callers, callees, architectural role,
-relevance score, and purpose summary.
+	Long: `Returns everything an LLM needs about a symbol (or package) in one query.
+
+Symbol mode combines definition, references, callers, callees, role, and purpose.
+Package mode returns exports, imports, dependent count, LOC, tests, and key types.
 
 Multi-ID mode bundles multiple symbols in one response:
   snipe pack abc123def456 789012345678  # Multiple hex IDs
 
 Examples:
-  snipe pack ProcessOrder              # Full profile by name
-  snipe pack --at main.go:42:12        # Full profile at position
-  snipe pack Handler --refs-limit 5    # Limit references returned`,
+  snipe pack ProcessOrder              # Symbol profile by name
+  snipe pack --at main.go:42:12        # Symbol profile at position
+  snipe pack Handler --refs-limit 5    # Limit references returned
+  snipe pack internal/mcp              # Package profile
+  snipe pack ./internal/store          # Package profile (relative path)`,
 	RunE: runPack,
 }
 
@@ -78,6 +81,20 @@ func runPack(cmd *cobra.Command, args []string) error {
 	// Multi-ID mode: multiple args that are all hex IDs
 	if len(args) > 1 {
 		return runPackMulti(w, s, dir, args, opts, start)
+	}
+
+	// Package-path mode: "snipe pack internal/mcp", "snipe pack ./internal/mcp".
+	// Hex IDs never contain "/"; Go symbol names never contain "/"; so a slash
+	// is an unambiguous signal. The on-disk fallback handles single-segment
+	// names that happen to be directories.
+	if packAt == "" && len(args) == 1 {
+		repoRoot, _ := s.GetMeta("repo_root")
+		if repoRoot == "" {
+			repoRoot = dir
+		}
+		if looksLikePackagePath(repoRoot, args[0]) {
+			return runPackPackage(w, s, dir, args[0], start)
+		}
 	}
 
 	// Single-symbol mode
