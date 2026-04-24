@@ -106,13 +106,13 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 	}
 
 	meta := output.Meta{
-		Command:  "lifecycle",
-		Query:    map[string]string{"type": typeName},
-		RepoRoot: dir,
-		Ms:       time.Since(start).Milliseconds(),
-		Total:    1,
-		Offset:   off,
-		Limit:    lim,
+		Command:   "lifecycle",
+		Query:     map[string]string{"type": typeName},
+		RepoRoot:  dir,
+		Ms:        time.Since(start).Milliseconds(),
+		Total:     1,
+		Offset:    off,
+		Limit:     lim,
 		Truncated: tokenTruncated,
 	}
 

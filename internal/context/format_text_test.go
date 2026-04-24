@@ -29,7 +29,6 @@ func TestFormatText_TriageLine(t *testing.T) {
 	})
 }
 
-
 func TestFormatText_DepDAG(t *testing.T) {
 	t.Run("emits deps section when DAG present", func(t *testing.T) {
 		bc := &BootContext{

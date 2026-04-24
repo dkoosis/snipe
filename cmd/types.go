@@ -277,7 +277,7 @@ func runTypesForPackage(w *output.Writer, s interface {
 	// Wide limit — we filter to types only, which is typically a small subset.
 	symbols, err := query.FindPackageSymbols(s.DB(), pkgPath, 500, 0)
 	if err != nil {
-		return false, nil // fall through; lookup path will surface the error
+		return false, nil //nolint:nilerr // deliberate: let caller fall through to name-based lookup
 	}
 
 	var typeSymbols []query.SymbolRow

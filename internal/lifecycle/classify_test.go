@@ -14,8 +14,8 @@ type caseT struct {
 	typeName string
 	refs     []Ref
 	wantRole Role
-	wantRule string   // substring expected in Signal
-	wantMix  []Role   // optional secondary roles
+	wantRule string // substring expected in Signal
+	wantMix  []Role // optional secondary roles
 }
 
 func TestClassify_Rules(t *testing.T) {
@@ -231,10 +231,10 @@ func TestClassify_Rules(t *testing.T) {
 			name:     "R8: file-scope type declaration",
 			typeName: "Nug",
 			refs: []Ref{{
-				EnclosingID:        "",
-				FileRel:            "nugs/nug.go",
-				Line:               10,
-				Snippet:            "type Nug struct {",
+				EnclosingID: "",
+				FileRel:     "nugs/nug.go",
+				Line:        10,
+				Snippet:     "type Nug struct {",
 			}},
 			wantRole: RoleUnknown,
 			wantRule: "[R8 no-enclosing]",
@@ -334,12 +334,12 @@ func TestClassify_TestFileDetection(t *testing.T) {
 
 func TestIsTestOrGeneratedFile(t *testing.T) {
 	cases := map[string]bool{
-		"pkg/foo_test.go":           true,
-		"pkg/foo_gen.go":            true,
-		"pkg/zz_generated_deep.go":  true,
-		"pkg/foo.go":                false,
-		"zz_generated_root.go":      true,
-		"pkg/generated_manual.go":   false, // only zz_generated_ prefix counts
+		"pkg/foo_test.go":          true,
+		"pkg/foo_gen.go":           true,
+		"pkg/zz_generated_deep.go": true,
+		"pkg/foo.go":               false,
+		"zz_generated_root.go":     true,
+		"pkg/generated_manual.go":  false, // only zz_generated_ prefix counts
 	}
 	for path, want := range cases {
 		assert.Equal(t, want, isTestOrGeneratedFile(path), path)
