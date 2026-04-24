@@ -103,6 +103,7 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 	purpose := inferProjectPurpose(cfg.DB, cfg.RepoRoot, proj.Name)
 
 	depDAG := buildDepDAG(cfg.DB)
+	totalSymbols, totalPkgs := countSymbolsAndPkgs(cfg.DB)
 
 	return &BootContext{
 		Project:     proj.Name,
@@ -117,7 +118,9 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		Packages:    packages,
 		Conventions: conventions,
 		DBSchemas:   DetectDBSchemas(cfg.RepoRoot),
-		DepDAG:      depDAG,
+		DepDAG:       depDAG,
+		TotalSymbols: totalSymbols,
+		TotalPkgs:    totalPkgs,
 	}, nil
 }
 
@@ -155,6 +158,13 @@ func buildDepDAG(db *sql.DB) *DepDAG {
 	}
 
 	return &DepDAG{Edges: edges}
+}
+
+// countSymbolsAndPkgs returns the total symbol count and distinct package count from the index.
+func countSymbolsAndPkgs(db *sql.DB) (symbols, pkgs int) {
+	_ = db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbols)
+	_ = db.QueryRow(`SELECT COUNT(DISTINCT pkg_path) FROM symbols`).Scan(&pkgs)
+	return
 }
 
 func isTestPkg(pkg string) bool {

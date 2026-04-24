@@ -13,6 +13,11 @@ const empty = "∅"
 func FormatText(bc *BootContext) string {
 	var b strings.Builder
 
+	// Triage line (omitted when IndexState not set)
+	if bc.IndexState != "" {
+		fmt.Fprintf(&b, "%d symbols | %d pkgs | index: %s\n", bc.TotalSymbols, bc.TotalPkgs, bc.IndexState)
+	}
+
 	// Header
 	fmt.Fprintf(&b, "# %s", bc.Project)
 	if bc.Commit != "" {

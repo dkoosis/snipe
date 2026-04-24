@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dkoosis/snipe/internal/context"
+	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/util"
 )
@@ -121,6 +122,7 @@ func runContext(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("generate orientation context: %w", err)
 	}
+	orientCtx.IndexState = string(query.CheckIndexState(s.DB(), projectRoot, Version))
 
 	if contextOutputNug {
 		nugs := orientCtx.ToNuggets()

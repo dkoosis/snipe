@@ -48,6 +48,11 @@ type BootContext struct {
 
 	// DepDAG is the compact internal package dependency graph.
 	DepDAG *DepDAG `json:"dep_dag,omitempty" yaml:"dep_dag,omitempty"`
+
+	// Index triage stats — used for the first-line summary in text output.
+	TotalSymbols int    `json:"total_symbols,omitempty" yaml:"total_symbols,omitempty"`
+	TotalPkgs    int    `json:"total_pkgs,omitempty" yaml:"total_pkgs,omitempty"`
+	IndexState   string `json:"index_state,omitempty" yaml:"index_state,omitempty"`
 }
 
 // BootViews contains the three orientation views for LLM boot sequences.
