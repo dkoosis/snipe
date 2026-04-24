@@ -118,7 +118,7 @@ Complete QA before PR (runs lint + tests + build):
 bash .codex/validate.sh
 
 # Or run directly:
-make ci
+make audit
 ```
 
 ### Custom Validation
@@ -204,7 +204,7 @@ snipe index
 snipe doctor
 
 # Full QA (lint + tests + build)
-bash .codex/validate.sh  # or: make ci
+bash .codex/validate.sh  # or: make audit
 ```
 
 ## Troubleshooting

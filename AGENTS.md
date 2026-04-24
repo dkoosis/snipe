@@ -14,7 +14,7 @@ Fallback: `source .codex/activate.sh` (auto-detects platform, links prebuilt bin
 | Tool | Purpose | Example |
 |------|---------|---------|
 | `snipe` | Go symbol navigation (self-hosted) | `snipe def Open`, `snipe callers FindPackageDeps` |
-| `make` | Build system (build/test/lint) | `make`, `make ci` |
+| `make` | Build system (build/test/lint) | `make`, `make audit` |
 | `golangci-lint` | Go linting | `golangci-lint run ./...` |
 | `gofumpt` | Strict Go formatting | `gofumpt -w file.go` |
 | `goimports` | Fix imports | `goimports -w file.go` |
@@ -64,10 +64,10 @@ test/blackbox/ integration tests
 | Command | What | Duration |
 |---------|------|----------|
 | `make` | build + lint + test | ~15s |
-| `make ci` | race, blackbox, golangci, govulncheck | ~90s |
+| `make audit` | race, blackbox, golangci, govulncheck | ~90s |
 | `go test ./...` | unit tests only | ~10s |
 
-`make ci` is the merge gate. Must pass before commit.
+`make audit` is the merge gate. Must pass before commit.
 
 ## Task Execution
 
@@ -81,7 +81,7 @@ test/blackbox/ integration tests
 
 - Final code only — no placeholders, no TODOs
 - Must compile: `go build ./...`
-- Must validate: `make ci`
+- Must validate: `make audit`
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker

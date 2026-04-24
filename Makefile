@@ -1,15 +1,17 @@
 # Snipe Makefile
 #
-# Primary: check ci deploy doctor
+# Primary: scan check audit report deploy doctor
+#   scan   — changed pkgs only (fast inner loop)
+#   check  — full repo: vet + lint + test + build
+#   audit  — everything: +race +blackbox +eval +vuln
 # Run `make help` for full target list.
 
 .DEFAULT_GOAL := check
 
-.PHONY: help check ci deploy report doctor \
-        vet lint-fast lint test race blackbox vuln \
+.PHONY: help scan check audit deploy report doctor \
+        vet lint test race blackbox vuln \
         install cross clean \
-        baseline bench eval eval-setup \
-        changed
+        baseline bench eval eval-setup
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -35,13 +37,12 @@ help: ## Show this help
 		/^## [^-]/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 4) } \
 		/^[a-zA-Z0-9_-]+:.*?## / { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-check: vet lint-fast test ## Fast validation: vet + staticcheck + test + build
+check: vet lint test ## Full repo: vet + lint + test + build
 	@go build ./...
 	@echo "=== check pass ==="
 
-ci: vet lint test race blackbox vuln ## Full CI suite
-	@go build ./...
-	@echo "=== ci pass ==="
+audit: check race blackbox eval vuln ## Exhaustive: +race +blackbox +eval +vuln
+	@echo "=== audit pass ==="
 
 deploy: install ## Build, install, and verify
 	@echo "=== deployed ($$(snipe --version 2>/dev/null || echo unknown)) ==="
@@ -82,9 +83,6 @@ doctor: ## Validate required toolchain
 
 vet: ## Run go vet
 	go vet ./...
-
-lint-fast: ## Run staticcheck only (fast)
-	golangci-lint run --enable-only staticcheck ./...
 
 lint: ## Run golangci-lint (full)
 	golangci-lint run ./...
@@ -149,7 +147,7 @@ eval: ## Run localization benchmark
 ## Utilities
 ## ---------------------------------------------------------------------
 
-changed: ## Vet + lint + test changed packages only
+scan: ## Vet + lint + test changed packages only (fast inner loop)
 	@PKGS=$$( { git diff --name-only HEAD -- '*.go'; git ls-files --others --exclude-standard -- '*.go'; } \
 		| xargs dirname 2>/dev/null | sort -u | sed 's|^|./|' | grep -v '^\./$$'); \
 	if [ -z "$$PKGS" ]; then \
@@ -159,5 +157,5 @@ changed: ## Vet + lint + test changed packages only
 		go vet $$PKGS && \
 		golangci-lint run $$PKGS && \
 		go test -count=1 -cover $$PKGS && \
-		echo "=== changed pass ==="; \
+		echo "=== scan pass ==="; \
 	fi

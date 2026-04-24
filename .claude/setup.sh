@@ -24,7 +24,7 @@ mkdir -p "$REPO_ROOT/bin"
 # Link prebuilt binaries from .codex if available (shared resources)
 if [[ -d "$BINDIR" ]]; then
     echo "Linking prebuilt binaries from .codex/bin/..."
-    for tool in snipe golangci-lint mage rg govulncheck; do
+    for tool in snipe golangci-lint rg govulncheck; do
         if [[ -x "$BINDIR/$tool" ]]; then
             ln -sf "$BINDIR/$tool" "$REPO_ROOT/bin/$tool"
             echo "  Linked: $tool"
@@ -85,14 +85,6 @@ if ! command -v golangci-lint &>/dev/null; then
     chmod +x "$REPO_ROOT/bin/golangci-lint"
 fi
 echo "golangci-lint: $(golangci-lint --version 2>&1 | head -1)"
-
-# Install mage if not linked
-if ! command -v mage &>/dev/null; then
-    echo "Installing mage..."
-    go install github.com/magefile/mage@latest
-    cp "$(go env GOPATH)/bin/mage" "$REPO_ROOT/bin/"
-fi
-echo "mage: $(mage -version 2>&1 | head -1)"
 
 # Check for ripgrep (required for snipe search)
 if ! command -v rg &>/dev/null; then

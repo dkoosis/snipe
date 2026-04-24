@@ -21,7 +21,7 @@ commands:
 
   build:
     binary: go build -o bin/snipe .
-    all: mage build
+    all: make check
 
   lint:
     run: golangci-lint run
@@ -38,7 +38,7 @@ tools:
   required:
     - go         # Go 1.25+
     - golangci-lint  # v1.64.2
-    - mage       # Build tool
+    - make       # Build tool
     - rg         # ripgrep for snipe search
   shared_from: .codex/bin/linux-amd64
 
@@ -64,7 +64,7 @@ validation:
   full: |
     # Complete QA (~60s)
     source .claude/activate.sh
-    mage qa
+    make audit
 
   pre_commit: |
     # Recommended before commit
@@ -93,4 +93,4 @@ notes:
   - "Caches are isolated in .claude/cache for clean separation"
   - "Pre-built snipe index is committed for instant startup"
   - "Use quick-check.sh for fast validation (<10s)"
-  - "Use mage qa for full validation before PR (~60s)"
+  - "Use make audit for full validation before PR (~60s)"

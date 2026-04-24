@@ -15,13 +15,13 @@ How to work on snipe. Stable — only update when the workflow itself changes.
 
 - One task per session. Finish it or document why it's blocked.
 - Commit after each logical unit that passes `make`.
-- For removals: batch by file/package, `make ci` after each batch.
+- For removals: batch by file/package, `make audit` after each batch.
 
 ### Verification evidence
 
 | Claim | Required proof |
 |-------|---------------|
-| "removed dead code" | `make ci` passes, grep confirms symbol gone |
+| "removed dead code" | `make audit` passes, grep confirms symbol gone |
 | "fixed bug" | test covering the fix, before/after shown |
 | "improved eval" | eval score before and after, same harness |
 | "no behavior change" | blackbox tests pass, diff reviewed |
@@ -34,7 +34,7 @@ How to work on snipe. Stable — only update when the workflow itself changes.
 
 ## Shutdown
 
-1. Run `make ci` — must pass
+1. Run `make audit` — must pass
 2. Update `docs/progress.md` — mark completed tasks, add notes
 3. Rewrite `boot.md` — new SHA, new "do next", move completions to "done"
 4. If eval was affected: run eval, record score in progress.md
@@ -51,5 +51,5 @@ How to work on snipe. Stable — only update when the workflow itself changes.
 
 - Do NOT optimize eval score until telemetry provides ground truth
 - Do NOT touch enrichment phases without user approval (see `docs/PLAN-context-enrichment.md`)
-- `make ci` is the merge gate — no exceptions
+- `make audit` is the merge gate — no exceptions
 - Output: Claude-optimized by default (D1, D4). JSON envelope available via `--format json` for orca integration
