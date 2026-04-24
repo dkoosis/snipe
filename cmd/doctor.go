@@ -287,7 +287,7 @@ func checkEmbeddings() DoctorCheck {
 		check.OK = true // Not a failure, just informational
 		check.Code = DoctorEmbedAuthMissing
 		check.Message = "no embedding credentials (embeddings disabled)"
-		check.Remediation = "export SNIPE_VOYAGE_API_KEY=your-key"
+		check.Remediation = "add 'export SNIPE_VOYAGE_API_KEY=your-key' to ~/.trixi/secrets.env (or export directly)"
 	}
 
 	return check
