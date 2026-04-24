@@ -20,6 +20,20 @@ func TestFormatText_TriageLine(t *testing.T) {
 		}
 	})
 
+	t.Run("emits stale sigil when IndexState is stale", func(t *testing.T) {
+		bc := &BootContext{
+			Project:      "testproj",
+			TotalSymbols: 12,
+			TotalPkgs:    8,
+			IndexState:   "stale",
+		}
+		out := FormatText(bc)
+		want := "12 symbols | 8 pkgs | ! index: stale"
+		if !strings.HasPrefix(out, want) {
+			t.Errorf("expected output to start with %q, got:\n%s", want, out[:min(len(out), 80)])
+		}
+	})
+
 	t.Run("omits triage line when IndexState is empty", func(t *testing.T) {
 		bc := &BootContext{Project: "testproj", TotalSymbols: 5, TotalPkgs: 2}
 		out := FormatText(bc)

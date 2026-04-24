@@ -13,9 +13,14 @@ const empty = "∅"
 func FormatText(bc *BootContext) string {
 	var b strings.Builder
 
-	// Triage line (omitted when IndexState not set)
+	// Triage line (omitted when IndexState not set).
+	// Stale state gets the ! sigil, matching writeClaudeMeta's convention.
 	if bc.IndexState != "" {
-		fmt.Fprintf(&b, "%d symbols | %d pkgs | index: %s\n", bc.TotalSymbols, bc.TotalPkgs, bc.IndexState)
+		if bc.IndexState == "fresh" {
+			fmt.Fprintf(&b, "%d symbols | %d pkgs | index: %s\n", bc.TotalSymbols, bc.TotalPkgs, bc.IndexState)
+		} else {
+			fmt.Fprintf(&b, "%d symbols | %d pkgs | ! index: %s\n", bc.TotalSymbols, bc.TotalPkgs, bc.IndexState)
+		}
 	}
 
 	// Header
