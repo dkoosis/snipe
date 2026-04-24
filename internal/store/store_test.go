@@ -119,8 +119,8 @@ func TestSchemaCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetMeta(schema_version) failed: %v", err)
 	}
-	if version != "13" {
-		t.Errorf("schema_version = %q, want %q", version, "13")
+	if version != "14" {
+		t.Errorf("schema_version = %q, want %q", version, "14")
 	}
 }
 

@@ -229,6 +229,13 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("write imports: %w", err)
 	}
 
+	// Extract and write string literals (env var calls + named consts)
+	literals := index.ExtractLiterals(result, symbols)
+	fmt.Fprintf(os.Stderr, "Found %d string literals\n", len(literals))
+	if err := s.WriteLiterals(literals, absDir); err != nil {
+		return fmt.Errorf("write literals: %w", err)
+	}
+
 	// Write file hashes
 	if err := s.WriteFiles(files); err != nil {
 		return fmt.Errorf("write files: %w", err)
@@ -614,6 +621,13 @@ func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadRes
 		return fmt.Errorf("write package docs: %w", err)
 	}
 
+	// Extract and write string literals for changed files only
+	literals := index.ExtractLiteralsFiltered(result, allSymbols, onlyFiles)
+	fmt.Fprintf(os.Stderr, "Found %d string literals in changed files\n", len(literals))
+	if err := s.WriteLiteralsForFiles(literals, changedFiles, changes.Deleted, absDir); err != nil {
+		return fmt.Errorf("write literals incremental: %w", err)
+	}
+
 	// Update file hashes for ALL files (cheap stat calls)
 	fmt.Fprintf(os.Stderr, "Computing file hashes...\n")
 	files, err := index.ExtractFileInfo(absDir)
@@ -651,6 +665,11 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 	incResult, err := s.WriteIndexIncremental(nil, nil, nil, nil, nil, changes.Deleted)
 	if err != nil {
 		return fmt.Errorf("delete-only incremental: %w", err)
+	}
+
+	// Remove string_refs for deleted files
+	if err := s.WriteLiteralsForFiles(nil, nil, changes.Deleted, ""); err != nil {
+		return fmt.Errorf("delete literals: %w", err)
 	}
 
 	// Update metadata
