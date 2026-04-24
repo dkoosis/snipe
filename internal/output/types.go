@@ -541,6 +541,47 @@ type DepRef struct {
 	FileCount int    `json:"file_count"`
 }
 
+// LifecycleResult groups functions referencing a type into CRUD buckets.
+// Emitted by `snipe lifecycle <Type>`.
+type LifecycleResult struct {
+	Type         string           `json:"type"`
+	TypeID       string           `json:"type_id,omitempty"`
+	TypeFile     string           `json:"type_file,omitempty"`
+	TypeLine     int              `json:"type_line,omitempty"`
+	TypeKind     string           `json:"type_kind,omitempty"`
+	TotalRefs    int              `json:"total_refs"`
+	FunctionRefs int              `json:"function_refs"`
+	TestRefs     int              `json:"test_refs"`
+	Groups       []LifecycleGroup `json:"groups"`
+}
+
+// LifecycleGroup is one CRUD bucket: Create, Mutate, Read, Delete, Unknown, Tests.
+type LifecycleGroup struct {
+	Role  string              `json:"role"`
+	Count int                 `json:"count"`
+	Funcs []LifecycleFunction `json:"funcs"`
+}
+
+// LifecycleFunction is one classified caller. Signal carries the rule id and
+// matching evidence so Claude can audit the classification.
+type LifecycleFunction struct {
+	ID      string                `json:"id,omitempty"`
+	Name    string                `json:"name"`
+	File    string                `json:"file"`
+	Line    int                   `json:"line"`
+	Signal  string                `json:"signal"`
+	Mixed   []string              `json:"mixed,omitempty"`
+	Callers []LifecycleCallerNode `json:"callers,omitempty"`
+}
+
+// LifecycleCallerNode is one hop in the caller chain attached to a lifecycle function.
+type LifecycleCallerNode struct {
+	ID    string `json:"id,omitempty"`
+	Name  string `json:"name"`
+	File  string `json:"file"`
+	Depth int    `json:"depth"`
+}
+
 // DepTreeResult is the response for full dependency graph queries.
 type DepTreeResult struct {
 	Packages []string      `json:"packages"`
@@ -558,15 +599,15 @@ type DepTreeEdge struct {
 // TypesResult is the output format for the `types` command.
 // Mirror of query layer fields so the Claude writer can render them.
 type TypesResult struct {
-	Symbol     string              `json:"symbol"`
-	Kind       string              `json:"kind"`
-	File       string              `json:"file"`
-	Signature  string              `json:"signature,omitempty"`
-	Doc        string              `json:"doc,omitempty"`
-	Methods    []TypesMethodOut    `json:"methods,omitempty"`
-	Embeds     []TypesEmbedOut     `json:"embeds,omitempty"`
-	Fields     []TypesFieldOut     `json:"fields,omitempty"`
-	Implements TypesImplementsOut  `json:"implements"`
+	Symbol     string             `json:"symbol"`
+	Kind       string             `json:"kind"`
+	File       string             `json:"file"`
+	Signature  string             `json:"signature,omitempty"`
+	Doc        string             `json:"doc,omitempty"`
+	Methods    []TypesMethodOut   `json:"methods,omitempty"`
+	Embeds     []TypesEmbedOut    `json:"embeds,omitempty"`
+	Fields     []TypesFieldOut    `json:"fields,omitempty"`
+	Implements TypesImplementsOut `json:"implements"`
 }
 
 // TypesMethodOut is the rendering form of a method on a type.
