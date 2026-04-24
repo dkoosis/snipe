@@ -11,6 +11,17 @@ type ProjectContext struct {
 	Meta         Meta         `json:"meta" yaml:"meta"`
 }
 
+// DepEdge is one node in the internal package DAG: a package and its direct imports.
+type DepEdge struct {
+	From string   `json:"from" yaml:"from"`
+	To   []string `json:"to" yaml:"to"`
+}
+
+// DepDAG holds the compact internal package dependency graph for boot context.
+type DepDAG struct {
+	Edges []DepEdge `json:"edges" yaml:"edges"`
+}
+
 // BootContext is a minimal context for LLM orientation (~3-5k tokens).
 type BootContext struct {
 	Project     string      `json:"project" yaml:"project"`
@@ -34,6 +45,9 @@ type BootContext struct {
 
 	// DBSchemas is statically-detected SQLite DDL (migrations, schema.sql, or embedded Go literals).
 	DBSchemas []DBSchema `json:"db_schemas,omitempty" yaml:"db_schemas,omitempty"`
+
+	// DepDAG is the compact internal package dependency graph.
+	DepDAG *DepDAG `json:"dep_dag,omitempty" yaml:"dep_dag,omitempty"`
 }
 
 // BootViews contains the three orientation views for LLM boot sequences.

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -101,6 +102,8 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 
 	purpose := inferProjectPurpose(cfg.DB, cfg.RepoRoot, proj.Name)
 
+	depDAG := buildDepDAG(cfg.DB)
+
 	return &BootContext{
 		Project:     proj.Name,
 		Purpose:     purpose,
@@ -114,7 +117,48 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		Packages:    packages,
 		Conventions: conventions,
 		DBSchemas:   DetectDBSchemas(cfg.RepoRoot),
+		DepDAG:      depDAG,
 	}, nil
+}
+
+// buildDepDAG builds a compact internal package DAG from the imports table.
+// Returns nil if no dependency data is available.
+func buildDepDAG(db *sql.DB) *DepDAG {
+	modulePath := query.DetectModulePath(db)
+	if modulePath == "" {
+		return nil
+	}
+	graph, err := query.FindDepGraph(db, modulePath)
+	if err != nil || len(graph.Edges) == 0 {
+		return nil
+	}
+
+	adj := make(map[string][]string)
+	for _, e := range graph.Edges {
+		if isTestPkg(e.From) || isTestPkg(e.To) {
+			continue
+		}
+		adj[e.From] = append(adj[e.From], e.To)
+	}
+
+	froms := make([]string, 0, len(adj))
+	for f := range adj {
+		froms = append(froms, f)
+	}
+	sort.Strings(froms)
+
+	edges := make([]DepEdge, 0, len(froms))
+	for _, f := range froms {
+		tos := adj[f]
+		sort.Strings(tos)
+		edges = append(edges, DepEdge{From: f, To: tos})
+	}
+
+	return &DepDAG{Edges: edges}
+}
+
+func isTestPkg(pkg string) bool {
+	return strings.HasSuffix(pkg, ".test") || strings.HasSuffix(pkg, "_test")
 }
 
 // generateBootViews creates the three orientation views for boot context.

@@ -78,6 +78,14 @@ func FormatText(bc *BootContext) string {
 		}
 	}
 
+	// Dep DAG
+	if dag := bc.DepDAG; dag != nil && len(dag.Edges) > 0 {
+		b.WriteString("\n## deps\n")
+		for _, e := range dag.Edges {
+			fmt.Fprintf(&b, "%s → %s\n", e.From, strings.Join(e.To, " "))
+		}
+	}
+
 	// Conventions
 	if conv := bc.Conventions; conv != nil {
 		formatConventions(&b, conv)
