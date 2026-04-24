@@ -163,6 +163,8 @@ var knownSubcommands = map[string]bool{
 	"sim": true,
 	// Watch mode
 	"watch": true,
+	// Lifecycle tracing
+	"lifecycle": true,
 }
 
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
