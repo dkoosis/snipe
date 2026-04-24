@@ -732,3 +732,88 @@ func (s *Store) GetStats() (int, int, int, error) {
 	}
 	return symbols, refs, calls, nil
 }
+
+// WriteLiterals replaces all string_refs records with the given set.
+// Used during full reindex. repoRoot is used to compute relative paths.
+func (s *Store) WriteLiterals(refs []index.StringRef, repoRoot string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+
+	if _, err := tx.Exec(`DELETE FROM string_refs`); err != nil {
+		return fmt.Errorf("truncate string_refs: %w", err)
+	}
+
+	if err := insertLiterals(tx, refs, repoRoot); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// WriteLiteralsForFiles deletes string_refs for the given files and inserts fresh ones.
+// Used during incremental reindex.
+func (s *Store) WriteLiteralsForFiles(refs []index.StringRef, changedFiles, deletedFiles []string, repoRoot string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			_ = rbErr
+		}
+	}()
+
+	allFiles := append(changedFiles, deletedFiles...)
+	for _, f := range allFiles {
+		if _, err := tx.Exec(`DELETE FROM string_refs WHERE file_path = ?`, f); err != nil {
+			return fmt.Errorf("delete string_refs for %s: %w", f, err)
+		}
+	}
+
+	if err := insertLiterals(tx, refs, repoRoot); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func insertLiterals(tx *sql.Tx, refs []index.StringRef, repoRoot string) error {
+	if len(refs) == 0 {
+		return nil
+	}
+	stmt, err := tx.Prepare(`
+		INSERT OR REPLACE INTO string_refs
+			(id, value, name, kind, file_path, file_path_rel, line, col, enclosing_id, snippet)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, r := range refs {
+		relPath := toRelPath(r.FilePath, repoRoot)
+		if _, err := stmt.Exec(
+			r.ID,
+			r.Value,
+			nullString(r.Name),
+			r.Kind,
+			r.FilePath,
+			nullString(relPath),
+			r.Line,
+			r.Col,
+			nullString(r.EnclosingID),
+			nullString(r.Snippet),
+		); err != nil {
+			return fmt.Errorf("insert string_ref %s: %w", r.ID, err)
+		}
+	}
+	return nil
+}

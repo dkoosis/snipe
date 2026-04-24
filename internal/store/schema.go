@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 13
+const schemaVersion = 14
 
 // migration represents a database migration.
 type migration struct {
@@ -205,6 +205,27 @@ var migrations = []migration{
 			doc        TEXT NOT NULL,
 			indexed_at TEXT NOT NULL
 		);
+		`,
+	},
+	{
+		version: 14,
+		name:    "string_refs_table",
+		up: `
+		CREATE TABLE IF NOT EXISTS string_refs (
+			id            TEXT PRIMARY KEY,
+			value         TEXT NOT NULL,
+			name          TEXT,
+			kind          TEXT NOT NULL,
+			file_path     TEXT NOT NULL,
+			file_path_rel TEXT,
+			line          INT NOT NULL,
+			col           INT NOT NULL,
+			enclosing_id  TEXT,
+			snippet       TEXT
+		);
+		CREATE INDEX IF NOT EXISTS idx_string_refs_value ON string_refs(value);
+		CREATE INDEX IF NOT EXISTS idx_string_refs_file ON string_refs(file_path);
+		CREATE INDEX IF NOT EXISTS idx_string_refs_kind_value ON string_refs(kind, value);
 		`,
 	},
 }

@@ -474,3 +474,79 @@ func TestWriteIndexIncremental_OrphanedRefs(t *testing.T) {
 		t.Errorf("sym count = %d, want 2 (sym1v2 + sym2)", symCount)
 	}
 }
+
+func TestWriteLiterals(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	refs := []index.StringRef{
+		{ID: "abcd1234abcd1234", Value: "MY_KEY", Kind: "env", FilePath: "/f.go", Line: 5, Col: 10},
+		{ID: "beef5678beef5678", Value: "MY_CONST", Name: "MyConst", Kind: "const", FilePath: "/f.go", Line: 10, Col: 2},
+	}
+	if err := s.WriteLiterals(refs, ""); err != nil {
+		t.Fatalf("WriteLiterals failed: %v", err)
+	}
+
+	var count int
+	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM string_refs WHERE value = 'MY_KEY'`).Scan(&count); err != nil {
+		t.Fatalf("query failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("want 1 row for MY_KEY, got %d", count)
+	}
+
+	// Full replace: write empty set, verify truncated
+	if err := s.WriteLiterals(nil, ""); err != nil {
+		t.Fatalf("WriteLiterals (empty) failed: %v", err)
+	}
+	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM string_refs`).Scan(&count); err != nil {
+		t.Fatalf("count query failed: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("want 0 rows after empty write, got %d", count)
+	}
+}
+
+func TestWriteLiteralsForFiles(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	refs := []index.StringRef{
+		{ID: "aaaa000000000001", Value: "KEY_A", Kind: "env", FilePath: "/a.go", Line: 1, Col: 1},
+		{ID: "bbbb000000000001", Value: "KEY_B", Kind: "env", FilePath: "/b.go", Line: 1, Col: 1},
+	}
+	if err := s.WriteLiterals(refs, ""); err != nil {
+		t.Fatalf("WriteLiterals failed: %v", err)
+	}
+
+	// Incremental: update /a.go with new literal, delete /b.go
+	newRefs := []index.StringRef{
+		{ID: "aaaa000000000002", Value: "KEY_A2", Kind: "env", FilePath: "/a.go", Line: 2, Col: 1},
+	}
+	if err := s.WriteLiteralsForFiles(newRefs, []string{"/a.go"}, []string{"/b.go"}, ""); err != nil {
+		t.Fatalf("WriteLiteralsForFiles failed: %v", err)
+	}
+
+	var count int
+	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM string_refs`).Scan(&count); err != nil {
+		t.Fatalf("count query: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("want 1 row (KEY_A2), got %d", count)
+	}
+	var val string
+	if err := s.DB().QueryRow(`SELECT value FROM string_refs`).Scan(&val); err != nil {
+		t.Fatalf("value query: %v", err)
+	}
+	if val != "KEY_A2" {
+		t.Errorf("want KEY_A2, got %q", val)
+	}
+}
