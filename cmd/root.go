@@ -194,7 +194,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&noSiblings, "no-siblings", false, "Exclude sibling declarations")
 	rootCmd.PersistentFlags().BoolVar(&signatureOnly, "signature-only", false, "Return only signature (no body, no context)")
 	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Token budget (0 = unlimited)")
-	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "concise", "concise | detailed | summary | json")
+	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "concise", "concise | detailed | summary | json | human")
 	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
 	rootCmd.PersistentFlags().BoolVar(&showSuggestions, "suggestions", false, "Include next-step suggestions in Claude output")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for command (e.g., 30s, 5m)")
@@ -227,6 +227,8 @@ const (
 	FormatDetailed ResponseFormat = "detailed"
 	// FormatSummary aggregates results by file (counts only).
 	FormatSummary ResponseFormat = "summary"
+	// FormatHuman renders one-line plain text for direct CLI consumption.
+	FormatHuman ResponseFormat = "human"
 )
 
 // GetOutputConfig returns the current output configuration.
@@ -245,10 +247,14 @@ func GetResponseFormat() ResponseFormat {
 }
 
 // GetOutputFormat returns the output format for the Writer.
-// "json" = full JSON envelope, "" = Claude-optimized text (default).
+// "json" = full JSON envelope, "human" = one-line plain text for CLI use,
+// default = Claude-optimized text.
 func GetOutputFormat() output.OutputFormat {
-	if responseFormat == "json" {
+	switch responseFormat {
+	case "json":
 		return output.OutputJSON
+	case "human":
+		return output.OutputHuman
 	}
 	return output.OutputClaude
 }
@@ -269,6 +275,9 @@ func ApplyFormatOverrides(format ResponseFormat, baseBody, baseSiblings bool, ba
 	case FormatDefault:
 		// Default: use base values
 		return baseBody, baseSiblings, baseContext
+	case FormatHuman:
+		// Human: one-line output; body/siblings/context are noise.
+		return false, false, 0
 	}
 	// Unreachable, but satisfies exhaustive check
 	return baseBody, baseSiblings, baseContext

@@ -55,8 +55,13 @@ func NewWriter(out io.Writer, compact bool, format OutputFormat) *Writer {
 
 // WriteResponse writes a response in the configured format.
 func (w *Writer) WriteResponse(resp any) error {
-	if w.format == OutputJSON {
+	switch w.format {
+	case OutputJSON:
 		return w.writeJSON(resp)
+	case OutputHuman:
+		return w.writeHuman(resp)
+	case OutputClaude:
+		return w.writeClaude(resp)
 	}
 	return w.writeClaude(resp)
 }
@@ -690,6 +695,12 @@ func (w *Writer) writeClaudeDepTree(b *strings.Builder, results []DepTreeResult,
 
 // WriteError writes an error response
 func (w *Writer) WriteError(command string, err *Error) error {
+	if w.format == OutputHuman {
+		var b strings.Builder
+		writeHumanError(&b, err)
+		_, writeErr := io.WriteString(w.out, b.String())
+		return writeErr
+	}
 	if w.format != OutputJSON {
 		var b strings.Builder
 		w.writeClaudeError(&b, err)
