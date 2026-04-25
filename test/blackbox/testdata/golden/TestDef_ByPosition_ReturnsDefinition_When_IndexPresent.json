@@ -25,23 +25,23 @@
       "body": "func Callee() string {\n\treturn \"ok\"\n}",
       "callers_preview": [
         {
-          "file": "\u003crepo\u003e/main.go",
+          "file": "main.go",
           "line": 25,
           "name": "Caller"
         },
         {
-          "file": "\u003crepo\u003e/main.go",
+          "file": "main.go",
           "line": 33,
           "name": "AnotherCaller"
         },
         {
-          "file": "\u003crepo\u003e/main.go",
+          "file": "main.go",
           "line": 37,
           "name": "ThirdCaller"
         }
       ],
-      "edit_target": "\u003crepo\u003e/main.go:49:1-51:2@8b60bd8320e77b84",
-      "file": "\u003crepo\u003e/main.go",
+      "edit_target": "main.go:49:1-51:2@8b60bd8320e77b84",
+      "file": "main.go",
       "kind": "func",
       "match": "func Callee() string",
       "name": "Callee",

@@ -18,8 +18,8 @@
         "result_count": 1
       },
       "body": "func Callee() string {\n\treturn \"ok\"\n}",
-      "edit_target": "\u003crepo\u003e/main.go:49:1-51:2@8b60bd8320e77b84",
-      "file": "\u003crepo\u003e/main.go",
+      "edit_target": "main.go:49:1-51:2@8b60bd8320e77b84",
+      "file": "main.go",
       "kind": "func",
       "match": "func Callee() string",
       "name": "Callee",
