@@ -72,3 +72,4 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 - Indexer ∅ `enclosing_id` on signature-line refs (`func F() *T`). Recovered via `reattachSignatureRefs` in `cmd/lifecycle.go`
 - R2 snippet regex: `func F() *T {` matches `T{` — guard with `isFuncDeclLine` before firing create rules
 - `BASELINE_ORCA.json` timestamp drifts on every run; ✗ stage it
+- New cobra subcommand → register in `knownSubcommands` map (`cmd/root.go`) or `snipe X` routes to `sym` (bare-symbol fallback)
