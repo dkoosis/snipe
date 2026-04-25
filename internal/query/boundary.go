@@ -130,6 +130,72 @@ func queryDirection(db *sql.DB, srcPkgs, dstPkgs []string) ([]BoundaryRef, error
 	return out, rows.Err()
 }
 
+// PopulateBoundaryLocations fills BoundaryRef.Locations for every entry in
+// the report — file_path_rel + line for each crossing ref site. Done as a
+// separate pass so the summary path stays cheap.
+func PopulateBoundaryLocations(db *sql.DB, report *BoundaryReport) error {
+	if report == nil {
+		return nil
+	}
+	if err := fillLocations(db, report.AToB, report.SetA, report.SetB); err != nil {
+		return fmt.Errorf("A→B: %w", err)
+	}
+	if err := fillLocations(db, report.BToA, report.SetB, report.SetA); err != nil {
+		return fmt.Errorf("B→A: %w", err)
+	}
+	return nil
+}
+
+func fillLocations(db *sql.DB, refs []BoundaryRef, srcPkgs, dstPkgs []string) error {
+	if len(refs) == 0 {
+		return nil
+	}
+	srcPlace := placeholders(len(srcPkgs))
+	dstPlace := placeholders(len(dstPkgs))
+
+	q := fmt.Sprintf(`
+		SELECT tgt.name, r.file_path_rel, r.line
+		FROM refs r
+		JOIN symbols tgt ON tgt.id = r.symbol_id
+		JOIN symbols enc ON enc.id = r.enclosing_id
+		WHERE enc.pkg_path IN (%s)
+		  AND tgt.pkg_path IN (%s)
+		  AND enc.pkg_path != tgt.pkg_path
+		ORDER BY r.file_path_rel, r.line
+	`, srcPlace, dstPlace)
+
+	args := make([]any, 0, len(srcPkgs)+len(dstPkgs))
+	for _, p := range srcPkgs {
+		args = append(args, p)
+	}
+	for _, p := range dstPkgs {
+		args = append(args, p)
+	}
+
+	rows, err := db.Query(q, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	bySymbol := make(map[string]*BoundaryRef, len(refs))
+	for i := range refs {
+		bySymbol[refs[i].Symbol] = &refs[i]
+	}
+
+	for rows.Next() {
+		var name, file string
+		var line int
+		if err := rows.Scan(&name, &file, &line); err != nil {
+			return err
+		}
+		if br, ok := bySymbol[name]; ok {
+			br.Locations = append(br.Locations, BoundaryLoc{File: file, Line: line})
+		}
+	}
+	return rows.Err()
+}
+
 func placeholders(n int) string {
 	if n == 0 {
 		return ""

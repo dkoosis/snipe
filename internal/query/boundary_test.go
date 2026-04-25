@@ -138,3 +138,29 @@ func TestFindBoundaryCrossings_StoreToQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestFindBoundaryLocations_PopulatesLineFile(t *testing.T) {
+	db := seedBoundaryFixture(t)
+	report, err := FindBoundaryCrossings(db,
+		[]string{"github.com/x/p/internal/store"},
+		[]string{"github.com/x/p/internal/query"},
+	)
+	if err != nil {
+		t.Fatalf("FindBoundaryCrossings: %v", err)
+	}
+
+	if err := PopulateBoundaryLocations(db, report); err != nil {
+		t.Fatalf("PopulateBoundaryLocations: %v", err)
+	}
+
+	for _, b := range report.BToA {
+		if len(b.Locations) != b.RefCount {
+			t.Errorf("%s: got %d locations, want %d", b.Symbol, len(b.Locations), b.RefCount)
+		}
+		for _, loc := range b.Locations {
+			if loc.File == "" || loc.Line == 0 {
+				t.Errorf("%s: empty location %+v", b.Symbol, loc)
+			}
+		}
+	}
+}
