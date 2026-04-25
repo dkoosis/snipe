@@ -102,6 +102,13 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 	defer s.Close()
 
+	// Persist repo_root before any WriteIndex call. Both full and incremental
+	// writers read it to compute file_path_rel; if stale or empty, paths get
+	// relativized against the wrong base (or stored absolute), breaking output.
+	if err := s.SetMeta("repo_root", absDir); err != nil {
+		return fmt.Errorf("store repo root: %w", err)
+	}
+
 	// Change detection fast-path: skip expensive work if nothing changed
 	var detection *changeDetection
 	if !forceIndex {
@@ -248,9 +255,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	if err := s.SetMeta("indexed_at", time.Now().Format(time.RFC3339)); err != nil {
 		return fmt.Errorf("store timestamp: %w", err)
 	}
-	if err := s.SetMeta("repo_root", absDir); err != nil {
-		return fmt.Errorf("store repo root: %w", err)
-	}
+	// repo_root is set earlier (before WriteIndex) so file_path_rel is computed correctly.
 	// Reset incremental counter on full reindex
 	_ = s.SetMeta("incremental_count", "0")
 	_ = s.SetMeta("orphaned_refs", "0")

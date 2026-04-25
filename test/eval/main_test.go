@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -69,8 +70,13 @@ func runSetup(m *testing.M) int {
 }
 
 // run executes a snipe command in the given repo directory.
+// Forces --format json so eval can parse stdout; default output is Claude-text.
 func run(t *testing.T, repoDir string, args ...string) (stdout, stderr []byte, exitCode int) {
 	t.Helper()
+
+	if !hasFormatFlag(args) {
+		args = append([]string{"--format", "json"}, args...)
+	}
 
 	cmd := exec.Command(binPath, args...)
 	cmd.Dir = repoDir
@@ -170,6 +176,16 @@ func checkIndexFreshness(t *testing.T, dir string) {
 			indexMod.Format("2006-01-02 15:04"),
 			newestGo.Format("2006-01-02 15:04"))
 	}
+}
+
+func hasFormatFlag(args []string) bool {
+	for i, a := range args {
+		if a == "--format" || strings.HasPrefix(a, "--format=") {
+			return true
+		}
+		_ = i
+	}
+	return false
 }
 
 func findRepoRoot() (string, error) {
