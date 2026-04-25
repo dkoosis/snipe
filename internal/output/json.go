@@ -96,6 +96,8 @@ func (w *Writer) writeClaude(resp any) error {
 		w.writeClaudeDeps(&b, r.Results, r.Meta)
 	case Response[DepTreeResult]:
 		w.writeClaudeDepTree(&b, r.Results, r.Meta)
+	case Response[BoundaryResult]:
+		w.writeClaudeBoundary(&b, r.Results, r.Meta)
 	case Response[TypesResult]:
 		w.writeClaudeTypes(&b, r.Results, r.Meta)
 	case Response[LifecycleResult]:
@@ -691,6 +693,34 @@ func (w *Writer) writeClaudeDepTree(b *strings.Builder, results []DepTreeResult,
 		}
 	}
 	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudeBoundary(b *strings.Builder, results []BoundaryResult, meta Meta) {
+	for _, r := range results {
+		fmt.Fprintf(b, "# boundary: {%s} ↔ {%s}\n",
+			strings.Join(r.SetA, ","), strings.Join(r.SetB, ","))
+
+		for _, dir := range r.Directions {
+			fmt.Fprintf(b, "%s→%s: %d refs to %d symbols\n",
+				dir.From, dir.To, dir.Total, len(dir.Symbols))
+			for _, s := range dir.Symbols {
+				fmt.Fprintf(b, "  %s.%s [%s] — %d refs\n",
+					shortPkg(s.TargetPkg), s.Symbol, s.Kind, s.RefCount)
+				for _, loc := range s.Locations {
+					fmt.Fprintf(b, "    %s:%d\n", loc.File, loc.Line)
+				}
+			}
+		}
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+// shortPkg returns the last path segment of a Go pkg_path for compact output.
+func shortPkg(p string) string {
+	if i := strings.LastIndex(p, "/"); i >= 0 {
+		return p[i+1:]
+	}
+	return p
 }
 
 // WriteError writes an error response
