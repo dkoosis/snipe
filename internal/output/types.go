@@ -622,6 +622,37 @@ type DepTreeEdge struct {
 	FileCount int    `json:"file_count"`
 }
 
+// BoundaryResult is the response for `snipe boundary`. One result per direction.
+type BoundaryResult struct {
+	SetA       []string            `json:"set_a"`
+	SetB       []string            `json:"set_b"`
+	Directions []BoundaryDirection `json:"directions"`
+}
+
+// BoundaryDirection is one half of the bidirectional summary.
+type BoundaryDirection struct {
+	From    string           `json:"from"`  // "A" | "B"
+	To      string           `json:"to"`    // "B" | "A"
+	Total   int              `json:"total"` // total ref count across all symbols
+	Symbols []BoundarySymbol `json:"symbols"`
+}
+
+// BoundarySymbol is one target symbol referenced across the boundary.
+type BoundarySymbol struct {
+	Symbol    string        `json:"symbol"`
+	Kind      string        `json:"kind"`
+	SourcePkg string        `json:"source_pkg"`
+	TargetPkg string        `json:"target_pkg"`
+	RefCount  int           `json:"ref_count"`
+	Locations []BoundaryLoc `json:"locations,omitempty"` // populated when --detailed
+}
+
+// BoundaryLoc is a file:line pair (paths are repo-relative).
+type BoundaryLoc struct {
+	File string `json:"file"`
+	Line int    `json:"line"`
+}
+
 // TypesResult is the output format for the `types` command.
 // Mirror of query layer fields so the Claude writer can render them.
 type TypesResult struct {
