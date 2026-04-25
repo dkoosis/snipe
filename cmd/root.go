@@ -165,6 +165,8 @@ var knownSubcommands = map[string]bool{
 	"watch": true,
 	// Lifecycle tracing
 	"lifecycle": true,
+	// Module-split planning
+	"boundary": true,
 }
 
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
