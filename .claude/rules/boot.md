@@ -1,16 +1,16 @@
 # Boot
 updated: 2026-04-24
 
-→ zhs.4 design seed in bead. Run `/writing-plans` to formalize, then dispatch.
+→ pick next from `bd ready`. zhs.4 shipped.
 
-1. `bd show snipe-zhs.4` — review design field
-2. `/writing-plans`
-3. dispatch impl
-
-state: main @ e514905, `make audit` green, eval 55/73 PASS (was 2/73)
+state: main @ 4a95c9f, `make audit` green
 
 ✓ done
-- fix(index,eval): repo_root meta written before WriteIndex; eval forces --format json
-  - file accuracy 23%→96%, symbol 10%→78%, all targets PASS
-- mage→make migration committed; trunk clean, synced to origin
-- filed snipe-fc9 (D2/Mermaid diagrams), snipe-0ro (graph metrics from beads_viewer)
+- feat(cmd): `snipe boundary <a> <b>` — module-split planning query
+  - 3-way SQL join (refs ⨝ symbols target ⨝ symbols enclosing)
+  - exact + `pkg/...` recursive package patterns
+  - `--detailed` adds per-ref file:line; `--direction=both|a-to-b|b-to-a`
+  - perf: 44ms / 31ms on snipe (target was 500ms)
+  - blackbox: cmd→query crossings + `--detailed` locations
+- fix(test): regenerated 2 stale goldens (post-`file_path_rel` fix)
+- fix(cmd): registered `boundary` in `knownSubcommands`
