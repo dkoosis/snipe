@@ -169,6 +169,8 @@ var knownSubcommands = map[string]bool{
 	"boundary": true,
 	// Graph metrics (PageRank, etc.)
 	"metrics": true,
+	// D2 diagram emitter
+	"diagram": true,
 }
 
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
