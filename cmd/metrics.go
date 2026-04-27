@@ -50,19 +50,15 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
-	// Future-friendly stub: only pagerank/imports are wired today.
+	// Validate --kind. Empty results from ReadTopN signal "not yet populated".
 	switch metricsKind {
-	case "pagerank":
+	case "pagerank", "betweenness", "hits", "hub", "authority",
+		"cycles", "topo", "degree", "in_degree", "out_degree", "eigenvector":
 		// ok
-	case "betweenness", "hits", "cycles", "topo", "degree":
-		return w.WriteError("metrics", &output.Error{
-			Code:    output.ErrInternal,
-			Message: "metric not yet computed; only 'pagerank' is available (others land in upcoming beads)",
-		})
 	default:
 		return w.WriteError("metrics", &output.Error{
 			Code:    output.ErrInternal,
-			Message: fmt.Sprintf("unknown --kind %q; only 'pagerank' is available", metricsKind),
+			Message: fmt.Sprintf("unknown --kind %q", metricsKind),
 		})
 	}
 
