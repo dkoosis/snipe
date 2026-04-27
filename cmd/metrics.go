@@ -74,6 +74,11 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 		return runTopoMetrics(s, dir, start)
 	}
 
+	// Cycles are persisted SCC components — separate output path (not ranked rows).
+	if metricsKind == "cycles" {
+		return runCyclesMetrics(s, dir, start)
+	}
+
 	rows, err := s.ReadTopN(metricsGraph, metricsKind, metricsTopN)
 	if err != nil {
 		return w.WriteError("metrics", &output.Error{

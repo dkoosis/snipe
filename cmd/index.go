@@ -242,6 +242,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	// Compute graph metrics (PageRank over import graph) on full reindex.
 	// Incremental indexing skips this — recomputed only on full reindex.
 	if !skipMetrics {
+		if err := computeImportSCCs(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: SCC computation failed: %v\n", err)
+		}
 		if err := computeImportPageRank(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: metrics computation failed: %v\n", err)
 		}
@@ -748,6 +751,23 @@ func computeImportPageRank(s *store.Store) error {
 	}
 	fmt.Fprintf(os.Stderr, "metrics: pagerank computed for %d packages in %dms\n",
 		len(scores), time.Since(t0).Milliseconds())
+	return nil
+}
+
+// computeImportSCCs loads the intra-repo imports graph, computes nontrivial
+// strongly-connected components via Tarjan, and persists them into graph_sccs.
+func computeImportSCCs(s *store.Store) error {
+	t0 := time.Now()
+	g, err := graphmetrics.LoadImportsGraph(s)
+	if err != nil {
+		return fmt.Errorf("load imports graph: %w", err)
+	}
+	sccs := graphmetrics.SCC(g)
+	if err := s.WriteSCCs("imports", sccs); err != nil {
+		return fmt.Errorf("write graph sccs: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: detected %d nontrivial SCCs in %dms\n",
+		len(sccs), time.Since(t0).Milliseconds())
 	return nil
 }
 
