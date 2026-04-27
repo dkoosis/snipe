@@ -245,6 +245,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		if err := computeImportPageRank(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: metrics computation failed: %v\n", err)
 		}
+		if err := computeImportHITS(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: HITS computation failed: %v\n", err)
+		}
 	}
 
 	// Extract and write string literals (env var calls + named consts)
@@ -742,6 +745,26 @@ func computeImportPageRank(s *store.Store) error {
 	}
 	fmt.Fprintf(os.Stderr, "metrics: pagerank computed for %d packages in %dms\n",
 		len(scores), time.Since(t0).Milliseconds())
+	return nil
+}
+
+// computeImportHITS loads the intra-repo imports graph, runs Kleinberg HITS,
+// and persists hub and authority vectors as separate graph_metrics rows.
+func computeImportHITS(s *store.Store) error {
+	t0 := time.Now()
+	g, err := graphmetrics.LoadImportsGraph(s)
+	if err != nil {
+		return fmt.Errorf("load imports graph: %w", err)
+	}
+	hubs, auths := graphmetrics.HITS(g, 50)
+	if err := s.WriteGraphMetrics("imports", "hub", hubs); err != nil {
+		return fmt.Errorf("write hub metrics: %w", err)
+	}
+	if err := s.WriteGraphMetrics("imports", "authority", auths); err != nil {
+		return fmt.Errorf("write authority metrics: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: HITS computed for %d packages in %dms\n",
+		len(hubs), time.Since(t0).Milliseconds())
 	return nil
 }
 
