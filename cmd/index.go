@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dkoosis/snipe/internal/embed"
+	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/store"
@@ -43,10 +44,11 @@ const (
 )
 
 var (
-	withEmbed  bool   // Legacy flag, kept for compatibility
-	embedMode  string // New flag: auto, batch, realtime, off
-	withEnrich bool   // Generate LLM-based symbol purposes (placeholder, not yet wired)
-	forceIndex bool   // Force full re-index even if no changes detected
+	withEmbed   bool   // Legacy flag, kept for compatibility
+	embedMode   string // New flag: auto, batch, realtime, off
+	withEnrich  bool   // Generate LLM-based symbol purposes (placeholder, not yet wired)
+	forceIndex  bool   // Force full re-index even if no changes detected
+	skipMetrics bool   // Skip graph metrics computation (PageRank, etc.)
 )
 
 func init() {
@@ -56,6 +58,7 @@ func init() {
 	indexCmd.Flags().StringVar(&embedMode, "embed-mode", "auto", "Embedding mode: auto, batch, realtime, off")
 	indexCmd.Flags().BoolVar(&withEnrich, "enrich", false, "Generate LLM-based symbol purposes (placeholder, not yet wired)")
 	indexCmd.Flags().BoolVar(&forceIndex, "force", false, "Force full re-index even if no changes detected")
+	indexCmd.Flags().BoolVar(&skipMetrics, "skip-metrics", false, "Skip graph metrics (PageRank) computation")
 	rootCmd.AddCommand(indexCmd)
 }
 
@@ -234,6 +237,14 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	// Write imports
 	if err := s.WriteImports(imports); err != nil {
 		return fmt.Errorf("write imports: %w", err)
+	}
+
+	// Compute graph metrics (PageRank over import graph) on full reindex.
+	// Incremental indexing skips this — recomputed only on full reindex.
+	if !skipMetrics {
+		if err := computeImportPageRank(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: metrics computation failed: %v\n", err)
+		}
 	}
 
 	// Extract and write string literals (env var calls + named consts)
@@ -715,6 +726,23 @@ func orphanSuggestion(inc *store.IncrementalResult) []output.Suggestion {
 		Priority:    3,
 		Condition:   "incremental_orphans",
 	}}
+}
+
+// computeImportPageRank loads the intra-repo imports graph, runs PageRank,
+// and persists results into graph_metrics. Best-effort: callers log+continue.
+func computeImportPageRank(s *store.Store) error {
+	t0 := time.Now()
+	g, err := graphmetrics.LoadImportsGraph(s)
+	if err != nil {
+		return fmt.Errorf("load imports graph: %w", err)
+	}
+	scores := graphmetrics.PageRank(g, 0.85, 50)
+	if err := s.WriteGraphMetrics("imports", "pagerank", scores); err != nil {
+		return fmt.Errorf("write graph metrics: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: pagerank computed for %d packages in %dms\n",
+		len(scores), time.Since(t0).Milliseconds())
+	return nil
 }
 
 // skipResult describes the outcome of change detection.

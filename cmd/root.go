@@ -167,6 +167,8 @@ var knownSubcommands = map[string]bool{
 	"lifecycle": true,
 	// Module-split planning
 	"boundary": true,
+	// Graph metrics (PageRank, etc.)
+	"metrics": true,
 }
 
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
