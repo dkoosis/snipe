@@ -1,16 +1,13 @@
 # Boot
-updated: 2026-04-24
+updated: 2026-04-27
 
-→ pick next from `bd ready`. zhs.4 shipped.
+→ pick next from `bd ready`
 
-state: main @ 4a95c9f, `make audit` green
+state: main @ 8533591, `make audit` green
 
 ✓ done
-- feat(cmd): `snipe boundary <a> <b>` — module-split planning query
-  - 3-way SQL join (refs ⨝ symbols target ⨝ symbols enclosing)
-  - exact + `pkg/...` recursive package patterns
-  - `--detailed` adds per-ref file:line; `--direction=both|a-to-b|b-to-a`
-  - perf: 44ms / 31ms on snipe (target was 500ms)
-  - blackbox: cmd→query crossings + `--detailed` locations
-- fix(test): regenerated 2 stale goldens (post-`file_path_rel` fix)
-- fix(cmd): registered `boundary` in `knownSubcommands`
+- graph metrics e2e: PageRank/Brandes/HITS/SCC/degree/eigenvector/topo over imports+calls (epic 0ro: y4i + fc9 remain)
+- `snipe metrics --graph=imports|calls --kind=...`
+
+‡ traps
+- parallel Agent `isolation: worktree` collapsed to same main; agents rebased. Sequence schema-touching beads.
