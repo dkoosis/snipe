@@ -8,7 +8,7 @@
 
 .DEFAULT_GOAL := check
 
-.PHONY: help scan check audit deploy report doctor \
+.PHONY: help scan check audit deploy report report-human doctor \
         vet lint test race blackbox vuln \
         install cross clean \
         baseline bench eval eval-setup
@@ -49,6 +49,9 @@ deploy: install ## Build, install, and verify
 
 report: ## Structured QA output for agents/tools (always exits 0)
 	@( $(REPORT_CMD) ) | fo --format llm || true
+
+report-human: ## Same as report, rendered for humans (always exits 0)
+	@( $(REPORT_CMD) ) | fo --format human || true
 
 doctor: ## Validate required toolchain
 	@echo "=== doctor ==="
