@@ -116,6 +116,53 @@ func LoadImportsGraph(s *store.Store) (*Graph, error) {
 	return &Graph{Adj: adj}, nil
 }
 
+// LoadCallsGraph builds a directed graph from snipe's call_graph table.
+// Nodes are symbol hex IDs; edges are caller -> callee.
+// All callers/callees are in-repo by construction (call_graph only stores resolved edges),
+// so no module-path filtering is needed.
+func LoadCallsGraph(s *store.Store) (*Graph, error) {
+	rows, err := s.DB().Query(`
+		SELECT DISTINCT caller_id, callee_id
+		FROM call_graph
+		WHERE caller_id IS NOT NULL AND callee_id IS NOT NULL
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query call_graph: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	adj := make(map[string][]string)
+	seenEdge := make(map[[2]string]struct{})
+	for rows.Next() {
+		var src, dst string
+		if err := rows.Scan(&src, &dst); err != nil {
+			return nil, fmt.Errorf("scan call_graph row: %w", err)
+		}
+		if src == dst {
+			continue
+		}
+		key := [2]string{src, dst}
+		if _, ok := seenEdge[key]; ok {
+			continue
+		}
+		seenEdge[key] = struct{}{}
+		adj[src] = append(adj[src], dst)
+		if _, ok := adj[dst]; !ok {
+			adj[dst] = nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate call_graph rows: %w", err)
+	}
+
+	for k := range adj {
+		if len(adj[k]) > 1 {
+			sort.Strings(adj[k])
+		}
+	}
+	return &Graph{Adj: adj}, nil
+}
+
 // moduleImportPath reads the module path from go.mod at repo_root.
 func moduleImportPath(s *store.Store) (string, error) {
 	repoRoot, err := s.GetMeta("repo_root")

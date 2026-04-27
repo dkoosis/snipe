@@ -22,17 +22,19 @@ var (
 
 var metricsCmd = &cobra.Command{
 	Use:     "metrics",
-	Short:   "Show graph metrics (PageRank, etc.) over the import graph",
+	Short:   "Show graph metrics (PageRank, etc.) over the import or call graph",
 	GroupID: "advanced",
 	Long: `Print graph metrics computed during indexing.
 
 Defaults to the top-20 packages by import-graph PageRank.
-Other metrics (betweenness, HITS, cycles) land in upcoming releases.
+Use --graph=calls to rank symbols by call-graph metrics instead.
 
 Examples:
   snipe metrics
   snipe metrics --top=10
   snipe metrics --kind=pagerank
+  snipe metrics --graph=calls --kind=pagerank
+  snipe metrics --graph=calls --kind=cycles
   snipe metrics --format=json`,
 	Args: cobra.NoArgs,
 	RunE: runMetrics,
@@ -41,7 +43,7 @@ Examples:
 func init() {
 	metricsCmd.Flags().IntVar(&metricsTopN, "top", 20, "Top-N rows to print")
 	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind (only 'pagerank' currently)")
-	metricsCmd.Flags().StringVar(&metricsGraph, "graph", "imports", "Graph kind (only 'imports' currently)")
+	metricsCmd.Flags().StringVar(&metricsGraph, "graph", "imports", "Graph kind ('imports' or 'calls')")
 	rootCmd.AddCommand(metricsCmd)
 }
 
@@ -70,7 +72,15 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	defer s.Close()
 
 	// Topo sort is transient — recomputed on demand from the imports graph.
+	// Intentionally not supported on the call graph: recursion is normal in code,
+	// so a cycle witness on calls isn't useful (use --kind=cycles instead).
 	if metricsKind == "topo" {
+		if metricsGraph != "imports" {
+			return w.WriteError("metrics", &output.Error{
+				Code:    output.ErrInternal,
+				Message: "topo is only supported for --graph=imports (use --kind=cycles on calls graph)",
+			})
+		}
 		return runTopoMetrics(s, dir, start)
 	}
 

@@ -254,6 +254,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		if err := computeImportDegreeAndEigenvector(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: degree/eigenvector computation failed: %v\n", err)
 		}
+		if err := computeCallsGraphMetrics(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: calls-graph metrics computation failed: %v\n", err)
+		}
 	}
 
 	// Extract and write string literals (env var calls + named consts)
@@ -883,6 +886,67 @@ func computeImportDegreeAndEigenvector(s *store.Store) error {
 		return fmt.Errorf("write eigenvector: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "metrics: degree+eigenvector computed for %d packages in %dms\n",
+		len(in), time.Since(t0).Milliseconds())
+	return nil
+}
+
+// computeCallsGraphMetrics loads the call graph and computes the same family of
+// metrics as the imports graph: PageRank, HITS (hub+authority), in/out degree,
+// eigenvector centrality, betweenness, and SCCs. Persisted with graph_kind="calls".
+//
+// Topo sort is intentionally skipped — recursion is normal in code, and a cycle
+// witness on the call graph isn't useful output. SCC already surfaces recursion
+// clusters in a more digestible form.
+func computeCallsGraphMetrics(s *store.Store) error {
+	t0 := time.Now()
+	g, err := graphmetrics.LoadCallsGraph(s)
+	if err != nil {
+		return fmt.Errorf("load calls graph: %w", err)
+	}
+
+	// SCC — recursion clusters.
+	sccs := graphmetrics.SCC(g)
+	if err := s.WriteSCCs("calls", sccs); err != nil {
+		return fmt.Errorf("write calls sccs: %w", err)
+	}
+
+	// PageRank.
+	pr := graphmetrics.PageRank(g, 0.85, 50)
+	if err := s.WriteGraphMetrics("calls", "pagerank", pr); err != nil {
+		return fmt.Errorf("write calls pagerank: %w", err)
+	}
+
+	// HITS hub + authority.
+	hubs, auths := graphmetrics.HITS(g, 50)
+	if err := s.WriteGraphMetrics("calls", "hub", hubs); err != nil {
+		return fmt.Errorf("write calls hub: %w", err)
+	}
+	if err := s.WriteGraphMetrics("calls", "authority", auths); err != nil {
+		return fmt.Errorf("write calls authority: %w", err)
+	}
+
+	// Degree + eigenvector.
+	in := graphmetrics.InDegree(g)
+	out := graphmetrics.OutDegree(g)
+	eig := graphmetrics.EigenvectorCentrality(g, 50)
+	if err := s.WriteGraphMetrics("calls", "in_degree", in); err != nil {
+		return fmt.Errorf("write calls in_degree: %w", err)
+	}
+	if err := s.WriteGraphMetrics("calls", "out_degree", out); err != nil {
+		return fmt.Errorf("write calls out_degree: %w", err)
+	}
+	if err := s.WriteGraphMetrics("calls", "eigenvector", eig); err != nil {
+		return fmt.Errorf("write calls eigenvector: %w", err)
+	}
+
+	// Brandes betweenness — O(V*E). Call graph is small (~600 nodes, ~2.7k edges
+	// on snipe itself) so this stays well under a second.
+	bc := graphmetrics.Betweenness(g)
+	if err := s.WriteGraphMetrics("calls", "betweenness", bc); err != nil {
+		return fmt.Errorf("write calls betweenness: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "metrics: calls graph computed for %d symbols in %dms\n",
 		len(in), time.Since(t0).Milliseconds())
 	return nil
 }
