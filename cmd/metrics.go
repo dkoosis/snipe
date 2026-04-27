@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -68,6 +69,11 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	}
 	defer s.Close()
 
+	// Topo sort is transient — recomputed on demand from the imports graph.
+	if metricsKind == "topo" {
+		return runTopoMetrics(s, dir, start)
+	}
+
 	rows, err := s.ReadTopN(metricsGraph, metricsKind, metricsTopN)
 	if err != nil {
 		return w.WriteError("metrics", &output.Error{
@@ -109,6 +115,55 @@ func writeMetricsJSON(rows []store.MetricRow, dir string, start time.Time) error
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(resp)
+}
+
+// topoResult is a JSON-friendly view of a topo-sort result.
+type topoResult struct {
+	Order  []string `json:"order,omitempty"`
+	Cycle  []string `json:"cycle,omitempty"`
+	Cyclic bool     `json:"cyclic"`
+}
+
+func runTopoMetrics(s *store.Store, dir string, start time.Time) error {
+	g, err := graphmetrics.LoadImportsGraph(s)
+	if err != nil {
+		return fmt.Errorf("load imports graph: %w", err)
+	}
+	order, cycle := graphmetrics.TopoSort(g)
+
+	if GetOutputFormat() == output.OutputJSON {
+		res := topoResult{Order: order, Cycle: cycle, Cyclic: order == nil}
+		resp := output.Response[topoResult]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  []topoResult{res},
+			Meta: output.Meta{
+				Command:  "metrics",
+				Query:    map[string]string{"graph": metricsGraph, "kind": "topo"},
+				RepoRoot: dir,
+				Ms:       time.Since(start).Milliseconds(),
+				Total:    len(order),
+			},
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(resp)
+	}
+
+	var b strings.Builder
+	if order == nil {
+		fmt.Fprintf(&b, "%s graph · topo · cycle detected (%d nodes)\n", metricsGraph, len(cycle))
+		for i, n := range cycle {
+			fmt.Fprintf(&b, "  %2d  %s\n", i+1, n)
+		}
+	} else {
+		fmt.Fprintf(&b, "%s graph · topo · %d nodes\n", metricsGraph, len(order))
+		for i, n := range order {
+			fmt.Fprintf(&b, "  %2d  %s\n", i+1, n)
+		}
+	}
+	_, err = os.Stdout.WriteString(b.String())
+	return err
 }
 
 func writeMetricsText(rows []store.MetricRow) error {

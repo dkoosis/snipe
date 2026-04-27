@@ -248,6 +248,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		if err := computeImportHITS(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: HITS computation failed: %v\n", err)
 		}
+		if err := computeImportDegreeAndEigenvector(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: degree/eigenvector computation failed: %v\n", err)
+		}
 	}
 
 	// Extract and write string literals (env var calls + named consts)
@@ -836,4 +839,30 @@ func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start ti
 
 	fmt.Fprintf(os.Stderr, "Changes detected: %s\n", changes.Summary())
 	return &changeDetection{result: skipResultProceedIncremental, changes: changes}, nil
+}
+
+// computeImportDegreeAndEigenvector loads the intra-repo imports graph, computes
+// in-degree, out-degree, and eigenvector centrality, and persists each as its
+// own metric row.
+func computeImportDegreeAndEigenvector(s *store.Store) error {
+	t0 := time.Now()
+	g, err := graphmetrics.LoadImportsGraph(s)
+	if err != nil {
+		return fmt.Errorf("load imports graph: %w", err)
+	}
+	in := graphmetrics.InDegree(g)
+	out := graphmetrics.OutDegree(g)
+	eig := graphmetrics.EigenvectorCentrality(g, 50)
+	if err := s.WriteGraphMetrics("imports", "in_degree", in); err != nil {
+		return fmt.Errorf("write in_degree: %w", err)
+	}
+	if err := s.WriteGraphMetrics("imports", "out_degree", out); err != nil {
+		return fmt.Errorf("write out_degree: %w", err)
+	}
+	if err := s.WriteGraphMetrics("imports", "eigenvector", eig); err != nil {
+		return fmt.Errorf("write eigenvector: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: degree+eigenvector computed for %d packages in %dms\n",
+		len(in), time.Since(t0).Milliseconds())
+	return nil
 }
