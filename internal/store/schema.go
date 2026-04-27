@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 14
+const schemaVersion = 15
 
 // migration represents a database migration.
 type migration struct {
@@ -226,6 +226,21 @@ var migrations = []migration{
 		CREATE INDEX IF NOT EXISTS idx_string_refs_value ON string_refs(value);
 		CREATE INDEX IF NOT EXISTS idx_string_refs_file ON string_refs(file_path);
 		CREATE INDEX IF NOT EXISTS idx_string_refs_kind_value ON string_refs(kind, value);
+		`,
+	},
+	{
+		version: 15,
+		name:    "graph_metrics_table",
+		up: `
+		CREATE TABLE IF NOT EXISTS graph_metrics (
+			graph_kind TEXT NOT NULL,
+			node_id    TEXT NOT NULL,
+			metric     TEXT NOT NULL,
+			value      REAL NOT NULL,
+			rank       INT  NOT NULL,
+			PRIMARY KEY (graph_kind, node_id, metric)
+		);
+		CREATE INDEX IF NOT EXISTS idx_graph_metrics_rank ON graph_metrics(graph_kind, metric, rank);
 		`,
 	},
 }
