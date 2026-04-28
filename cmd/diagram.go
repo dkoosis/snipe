@@ -16,7 +16,6 @@ import (
 	"github.com/dkoosis/snipe/internal/lifecycle"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
-	"github.com/dkoosis/snipe/internal/store"
 )
 
 // Default curation knobs. Each subcommand exposes flags to override.
@@ -24,6 +23,7 @@ const (
 	defaultDiagramArchTopN   = 20
 	defaultDiagramFlowDepth  = 3
 	defaultDiagramFlowFanout = 6
+	defaultDiagramFlowTopN   = 0 // 0 = no PageRank trim
 )
 
 var (
@@ -31,6 +31,7 @@ var (
 	diagramArchTopN   int
 	diagramFlowDepth  int
 	diagramFlowFanout int
+	diagramFlowTopN   int
 )
 
 var diagramCmd = &cobra.Command{
@@ -80,6 +81,8 @@ func init() {
 		"Maximum BFS depth from entry (1..10)")
 	diagramFlowCmd.Flags().IntVar(&diagramFlowFanout, "fanout", defaultDiagramFlowFanout,
 		"Cap callees expanded per node (prevents hairballs)")
+	diagramFlowCmd.Flags().IntVar(&diagramFlowTopN, "top-n", defaultDiagramFlowTopN,
+		"After BFS, intersect with top-N by call-graph PageRank (0 = no trim; ignored if metrics not populated)")
 
 	diagramCmd.AddCommand(diagramArchCmd, diagramFlowCmd, diagramLifecycleCmd)
 	rootCmd.AddCommand(diagramCmd)
@@ -142,7 +145,7 @@ func runDiagramArch(_ *cobra.Command, _ []string) error {
 	}
 
 	// Trim by top-N PageRank when populated, else keep full graph.
-	keep, ranking, err := topNByPageRank(s, "imports", diagramArchTopN)
+	keep, ranking, err := graphmetrics.TopNByPageRank(s, "imports", diagramArchTopN)
 	if err != nil {
 		return err
 	}
@@ -191,29 +194,6 @@ func runDiagramArch(_ *cobra.Command, _ []string) error {
 	}
 
 	return emit(sb.String(), b.Render())
-}
-
-// topNByPageRank returns the set of nodes to retain and a node->rank map.
-// If the metrics table is empty (PageRank not yet computed) keep returns nil
-// (caller treats nil as "keep everything").
-func topNByPageRank(s *store.Store, graphKind string, topN int) (map[string]bool, map[string]int, error) {
-	if topN <= 0 {
-		return nil, nil, nil
-	}
-	rows, err := s.ReadTopN(graphKind, "pagerank", topN)
-	if err != nil {
-		return nil, nil, fmt.Errorf("read pagerank: %w", err)
-	}
-	if len(rows) == 0 {
-		return nil, nil, nil
-	}
-	keep := make(map[string]bool, len(rows))
-	rank := make(map[string]int, len(rows))
-	for _, r := range rows {
-		keep[r.NodeID] = true
-		rank[r.NodeID] = r.Rank
-	}
-	return keep, rank, nil
 }
 
 func filterGraph(g *graphmetrics.Graph, keep map[string]bool) ([]string, [][2]string) {
@@ -372,6 +352,27 @@ func runDiagramFlow(_ *cobra.Command, args []string) error {
 
 	visited, edges := bfsCallees(g, root.ID, diagramFlowDepth, diagramFlowFanout)
 
+	// Optional curation: intersect BFS result with top-N by call-graph PageRank.
+	// Falls back to the un-trimmed BFS when metrics aren't populated.
+	var trimNote string
+	preTrimNodes := len(visited)
+	preTrimEdges := len(edges)
+	if diagramFlowTopN > 0 {
+		keep, _, terr := graphmetrics.TopNByPageRank(s, "calls", diagramFlowTopN)
+		if terr != nil {
+			return terr
+		}
+		if keep == nil {
+			trimNote = fmt.Sprintf(" · --top-n=%d requested but graph_metrics empty (run `snipe metrics --graph=calls --kind=pagerank`)", diagramFlowTopN)
+		} else {
+			// Always retain the entry node so the diagram has an anchor.
+			keep[root.ID] = true
+			visited, edges = filterFlow(visited, edges, keep)
+			trimNote = fmt.Sprintf(" · trimmed to top-%d by PageRank (was %d nodes / %d edges)",
+				diagramFlowTopN, preTrimNodes, preTrimEdges)
+		}
+	}
+
 	// Resolve symbol metadata in one batch.
 	ids := make([]string, 0, len(visited))
 	for id := range visited {
@@ -409,8 +410,8 @@ func runDiagramFlow(_ *cobra.Command, args []string) error {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "diagram flow · entry=%s · %d nodes · %d edges · depth=%d · fanout=%d\n",
-		root.Name, len(visited), len(edges), diagramFlowDepth, diagramFlowFanout)
+	fmt.Fprintf(&sb, "diagram flow · entry=%s · %d nodes · %d edges · depth=%d · fanout=%d%s\n",
+		root.Name, len(visited), len(edges), diagramFlowDepth, diagramFlowFanout, trimNote)
 	// Brief textual outline.
 	roots := []string{root.ID}
 	written := map[string]bool{}
@@ -424,6 +425,24 @@ func displayLabel(sym *query.SymbolRow) string {
 		return sym.Receiver.String + "." + sym.Name
 	}
 	return sym.Name
+}
+
+// filterFlow restricts a BFS result (visited set + edges) to nodes in keep.
+// Edges are retained only when both endpoints survive.
+func filterFlow(visited map[string]bool, edges [][2]string, keep map[string]bool) (map[string]bool, [][2]string) {
+	out := make(map[string]bool, len(visited))
+	for id := range visited {
+		if keep[id] {
+			out[id] = true
+		}
+	}
+	kept := make([][2]string, 0, len(edges))
+	for _, e := range edges {
+		if out[e[0]] && out[e[1]] {
+			kept = append(kept, e)
+		}
+	}
+	return out, kept
 }
 
 // bfsCallees walks caller -> callee edges from root. fanout caps the number
