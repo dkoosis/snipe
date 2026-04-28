@@ -8,9 +8,13 @@
 
 .DEFAULT_GOAL := check
 
-.PHONY: help scan check audit deploy report report-human doctor \
+# ── Shared sandbox (go-sandbox) ──
+include .sandbox/lib/Makefile.doctor.mk
+include .sandbox/lib/Makefile.cross.mk
+
+.PHONY: help scan check audit deploy report report-human \
         vet lint test race blackbox vuln \
-        install cross clean \
+        install clean \
         baseline bench eval eval-setup
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -53,32 +57,8 @@ report: ## Structured QA output for agents/tools (always exits 0)
 report-human: ## Same as report, rendered for humans (always exits 0)
 	@( $(REPORT_CMD) ) | fo --format human || true
 
-doctor: ## Validate required toolchain
-	@echo "=== doctor ==="
-	@MISSING=0; \
-	for tool in go golangci-lint govulncheck; do \
-		if command -v "$$tool" >/dev/null 2>&1; then \
-			printf "  ok  %-20s %s\n" "$$tool" "$$(command -v $$tool)"; \
-		else \
-			printf "  MISSING  %s\n" "$$tool"; \
-			MISSING=$$((MISSING + 1)); \
-		fi; \
-	done; \
-	for tool in fo snipe; do \
-		if command -v "$$tool" >/dev/null 2>&1; then \
-			printf "  ok  %-20s %s (optional)\n" "$$tool" "$$(command -v $$tool)"; \
-		else \
-			printf "  skip  %-20s (optional)\n" "$$tool"; \
-		fi; \
-	done; \
-	echo ""; \
-	echo "  go: $$(go version 2>/dev/null | cut -d' ' -f3)"; \
-	if [ "$$MISSING" -gt 0 ]; then \
-		echo ""; \
-		echo "$$MISSING required tool(s) missing"; \
-		exit 1; \
-	fi; \
-	echo "=== doctor pass ==="
+## doctor target provided by .sandbox/lib/Makefile.doctor.mk
+## cross / cross-amd64 / cross-arm64 targets provided by .sandbox/lib/Makefile.cross.mk
 
 ## ---------------------------------------------------------------------
 ## Checks
@@ -109,14 +89,8 @@ vuln: ## Scan for known vulnerabilities
 install: ## Build and install snipe to $GOPATH/bin
 	go install -ldflags '$(LDFLAGS)' .
 
-cross: ## Cross-compile for linux/amd64 + linux/arm64
-	@mkdir -p .bin/linux-amd64 .bin/linux-arm64
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-s -w $(LDFLAGS)' -o .bin/linux-amd64/snipe .
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags '-s -w $(LDFLAGS)' -o .bin/linux-arm64/snipe .
-	@du -h .bin/linux-amd64/snipe .bin/linux-arm64/snipe
-
 clean: ## Remove build artifacts
-	rm -rf .bin .snipe
+	rm -rf .bin .snipe .sandbox/bin/linux-amd64 .sandbox/bin/linux-arm64 .sandbox/cache
 
 ## ---------------------------------------------------------------------
 ## Metrics & Eval
