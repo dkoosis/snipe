@@ -86,7 +86,6 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 	}
 
 	exports := make([]output.PackageExport, 0, len(symbols))
-	var keyTypes []string
 	for _, sym := range symbols {
 		exports = append(exports, output.PackageExport{
 			ID:        sym.ID,
@@ -95,12 +94,19 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 			Signature: sym.Signature.String,
 			Line:      sym.LineStart,
 		})
-		if isTypeKind(sym.Kind) {
-			keyTypes = append(keyTypes, sym.Name)
-		}
 	}
-	if len(keyTypes) > 10 {
-		keyTypes = keyTypes[:10]
+
+	// Rank key types and key funcs by actual usage (ref count / call count).
+	rankedTypes, _ := query.TopTypesByRefs(db, fullPkgPath, 8)
+	rankedFuncs, _ := query.TopFuncsByCallCount(db, fullPkgPath, 8)
+
+	keyTypes := make([]output.PackageExport, 0, len(rankedTypes))
+	for _, r := range rankedTypes {
+		keyTypes = append(keyTypes, output.PackageExport{ID: r.ID, Name: r.Name, Kind: r.Kind, Signature: r.Signature})
+	}
+	keyFuncs := make([]output.PackageExport, 0, len(rankedFuncs))
+	for _, r := range rankedFuncs {
+		keyFuncs = append(keyFuncs, output.PackageExport{ID: r.ID, Name: r.Name, Kind: r.Kind, Signature: r.Signature})
 	}
 
 	// Imports (deps) + dependent count.
@@ -151,6 +157,7 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 		Imports:        imports,
 		DependentCount: dependentCount,
 		KeyTypes:       keyTypes,
+		KeyFuncs:       keyFuncs,
 	}
 
 	resp := output.Response[output.PackPackageResult]{

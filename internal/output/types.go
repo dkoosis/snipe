@@ -550,7 +550,8 @@ type PackPackageResult struct {
 	Exports        []PackageExport `json:"exports,omitempty"`
 	Imports        []DepRef        `json:"imports,omitempty"`
 	DependentCount int             `json:"dependent_count"`
-	KeyTypes       []string        `json:"key_types,omitempty"`
+	KeyTypes       []PackageExport `json:"key_types,omitempty"` // top types by ref count
+	KeyFuncs       []PackageExport `json:"key_funcs,omitempty"` // top funcs/methods by call count
 }
 
 // DepsResult is the response for single-package dependency queries.

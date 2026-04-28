@@ -1238,3 +1238,68 @@ func GetCallersPreview(db *sql.DB, symbolID string, limit int) ([]output.CallerP
 	}
 	return callers, rows.Err()
 }
+
+// RankedPackageSymbol holds a symbol name and signature ranked by usage.
+type RankedPackageSymbol struct {
+	ID        string
+	Name      string
+	Kind      string
+	Signature string
+	Score     int // ref count or call count
+}
+
+// TopTypesByRefs returns the top N exported types/structs/interfaces for a package,
+// ranked by how many times they appear in the refs table.
+func TopTypesByRefs(db *sql.DB, pkgPath string, limit int) ([]RankedPackageSymbol, error) {
+	rows, err := db.Query(`
+		SELECT s.id, s.name, s.kind, COALESCE(s.signature,''), COUNT(r.symbol_id) AS score
+		FROM symbols s
+		LEFT JOIN refs r ON s.id = r.symbol_id
+		WHERE s.pkg_path = ?
+		  AND s.kind IN ('struct','type','interface')
+		  AND s.name GLOB '[A-Z]*'
+		GROUP BY s.id
+		ORDER BY score DESC, s.name
+		LIMIT ?
+	`, pkgPath, limit)
+	if err != nil {
+		return nil, fmt.Errorf("top types: %w", err)
+	}
+	defer rows.Close()
+	return scanRanked(rows)
+}
+
+// TopFuncsByCallCount returns the top N exported funcs/methods for a package,
+// ranked by how many times they appear as callees in the call_graph table.
+func TopFuncsByCallCount(db *sql.DB, pkgPath string, limit int) ([]RankedPackageSymbol, error) {
+	rows, err := db.Query(`
+		SELECT s.id, s.name, s.kind, COALESCE(s.signature,''), COUNT(cg.callee_id) AS score
+		FROM symbols s
+		LEFT JOIN call_graph cg ON s.id = cg.callee_id
+		WHERE s.pkg_path = ?
+		  AND s.kind IN ('func','method')
+		  AND s.name GLOB '[A-Z]*'
+		  AND s.name NOT GLOB 'Test*'
+		  AND s.name NOT GLOB 'Bench*'
+		GROUP BY s.id
+		ORDER BY score DESC, s.name
+		LIMIT ?
+	`, pkgPath, limit)
+	if err != nil {
+		return nil, fmt.Errorf("top funcs: %w", err)
+	}
+	defer rows.Close()
+	return scanRanked(rows)
+}
+
+func scanRanked(rows *sql.Rows) ([]RankedPackageSymbol, error) {
+	var out []RankedPackageSymbol
+	for rows.Next() {
+		var r RankedPackageSymbol
+		if err := rows.Scan(&r.ID, &r.Name, &r.Kind, &r.Signature, &r.Score); err != nil {
+			return nil, fmt.Errorf("scan ranked: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}

@@ -365,21 +365,26 @@ func (w *Writer) writeClaudePackPackage(b *strings.Builder, results []PackPackag
 		fmt.Fprintf(b, "files: %d  loc: %d  tests: %d  exports: %d\n",
 			r.FileCount, r.LOC, r.TestCount, r.ExportCount)
 		fmt.Fprintf(b, "imports: %d  dependents: %d\n", len(r.Imports), r.DependentCount)
+
 		if len(r.KeyTypes) > 0 {
-			b.WriteString("key_types: ")
-			b.WriteString(strings.Join(r.KeyTypes, ", "))
-			b.WriteString("\n")
+			b.WriteString("key_types:\n")
+			for _, kt := range r.KeyTypes {
+				fmt.Fprintf(b, "  %s %s\n", kt.Kind, kt.Name)
+			}
 		}
-		if len(r.Exports) > 0 {
-			b.WriteString("exports:\n")
-			for _, e := range r.Exports {
-				fmt.Fprintf(b, "  %s %s", e.Kind, e.Name)
-				if e.Signature != "" {
-					fmt.Fprintf(b, " — %s", e.Signature)
+
+		if len(r.KeyFuncs) > 0 {
+			b.WriteString("key_funcs:\n")
+			for _, kf := range r.KeyFuncs {
+				b.WriteString("  ")
+				b.WriteString(kf.Name)
+				if kf.Signature != "" {
+					fmt.Fprintf(b, " — %s", kf.Signature)
 				}
 				b.WriteString("\n")
 			}
 		}
+
 		if len(r.Imports) > 0 {
 			b.WriteString("imports:\n")
 			for _, dep := range r.Imports {
@@ -390,6 +395,9 @@ func (w *Writer) writeClaudePackPackage(b *strings.Builder, results []PackPackag
 				b.WriteString("\n")
 			}
 		}
+
+		// Full export list omitted from Claude output — too noisy.
+		// JSON consumers get it via the Exports field in the envelope.
 	}
 	w.writeClaudeMeta(b, meta)
 }
