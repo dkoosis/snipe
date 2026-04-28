@@ -16,6 +16,7 @@ import (
 	"github.com/dkoosis/snipe/internal/lifecycle"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
+	"github.com/dkoosis/snipe/internal/store"
 )
 
 // Default curation knobs. Each subcommand exposes flags to override.
@@ -82,7 +83,7 @@ func init() {
 	diagramFlowCmd.Flags().IntVar(&diagramFlowFanout, "fanout", defaultDiagramFlowFanout,
 		"Cap callees expanded per node (prevents hairballs)")
 	diagramFlowCmd.Flags().IntVar(&diagramFlowTopN, "top-n", defaultDiagramFlowTopN,
-		"After BFS, intersect with top-N by call-graph PageRank (0 = no trim; ignored if metrics not populated)")
+		"After BFS, keep top-N reachable nodes by call-graph PageRank (rank within frontier; 0 = no trim; ignored if metrics not populated)")
 
 	diagramCmd.AddCommand(diagramArchCmd, diagramFlowCmd, diagramLifecycleCmd)
 	rootCmd.AddCommand(diagramCmd)
@@ -343,23 +344,27 @@ func runDiagramFlow(_ *cobra.Command, args []string) error {
 
 	visited, edges := bfsCallees(g, root.ID, diagramFlowDepth, diagramFlowFanout)
 
-	// Optional curation: intersect BFS result with top-N by call-graph PageRank.
+	// Optional curation: rank nodes within the BFS frontier by call-graph
+	// PageRank and keep top-N. snipe-eul: the previous implementation
+	// intersected BFS with the *global* top-N, which often collapsed to just
+	// the entry node because callees rarely rank globally central. Ranking
+	// within the reachable subgraph gives "the N most central within what's
+	// reachable from the entry," which matches user expectation.
 	// Falls back to the un-trimmed BFS when metrics aren't populated.
 	var trimNote string
 	preTrimNodes := len(visited)
 	preTrimEdges := len(edges)
 	if diagramFlowTopN > 0 {
-		keep, _, terr := graphmetrics.TopNByPageRank(s, "calls", diagramFlowTopN)
+		scores, terr := loadCallsPageRank(s)
 		if terr != nil {
 			return terr
 		}
-		if keep == nil {
+		if scores == nil {
 			trimNote = fmt.Sprintf(" · --top-n=%d requested but graph_metrics empty (run `snipe metrics --graph=calls --kind=pagerank`)", diagramFlowTopN)
 		} else {
-			// Always retain the entry node so the diagram has an anchor.
-			keep[root.ID] = true
+			keep := topNWithinFrontier(visited, scores, diagramFlowTopN, root.ID)
 			visited, edges = filterFlow(visited, edges, keep)
-			trimNote = fmt.Sprintf(" · trimmed to top-%d by PageRank (was %d nodes / %d edges)",
+			trimNote = fmt.Sprintf(" · trimmed to top-%d within BFS frontier by PageRank (was %d nodes / %d edges)",
 				diagramFlowTopN, preTrimNodes, preTrimEdges)
 		}
 	}
@@ -452,6 +457,61 @@ func displayLabel(sym *query.SymbolRow) string {
 		return sym.Receiver.String + "." + sym.Name
 	}
 	return sym.Name
+}
+
+// loadCallsPageRank reads all PageRank rows for the call graph. Returns
+// (nil, nil) when graph_metrics is empty so callers can fall back gracefully.
+func loadCallsPageRank(s *store.Store) (map[string]float64, error) {
+	rows, err := s.ReadTopN("calls", "pagerank", 0)
+	if err != nil {
+		return nil, fmt.Errorf("read pagerank: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]float64, len(rows))
+	for _, r := range rows {
+		out[r.NodeID] = r.Value
+	}
+	return out, nil
+}
+
+// topNWithinFrontier ranks `visited` nodes by `scores` (descending; missing
+// scores treated as 0; node ID as deterministic tie-break) and returns a
+// keep-set of size <= n. The entry node is always retained so the diagram has
+// an anchor even if it scores low or has no metric row.
+func topNWithinFrontier(visited map[string]bool, scores map[string]float64, n int, entry string) map[string]bool {
+	if n <= 0 || len(visited) == 0 {
+		return visited
+	}
+	type scored struct {
+		id    string
+		score float64
+	}
+	cands := make([]scored, 0, len(visited))
+	for id := range visited {
+		cands = append(cands, scored{id: id, score: scores[id]})
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].score != cands[j].score {
+			return cands[i].score > cands[j].score
+		}
+		return cands[i].id < cands[j].id
+	})
+	keep := make(map[string]bool, n)
+	if visited[entry] {
+		keep[entry] = true
+	}
+	for _, c := range cands {
+		if len(keep) >= n {
+			break
+		}
+		keep[c.id] = true
+	}
+	// Edge case: entry was forced in and we already had n picks ahead of it —
+	// keep map may exceed n by one. That's acceptable: the diagram needs the
+	// anchor more than it needs an exact size cap.
+	return keep
 }
 
 // filterFlow restricts a BFS result (visited set + edges) to nodes in keep.
