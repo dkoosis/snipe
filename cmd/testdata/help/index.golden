@@ -13,7 +13,7 @@ Usage:
   snipe index [path] [flags]
 
 Flags:
-      --embed               Generate embeddings (deprecated: use --embed-mode)
+      --embed               Generate embeddings (deprecated: use --embed-mode) (default true)
       --embed-mode string   Embedding mode: auto, batch, realtime, off (default "auto")
       --enrich              Generate LLM-based symbol purposes (placeholder, not yet wired)
       --force               Force full re-index even if no changes detected
