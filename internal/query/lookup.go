@@ -424,6 +424,7 @@ func (s *SymbolRow) ToResult() output.Result {
 		Kind:       s.Kind,
 		Name:       s.Name,
 		Match:      s.Signature.String,
+		Doc:        docFirstSentence(s.Doc.String),
 		Hints:      hints,
 		EditTarget: output.FormatEditTargetWithHash(filePath, s.FilePath, r),
 	}
@@ -439,6 +440,29 @@ func (s *SymbolRow) ToResult() output.Result {
 	}
 
 	return result
+}
+
+// docFirstSentence returns the first sentence of a doc comment, trimmed.
+// Returns empty string if doc is empty or contains only whitespace.
+func docFirstSentence(doc string) string {
+	doc = strings.TrimSpace(doc)
+	if doc == "" {
+		return ""
+	}
+	// Find end of first sentence (period followed by space or end)
+	for i := 0; i < len(doc); i++ {
+		if doc[i] == '.' && (i+1 == len(doc) || doc[i+1] == ' ' || doc[i+1] == '\n') {
+			return strings.TrimSpace(doc[:i+1])
+		}
+	}
+	// No period — return up to first newline or full string, capped at 120 chars
+	if nl := strings.IndexByte(doc, '\n'); nl >= 0 {
+		doc = doc[:nl]
+	}
+	if len(doc) > 120 {
+		doc = doc[:120]
+	}
+	return strings.TrimSpace(doc)
 }
 
 // computeHints detects static analysis hints for a symbol.

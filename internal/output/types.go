@@ -92,6 +92,7 @@ type Result struct {
 	Receiver       string          `json:"receiver,omitempty"` // Method receiver type, e.g., "(*Server)" or "(Config)"
 	Package        string          `json:"package,omitempty"`  // Go package path
 	Match          string          `json:"match,omitempty"`
+	Doc            string          `json:"doc,omitempty"` // First sentence of doc comment
 	Body           string          `json:"body,omitempty"`
 	Score          float64         `json:"score,omitempty"`
 	Role           string          `json:"role,omitempty"`
@@ -134,6 +135,12 @@ type KGHint struct {
 }
 
 // Hint constants for static analysis
+// Symbol kind constants used for conditional rendering.
+const (
+	KindFunc   = "func"
+	KindMethod = "method"
+)
+
 const (
 	HintDeprecated  = "deprecated"   // Symbol is marked as deprecated
 	HintUnused      = "unused"       // Exported symbol with no references
@@ -324,7 +331,7 @@ func SuggestionsForDef(result *Result) []Suggestion {
 	}
 
 	// If it's a function/method, suggest callers
-	if result.Kind == "func" || result.Kind == "method" {
+	if result.Kind == KindFunc || result.Kind == KindMethod {
 		suggestions = append(suggestions, Suggestion{
 			Command:     "snipe callers " + result.Name,
 			Description: "Find functions that call this",

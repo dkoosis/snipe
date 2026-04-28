@@ -129,8 +129,8 @@ func (w *Writer) writeClaudeResults(b *strings.Builder, results []Result, meta M
 			b.WriteString("```go\n")
 			b.WriteString(r.Body)
 			b.WriteString("\n```\n")
-		} else if r.Match != "" && r.Kind != "" {
-			// Signature line only (no body)
+		} else if r.Match != "" && (r.Kind == KindFunc || r.Kind == KindMethod) {
+			// Signature line only for func/method — struct/type/const match is just the qualified name, redundant
 			b.WriteString("  ")
 			b.WriteString(r.Match)
 			b.WriteString("\n")
@@ -190,6 +190,13 @@ func writeResultHeader(b *strings.Builder, r *Result) {
 		}
 	}
 	b.WriteString("\n")
+
+	// Doc comment (first sentence) — aids orientation without requiring pack
+	if r.Doc != "" {
+		b.WriteString("  ")
+		b.WriteString(r.Doc)
+		b.WriteString("\n")
+	}
 
 	// Role on its own line if present (set in detailed format)
 	if r.Role != "" {
@@ -1016,7 +1023,7 @@ func ScoreResult(result *Result, query string) float64 {
 
 	// Bonus for definitions over references
 	switch result.Kind {
-	case "func", "method", "type", "struct", "interface", "const", "var":
+	case KindFunc, KindMethod, "type", "struct", "interface", "const", "var":
 		score += 30
 	}
 
