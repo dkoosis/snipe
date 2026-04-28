@@ -1,0 +1,36 @@
+Displays type information including methods, embeds, and fields.
+
+Output includes:
+  - methods: All methods with this type as receiver
+  - embeds: Embedded types (v1: best-effort detection)
+  - fields: Struct fields with types and tags
+  - implements: Interface satisfaction (v1: partial/future)
+
+Note: Full interface satisfaction detection requires type-checker
+analysis and is planned for v2.
+
+Examples:
+  snipe types Store                    # By name
+  snipe types --at internal/store.go:42  # By position
+  snipe types query.SymbolRow          # Qualified name
+
+Usage:
+  snipe types [type-name] [flags]
+
+Flags:
+      --at string   Position to look up (file:line:col)
+  -h, --help        help for types
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

@@ -1,0 +1,31 @@
+Finds all functions called by a given symbol.
+
+Accepts symbol name or 16-char hex ID (auto-detected).
+Use --with-body to include callee function bodies.
+
+Examples:
+  snipe callees ProcessOrder      # Find callees by name
+  snipe callees a3f2c1de89ab0123  # Find callees by hex ID (auto-detected)
+  snipe callees --id abc123       # Explicit --id flag
+  snipe callees ProcessOrder --with-body  # Include callee bodies
+
+Usage:
+  snipe callees [symbol|id] [flags]
+
+Flags:
+  -h, --help        help for callees
+      --id string   Symbol ID to look up
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

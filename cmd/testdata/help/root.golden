@@ -1,0 +1,72 @@
+snipe: Go code navigation for LLMs.
+
+  snipe index              Build index (run first)
+  snipe def ProcessOrder   Jump to definition
+  snipe refs ProcessOrder  Find all references
+  snipe callers Handler    Who calls this?
+  snipe pack ProcessOrder  Everything about a symbol
+  snipe search "TODO"      Text search (no index needed)
+
+  snipe doctor             Check index health
+  snipe context            Claude-optimized orientation
+  snipe context --full     Full architecture dump
+
+Usage:
+  snipe [symbol] [flags]
+  snipe [command]
+
+Core Commands:
+  callees      Find functions that a symbol calls
+  callers      Find functions that call a symbol
+  def          Jump to symbol definition
+  impact       Show blast radius for changing a symbol
+  lits         Find all locations of a string literal or env var name
+  pack         Full symbol or package profile in a single query
+  refs         Find all references to a symbol
+  search       Text search via ripgrep
+  show         Show symbol details by ID
+  sym          Combined symbol query (def + refs + callers + callees)
+  tests        Find tests that exercise a symbol
+
+Index Commands:
+  doctor       Check snipe installation and configuration
+  index        Build or update the code index
+  status       Show index status and statistics
+
+Advanced Commands:
+  boundary     Show symbols whose refs cross between two package sets
+  context      Generate Claude-optimized project context
+  deps         Show dependency topology for a package or the full project
+  diagram      Render snipe graphs as D2 diagram source
+  edit         AST-aware code editing
+  embed-status Check status of batch embedding job
+  explain      Structured function explanation for LLMs
+  impl         Find types implementing an interface
+  importers    Find files that import a package
+  imports      Show packages imported by a file
+  lifecycle    Trace every function creating, mutating, reading, or deleting a type
+  metrics      Show graph metrics (PageRank, etc.) over the import or call graph
+  pkg          Show package overview with exported symbols
+  sim          Semantic similarity search
+  types        Show type relationships
+
+Additional Commands:
+  help         Help about any command
+  version      Print version information
+
+Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+  -h, --help               help for snipe
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)
+
+Use "snipe [command] --help" for more information about a command.

@@ -1,0 +1,42 @@
+Performs AST-aware edits on Go source code.
+
+Operations:
+  replace_body   Replace function/method body (keeps signature)
+  replace_full   Replace entire symbol declaration
+  insert_after   Add code after symbol
+  insert_before  Add code before symbol
+
+Examples:
+  snipe edit ProcessOrder --operation replace_body --new-code "return nil"
+  snipe edit Handler --operation replace_full --new-code-file handler.go.new
+  snipe edit Config --operation insert_after --new-code "func NewConfig() Config { return Config{} }"
+
+By default, shows a preview without modifying files. The response includes
+a unified diff (original vs. rewritten) in results[0].diff so callers can
+review the exact change before committing. Use --apply to write changes.
+
+Usage:
+  snipe edit [symbol] [flags]
+
+Flags:
+      --apply                  Apply changes (default: preview only)
+      --at string              Position to edit (file:line:col)
+      --batch                  Read batch operations from stdin
+  -h, --help                   help for edit
+      --new-code string        New code to insert/replace
+      --new-code-file string   File containing new code
+      --operation string       Edit operation: replace_body, replace_full, insert_after, insert_before
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

@@ -1,0 +1,33 @@
+Searches for a pattern using ripgrep. Works without an index.
+
+If no text matches are found for an identifier-like query and an index exists,
+falls back to symbol name lookup in the index. If still no results and embeddings
+are available, falls back to semantic similarity search.
+
+Use 'snipe sim' directly for more control over semantic search parameters.
+
+Examples:
+  snipe search "func.*Error"              # Search all files
+  snipe search "TODO" --file "*.go"       # Search only Go files
+  snipe search "Handler" --file store.go  # Search in specific file
+
+Usage:
+  snipe search <pattern> [flags]
+
+Flags:
+      --file string   Glob pattern to filter files (e.g., "*.go", "store.go")
+  -h, --help          help for search
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

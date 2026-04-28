@@ -1,0 +1,35 @@
+Builds a SQLite index of symbols, references, and call graph for fast navigation.
+
+By default, generates embeddings (auto mode) and LLM-based symbol purposes (enrich).
+Use --embed-mode=off and --enrich=false to disable.
+
+Embedding modes:
+  auto     - Use batch API for initial indexing (async), realtime for incremental
+  batch    - Force batch API (async, up to 12h completion)
+  realtime - Force realtime API (sync, may timeout on large codebases)
+  off      - Skip embedding generation
+
+Usage:
+  snipe index [path] [flags]
+
+Flags:
+      --embed               Generate embeddings (deprecated: use --embed-mode)
+      --embed-mode string   Embedding mode: auto, batch, realtime, off (default "auto")
+      --enrich              Generate LLM-based symbol purposes (placeholder, not yet wired)
+      --force               Force full re-index even if no changes detected
+  -h, --help                help for index
+      --skip-metrics        Skip graph metrics (PageRank) computation
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

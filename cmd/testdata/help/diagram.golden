@@ -1,0 +1,36 @@
+Emit D2 (https://d2lang.com) source from snipe's import, call, and lifecycle graphs.
+
+Three opinionated subcommands:
+  snipe diagram arch                Package layering with role annotations
+  snipe diagram flow <entry>        Depth-limited call graph from one symbol
+  snipe diagram lifecycle <Type>    CRUD lifecycle data as D2
+
+Default output is a Claude-readable summary followed by the D2 source.
+Use --format=svg to shell out to the d2 CLI (must be installed).
+
+Usage:
+  snipe diagram [command]
+
+Available Commands:
+  arch        Package import graph trimmed to the top-N by PageRank, grouped by layer
+  flow        Depth-limited call graph from an entry symbol
+  lifecycle   Render lifecycle CRUD groups for a type as D2
+
+Flags:
+      --format string   Output format: 'd2' (default, source) or 'svg' (shells out to d2 CLI) (default "d2")
+  -h, --help            help for diagram
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)
+
+Use "snipe diagram [command] --help" for more information about a command.

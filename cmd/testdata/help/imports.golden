@@ -1,0 +1,25 @@
+Shows all packages imported by a given Go file.
+
+Examples:
+  snipe imports main.go
+  snipe imports internal/handler/server.go
+
+Usage:
+  snipe imports <file> [flags]
+
+Flags:
+  -h, --help   help for imports
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)
