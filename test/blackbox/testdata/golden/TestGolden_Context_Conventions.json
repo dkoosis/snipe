@@ -1,0 +1,31 @@
+{
+  "file_organization": {
+    "avg_types_per_file": 3,
+    "confidence": "low",
+    "multi_type_files": 2,
+    "pattern": "multiple types per file",
+    "single_type_files": 0
+  },
+  "interfaces": {
+    "confidence": "low",
+    "er_suffix": 1,
+    "pattern": "-er/-or suffix naming",
+    "total": 1
+  },
+  "receivers": {
+    "confidence": "high",
+    "descriptive": 4,
+    "pattern": "descriptive receivers",
+    "pointer_pct": 50,
+    "single_letter": 0,
+    "total": 4
+  },
+  "testing": {
+    "colocated": 1,
+    "confidence": "low",
+    "helpers": 1,
+    "pattern": "colocated test files",
+    "separate": 0,
+    "test_files": 1
+  }
+}

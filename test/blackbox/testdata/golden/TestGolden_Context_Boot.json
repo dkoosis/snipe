@@ -1,0 +1,152 @@
+{
+  "boot_views": {
+    "interface_map": [
+      {
+        "file": "greet/greet.go",
+        "implementors": [
+          {
+            "file": "greet/greet.go",
+            "line": 7,
+            "name": "Friendly"
+          },
+          {
+            "file": "greet/greet.go",
+            "line": 19,
+            "name": "PointerGreeter"
+          },
+          {
+            "file": "greet/greet.go",
+            "line": 13,
+            "name": "Rude"
+          }
+        ],
+        "interface": "Greeter",
+        "line": 3,
+        "methods": [
+          "Hello"
+        ]
+      }
+    ]
+  },
+  "build_info": {
+    "build": "go build ./...",
+    "system": "go",
+    "test": "go test ./..."
+  },
+  "conventions": {
+    "file_organization": {
+      "avg_types_per_file": 3,
+      "confidence": "low",
+      "multi_type_files": 2,
+      "pattern": "multiple types per file",
+      "single_type_files": 0
+    },
+    "interfaces": {
+      "confidence": "low",
+      "er_suffix": 1,
+      "pattern": "-er/-or suffix naming",
+      "total": 1
+    },
+    "receivers": {
+      "confidence": "high",
+      "descriptive": 4,
+      "pattern": "descriptive receivers",
+      "pointer_pct": 50,
+      "single_letter": 0,
+      "total": 4
+    },
+    "testing": {
+      "colocated": 1,
+      "confidence": "low",
+      "helpers": 1,
+      "pattern": "colocated test files",
+      "separate": 0,
+      "test_files": 1
+    }
+  },
+  "dep_dag": {
+    "edges": [
+      {
+        "from": ".",
+        "to": [
+          "alpha",
+          "beta",
+          "greet"
+        ]
+      }
+    ]
+  },
+  "entry_points": null,
+  "key_symbols": [
+    {
+      "file": "greet/greet.go",
+      "line": 7,
+      "name": "Friendly",
+      "role": "api_boundary"
+    },
+    {
+      "file": "main.go",
+      "line": 9,
+      "name": "Widget",
+      "role": "api_boundary"
+    },
+    {
+      "file": "alpha/alpha.go",
+      "line": 3,
+      "name": "Ambiguous",
+      "role": "api_boundary"
+    },
+    {
+      "file": "beta/beta.go",
+      "line": 3,
+      "name": "Ambiguous",
+      "role": "api_boundary"
+    },
+    {
+      "file": "main.go",
+      "line": 15,
+      "name": "Base",
+      "role": "api_boundary"
+    },
+    {
+      "file": "greet/greet.go",
+      "line": 3,
+      "name": "Greeter",
+      "role": "api_boundary"
+    },
+    {
+      "file": "greet/greet.go",
+      "line": 9,
+      "name": "Hello",
+      "role": "api_boundary"
+    },
+    {
+      "file": "main.go",
+      "line": 49,
+      "name": "Callee",
+      "role": "internal"
+    }
+  ],
+  "lang": "go",
+  "packages": [
+    {
+      "name": "fixture",
+      "purpose": "Application logic"
+    },
+    {
+      "name": "alpha",
+      "purpose": "Application logic"
+    },
+    {
+      "name": "beta",
+      "purpose": "Application logic"
+    },
+    {
+      "name": "greet",
+      "purpose": "Application logic"
+    }
+  ],
+  "project": "001",
+  "total_pkgs": 5,
+  "total_symbols": 30
+}

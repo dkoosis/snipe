@@ -1,0 +1,5 @@
+diagram lifecycle · type=Widget · file=store/store.go:4 · 5 funcs across 4 roles
+  Create (2)
+  Mutate (1)
+  Read (1)
+  Delete (1)

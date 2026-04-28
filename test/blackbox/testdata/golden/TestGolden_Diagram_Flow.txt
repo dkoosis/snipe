@@ -1,0 +1,10 @@
+diagram flow · entry=CallMany · 9 nodes · 8 edges · depth=3 · fanout=6
+  CallMany  main.go:40
+    Callee  main.go:49
+    UseAmbiguous  main.go:57
+      Ambiguous  alpha/alpha.go:3
+      Ambiguous  beta/beta.go:3
+    UseWidget  main.go:62
+      (*Widget).Do  main.go:19
+        (Friendly).Hello  greet/greet.go:9
+    helperStandalone  main.go:67

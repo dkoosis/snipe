@@ -1,0 +1,5 @@
+diagram arch · 4 packages · 3 edges · trimmed to top-20 by PageRank · module=example.com/fixture
+  fixture  (layer=root)
+  alpha  (layer=alpha)
+  beta  (layer=beta)
+  greet  (layer=greet)

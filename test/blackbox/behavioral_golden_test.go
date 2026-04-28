@@ -174,3 +174,63 @@ func TestGolden_Pkg(t *testing.T) {
 	}
 	assertGoldenJSON(t, repoDir, stdout)
 }
+
+func TestGolden_Context_Boot(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	initGitRepo(t, repoDir)
+	indexRepo(t, repoDir)
+
+	stdout, _, exitCode := run(t, repoDir, "context", repoDir)
+	if exitCode != 0 {
+		t.Fatalf("exit %d", exitCode)
+	}
+	assertGoldenJSON(t, repoDir, stdout)
+}
+
+func TestGolden_Context_Conventions(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	initGitRepo(t, repoDir)
+	indexRepo(t, repoDir)
+
+	stdout, _, exitCode := run(t, repoDir, "context", "--conventions", repoDir)
+	if exitCode != 0 {
+		t.Fatalf("exit %d", exitCode)
+	}
+	assertGoldenJSON(t, repoDir, stdout)
+}
+
+func TestGolden_Diagram_Arch(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	initGitRepo(t, repoDir)
+	indexRepo(t, repoDir)
+
+	stdout, _, exitCode := runRaw(t, repoDir, "diagram", "arch")
+	if exitCode != 0 {
+		t.Fatalf("exit %d", exitCode)
+	}
+	assertGoldenDiagram(t, repoDir, stdout)
+}
+
+func TestGolden_Diagram_Flow(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	initGitRepo(t, repoDir)
+	indexRepo(t, repoDir)
+
+	stdout, _, exitCode := runRaw(t, repoDir, "diagram", "flow", "CallMany")
+	if exitCode != 0 {
+		t.Fatalf("exit %d", exitCode)
+	}
+	assertGoldenDiagram(t, repoDir, stdout)
+}
+
+func TestGolden_Diagram_Lifecycle(t *testing.T) {
+	repoDir := writeLifecycleFixture(t)
+	initGitRepo(t, repoDir)
+	indexRepo(t, repoDir)
+
+	stdout, _, exitCode := runRaw(t, repoDir, "diagram", "lifecycle", "Widget")
+	if exitCode != 0 {
+		t.Fatalf("exit %d", exitCode)
+	}
+	assertGoldenDiagram(t, repoDir, stdout)
+}

@@ -586,6 +586,22 @@ func walk(roots []string, edges [][2]string, depth, maxDepth int, syMap map[stri
 				kids = append(kids, e[1])
 			}
 		}
+		sort.Slice(kids, func(i, j int) bool {
+			li, fi := kids[i], kids[i]
+			lj, fj := kids[j], kids[j]
+			if sym, ok := syMap[kids[i]]; ok && sym != nil {
+				li = displayLabel(sym)
+				fi = sym.FilePathRel
+			}
+			if sym, ok := syMap[kids[j]]; ok && sym != nil {
+				lj = displayLabel(sym)
+				fj = sym.FilePathRel
+			}
+			if li != lj {
+				return li < lj
+			}
+			return fi < fj
+		})
 		walk(kids, edges, depth+1, maxDepth, syMap, sb, written)
 	}
 }
