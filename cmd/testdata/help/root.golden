@@ -27,6 +27,7 @@ Core Commands:
   show         Show symbol details by ID
   sym          Combined symbol query (def + refs + callers + callees)
   tests        Find tests that exercise a symbol
+  trace        Trace a string literal through its call context
 
 Index Commands:
   doctor       Check snipe installation and configuration

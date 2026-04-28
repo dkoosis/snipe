@@ -102,6 +102,8 @@ func (w *Writer) writeClaude(resp any) error {
 		w.writeClaudeTypes(&b, r.Results, r.Meta)
 	case Response[LifecycleResult]:
 		w.writeClaudeLifecycle(&b, r.Results, r.Meta)
+	case Response[TraceResult]:
+		w.writeClaudeTrace(&b, r.Results, r.Meta)
 	default:
 		// Fallback: JSON for unknown types
 		return w.writeJSON(resp)
@@ -712,6 +714,55 @@ func (w *Writer) writeClaudeBoundary(b *strings.Builder, results []BoundaryResul
 			}
 		}
 	}
+	w.writeClaudeMeta(b, meta)
+}
+
+func (w *Writer) writeClaudeTrace(b *strings.Builder, results []TraceResult, meta Meta) {
+	if len(results) == 0 {
+		w.writeClaudeError(b, &Error{Code: ErrNotFound, Message: "no string refs found"})
+		return
+	}
+
+	value := results[0].Value
+	fmt.Fprintf(b, "# %s — %d ref", value, meta.Total)
+	if meta.Total != 1 {
+		b.WriteString("s")
+	}
+	b.WriteString("\n\n")
+
+	for _, r := range results {
+		// file:line | kind
+		fmt.Fprintf(b, "%s:%d | %s\n", r.File, r.Line, r.Kind)
+
+		// enclosing function + callers
+		if r.Enclosing != nil {
+			b.WriteString("  ∈ ")
+			b.WriteString(r.Enclosing.Name)
+			if len(r.Callers) > 0 {
+				b.WriteString(" ← ")
+				for i, c := range r.Callers {
+					if i > 0 {
+						b.WriteString(", ")
+					}
+					b.WriteString(c.Name)
+					if i >= 2 && i < len(r.Callers)-1 {
+						fmt.Fprintf(b, " +%d more", len(r.Callers)-i-1)
+						break
+					}
+				}
+			}
+			b.WriteString("\n")
+		}
+
+		// snippet
+		if r.Snippet != "" {
+			b.WriteString("  ")
+			b.WriteString(strings.TrimSpace(r.Snippet))
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
 	w.writeClaudeMeta(b, meta)
 }
 

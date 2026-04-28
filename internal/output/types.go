@@ -821,3 +821,16 @@ const (
 	// WarningsFull - comprehensive analysis.
 	WarningsFull WarningsMode = "full"
 )
+
+// TraceResult represents one occurrence of a string literal with its call context.
+type TraceResult struct {
+	ID        string          `json:"id"`
+	Value     string          `json:"value"`
+	File      string          `json:"file"`
+	Line      int             `json:"line"`
+	Col       int             `json:"col"`
+	Kind      string          `json:"kind"`    // "env" | "const"
+	Snippet   string          `json:"snippet"` // source line
+	Enclosing *Enclosing      `json:"enclosing,omitempty"`
+	Callers   []CallerPreview `json:"callers,omitempty"`
+}

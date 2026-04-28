@@ -171,6 +171,8 @@ var knownSubcommands = map[string]bool{
 	"metrics": true,
 	// D2 diagram emitter
 	"diagram": true,
+	// String literal / env-var lookup and call-chain trace
+	"lits": true, "trace": true,
 }
 
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
