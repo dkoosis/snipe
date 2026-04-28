@@ -1,13 +1,16 @@
 # Boot
-updated: 2026-04-27
+updated: 2026-04-28
 
-→ pick next from `bd ready`
+→ no immediate do-next — binary testing in progress before any release
 
-state: main @ 8533591, `make audit` green
+state: main @ f3cd836, `make audit` green
 
 ✓ done
-- graph metrics e2e: PageRank/Brandes/HITS/SCC/degree/eigenvector/topo over imports+calls (epic 0ro: y4i + fc9 remain)
-- `snipe metrics --graph=imports|calls --kind=...`
+- sandbox ported from trixi (go-sandbox v0.2.0, linux/amd64 prebuilts committed)
+- #126 audit sweep: all F/M findings pre-implemented in current codebase; 43/50 beads closed
+- behavioral golden tests: 15 commands pinned (def/callers/callees/refs/impl/pack/types/tests/impact/lifecycle/deps/pkg)
+- brew release (snipe-b4b) deferred to 2026-06-01 — binary needs more testing first
 
 ‡ traps
-- parallel Agent `isolation: worktree` collapsed to same main; agents rebased. Sequence schema-touching beads.
+- audit issues vs current code: always reproduce before filing beads — #126 was v0.1.0-era, codebase had moved past everything
+- golden tests require UPDATE_GOLDENS=1 go test -tags blackbox ./test/blackbox/ -run TestGolden to regenerate after intentional output changes
