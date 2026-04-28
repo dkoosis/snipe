@@ -1,0 +1,77 @@
+{
+  "error": null,
+  "meta": {
+    "command": "tests",
+    "limit": 50,
+    "query": {
+      "symbol": "Callee"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 2,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "body": "func TestCallee(t *testing.T) {\n\tresult := Callee()\n\tif result != \"ok\" {\n\t\tt.Fatal(\"unexpected\")\n\t}\n}",
+      "edit_target": "main_test.go:5:1-10:2@f2eb8e7e64c1fe01",
+      "file": "main_test.go",
+      "hints": [
+        "direct_test"
+      ],
+      "kind": "func",
+      "match": "func TestCallee(t *testing.T)",
+      "name": "TestCallee",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 10
+        },
+        "start": {
+          "col": 1,
+          "line": 5
+        }
+      },
+      "ref_count": 0,
+      "score": 83.8
+    },
+    {
+      "body": "func TestViaHelper(t *testing.T) {\n\tresult := testHelper()\n\tif result != \"ok\" {\n\t\tt.Fatal(\"unexpected\")\n\t}\n}",
+      "edit_target": "main_test.go:16:1-21:2@39591a93b9ecf984",
+      "file": "main_test.go",
+      "hints": [
+        "transitive_test"
+      ],
+      "kind": "func",
+      "match": "func TestViaHelper(t *testing.T)",
+      "name": "TestViaHelper",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 21
+        },
+        "start": {
+          "col": 1,
+          "line": 16
+        }
+      },
+      "ref_count": 0,
+      "score": 58.8
+    }
+  ],
+  "suggestions": [
+    {
+      "command": "snipe def Callee",
+      "description": "View the function definition",
+      "priority": 1
+    },
+    {
+      "command": "snipe callers Callee",
+      "description": "See all callers, not just tests",
+      "priority": 2
+    }
+  ]
+}

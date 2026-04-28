@@ -1,0 +1,121 @@
+{
+  "error": null,
+  "meta": {
+    "command": "def",
+    "decision_path": [
+      "lookup:name"
+    ],
+    "query": {
+      "symbol": "Callee"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 1,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "analysis": {
+        "is_exported": true,
+        "line_count": 3,
+        "param_count": 0,
+        "result_count": 1
+      },
+      "body": "func Callee() string {\n\treturn \"ok\"\n}",
+      "callers_preview": [
+        {
+          "file": "main.go",
+          "line": 25,
+          "name": "Caller"
+        },
+        {
+          "file": "main.go",
+          "line": 33,
+          "name": "AnotherCaller"
+        },
+        {
+          "file": "main.go",
+          "line": 37,
+          "name": "ThirdCaller"
+        }
+      ],
+      "edit_target": "main.go:49:1-51:2@8b60bd8320e77b84",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func Callee() string",
+      "name": "Callee",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 51
+        },
+        "start": {
+          "col": 1,
+          "line": 49
+        }
+      },
+      "ref_count": 7,
+      "siblings": [
+        {
+          "kind": "func",
+          "line": 23,
+          "name": "Caller"
+        },
+        {
+          "kind": "func",
+          "line": 29,
+          "name": "AnotherCaller"
+        },
+        {
+          "kind": "func",
+          "line": 36,
+          "name": "ThirdCaller"
+        },
+        {
+          "kind": "func",
+          "line": 40,
+          "name": "CallMany"
+        },
+        {
+          "kind": "func",
+          "line": 53,
+          "name": "UseGreeter"
+        },
+        {
+          "kind": "func",
+          "line": 57,
+          "name": "UseAmbiguous"
+        },
+        {
+          "kind": "func",
+          "line": 62,
+          "name": "UseWidget"
+        },
+        {
+          "kind": "func",
+          "line": 67,
+          "name": "helperStandalone"
+        }
+      ]
+    }
+  ],
+  "suggestions": [
+    {
+      "command": "snipe refs Callee",
+      "description": "Find all usages of this symbol",
+      "priority": 1
+    },
+    {
+      "command": "snipe callers Callee",
+      "description": "Find functions that call this",
+      "priority": 2
+    },
+    {
+      "command": "snipe callees Callee",
+      "description": "Find functions called by this",
+      "priority": 2
+    }
+  ]
+}

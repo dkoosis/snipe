@@ -1,0 +1,34 @@
+{
+  "error": null,
+  "meta": {
+    "command": "deps",
+    "query": {
+      "package": "example.com/fixture"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 3,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "dependencies": [
+        {
+          "file_count": 1,
+          "package": "alpha"
+        },
+        {
+          "file_count": 1,
+          "package": "beta"
+        },
+        {
+          "file_count": 1,
+          "package": "greet"
+        }
+      ],
+      "dependents": null,
+      "package": "example.com/fixture"
+    }
+  ]
+}

@@ -1,0 +1,169 @@
+{
+  "error": null,
+  "meta": {
+    "command": "impact",
+    "limit": 50,
+    "query": {
+      "symbol": "Callee"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 6,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "body": "func AnotherCaller() string {\n\t// Keep this body big to exercise truncation logic.\n\t_ = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n\t_ = \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"\n\treturn Callee()\n}",
+      "edit_target": "main.go:29:1-34:2@2a34a2099c7f87e0",
+      "file": "main.go",
+      "hints": [
+        "direct_caller",
+        "exported"
+      ],
+      "kind": "func",
+      "match": "func AnotherCaller() string",
+      "name": "AnotherCaller",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 34
+        },
+        "start": {
+          "col": 1,
+          "line": 29
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func CallMany() string {\n\tleft := Callee()\n\tagain := Callee()\n\tright := helperStandalone()\n\twidget := UseWidget()\n\tUseAmbiguous()\n\treturn left + again + right + widget\n}",
+      "edit_target": "main.go:40:1-47:2@69948b3525d636e2",
+      "file": "main.go",
+      "hints": [
+        "direct_caller",
+        "direct_caller",
+        "exported"
+      ],
+      "kind": "func",
+      "match": "func CallMany() string",
+      "name": "CallMany",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 47
+        },
+        "start": {
+          "col": 1,
+          "line": 40
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func Caller() string {\n\t// POSITION_CALLEE\n\tvalue := Callee()\n\treturn value\n}",
+      "edit_target": "main.go:23:1-27:2@522db5f5165f79d8",
+      "file": "main.go",
+      "hints": [
+        "direct_caller",
+        "exported"
+      ],
+      "kind": "func",
+      "match": "func Caller() string",
+      "name": "Caller",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 27
+        },
+        "start": {
+          "col": 1,
+          "line": 23
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func ThirdCaller() string {\n\treturn Callee()\n}",
+      "edit_target": "main.go:36:1-38:2@cf91f5890f99f5b4",
+      "file": "main.go",
+      "hints": [
+        "direct_caller",
+        "exported"
+      ],
+      "kind": "func",
+      "match": "func ThirdCaller() string",
+      "name": "ThirdCaller",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 38
+        },
+        "start": {
+          "col": 1,
+          "line": 36
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func TestCallee(t *testing.T) {\n\tresult := Callee()\n\tif result != \"ok\" {\n\t\tt.Fatal(\"unexpected\")\n\t}\n}",
+      "edit_target": "main_test.go:5:1-10:2@f2eb8e7e64c1fe01",
+      "file": "main_test.go",
+      "hints": [
+        "direct_test",
+        "exported"
+      ],
+      "kind": "func",
+      "match": "func TestCallee(t *testing.T)",
+      "name": "TestCallee",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 10
+        },
+        "start": {
+          "col": 1,
+          "line": 5
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func TestViaHelper(t *testing.T) {\n\tresult := testHelper()\n\tif result != \"ok\" {\n\t\tt.Fatal(\"unexpected\")\n\t}\n}",
+      "edit_target": "main_test.go:16:1-21:2@39591a93b9ecf984",
+      "file": "main_test.go",
+      "hints": [
+        "transitive_test",
+        "exported"
+      ],
+      "kind": "func",
+      "match": "func TestViaHelper(t *testing.T)",
+      "name": "TestViaHelper",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 21
+        },
+        "start": {
+          "col": 1,
+          "line": 16
+        }
+      },
+      "ref_count": 0
+    }
+  ],
+  "suggestions": [
+    {
+      "command": "",
+      "description": "Impact: 5 direct callers, 0 transitive, 0 implementers, 2 tests across 1 packages",
+      "priority": 1
+    }
+  ]
+}

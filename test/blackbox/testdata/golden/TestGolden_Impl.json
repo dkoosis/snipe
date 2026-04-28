@@ -1,0 +1,80 @@
+{
+  "error": null,
+  "meta": {
+    "command": "impl",
+    "limit": 50,
+    "query": {
+      "interface": "Greeter"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 3,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "body": "type PointerGreeter struct{}",
+      "edit_target": "greet/greet.go:19:6-19:29@afedbcc5254ab4e8",
+      "file": "greet/greet.go",
+      "kind": "struct",
+      "match": "example.com/fixture/greet.PointerGreeter",
+      "name": "PointerGreeter",
+      "package": "example.com/fixture/greet",
+      "range": {
+        "end": {
+          "col": 29,
+          "line": 19
+        },
+        "start": {
+          "col": 6,
+          "line": 19
+        }
+      },
+      "ref_count": 0,
+      "score": 83.6
+    },
+    {
+      "body": "type Friendly struct{}",
+      "edit_target": "greet/greet.go:7:6-7:23@fee238fc766e502d",
+      "file": "greet/greet.go",
+      "kind": "struct",
+      "match": "example.com/fixture/greet.Friendly",
+      "name": "Friendly",
+      "package": "example.com/fixture/greet",
+      "range": {
+        "end": {
+          "col": 23,
+          "line": 7
+        },
+        "start": {
+          "col": 6,
+          "line": 7
+        }
+      },
+      "ref_count": 0,
+      "score": 58.6
+    },
+    {
+      "body": "type Rude struct{}",
+      "edit_target": "greet/greet.go:13:6-13:19@07c504af76cfe6a6",
+      "file": "greet/greet.go",
+      "kind": "struct",
+      "match": "example.com/fixture/greet.Rude",
+      "name": "Rude",
+      "package": "example.com/fixture/greet",
+      "range": {
+        "end": {
+          "col": 19,
+          "line": 13
+        },
+        "start": {
+          "col": 6,
+          "line": 13
+        }
+      },
+      "ref_count": 0,
+      "score": 58.6
+    }
+  ]
+}

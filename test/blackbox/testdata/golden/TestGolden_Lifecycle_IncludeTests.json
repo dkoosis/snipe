@@ -1,0 +1,107 @@
+{
+  "error": null,
+  "meta": {
+    "command": "lifecycle",
+    "limit": 50,
+    "query": {
+      "type": "Widget"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 1,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "function_refs": 6,
+      "groups": [
+        {
+          "count": 3,
+          "funcs": [
+            {
+              "file": "consumer/consumer.go",
+              "line": 6,
+              "name": "BuildWidget",
+              "signal": "[R2 snippet] return \u0026store.Widget{Name: \"x\"}"
+            },
+            {
+              "file": "store/store.go",
+              "line": 10,
+              "name": "NewWidget",
+              "signal": "[R2 snippet] return \u0026Widget{Name: name}"
+            },
+            {
+              "file": "store/store_test.go",
+              "line": 8,
+              "name": "TestWidgetRoundtrip",
+              "signal": "[R2 snippet] w := \u0026Widget{Name: \"t\"}"
+            }
+          ],
+          "role": "Create"
+        },
+        {
+          "count": 1,
+          "funcs": [
+            {
+              "callers": [
+                {
+                  "depth": 1,
+                  "file": "store/store_test.go",
+                  "name": "TestWidgetRoundtrip"
+                }
+              ],
+              "file": "store/store.go",
+              "line": 15,
+              "name": "UpdateWidget",
+              "signal": "[R5 name+sig] UpdateWidget takes *Widget"
+            }
+          ],
+          "role": "Mutate"
+        },
+        {
+          "count": 1,
+          "funcs": [
+            {
+              "callers": [
+                {
+                  "depth": 1,
+                  "file": "store/store_test.go",
+                  "name": "TestWidgetRoundtrip"
+                }
+              ],
+              "file": "store/store.go",
+              "line": 25,
+              "name": "ReadWidget",
+              "signal": "[R7 default] no create/mutate/delete signal"
+            }
+          ],
+          "role": "Read"
+        },
+        {
+          "count": 1,
+          "funcs": [
+            {
+              "file": "store/store.go",
+              "line": 20,
+              "name": "DeleteWidget",
+              "signal": "[R4 name] DeleteWidget"
+            }
+          ],
+          "role": "Delete"
+        },
+        {
+          "count": 0,
+          "funcs": null,
+          "role": "Unknown"
+        }
+      ],
+      "test_refs": 0,
+      "total_refs": 8,
+      "type": "Widget",
+      "type_file": "store/store.go",
+      "type_kind": "struct",
+      "type_line": 4
+    }
+  ]
+}

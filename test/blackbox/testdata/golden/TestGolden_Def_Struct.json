@@ -1,0 +1,53 @@
+{
+  "error": null,
+  "meta": {
+    "command": "def",
+    "decision_path": [
+      "lookup:name"
+    ],
+    "query": {
+      "symbol": "Widget"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 1,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "body": "type Widget struct {\n\tBase\n\tName string\n\tCount int\n}",
+      "edit_target": "main.go:9:6-13:2@263f7b85217ac56c",
+      "file": "main.go",
+      "kind": "struct",
+      "match": "example.com/fixture.Widget",
+      "name": "Widget",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 13
+        },
+        "start": {
+          "col": 6,
+          "line": 9
+        }
+      },
+      "ref_count": 2,
+      "siblings": [
+        {
+          "kind": "struct",
+          "line": 15,
+          "name": "Base"
+        }
+      ]
+    }
+  ],
+  "suggestions": [
+    {
+      "command": "snipe refs Widget",
+      "description": "Find all usages of this symbol",
+      "priority": 1
+    }
+  ]
+}

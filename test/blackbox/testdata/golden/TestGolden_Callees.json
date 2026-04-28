@@ -1,0 +1,109 @@
+{
+  "error": null,
+  "meta": {
+    "command": "callees",
+    "limit": 50,
+    "query": {
+      "symbol": "CallMany"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 4,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "body": "func Callee() string {\n\treturn \"ok\"\n}",
+      "edit_target": "main.go:49:1-51:2@8b60bd8320e77b84",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func Callee() string",
+      "name": "Callee",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 51
+        },
+        "start": {
+          "col": 1,
+          "line": 49
+        }
+      },
+      "ref_count": 0,
+      "score": 59.3
+    },
+    {
+      "body": "func UseAmbiguous() {\n\talpha.Ambiguous()\n\tbeta.Ambiguous()\n}",
+      "edit_target": "main.go:57:1-60:2@e3bcaa375be808a0",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func UseAmbiguous()",
+      "name": "UseAmbiguous",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 60
+        },
+        "start": {
+          "col": 1,
+          "line": 57
+        }
+      },
+      "ref_count": 0,
+      "score": 59.3
+    },
+    {
+      "body": "func UseWidget() string {\n\tw := \u0026Widget{Name: \"test\"}\n\treturn w.Do()\n}",
+      "edit_target": "main.go:62:1-65:2@a38a0bad3bae4617",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func UseWidget() string",
+      "name": "UseWidget",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 65
+        },
+        "start": {
+          "col": 1,
+          "line": 62
+        }
+      },
+      "ref_count": 0,
+      "score": 59.3
+    },
+    {
+      "body": "func helperStandalone() string {\n\treturn \"helper\"\n}",
+      "edit_target": "main.go:67:1-69:2@99c22c811e9bb481",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func helperStandalone() string",
+      "name": "helperStandalone",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 69
+        },
+        "start": {
+          "col": 1,
+          "line": 67
+        }
+      },
+      "ref_count": 0,
+      "score": 39.3
+    }
+  ],
+  "suggestions": [
+    {
+      "command": "snipe def CallMany",
+      "description": "View the function definition",
+      "priority": 1
+    },
+    {
+      "command": "snipe callers CallMany",
+      "description": "See what calls this function",
+      "priority": 2
+    }
+  ]
+}

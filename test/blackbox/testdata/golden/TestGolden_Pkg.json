@@ -1,0 +1,281 @@
+{
+  "error": null,
+  "meta": {
+    "command": "pkg",
+    "limit": 200,
+    "query": {
+      "package": "example.com/fixture"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 13,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "body": "type Base struct {\n\tID string\n}",
+      "edit_target": "main.go:15:6-17:2@29dd7eb26208208d",
+      "file": "main.go",
+      "kind": "struct",
+      "match": "example.com/fixture.Base",
+      "name": "Base",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 17
+        },
+        "start": {
+          "col": 6,
+          "line": 15
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "type Widget struct {\n\tBase\n\tName string\n\tCount int\n}",
+      "edit_target": "main.go:9:6-13:2@263f7b85217ac56c",
+      "file": "main.go",
+      "kind": "struct",
+      "match": "example.com/fixture.Widget",
+      "name": "Widget",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 13
+        },
+        "start": {
+          "col": 6,
+          "line": 9
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func (w *Widget) Do() string {\n\treturn greet.Friendly{}.Hello()\n}",
+      "edit_target": "main.go:19:1-21:2@f9b2078228618188",
+      "file": "main.go",
+      "hints": [
+        "pointer_recv"
+      ],
+      "kind": "method",
+      "match": "func (w *Widget) Do() string",
+      "name": "Do",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 21
+        },
+        "start": {
+          "col": 1,
+          "line": 19
+        }
+      },
+      "receiver": "(*Widget)",
+      "ref_count": 0
+    },
+    {
+      "body": "func AnotherCaller() string {\n\t// Keep this body big to exercise truncation logic.\n\t_ = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n\t_ = \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"\n\treturn Callee()\n}",
+      "edit_target": "main.go:29:1-34:2@2a34a2099c7f87e0",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func AnotherCaller() string",
+      "name": "AnotherCaller",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 34
+        },
+        "start": {
+          "col": 1,
+          "line": 29
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func CallMany() string {\n\tleft := Callee()\n\tagain := Callee()\n\tright := helperStandalone()\n\twidget := UseWidget()\n\tUseAmbiguous()\n\treturn left + again + right + widget\n}",
+      "edit_target": "main.go:40:1-47:2@69948b3525d636e2",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func CallMany() string",
+      "name": "CallMany",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 47
+        },
+        "start": {
+          "col": 1,
+          "line": 40
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func Callee() string {\n\treturn \"ok\"\n}",
+      "edit_target": "main.go:49:1-51:2@8b60bd8320e77b84",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func Callee() string",
+      "name": "Callee",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 51
+        },
+        "start": {
+          "col": 1,
+          "line": 49
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func Caller() string {\n\t// POSITION_CALLEE\n\tvalue := Callee()\n\treturn value\n}",
+      "edit_target": "main.go:23:1-27:2@522db5f5165f79d8",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func Caller() string",
+      "name": "Caller",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 27
+        },
+        "start": {
+          "col": 1,
+          "line": 23
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func TestCallee(t *testing.T) {\n\tresult := Callee()\n\tif result != \"ok\" {\n\t\tt.Fatal(\"unexpected\")\n\t}\n}",
+      "edit_target": "main_test.go:5:1-10:2@f2eb8e7e64c1fe01",
+      "file": "main_test.go",
+      "kind": "func",
+      "match": "func TestCallee(t *testing.T)",
+      "name": "TestCallee",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 10
+        },
+        "start": {
+          "col": 1,
+          "line": 5
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func TestViaHelper(t *testing.T) {\n\tresult := testHelper()\n\tif result != \"ok\" {\n\t\tt.Fatal(\"unexpected\")\n\t}\n}",
+      "edit_target": "main_test.go:16:1-21:2@39591a93b9ecf984",
+      "file": "main_test.go",
+      "kind": "func",
+      "match": "func TestViaHelper(t *testing.T)",
+      "name": "TestViaHelper",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 21
+        },
+        "start": {
+          "col": 1,
+          "line": 16
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func ThirdCaller() string {\n\treturn Callee()\n}",
+      "edit_target": "main.go:36:1-38:2@cf91f5890f99f5b4",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func ThirdCaller() string",
+      "name": "ThirdCaller",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 38
+        },
+        "start": {
+          "col": 1,
+          "line": 36
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func UseAmbiguous() {\n\talpha.Ambiguous()\n\tbeta.Ambiguous()\n}",
+      "edit_target": "main.go:57:1-60:2@e3bcaa375be808a0",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func UseAmbiguous()",
+      "name": "UseAmbiguous",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 60
+        },
+        "start": {
+          "col": 1,
+          "line": 57
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func UseGreeter(g greet.Greeter) string {\n\treturn g.Hello()\n}",
+      "edit_target": "main.go:53:1-55:2@942105db97e97df9",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func UseGreeter(g greet.Greeter) string",
+      "name": "UseGreeter",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 55
+        },
+        "start": {
+          "col": 1,
+          "line": 53
+        }
+      },
+      "ref_count": 0
+    },
+    {
+      "body": "func UseWidget() string {\n\tw := \u0026Widget{Name: \"test\"}\n\treturn w.Do()\n}",
+      "edit_target": "main.go:62:1-65:2@a38a0bad3bae4617",
+      "file": "main.go",
+      "kind": "func",
+      "match": "func UseWidget() string",
+      "name": "UseWidget",
+      "package": "example.com/fixture",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 65
+        },
+        "start": {
+          "col": 1,
+          "line": 62
+        }
+      },
+      "ref_count": 0
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "error": null,
+  "meta": {
+    "command": "def",
+    "decision_path": [
+      "lookup:name"
+    ],
+    "query": {
+      "symbol": "Greeter"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 1,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "body": "type Greeter interface {\n\tHello() string\n}",
+      "edit_target": "greet/greet.go:3:6-5:2@6bb6293b36e988aa",
+      "file": "greet/greet.go",
+      "kind": "interface",
+      "match": "example.com/fixture/greet.Greeter",
+      "name": "Greeter",
+      "package": "example.com/fixture/greet",
+      "range": {
+        "end": {
+          "col": 2,
+          "line": 5
+        },
+        "start": {
+          "col": 6,
+          "line": 3
+        }
+      },
+      "ref_count": 1
+    }
+  ],
+  "suggestions": [
+    {
+      "command": "snipe refs Greeter",
+      "description": "Find all usages of this symbol",
+      "priority": 1
+    }
+  ]
+}

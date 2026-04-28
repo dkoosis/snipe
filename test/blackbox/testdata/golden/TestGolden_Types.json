@@ -1,0 +1,40 @@
+{
+  "error": null,
+  "meta": {
+    "command": "types",
+    "query": {
+      "symbol": "Widget"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 1,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "embeds": [
+        {
+          "file": "main.go",
+          "type_name": "Base"
+        }
+      ],
+      "file": "main.go",
+      "implements": {
+        "note": "Full interface satisfaction requires type-checker (v2 feature)",
+        "status": "partial"
+      },
+      "kind": "struct",
+      "methods": [
+        {
+          "file": "main.go",
+          "line": 19,
+          "name": "Do",
+          "signature": "func (w *Widget) Do() string"
+        }
+      ],
+      "signature": "example.com/fixture.Widget",
+      "symbol": "Widget"
+    }
+  ]
+}

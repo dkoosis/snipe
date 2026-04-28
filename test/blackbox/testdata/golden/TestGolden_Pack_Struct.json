@@ -1,0 +1,155 @@
+{
+  "error": null,
+  "meta": {
+    "command": "pack",
+    "query": {
+      "symbol": "Widget"
+    },
+    "repo_root": "\u003crepo\u003e",
+    "total": 1,
+    "truncated": false
+  },
+  "ok": true,
+  "protocol": 1,
+  "results": [
+    {
+      "callee_count": 1,
+      "callees": [
+        {
+          "edit_target": "greet/greet.go:9:1-11:2@8c12d3338f5cf0cf",
+          "file": "greet/greet.go",
+          "kind": "method",
+          "match": "func (Friendly) Hello() string",
+          "name": "Hello",
+          "range": {
+            "end": {
+              "col": 2,
+              "line": 11
+            },
+            "start": {
+              "col": 1,
+              "line": 9
+            }
+          },
+          "receiver": "(Friendly)",
+          "ref_count": 0
+        }
+      ],
+      "caller_count": 1,
+      "callers": [
+        {
+          "edit_target": "main.go:64:9-64:11@88fa065e6743d781",
+          "file": "main.go",
+          "kind": "func",
+          "match": "func UseWidget() string",
+          "name": "UseWidget",
+          "range": {
+            "end": {
+              "col": 11,
+              "line": 64
+            },
+            "start": {
+              "col": 9,
+              "line": 64
+            }
+          },
+          "ref_count": 0
+        }
+      ],
+      "definition": {
+        "body": "type Widget struct {\n\tBase\n\tName string\n\tCount int\n}",
+        "edit_target": "main.go:9:6-13:2@263f7b85217ac56c",
+        "file": "main.go",
+        "kind": "struct",
+        "match": "example.com/fixture.Widget",
+        "name": "Widget",
+        "package": "example.com/fixture",
+        "range": {
+          "end": {
+            "col": 2,
+            "line": 13
+          },
+          "start": {
+            "col": 6,
+            "line": 9
+          }
+        },
+        "ref_count": 2,
+        "score": 159.3,
+        "siblings": [
+          {
+            "kind": "struct",
+            "line": 15,
+            "name": "Base"
+          }
+        ]
+      },
+      "methods": [
+        {
+          "name": "Do",
+          "signature": "func (w *Widget) Do() string"
+        }
+      ],
+      "ref_count": 2,
+      "references": [
+        {
+          "edit_target": "main.go:19:10-19:16@b3adc10874ee996d",
+          "file": "main.go",
+          "kind": "ref",
+          "match": "func (w *Widget) Do() string {",
+          "name": "Widget",
+          "range": {
+            "end": {
+              "col": 16,
+              "line": 19
+            },
+            "start": {
+              "col": 10,
+              "line": 19
+            }
+          },
+          "ref_count": 0
+        },
+        {
+          "edit_target": "main.go:63:8-63:14@41339e5a8322cc38",
+          "enclosing": {
+            "kind": "func",
+            "name": "UseWidget",
+            "signature": "func UseWidget() string"
+          },
+          "file": "main.go",
+          "kind": "ref",
+          "match": "w := \u0026Widget{Name: \"test\"}",
+          "name": "Widget",
+          "range": {
+            "end": {
+              "col": 14,
+              "line": 63
+            },
+            "start": {
+              "col": 8,
+              "line": 63
+            }
+          },
+          "ref_count": 0
+        }
+      ],
+      "related_types": [
+        "Widget"
+      ],
+      "role": "api_boundary"
+    }
+  ],
+  "suggestions": [
+    {
+      "command": "snipe explain Widget",
+      "description": "Get detailed explanation with mechanism steps",
+      "priority": 1
+    },
+    {
+      "command": "snipe context",
+      "description": "Get project-level orientation context",
+      "priority": 2
+    }
+  ]
+}
