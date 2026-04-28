@@ -8,6 +8,12 @@
 
 .DEFAULT_GOAL := check
 
+# Strict shell for recipes: fail on first error, undefined var, or pipe failure.
+# REPORT_CMD opts out via `set +e;` so it can keep emitting output past
+# tool failures.
+SHELL := /bin/bash
+.SHELLFLAGS := -euo pipefail -c
+
 # ── Shared sandbox (go-sandbox) ──
 include .sandbox/lib/Makefile.doctor.mk
 include .sandbox/lib/Makefile.cross.mk
@@ -21,8 +27,10 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 LDFLAGS := -X github.com/dkoosis/snipe/cmd.Version=$(VERSION) -X github.com/dkoosis/snipe/cmd.GitCommit=$(COMMIT)
 
-# Report stream — fo dashboard format
-REPORT_CMD = \
+# Report stream — fo dashboard format. `set +e` opts out of the recipe-wide
+# -euo pipefail so report MUST run every tool and emit output even if one
+# fails. The outer `|| true` on report targets keeps make exit-0 regardless.
+REPORT_CMD = set +e; \
 	echo '--- tool:build format:text ---'; \
 	go build ./... 2>&1; echo; \
 	echo '--- tool:vet format:text ---'; \
