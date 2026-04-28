@@ -1,0 +1,47 @@
+Generates a structured explanation of a function or method.
+
+Output includes:
+  - purpose: Best-effort summary with explicit source tracking
+  - mechanism: Observable execution steps (callees with action verbs)
+  - caller_context: Who calls this and patterns detected
+  - warnings: High-precision static analysis findings
+  - doc_status: Documentation freshness assessment
+
+Modes:
+  brief   - Minimal analysis, fastest (<20ms)
+  normal  - Standard analysis (default, <50ms)
+  deep    - Full analysis including all callers
+
+Warning levels:
+  none    - Skip warning analysis
+  fast    - Quick AST-only checks (default)
+  full    - Comprehensive analysis
+
+Examples:
+  snipe explain OpenStore              # Explain by name
+  snipe explain --at cmd/root.go:185   # Explain at position
+  snipe explain OpenStore --mode=deep  # Full analysis
+  snipe explain OpenStore --warnings=none  # Skip warnings
+
+Usage:
+  snipe explain [symbol] [flags]
+
+Flags:
+      --at string         Position to explain (file:line:col)
+  -h, --help              help for explain
+      --mode string       Analysis depth: brief, normal, deep (default "normal")
+      --warnings string   Warning level: none, fast, full (default "fast")
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

@@ -1,0 +1,36 @@
+Analyzes what breaks if a symbol changes: transitive callers,
+interface implementers, and test coverage in one call.
+
+Returns a flat result list with hint-based classification:
+  direct_caller, transitive_caller, implementer, direct_test, transitive_test
+
+Accepts symbol name, 16-char hex ID (auto-detected), or --at position.
+
+Examples:
+  snipe impact ProcessOrder            # Full blast radius
+  snipe impact --direct ProcessOrder   # Direct callers + direct tests only
+  snipe impact --at order.go:42:1      # By position
+  snipe impact a3f2c1de89ab0123        # By hex ID
+
+Usage:
+  snipe impact [symbol|id] [flags]
+
+Flags:
+      --at string   Position to look up (file:line:col)
+      --direct      1-hop only (skip transitive callers and tests)
+  -h, --help        help for impact
+      --id string   Symbol ID to look up
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

@@ -1,0 +1,26 @@
+Shows all files that import a given package.
+
+Examples:
+  snipe importers internal/handler    # Find importers of local package
+  snipe importers encoding/json       # Find importers of stdlib package
+  snipe importers github.com/foo/bar  # Find importers by full path
+
+Usage:
+  snipe importers <package> [flags]
+
+Flags:
+  -h, --help   help for importers
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

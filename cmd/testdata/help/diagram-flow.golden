@@ -1,0 +1,24 @@
+Depth-limited call graph from an entry symbol
+
+Usage:
+  snipe diagram flow <entry> [flags]
+
+Flags:
+      --depth int    Maximum BFS depth from entry (1..10) (default 3)
+      --fanout int   Cap callees expanded per node (prevents hairballs) (default 6)
+  -h, --help         help for flow
+      --top-n int    After BFS, keep top-N reachable nodes by call-graph PageRank (rank within frontier; 0 = no trim; ignored if metrics not populated)
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      Output format: 'd2' (default, source) or 'svg' (shells out to d2 CLI) (default "d2")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

@@ -1,0 +1,35 @@
+Print graph metrics computed during indexing.
+
+Defaults to the top-20 packages by import-graph PageRank.
+Use --graph=calls to rank symbols by call-graph metrics instead.
+
+Examples:
+  snipe metrics
+  snipe metrics --top=10
+  snipe metrics --kind=pagerank
+  snipe metrics --graph=calls --kind=pagerank
+  snipe metrics --graph=calls --kind=cycles
+  snipe metrics --format=json
+
+Usage:
+  snipe metrics [flags]
+
+Flags:
+      --graph string   Graph kind ('imports' or 'calls') (default "imports")
+  -h, --help           help for metrics
+      --kind string    Metric kind (only 'pagerank' currently) (default "pagerank")
+      --top int        Top-N rows to print (default 20)
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)

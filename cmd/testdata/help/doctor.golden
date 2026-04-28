@@ -1,0 +1,25 @@
+Runs diagnostic checks to verify snipe is properly installed and configured.
+
+Checks include:
+- ripgrep (rg) availability and version
+- Index database existence and freshness
+
+Usage:
+  snipe doctor [flags]
+
+Flags:
+  -h, --help   help for doctor
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)
