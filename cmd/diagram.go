@@ -331,18 +331,9 @@ func runDiagramFlow(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("lookup %q: %w", entry, err)
 	}
-	if len(syms) == 0 {
-		return fmt.Errorf("symbol %q not found (try 'snipe search' to confirm name)", entry)
-	}
-	root := syms[0]
-	if len(syms) > 1 {
-		// Prefer functions/methods for flow diagrams.
-		for _, c := range syms {
-			if c.Kind == "func" || c.Kind == "method" {
-				root = c
-				break
-			}
-		}
+	root, err := pickFlowEntry(entry, syms)
+	if err != nil {
+		return err
 	}
 
 	g, err := graphmetrics.LoadCallsGraph(s)
@@ -418,6 +409,42 @@ func runDiagramFlow(_ *cobra.Command, args []string) error {
 	walk(roots, edges, 0, diagramFlowDepth, syMap, &sb, written)
 
 	return emit(sb.String(), b.Render())
+}
+
+// pickFlowEntry resolves a bare entry name to a single symbol suitable as a
+// flow-diagram root.
+//
+// snipe-8u1: LookupByName can return symbols from outside the repo (e.g. stale
+// go-build cache hits for `main`). Default Claude UX is "snipe diagram flow X
+// just works on the current repo", so we restrict candidates to repo-rooted
+// files (FilePathRel != "" — query layer leaves it empty for paths outside the
+// indexed tree) and prefer Kind=func/method. If nothing in-repo qualifies we
+// return a clear error rather than silently picking a foreign cache symbol.
+func pickFlowEntry(entry string, syms []query.SymbolRow) (query.SymbolRow, error) {
+	if len(syms) == 0 {
+		return query.SymbolRow{}, fmt.Errorf("symbol %q not found (try 'snipe search' to confirm name)", entry)
+	}
+
+	isFn := func(k string) bool { return k == "func" || k == "method" }
+	inRepo := func(s query.SymbolRow) bool { return s.FilePathRel != "" }
+
+	// Tier 1: in-repo func/method.
+	for _, c := range syms {
+		if inRepo(c) && isFn(c.Kind) {
+			return c, nil
+		}
+	}
+	// Tier 2: any in-repo symbol (lets `flow TypeName` still resolve, even if
+	// downstream BFS produces no edges — error there is its own concern).
+	for _, c := range syms {
+		if inRepo(c) {
+			return c, nil
+		}
+	}
+	// Nothing in-repo: refuse rather than diagram a stale cache hit.
+	return query.SymbolRow{}, fmt.Errorf(
+		"symbol %q resolved only to symbols outside this repo (e.g. stale go-build cache); "+
+			"no in-repo func/method candidate found", entry)
 }
 
 func displayLabel(sym *query.SymbolRow) string {
