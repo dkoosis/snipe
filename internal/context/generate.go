@@ -259,15 +259,17 @@ func getKeySymbolsByRefCount(db *sql.DB, repoRoot string, limit int) []SymbolRef
 	var symbols []SymbolRef
 
 	rows, err := db.Query(`
-		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count,
+		SELECT s.name, s.file_path, s.line_start,
+			COUNT(DISTINCT r.file_path) as file_spread,
 			COALESCE(s.doc, '') as doc
 		FROM symbols s
 		LEFT JOIN refs r ON s.id = r.symbol_id
+		  AND (r.file_path IS NULL OR r.file_path != s.file_path)
 		WHERE s.file_path LIKE ? || '/%'
 		  AND s.kind IN ('func', 'method', 'type', 'interface', 'struct')
 		  AND s.name GLOB '[A-Z]*'
 		GROUP BY s.id
-		ORDER BY ref_count DESC
+		ORDER BY file_spread DESC
 		LIMIT ?
 	`, repoRoot, limit)
 	if err != nil {
