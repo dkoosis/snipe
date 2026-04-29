@@ -44,6 +44,7 @@ type Meta struct {
 	TokenEstimate int               `json:"token_estimate,omitempty"`
 	DecisionPath  []string          `json:"decision_path,omitempty"` // Resolution strategy trace
 	StaleFiles    []string          `json:"stale_files,omitempty"`   // Files changed since last index
+	PkgDoc        string            `json:"pkg_doc,omitempty"`       // Package-level doc comment (set by `pkg`)
 }
 
 // IndexState represents the state of the index

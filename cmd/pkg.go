@@ -115,6 +115,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
+	pkgDoc := query.GetPackageDoc(s.DB(), fullPkgPath)
 
 	if summary {
 		summaryData := output.BuildSummary(results)
@@ -134,6 +135,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 				Limit:      lim,
 				Truncated:  len(results) >= lim,
 				StaleFiles: staleFiles,
+				PkgDoc:     pkgDoc,
 			},
 		}
 		return w.WriteResponse(summaryResp)
@@ -147,7 +149,6 @@ func runPkg(cmd *cobra.Command, args []string) error {
 
 	// Write a package header before the symbol listing (Claude text mode only).
 	if GetOutputFormat() != output.OutputJSON {
-		pkgDoc := query.GetPackageDoc(s.DB(), fullPkgPath)
 		pkgDir := pkgDirFromSymbols(s.DB(), fullPkgPath)
 		fileCount, loc, _ := computePackageStats(s.DB(), fullPkgPath, pkgDir)
 		displayPkg := pkgPattern
@@ -176,6 +177,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 		Truncated:     len(results) >= lim || tokenTruncated,
 		TokenEstimate: tokenEstimate,
 		StaleFiles:    staleFiles,
+		PkgDoc:        pkgDoc,
 	}
 
 	if GetOutputFormat() != output.OutputJSON {
