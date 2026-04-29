@@ -3,6 +3,7 @@ package query
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // TypeInfo contains type relationship information.
@@ -134,12 +135,12 @@ func GetMethodsForType(db *sql.DB, typeName, _ string) ([]MethodInfo, error) {
 }
 
 // getEmbedsForType finds embedded types within a struct definition.
-// This uses a heuristic: look for type references within the struct's line range
-// that are at field positions (based on column position patterns).
+// Uses snippet heuristic: a ref is a true embed when its trimmed snippet starts
+// with the type name (or *TypeName / pkg.TypeName), meaning no prior field name.
+// Named fields like "Definition *Result" start with the field name, not the type.
 func getEmbedsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([]EmbedInfo, error) {
-	// Query refs to other types within this type's definition
 	rows, err := db.Query(`
-		SELECT DISTINCT r.symbol_id, s.name, s.kind, r.file_path_rel, r.line
+		SELECT r.symbol_id, s.name, s.kind, r.file_path_rel, r.line, r.snippet
 		FROM refs r
 		JOIN symbols s ON r.symbol_id = s.id
 		WHERE r.file_path = ?
@@ -152,16 +153,51 @@ func getEmbedsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([
 	}
 	defer rows.Close()
 
+	seen := map[string]bool{}
 	var embeds []EmbedInfo
 	for rows.Next() {
 		var e EmbedInfo
-		var kind string
-		if err := rows.Scan(&e.ID, &e.TypeName, &kind, &e.File, &e.Line); err != nil {
+		var kind, snippet string
+		if err := rows.Scan(&e.ID, &e.TypeName, &kind, &e.File, &e.Line, &snippet); err != nil {
 			return nil, err
 		}
+		if !isEmbedSnippet(snippet, e.TypeName) {
+			continue
+		}
+		if seen[e.TypeName] {
+			continue
+		}
+		seen[e.TypeName] = true
 		embeds = append(embeds, e)
 	}
 	return embeds, rows.Err()
+}
+
+// isEmbedSnippet reports whether a ref snippet looks like an embedded field
+// rather than a named field.
+// A true Go embed has exactly one token in the line (the type, possibly *-prefixed
+// and package-qualified): e.g. "LiteralRef" or "*output.Enclosing".
+// A named field always has two+ tokens: "Enclosing *output.Enclosing".
+// We ignore trailing comments (tokens starting with "//").
+func isEmbedSnippet(snippet, typeName string) bool {
+	tokens := strings.Fields(strings.TrimSpace(snippet))
+	if len(tokens) == 0 {
+		return false
+	}
+	// Discard trailing comment tokens.
+	for len(tokens) > 0 && strings.HasPrefix(tokens[len(tokens)-1], "//") {
+		tokens = tokens[:len(tokens)-1]
+	}
+	if len(tokens) != 1 {
+		return false
+	}
+	// The single token must end with the type name (after stripping * and pkg prefix).
+	tok := strings.TrimPrefix(tokens[0], "*")
+	if i := strings.LastIndex(tok, "."); i >= 0 {
+		tok = tok[i+1:]
+	}
+	tok = strings.TrimRight(tok, "`{")
+	return tok == typeName
 }
 
 // getFieldsForType finds fields within a struct definition.
