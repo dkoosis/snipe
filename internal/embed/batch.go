@@ -3,6 +3,7 @@ package embed
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -140,7 +141,7 @@ func (c *BatchClient) Model() string {
 
 // UploadFile uploads a JSONL file for batch processing.
 // Uses io.Pipe to stream the multipart body without buffering the entire file in RAM.
-func (c *BatchClient) UploadFile(jsonlPath string) (*FileUploadResponse, error) {
+func (c *BatchClient) UploadFile(ctx context.Context, jsonlPath string) (*FileUploadResponse, error) {
 	file, err := os.Open(jsonlPath) // #nosec G304 -- path from caller (batch embedding JSONL)
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
@@ -168,7 +169,7 @@ func (c *BatchClient) UploadFile(jsonlPath string) (*FileUploadResponse, error) 
 		pw.CloseWithError(writer.Close())
 	}()
 
-	req, err := http.NewRequest("POST", c.baseURL+"/files", pr)
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/files", pr)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -196,7 +197,7 @@ func (c *BatchClient) UploadFile(jsonlPath string) (*FileUploadResponse, error) 
 }
 
 // CreateBatch creates a batch embedding job.
-func (c *BatchClient) CreateBatch(inputFileID string) (*BatchCreateResponse, error) {
+func (c *BatchClient) CreateBatch(ctx context.Context, inputFileID string) (*BatchCreateResponse, error) {
 	reqBody := BatchCreateRequest{
 		Endpoint:         "/v1/embeddings",
 		InputFileID:      inputFileID,
@@ -209,7 +210,7 @@ func (c *BatchClient) CreateBatch(inputFileID string) (*BatchCreateResponse, err
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.baseURL+"/batches", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/batches", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -237,8 +238,8 @@ func (c *BatchClient) CreateBatch(inputFileID string) (*BatchCreateResponse, err
 }
 
 // GetBatchStatus retrieves the current status of a batch.
-func (c *BatchClient) GetBatchStatus(batchID string) (*BatchCreateResponse, error) {
-	req, err := http.NewRequest("GET", c.baseURL+"/batches/"+batchID, nil)
+func (c *BatchClient) GetBatchStatus(ctx context.Context, batchID string) (*BatchCreateResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/batches/"+batchID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -267,8 +268,8 @@ func (c *BatchClient) GetBatchStatus(batchID string) (*BatchCreateResponse, erro
 // DownloadFile downloads a file by ID and returns a streaming reader.
 // Caller must close the returned ReadCloser.
 // Uses a separate client that follows redirects (Voyage API returns redirect to S3).
-func (c *BatchClient) DownloadFile(fileID string) (io.ReadCloser, error) {
-	req, err := http.NewRequest("GET", c.baseURL+"/files/"+fileID+"/content", nil)
+func (c *BatchClient) DownloadFile(ctx context.Context, fileID string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/files/"+fileID+"/content", nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}

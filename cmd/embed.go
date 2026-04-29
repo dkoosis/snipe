@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -100,7 +101,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 	// Poll loop (or single check)
 	for {
 		// Get current status from Voyage
-		batchStatus, err := client.GetBatchStatus(state.BatchID)
+		batchStatus, err := client.GetBatchStatus(cmd.Context(), state.BatchID)
 		if err != nil {
 			return fmt.Errorf("get batch status: %w", err)
 		}
@@ -122,7 +123,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 
 		// Handle completion
 		if state.Status == batchStatusCompleted {
-			embedCount, err := downloadAndSaveEmbeddings(client, state, dbPath)
+			embedCount, err := downloadAndSaveEmbeddings(cmd.Context(), client, state, dbPath)
 			if err != nil {
 				return fmt.Errorf("download embeddings: %w", err)
 			}
@@ -210,14 +211,14 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 
 // downloadAndSaveEmbeddings streams batch results directly to the store.
 // Downloads and parses line-by-line to avoid buffering the entire payload in RAM.
-func downloadAndSaveEmbeddings(client *embed.BatchClient, state *embed.BatchState, dbPath string) (int, error) {
+func downloadAndSaveEmbeddings(ctx context.Context, client *embed.BatchClient, state *embed.BatchState, dbPath string) (int, error) {
 	if state.OutputFileID == "" {
 		return 0, fmt.Errorf("no output file available")
 	}
 
 	fmt.Fprintf(os.Stderr, "Downloading results from file %s...\n", state.OutputFileID)
 
-	body, err := client.DownloadFile(state.OutputFileID)
+	body, err := client.DownloadFile(ctx, state.OutputFileID)
 	if err != nil {
 		return 0, fmt.Errorf("download output file: %w", err)
 	}

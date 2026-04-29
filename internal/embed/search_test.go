@@ -1,6 +1,7 @@
 package embed
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -13,7 +14,7 @@ type mockEmbedder struct {
 	err error
 }
 
-func (m *mockEmbedder) EmbedOne(_, _ string) ([]float32, error) {
+func (m *mockEmbedder) EmbedOne(_ context.Context, _, _ string) ([]float32, error) {
 	return m.vec, m.err
 }
 
@@ -36,7 +37,7 @@ func writeSymbols(t *testing.T, s *store.Store, syms []index.Symbol) {
 
 func TestSearch_NoEmbeddings_ReturnsNil(t *testing.T) {
 	s := openSearchTestStore(t)
-	results, dur, err := Search("query", s, &mockEmbedder{vec: []float32{1, 0, 0}}, 10, 0.5)
+	results, dur, err := Search(context.Background(), "query", s, &mockEmbedder{vec: []float32{1, 0, 0}}, 10, 0.5)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,7 +61,7 @@ func TestSearch_ThresholdFiltersAndSortsByScore(t *testing.T) {
 		t.Fatalf("SaveEmbedding sym2: %v", err)
 	}
 
-	results, dur, err := Search("query", s, &mockEmbedder{vec: []float32{1, 0, 0}}, 10, 0.5)
+	results, dur, err := Search(context.Background(), "query", s, &mockEmbedder{vec: []float32{1, 0, 0}}, 10, 0.5)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -88,7 +89,7 @@ func TestSearch_RespectsLimit(t *testing.T) {
 		}
 	}
 
-	results, _, err := Search("query", s, &mockEmbedder{vec: []float32{1, 0, 0}}, 2, 0.5)
+	results, _, err := Search(context.Background(), "query", s, &mockEmbedder{vec: []float32{1, 0, 0}}, 2, 0.5)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,7 +108,7 @@ func TestSearch_EmbedderError_ReturnsError(t *testing.T) {
 	}
 
 	emb := &mockEmbedder{err: errTest}
-	_, _, err := Search("query", s, emb, 10, 0.5)
+	_, _, err := Search(context.Background(), "query", s, emb, 10, 0.5)
 	if err == nil {
 		t.Fatal("expected error from embedder, got nil")
 	}

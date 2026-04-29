@@ -1,11 +1,13 @@
 package embed
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testClient(endpoint string) *Client {
@@ -50,7 +52,7 @@ func TestEmbed_SendsRequestAndReturnsEmbeddingsInInputOrder(t *testing.T) {
 	}))
 	defer server.Close()
 
-	got, err := testClient(server.URL).Embed([]string{"hello", "world"}, "document")
+	got, err := testClient(server.URL).Embed(context.Background(), []string{"hello", "world"}, "document")
 	if err != nil {
 		t.Fatalf("Embed failed: %v", err)
 	}
@@ -111,9 +113,40 @@ func TestEmbed_ErrorBehavior(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := tt.setup(t)
-			got, err := client.Embed(tt.input, "document")
+			got, err := client.Embed(context.Background(), tt.input, "document")
 			tt.assertFn(t, got, err)
 		})
+	}
+}
+
+func TestEmbed_RespectsContextCancellation(t *testing.T) {
+	// Server blocks long enough to outlast the client ctx; cancellation must
+	// abort the in-flight request without waiting for the server response.
+	stop := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-stop:
+		}
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(stop) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := testClient(server.URL).Embed(ctx, []string{"x"}, "document")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected cancellation error, got nil")
+	}
+	if elapsed > 5*time.Second {
+		t.Fatalf("Embed did not abort promptly: took %v", elapsed)
+	}
+	if !strings.Contains(err.Error(), "context") && !strings.Contains(err.Error(), "deadline") {
+		t.Fatalf("expected context/deadline error, got: %v", err)
 	}
 }
 
@@ -131,7 +164,7 @@ func TestEmbedOne_ReturnsFirstEmbedding(t *testing.T) {
 	}))
 	defer server.Close()
 
-	got, err := testClient(server.URL).EmbedOne("hello", "query")
+	got, err := testClient(server.URL).EmbedOne(context.Background(), "hello", "query")
 	if err != nil {
 		t.Fatalf("EmbedOne failed: %v", err)
 	}

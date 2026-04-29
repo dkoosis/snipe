@@ -1,6 +1,7 @@
 package embed
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -19,7 +20,7 @@ type searchResult struct {
 
 // Embedder generates an embedding vector for a single text input.
 type Embedder interface {
-	EmbedOne(text, inputType string) ([]float32, error)
+	EmbedOne(ctx context.Context, text, inputType string) ([]float32, error)
 }
 
 // Search embeds the query, compares against all stored embeddings,
@@ -30,7 +31,7 @@ type Embedder interface {
 // At 1024 dims × 4 bytes per float32, that's ~4KB per symbol. For 5,000 symbols
 // this is ~20MB — acceptable for current use. If this becomes a bottleneck,
 // the first optimization is an ANN index (HNSW or IVF) to avoid the full scan.
-func Search(queryText string, s *store.Store, client Embedder, limit int, threshold float32) ([]output.Result, time.Duration, error) {
+func Search(ctx context.Context, queryText string, s *store.Store, client Embedder, limit int, threshold float32) ([]output.Result, time.Duration, error) {
 	start := time.Now()
 
 	count, err := s.CountEmbeddings()
@@ -41,7 +42,7 @@ func Search(queryText string, s *store.Store, client Embedder, limit int, thresh
 		return nil, 0, nil
 	}
 
-	queryEmbed, err := client.EmbedOne(queryText, "query")
+	queryEmbed, err := client.EmbedOne(ctx, queryText, "query")
 	if err != nil {
 		return nil, 0, fmt.Errorf("embed query: %w", err)
 	}

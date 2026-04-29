@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -293,7 +294,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	case embedModeOff:
 		embedStatus = "disabled"
 	case embedModeBatch:
-		status, err := startBatchEmbeddings(absDir, symbols, fp.Combined)
+		status, err := startBatchEmbeddings(cmd.Context(), absDir, symbols, fp.Combined)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: batch embedding failed: %v\n", err)
 			embedStatus = batchStatusFailed
@@ -301,7 +302,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 			embedStatus = status
 		}
 	case embedModeRealtime:
-		ec, err := generateEmbeddings(s, symbols)
+		ec, err := generateEmbeddings(cmd.Context(), s, symbols)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: embedding generation failed: %v\n", err)
 			embedStatus = batchStatusFailed
@@ -348,7 +349,7 @@ func filterEmbeddableSymbols(symbols []index.Symbol) []embed.SymbolText {
 }
 
 // generateEmbeddings creates embeddings for symbols with signatures.
-func generateEmbeddings(s *store.Store, symbols []index.Symbol) (int, error) {
+func generateEmbeddings(ctx context.Context, s *store.Store, symbols []index.Symbol) (int, error) {
 	client, err := embed.NewClient()
 	if err != nil {
 		return 0, err
@@ -379,7 +380,7 @@ func generateEmbeddings(s *store.Store, symbols []index.Symbol) (int, error) {
 		}
 
 		// Generate embeddings
-		embeddings, err := client.Embed(texts, "document")
+		embeddings, err := client.Embed(ctx, texts, "document")
 		if err != nil {
 			return total, fmt.Errorf("embed batch %d: %w", i/batchSize, err)
 		}
@@ -439,7 +440,7 @@ const batchStaleThreshold = 12 * time.Hour
 
 // startBatchEmbeddings initiates async batch embedding via Voyage API.
 // fingerprint identifies the index generation that these embeddings belong to.
-func startBatchEmbeddings(repoRoot string, symbols []index.Symbol, fingerprint string) (string, error) {
+func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.Symbol, fingerprint string) (string, error) {
 	snipeDir := filepath.Join(repoRoot, ".snipe")
 	client, err := embed.NewBatchClient(snipeDir)
 	if err != nil {
@@ -461,7 +462,7 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol, fingerprint s
 			fmt.Fprintf(os.Stderr, "Batch %s has been %q for %v, checking actual status...\n",
 				state.BatchID, state.Status, age.Round(time.Minute))
 
-			actualStatus, err := client.GetBatchStatus(state.BatchID)
+			actualStatus, err := client.GetBatchStatus(ctx, state.BatchID)
 			if err != nil {
 				// Can't reach API or batch doesn't exist - clear stale state
 				fmt.Fprintf(os.Stderr, "  Could not verify batch status: %v\n", err)
@@ -500,7 +501,7 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol, fingerprint s
 						state.UpdatedAt = time.Now()
 
 						dbPath := store.DefaultIndexPath(repoRoot)
-						count, dlErr := downloadAndSaveEmbeddings(client, state, dbPath)
+						count, dlErr := downloadAndSaveEmbeddings(ctx, client, state, dbPath)
 						if dlErr != nil {
 							// Download failed (expired output, API error) — clear and restart
 							fmt.Fprintf(os.Stderr, "  Recovery failed: %v\n", dlErr)
@@ -555,7 +556,7 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol, fingerprint s
 
 	// Upload file
 	fmt.Fprintf(os.Stderr, "  Uploading to Voyage AI...\n")
-	fileResp, err := client.UploadFile(jsonlPath)
+	fileResp, err := client.UploadFile(ctx, jsonlPath)
 	if err != nil {
 		return "", fmt.Errorf("upload file: %w", err)
 	}
@@ -563,7 +564,7 @@ func startBatchEmbeddings(repoRoot string, symbols []index.Symbol, fingerprint s
 
 	// Create batch
 	fmt.Fprintf(os.Stderr, "  Creating batch job...\n")
-	batchResp, err := client.CreateBatch(fileResp.ID)
+	batchResp, err := client.CreateBatch(ctx, fileResp.ID)
 	if err != nil {
 		return "", fmt.Errorf("create batch: %w", err)
 	}

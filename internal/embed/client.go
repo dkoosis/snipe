@@ -2,6 +2,7 @@ package embed
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -148,7 +149,7 @@ func loadCredentials() (map[string]string, error) {
 
 // Embed generates embeddings for the given texts.
 // inputType should be "document" for indexing or "query" for search.
-func (c *Client) Embed(texts []string, inputType string) ([][]float32, error) {
+func (c *Client) Embed(ctx context.Context, texts []string, inputType string) ([][]float32, error) {
 	if len(texts) == 0 {
 		return nil, nil
 	}
@@ -164,7 +165,7 @@ func (c *Client) Embed(texts []string, inputType string) ([][]float32, error) {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", c.endpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -200,8 +201,8 @@ func (c *Client) Embed(texts []string, inputType string) ([][]float32, error) {
 }
 
 // EmbedOne generates embedding for a single text.
-func (c *Client) EmbedOne(text string, inputType string) ([]float32, error) {
-	results, err := c.Embed([]string{text}, inputType)
+func (c *Client) EmbedOne(ctx context.Context, text string, inputType string) ([]float32, error) {
+	results, err := c.Embed(ctx, []string{text}, inputType)
 	if err != nil {
 		return nil, err
 	}
