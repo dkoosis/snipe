@@ -130,7 +130,12 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 			return results[i].RefCount > results[j].RefCount
 		}
 		// Tertiary sort by name (ascending) for stability
-		return results[i].Name < results[j].Name
+		if results[i].Name != results[j].Name {
+			return results[i].Name < results[j].Name
+		}
+		// Quaternary sort by file path (ascending) — disambiguates same-named
+		// symbols across packages (e.g. alpha.Ambiguous vs beta.Ambiguous).
+		return results[i].File < results[j].File
 	})
 
 	// Step 5: Enforce per-package diversity — no single package dominates key symbols.

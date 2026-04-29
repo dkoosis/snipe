@@ -269,7 +269,7 @@ func getKeySymbolsByRefCount(db *sql.DB, repoRoot string, limit int) []SymbolRef
 		  AND s.kind IN ('func', 'method', 'type', 'interface', 'struct')
 		  AND s.name GLOB '[A-Z]*'
 		GROUP BY s.id
-		ORDER BY file_spread DESC
+		ORDER BY file_spread DESC, s.name ASC, s.file_path ASC, s.line_start ASC
 		LIMIT ?
 	`, repoRoot, limit)
 	if err != nil {

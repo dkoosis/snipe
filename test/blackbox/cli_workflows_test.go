@@ -824,6 +824,64 @@ func TestPack_PackagePath_ReturnsPackageProfile(t *testing.T) {
 	}
 }
 
+func TestPack_PackagePath_PopulatesKeyFields(t *testing.T) {
+	// Asserts the under-covered Claude-facing fields: key_types, key_funcs,
+	// file_count, imports, and (for the root pkg) test_count.
+	repoDir, _ := writeFixture(t)
+	indexRepo(t, repoDir)
+
+	// greet pkg has 3 types (Greeter, Friendly, Rude, PointerGreeter) and
+	// Hello methods on each — exercises key_types/key_funcs ranking.
+	stdout, _, exitCode := run(t, repoDir, "pack", "greet")
+	if exitCode != 0 {
+		t.Fatalf("pack greet exit %d", exitCode)
+	}
+	resp := parseJSON(t, stdout)
+	results := requireSlice(t, resp["results"], "results")
+	pkg := requireMap(t, results[0], "results[0]")
+
+	keyTypes := requireSlice(t, pkg["key_types"], "key_types")
+	if len(keyTypes) == 0 {
+		t.Fatalf("expected key_types to be populated for greet")
+	}
+	foundFriendly := false
+	for _, kt := range keyTypes {
+		m := requireMap(t, kt, "key_types[i]")
+		if getString(t, m["name"], "name") == "Friendly" {
+			foundFriendly = true
+			break
+		}
+	}
+	if !foundFriendly {
+		t.Fatalf("expected Friendly in greet key_types")
+	}
+
+	keyFuncs := requireSlice(t, pkg["key_funcs"], "key_funcs")
+	if len(keyFuncs) == 0 {
+		t.Fatalf("expected key_funcs to be populated for greet")
+	}
+
+	if fc := int(getFloat(t, pkg["file_count"], "file_count")); fc < 1 {
+		t.Fatalf("expected file_count >= 1, got %d", fc)
+	}
+
+	// Root fixture pkg has main_test.go with Test* funcs — test_count > 0.
+	stdout, _, exitCode = run(t, repoDir, "pack", ".")
+	if exitCode != 0 {
+		t.Fatalf("pack . exit %d", exitCode)
+	}
+	resp = parseJSON(t, stdout)
+	results = requireSlice(t, resp["results"], "results")
+	pkg = requireMap(t, results[0], "results[0]")
+	if tc := int(getFloat(t, pkg["test_count"], "test_count")); tc < 1 {
+		t.Fatalf("expected test_count >= 1 for root fixture, got %d", tc)
+	}
+	imports := requireSlice(t, pkg["imports"], "imports")
+	if len(imports) == 0 {
+		t.Fatalf("expected imports populated (fixture imports alpha/beta/greet)")
+	}
+}
+
 func TestPack_PackagePath_NonExistent_ReturnsNotFound(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
