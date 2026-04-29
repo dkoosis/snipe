@@ -1178,6 +1178,110 @@ func findSemanticBoundary(lines []string, maxLines int) int {
 	return bestLine
 }
 
+// WriteClaudePkgGrouped writes package symbols grouped by type: types with their
+// methods and constructors clustered together, then standalone functions.
+// Constants and vars are omitted — they rarely aid orientation.
+func (w *Writer) WriteClaudePkgGrouped(results []Result, meta Meta) {
+	var b strings.Builder
+
+	// Partition by kind.
+	typesByName := map[string]int{} // base name → index in types slice
+	var types []Result
+	var methods []Result
+	var funcs []Result
+
+	for _, r := range results {
+		switch r.Kind {
+		case "struct", "interface", "type":
+			typesByName[r.Name] = len(types)
+			types = append(types, r)
+		case KindMethod:
+			methods = append(methods, r)
+		case KindFunc:
+			funcs = append(funcs, r)
+			// const, var: omit
+		}
+	}
+
+	// Index methods by receiver base type (strip pointer/parens).
+	methodsByType := map[string][]Result{}
+	var orphanMethods []Result
+	for _, m := range methods {
+		base := strings.TrimLeft(m.Receiver, "*()")
+		base = strings.TrimRight(base, "()")
+		if _, ok := typesByName[base]; ok {
+			methodsByType[base] = append(methodsByType[base], m)
+		} else {
+			orphanMethods = append(orphanMethods, m)
+		}
+	}
+
+	// Partition funcs: constructors (NewXxx where Xxx is a known type) vs standalone.
+	constructorsByType := map[string][]Result{}
+	var standaloneFuncs []Result
+	for _, f := range funcs {
+		if strings.HasPrefix(f.Name, "New") {
+			typeName := strings.TrimPrefix(f.Name, "New")
+			if _, ok := typesByName[typeName]; ok {
+				constructorsByType[typeName] = append(constructorsByType[typeName], f)
+				continue
+			}
+		}
+		standaloneFuncs = append(standaloneFuncs, f)
+	}
+
+	// Emit types with their constructors and methods.
+	for i, t := range types {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		writeResultHeader(&b, &t)
+		for _, c := range constructorsByType[t.Name] {
+			b.WriteString("\n")
+			writeResultHeader(&b, &c)
+			if c.Match != "" {
+				b.WriteString("  ")
+				b.WriteString(c.Match)
+				b.WriteString("\n")
+			}
+		}
+		for _, m := range methodsByType[t.Name] {
+			b.WriteString("\n")
+			writeResultHeader(&b, &m)
+			if m.Match != "" {
+				b.WriteString("  ")
+				b.WriteString(m.Match)
+				b.WriteString("\n")
+			}
+		}
+	}
+
+	// Orphan methods (receiver type not exported from this package).
+	for _, m := range orphanMethods {
+		b.WriteString("\n")
+		writeResultHeader(&b, &m)
+		if m.Match != "" {
+			b.WriteString("  ")
+			b.WriteString(m.Match)
+			b.WriteString("\n")
+		}
+	}
+
+	// Standalone functions.
+	for _, f := range standaloneFuncs {
+		b.WriteString("\n")
+		writeResultHeader(&b, &f)
+		if f.Match != "" {
+			b.WriteString("  ")
+			b.WriteString(f.Match)
+			b.WriteString("\n")
+		}
+	}
+
+	w.writeClaudeMeta(&b, meta)
+	_, _ = io.WriteString(w.out, b.String())
+}
+
 // truncateResultsSemantic truncates results to fit within a token budget,
 // preferring to keep complete results and truncating bodies at semantic boundaries.
 // Returns the truncated slice, whether truncation occurred, and the estimated token count.

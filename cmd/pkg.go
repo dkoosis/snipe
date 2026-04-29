@@ -163,25 +163,31 @@ func runPkg(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stdout, "files: %d  loc: %d  exports: %d\n\n", fileCount, loc, len(results))
 	}
 
+	meta := output.Meta{
+		Command:       "pkg",
+		Query:         queryInfo,
+		RepoRoot:      dir,
+		IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+		Degraded:      degraded,
+		Ms:            time.Since(start).Milliseconds(),
+		Total:         len(results),
+		Offset:        off,
+		Limit:         lim,
+		Truncated:     len(results) >= lim || tokenTruncated,
+		TokenEstimate: tokenEstimate,
+		StaleFiles:    staleFiles,
+	}
+
+	if GetOutputFormat() != output.OutputJSON {
+		w.WriteClaudePkgGrouped(results, meta)
+		return nil
+	}
+
 	resp := output.Response[output.Result]{
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta: output.Meta{
-			Command:       "pkg",
-			Query:         queryInfo,
-			RepoRoot:      dir,
-			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
-			Degraded:      degraded,
-			Ms:            time.Since(start).Milliseconds(),
-			Total:         len(results),
-			Offset:        off,
-			Limit:         lim,
-			Truncated:     len(results) >= lim || tokenTruncated,
-			TokenEstimate: tokenEstimate,
-			StaleFiles:    staleFiles,
-		},
+		Meta:     meta,
 	}
-
 	return w.WriteResponse(resp)
 }
