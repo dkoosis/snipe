@@ -1,11 +1,12 @@
 # Boot
 updated: 2026-04-29
 
-state: main @ 593a8bd, `make` green (2 pre-existing blackbox golden failures unrelated)
+state: main @ 81b4fc0, `make audit` green
 
 no queued task — pick from `bd ready`
 
 ✓ done (this session)
+- test: regenerated TestGolden_Pkg after recent pkg output changes (test funcs excluded, reordered)
 - types: fixed embed detection — named fields like `Definition *Result` were misclassified as embedded types; now uses snippet heuristic (single-token = embed)
 
 ✓ done (prev)
@@ -18,4 +19,3 @@ no queued task — pick from `bd ready`
 
 ‡ traps
 - new cobra subcommand → register in knownSubcommands (cmd/root.go) or routes to sym fallback
-- 2 pre-existing blackbox golden test failures (TestGolden_Pkg, TestGolden_Context_Boot) — not caused by recent changes
