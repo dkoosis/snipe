@@ -1267,8 +1267,16 @@ func (w *Writer) WriteClaudePkgGrouped(results []Result, meta Meta) {
 		}
 	}
 
-	// Standalone functions.
-	for _, f := range standaloneFuncs {
+	// Standalone functions — cap at 15 to avoid orientation noise.
+	// Functions are pre-sorted by usage so the top ones are the entry points.
+	const standaloneLimit = 15
+	shown := standaloneFuncs
+	var overflow []Result
+	if len(standaloneFuncs) > standaloneLimit {
+		shown = standaloneFuncs[:standaloneLimit]
+		overflow = standaloneFuncs[standaloneLimit:]
+	}
+	for _, f := range shown {
 		b.WriteString("\n")
 		writeResultHeader(&b, &f)
 		if f.Match != "" {
@@ -1276,6 +1284,14 @@ func (w *Writer) WriteClaudePkgGrouped(results []Result, meta Meta) {
 			b.WriteString(f.Match)
 			b.WriteString("\n")
 		}
+	}
+	if len(overflow) > 0 {
+		b.WriteString("\n")
+		names := make([]string, len(overflow))
+		for i, f := range overflow {
+			names[i] = f.Name
+		}
+		fmt.Fprintf(&b, "...%d more: %s\n", len(overflow), strings.Join(names, ", "))
 	}
 
 	w.writeClaudeMeta(&b, meta)
