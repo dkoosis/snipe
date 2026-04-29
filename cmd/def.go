@@ -59,7 +59,12 @@ func runDef(cmd *cobra.Command, args []string) error {
 
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
-	// Handle --file and --pkg scoped queries
+	// Handle --file and --pkg scoped queries.
+	// --pkg + symbol name: look up the named symbol within the package.
+	// --pkg alone (or --file): list all symbols in scope.
+	if defPkg != "" && len(args) == 1 {
+		return runDefInPkg(w, start, args[0], withBody, contextLines)
+	}
 	if defFile != "" || defPkg != "" {
 		return runDefScoped(w, start, withBody, contextLines)
 	}
@@ -324,6 +329,83 @@ lookup:
 			DecisionPath:  decisionPath,
 			StaleFiles:    staleFiles,
 			Truncated:     tokenTruncated,
+		},
+	}
+
+	return w.WriteResponse(resp)
+}
+
+// runDefInPkg handles `def --pkg <pkg> <name>`: find a named symbol within a package.
+// Returns the symbol if unique, candidates if ambiguous, or not-found with suggestions.
+func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, contextLines int) error {
+	s, dir, err := OpenStore(w, "def")
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	symbols, err := query.LookupByNameInPkg(s.DB(), name, defPkg)
+	if err != nil {
+		return w.WriteError("def", &output.Error{
+			Code:    output.ErrInternal,
+			Message: err.Error(),
+		})
+	}
+
+	if len(symbols) == 0 {
+		pkgSyms, _ := query.FindPackageSymbols(s.DB(), defPkg, 10, 0)
+		names := make([]string, len(pkgSyms))
+		for i, sym := range pkgSyms {
+			names[i] = sym.Name
+		}
+		return w.WriteError("def", output.NewNotFoundError(name+" in pkg "+defPkg, names...))
+	}
+
+	if len(symbols) > 1 {
+		candidates := make([]output.Candidate, len(symbols))
+		for i, sym := range symbols {
+			candidates[i] = sym.ToCandidate()
+		}
+		return w.WriteError("def", output.NewAmbiguousError(name, candidates))
+	}
+
+	sym := &symbols[0]
+	result := sym.ToResultWithHints(s.DB())
+	var degraded []string
+
+	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "def")
+
+	if withBody {
+		if err := output.AddBody(&result); err != nil {
+			degraded = append(degraded, "body_extraction_failed")
+		}
+	}
+	if contextLines > 0 && !withBody {
+		if err := output.AddContext(&result, contextLines); err != nil {
+			degraded = append(degraded, "context_extraction_failed")
+		}
+	}
+
+	tokenEstimate := output.EstimateTokens(result.Match)
+	if result.Body != "" {
+		tokenEstimate = output.EstimateTokens(result.Body)
+	}
+
+	resp := output.Response[output.Result]{
+		Protocol:    output.ProtocolVersion,
+		Ok:          true,
+		Results:     []output.Result{result},
+		Suggestions: output.SuggestionsForDef(&result),
+		Meta: output.Meta{
+			Command:       "def",
+			Query:         map[string]string{"symbol": name, "pkg": defPkg},
+			RepoRoot:      dir,
+			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			Degraded:      degraded,
+			Ms:            time.Since(start).Milliseconds(),
+			Total:         1,
+			TokenEstimate: tokenEstimate,
+			DecisionPath:  []string{"lookup:pkg_scoped"},
 		},
 	}
 

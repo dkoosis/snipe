@@ -170,6 +170,42 @@ func LookupByNameInFile(db *sql.DB, name, filePattern string) ([]SymbolRow, erro
 	return scanSymbolRows(rows)
 }
 
+// LookupByNameInPkg looks up a symbol by name within a specific package path pattern.
+// The pkgPattern can be a full path or suffix (e.g. "query" matches "github.com/foo/internal/query").
+func LookupByNameInPkg(db *sql.DB, name, pkgPattern string) ([]SymbolRow, error) {
+	tryQuery := func(whereClause string, args ...any) ([]SymbolRow, error) {
+		rows, err := db.Query(`
+			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+			       s.signature, s.doc, s.receiver, f.hash
+			FROM symbols s
+			LEFT JOIN files f ON s.file_path = f.path
+			WHERE s.name = ? AND `+whereClause+`
+			ORDER BY s.kind, s.file_path, s.line_start
+		`, append([]any{name}, args...)...)
+		if err != nil {
+			return nil, fmt.Errorf("query symbols by name in pkg: %w", err)
+		}
+		defer rows.Close()
+		return scanSymbolRows(rows)
+	}
+
+	// Exact match first (index-friendly).
+	results, err := tryQuery("s.pkg_path = ?", pkgPattern)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) > 0 {
+		return results, nil
+	}
+
+	// Suffix match: "/query" matches ".../internal/query".
+	results, err = tryQuery("s.pkg_path LIKE ?", "%/"+pkgPattern)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
 func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 	// Exact match first (uses idx_symbols_name index)
 	rows, err := db.Query(`
