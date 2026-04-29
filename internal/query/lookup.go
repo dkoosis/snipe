@@ -1206,6 +1206,76 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 	return results, nil
 }
 
+// FindPackageSymbolsByUsage is like FindPackageSymbols but orders by usage
+// (ref count + callee count) descending so the most-referenced symbols appear first.
+// Cascades: exact -> suffix -> substring match on pkg_path.
+func FindPackageSymbolsByUsage(db *sql.DB, pkgPattern string, limit, offset int) ([]SymbolRow, error) {
+	const selectCols = `
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		LEFT JOIN (SELECT symbol_id, COUNT(*) AS cnt FROM refs GROUP BY symbol_id) rc ON rc.symbol_id = s.id
+		LEFT JOIN (SELECT callee_id, COUNT(*) AS cnt FROM call_graph GROUP BY callee_id) cc ON cc.callee_id = s.id`
+	const filterAndOrder = `
+		  AND s.name GLOB '[A-Z]*'
+		  AND s.kind NOT IN ('field')
+		  AND s.file_path NOT LIKE '%_test.go'
+		ORDER BY COALESCE(rc.cnt, 0) + COALESCE(cc.cnt, 0) DESC, s.name
+		LIMIT ? OFFSET ?`
+
+	results, err := querySymbols(db, selectCols+`
+		WHERE s.pkg_path = ?`+filterAndOrder, pkgPattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query package symbols by usage: %w", err)
+	}
+	if len(results) > 0 {
+		return results, nil
+	}
+
+	suffixPattern := "%/" + pkgPattern
+	results, err = querySymbols(db, selectCols+`
+		WHERE s.pkg_path LIKE ?`+filterAndOrder, suffixPattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query package symbols by usage suffix: %w", err)
+	}
+	if len(results) > 0 {
+		return results, nil
+	}
+
+	substringPattern := "%" + pkgPattern + "%"
+	results, err = querySymbols(db, selectCols+`
+		WHERE s.pkg_path LIKE ?`+filterAndOrder, substringPattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query package symbols by usage substring: %w", err)
+	}
+	return results, nil
+}
+
+// GetPackageDoc returns the package-level doc comment for a fully-qualified package path.
+// Returns empty string when no doc is indexed.
+func GetPackageDoc(db *sql.DB, pkgPath string) string {
+	var doc sql.NullString
+	_ = db.QueryRow(`SELECT doc FROM package_docs WHERE pkg_path = ?`, pkgPath).Scan(&doc)
+	return doc.String
+}
+
+// FindFullPkgPath resolves a short package name to the full pkg_path in the index.
+// Returns pkgPattern unchanged if no match found.
+func FindFullPkgPath(db *sql.DB, pkgPattern string) string {
+	// Exact match
+	var full string
+	if err := db.QueryRow(`SELECT pkg_path FROM symbols WHERE pkg_path = ? LIMIT 1`, pkgPattern).Scan(&full); err == nil {
+		return full
+	}
+	// Suffix match
+	suffix := "%/" + pkgPattern
+	if err := db.QueryRow(`SELECT pkg_path FROM symbols WHERE pkg_path LIKE ? LIMIT 1`, suffix).Scan(&full); err == nil {
+		return full
+	}
+	return pkgPattern
+}
+
 // FindSymbolAtPosition looks up a symbol by relative file path and line number.
 // Uses range containment (line_start <= line <= line_end) so that rg hits inside
 // a function body resolve to the enclosing symbol. Prefers the narrowest match.

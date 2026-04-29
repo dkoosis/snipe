@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -17,7 +19,7 @@ var pkgCmd = &cobra.Command{
 	Long: `Shows an overview of a package including its exported symbols.
 
 Displays all exported types, functions, constants, and variables in a package,
-organized by kind for easy navigation.
+ranked by usage (most-referenced symbols first) so the important ones surface first.
 
 Examples:
   snipe pkg store              # Show exported symbols in store package
@@ -56,10 +58,13 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	repoRoot, _ := s.GetMeta("repo_root")
 	pkgPattern = query.ResolvePkgPattern(s.DB(), pkgPattern, dir, repoRoot)
 
+	// Resolve full pkg path for doc lookup.
+	fullPkgPath := query.FindFullPkgPath(s.DB(), pkgPattern)
+
 	queryInfo := map[string]string{"package": pkgPattern}
 
-	// Find package symbols
-	symbols, err := query.FindPackageSymbols(s.DB(), pkgPattern, lim, off)
+	// Find package symbols ranked by usage.
+	symbols, err := query.FindPackageSymbolsByUsage(s.DB(), pkgPattern, lim, off)
 	if err != nil {
 		return w.WriteError("pkg", &output.Error{
 			Code:    output.ErrInternal,
@@ -74,7 +79,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// Convert to results
+	// Convert to results.
 	results := make([]output.Result, len(symbols))
 	tokenEstimate := 0
 	var degraded []string
@@ -82,14 +87,12 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	for i, sym := range symbols {
 		result := sym.ToResult()
 
-		// Add body if requested
 		if withBody {
 			if err := output.AddBody(&result); err != nil {
 				degraded = append(degraded, "body_extraction_failed")
 			}
 		}
 
-		// Add context lines if requested (only if not showing full body)
 		if contextLines > 0 && !withBody {
 			if err := output.AddContext(&result, contextLines); err != nil {
 				degraded = append(degraded, "context_extraction_failed")
@@ -103,10 +106,8 @@ func runPkg(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Deduplicate degraded messages
 	degraded = uniqueStrings(degraded)
 
-	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
@@ -115,7 +116,6 @@ func runPkg(cmd *cobra.Command, args []string) error {
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
-	// If summary mode, return condensed output
 	if summary {
 		summaryData := output.BuildSummary(results)
 		summaryResp := output.Response[output.Summary]{
@@ -139,10 +139,28 @@ func runPkg(cmd *cobra.Command, args []string) error {
 		return w.WriteResponse(summaryResp)
 	}
 
-	// Recalculate token estimate after truncation
+	// Recalculate token estimate after truncation.
 	tokenEstimate = 0
 	for i := range results {
 		tokenEstimate += output.EstimateResultTokens(&results[i])
+	}
+
+	// Write a package header before the symbol listing (Claude text mode only).
+	if GetOutputFormat() != output.OutputJSON {
+		pkgDoc := query.GetPackageDoc(s.DB(), fullPkgPath)
+		pkgDir := pkgDirFromSymbols(s.DB(), fullPkgPath)
+		fileCount, loc, _ := computePackageStats(s.DB(), fullPkgPath, pkgDir)
+		displayPkg := pkgPattern
+		if mod := query.DetectModulePath(s.DB()); mod != "" {
+			if trim := strings.TrimPrefix(pkgPattern, mod); trim != pkgPattern {
+				displayPkg = strings.TrimPrefix(trim, "/")
+			}
+		}
+		fmt.Fprintf(os.Stdout, "# package %s\n", displayPkg)
+		if pkgDoc != "" {
+			fmt.Fprintf(os.Stdout, "%s\n", pkgDoc)
+		}
+		fmt.Fprintf(os.Stdout, "files: %d  loc: %d  exports: %d\n\n", fileCount, loc, len(results))
 	}
 
 	resp := output.Response[output.Result]{

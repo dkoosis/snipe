@@ -1,7 +1,7 @@
 Shows an overview of a package including its exported symbols.
 
 Displays all exported types, functions, constants, and variables in a package,
-organized by kind for easy navigation.
+ranked by usage (most-referenced symbols first) so the important ones surface first.
 
 Examples:
   snipe pkg store              # Show exported symbols in store package
