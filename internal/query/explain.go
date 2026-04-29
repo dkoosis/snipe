@@ -141,8 +141,14 @@ func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.File
 
 	var steps []output.MechanismStep
 	depSet := make(map[string]struct{})
+	seen := make(map[string]struct{})
 
 	for _, callee := range callees {
+		if _, dup := seen[callee.CalleeName]; dup {
+			continue
+		}
+		seen[callee.CalleeName] = struct{}{}
+
 		action := inferAction(callee.CalleeName)
 		step := output.MechanismStep{
 			Action: action,
