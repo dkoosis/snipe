@@ -110,6 +110,7 @@ func GetMethodsForType(db *sql.DB, typeName, _ string) ([]MethodInfo, error) {
 		FROM symbols
 		WHERE kind = 'method'
 		  AND (receiver = ? OR receiver = ?)
+		  AND name GLOB '[A-Z]*'
 		ORDER BY name
 	`, valueRecv, ptrRecv)
 	if err != nil {
