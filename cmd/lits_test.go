@@ -193,14 +193,16 @@ func executeCommandWithStdIO(t *testing.T, root *cobra.Command, args ...string) 
 
 	os.Stdout = stdoutW
 	os.Stderr = stderrW
+	defer func() {
+		os.Stdout = origStdout
+		os.Stderr = origStderr
+	}()
 
 	root.SetArgs(args)
 	_, err = root.ExecuteC()
 
 	_ = stdoutW.Close()
 	_ = stderrW.Close()
-	os.Stdout = origStdout
-	os.Stderr = origStderr
 
 	stdoutBytes, readErr := io.ReadAll(stdoutR)
 	if readErr != nil {
