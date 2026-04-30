@@ -2,13 +2,23 @@ package embed
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
+
+type failingTransport struct{ err error }
+
+func (f *failingTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return nil, f.err
+}
 
 func testBatchClient(stateDir string) *BatchClient {
 	return &BatchClient{
@@ -212,4 +222,37 @@ func FuzzParseBatchResults(f *testing.F) {
 			return nil
 		})
 	})
+}
+
+func TestUploadFile_NoGoroutineLeakOnTransportError(t *testing.T) {
+	dir := t.TempDir()
+	jsonl := filepath.Join(dir, "in.jsonl")
+	// Large enough that the producer would block on the pipe if the consumer
+	// abandons the request. 1MB > pipe buffer.
+	payload := bytes.Repeat([]byte("{\"custom_id\":\"x\",\"body\":{\"input\":\"y\"}}\n"), 32*1024)
+	if err := os.WriteFile(jsonl, payload, 0o600); err != nil {
+		t.Fatalf("write jsonl: %v", err)
+	}
+
+	c := testBatchClient(dir)
+	c.client = &http.Client{Transport: &failingTransport{err: errors.New("boom")}}
+
+	// Settle pre-existing goroutines (test runner spawns some lazily).
+	runtime.GC()
+	time.Sleep(20 * time.Millisecond)
+	before := runtime.NumGoroutine()
+
+	for i := 0; i < 10; i++ {
+		if _, err := c.UploadFile(context.Background(), jsonl); err == nil {
+			t.Fatalf("expected error on iteration %d", i)
+		}
+	}
+
+	// Allow finalizers/scheduler to settle, then assert no growth.
+	runtime.GC()
+	time.Sleep(50 * time.Millisecond)
+	after := runtime.NumGoroutine()
+	if after > before+1 {
+		t.Fatalf("goroutine leak: before=%d after=%d", before, after)
+	}
 }

@@ -139,6 +139,20 @@ func (c *BatchClient) Model() string {
 	return c.model
 }
 
+func writeMultipartBody(writer *multipart.Writer, file *os.File, jsonlPath string) error {
+	part, err := writer.CreateFormFile("file", filepath.Base(jsonlPath))
+	if err != nil {
+		return fmt.Errorf("create form file: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return fmt.Errorf("copy file content: %w", err)
+	}
+	if err := writer.WriteField("purpose", "batch"); err != nil {
+		return fmt.Errorf("write purpose field: %w", err)
+	}
+	return writer.Close()
+}
+
 // UploadFile uploads a JSONL file for batch processing.
 // Uses io.Pipe to stream the multipart body without buffering the entire file in RAM.
 func (c *BatchClient) UploadFile(ctx context.Context, jsonlPath string) (*FileUploadResponse, error) {
@@ -152,21 +166,19 @@ func (c *BatchClient) UploadFile(ctx context.Context, jsonlPath string) (*FileUp
 	writer := multipart.NewWriter(pw)
 
 	// Write multipart body in a goroutine so the pipe reader can stream to HTTP.
+	done := make(chan struct{})
 	go func() {
-		part, err := writer.CreateFormFile("file", filepath.Base(jsonlPath))
-		if err != nil {
-			pw.CloseWithError(fmt.Errorf("create form file: %w", err))
-			return
-		}
-		if _, err := io.Copy(part, file); err != nil {
-			pw.CloseWithError(fmt.Errorf("copy file content: %w", err))
-			return
-		}
-		if err := writer.WriteField("purpose", "batch"); err != nil {
-			pw.CloseWithError(fmt.Errorf("write purpose field: %w", err))
-			return
-		}
-		pw.CloseWithError(writer.Close())
+		defer close(done)
+		err := writeMultipartBody(writer, file, jsonlPath)
+		pw.CloseWithError(err)
+	}()
+
+	// Ensure the producer goroutine always exits before we return: closing pr
+	// unblocks any pending writes with io.ErrClosedPipe if the request never
+	// consumed the body (e.g. NewRequest or client.Do failed early).
+	defer func() {
+		_ = pr.Close()
+		<-done
 	}()
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/files", pr)
