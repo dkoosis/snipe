@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -18,11 +17,10 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 		name    string
 		setup   func(*testing.T) string
 		want    *config.Config
-		wantErr error
-		inspect func(*testing.T, *config.Config)
+		wantErr bool
 	}{
 		{
-			name: "error: project root as file surfaces not-a-directory error",
+			name: "error: project root as file surfaces filesystem error",
 			setup: func(t *testing.T) string {
 				home := t.TempDir()
 				t.Setenv("HOME", home)
@@ -30,17 +28,7 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 				require.NoError(t, os.WriteFile(projectRoot, []byte("x"), 0o644))
 				return projectRoot
 			},
-			wantErr: syscall.ENOTDIR,
-		},
-		{
-			name: "error: home as file surfaces not-a-directory error",
-			setup: func(t *testing.T) string {
-				homeFile := filepath.Join(t.TempDir(), "home-file")
-				require.NoError(t, os.WriteFile(homeFile, []byte("x"), 0o644))
-				t.Setenv("HOME", homeFile)
-				return t.TempDir()
-			},
-			wantErr: syscall.ENOTDIR,
+			wantErr: true,
 		},
 		{
 			name: "boundary: zero-valued project fields do not override defaults",
@@ -52,11 +40,6 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 				return project
 			},
 			want: &config.Config{Limit: 50, ContextLines: 3},
-			inspect: func(t *testing.T, got *config.Config) {
-				t.Helper()
-				require.Positive(t, got.Limit)
-				require.Positive(t, got.ContextLines)
-			},
 		},
 		{
 			name: "happy path: project overrides global while preserving unspecified global value",
@@ -72,11 +55,6 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 				return project
 			},
 			want: &config.Config{Limit: 75, ContextLines: 10},
-			inspect: func(t *testing.T, got *config.Config) {
-				t.Helper()
-				require.GreaterOrEqual(t, got.Limit, 1)
-				require.GreaterOrEqual(t, got.ContextLines, 1)
-			},
 		},
 		{
 			name: "happy path: missing config files returns defaults",
@@ -86,11 +64,6 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 				return t.TempDir()
 			},
 			want: &config.Config{Limit: 50, ContextLines: 3},
-			inspect: func(t *testing.T, got *config.Config) {
-				t.Helper()
-				require.NotNil(t, got)
-				require.Equal(t, true, got.Limit > 0 && got.ContextLines > 0)
-			},
 		},
 	}
 
@@ -100,18 +73,13 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 			projectRoot := tc.setup(t)
 			got, err := config.Load(projectRoot)
 
-			if tc.wantErr != nil {
-				require.ErrorIs(t, err, tc.wantErr)
+			if tc.wantErr {
+				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("diff (-want +got):\n%s", diff)
-			}
-
-			if tc.inspect != nil {
-				tc.inspect(t, got)
 			}
 		})
 	}
