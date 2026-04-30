@@ -73,3 +73,5 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 - R2 snippet regex: `func F() *T {` matches `T{` — guard with `isFuncDeclLine` before firing create rules
 - `BASELINE_ORCA.json` timestamp drifts on every run; ✗ stage it
 - New cobra subcommand → register in `knownSubcommands` map (`cmd/root.go`) or `snipe X` routes to `sym` (bare-symbol fallback)
+- httptest blocking handlers: observe a stop chan, not just `r.Context().Done()` — `server.Close()` WaitGroups on the handler
+- Ranking SQL/sort with non-unique keys (e.g. same name across pkgs): always include `file_path` (or equivalent) as tiebreaker — golden tests will flake otherwise
