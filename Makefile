@@ -31,12 +31,12 @@ LDFLAGS := -X github.com/dkoosis/snipe/cmd.Version=$(VERSION) -X github.com/dkoo
 # -euo pipefail so report MUST run every tool and emit output even if one
 # fails. The outer `|| true` on report targets keeps make exit-0 regardless.
 REPORT_CMD = set +e; \
-	echo '--- tool:build format:text ---'; \
-	go build ./... 2>&1; echo; \
-	echo '--- tool:vet format:text ---'; \
-	go vet ./... 2>&1; echo; \
-	echo '--- tool:lint format:text ---'; \
-	golangci-lint run ./... 2>&1; echo; \
+	echo '--- tool:build format:sarif ---'; \
+	go build ./... 2>&1 | fo wrap diag --tool build --level error; echo; \
+	echo '--- tool:vet format:sarif ---'; \
+	go vet ./... 2>&1 | fo wrap diag --tool vet --level error; echo; \
+	echo '--- tool:lint format:sarif ---'; \
+	golangci-lint run ./... 2>&1 | fo wrap diag --tool golangci-lint; echo; \
 	echo '--- tool:test format:testjson ---'; \
 	go test -json -cover -count=1 ./... 2>&1; echo
 
