@@ -679,13 +679,11 @@ func isNoSuchTableErr(err error, table string) bool {
 	return strings.Contains(strings.ToLower(sqliteErr.Error()), "no such table: "+strings.ToLower(table))
 }
 
-// WritePackageDocs writes package-level doc comments to the database.
-// Uses upsert to avoid full-table delete on incremental reindex.
+// WritePackageDocs replaces the package_docs table with the given set.
+// Callers pass the authoritative current set of package docs from the load;
+// rows for packages no longer present (renamed, moved, or deleted) are pruned
+// so that consumers don't surface stale doc text from defunct package paths.
 func (s *Store) WritePackageDocs(docs []index.PackageDoc) error {
-	if len(docs) == 0 {
-		return nil
-	}
-
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -696,19 +694,42 @@ func (s *Store) WritePackageDocs(docs []index.PackageDoc) error {
 		}
 	}()
 
-	stmt, err := tx.Prepare(`
-		INSERT INTO package_docs (pkg_path, doc, indexed_at) VALUES (?, ?, ?)
-		ON CONFLICT(pkg_path) DO UPDATE SET doc = excluded.doc, indexed_at = excluded.indexed_at
-	`)
-	if err != nil {
-		return fmt.Errorf("prepare package_docs upsert: %w", err)
+	// Sweep orphans: delete rows whose pkg_path is not in the incoming set.
+	// SQLite has no native parameterized IN-list; build one inline. pkg_path
+	// values come from go/packages (not user input), so injection isn't a risk
+	// here, but parameterize anyway for defense-in-depth.
+	if len(docs) == 0 {
+		if _, err := tx.Exec(`DELETE FROM package_docs`); err != nil {
+			return fmt.Errorf("sweep package_docs: %w", err)
+		}
+	} else {
+		placeholders := strings.Repeat("?,", len(docs))
+		placeholders = placeholders[:len(placeholders)-1]
+		args := make([]any, 0, len(docs))
+		for _, d := range docs {
+			args = append(args, d.PkgPath)
+		}
+		query := `DELETE FROM package_docs WHERE pkg_path NOT IN (` + placeholders + `)`
+		if _, err := tx.Exec(query, args...); err != nil {
+			return fmt.Errorf("sweep package_docs orphans: %w", err)
+		}
 	}
-	defer stmt.Close()
 
-	now := time.Now().UTC().Format(time.RFC3339)
-	for _, d := range docs {
-		if _, err := stmt.Exec(d.PkgPath, d.Doc, now); err != nil {
-			return fmt.Errorf("upsert package doc %s: %w", d.PkgPath, err)
+	if len(docs) > 0 {
+		stmt, err := tx.Prepare(`
+			INSERT INTO package_docs (pkg_path, doc, indexed_at) VALUES (?, ?, ?)
+			ON CONFLICT(pkg_path) DO UPDATE SET doc = excluded.doc, indexed_at = excluded.indexed_at
+		`)
+		if err != nil {
+			return fmt.Errorf("prepare package_docs upsert: %w", err)
+		}
+		defer stmt.Close()
+
+		now := time.Now().UTC().Format(time.RFC3339)
+		for _, d := range docs {
+			if _, err := stmt.Exec(d.PkgPath, d.Doc, now); err != nil {
+				return fmt.Errorf("upsert package doc %s: %w", d.PkgPath, err)
+			}
 		}
 	}
 

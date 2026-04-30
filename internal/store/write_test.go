@@ -550,3 +550,79 @@ func TestWriteLiteralsForFiles(t *testing.T) {
 		t.Errorf("want KEY_A2, got %q", val)
 	}
 }
+
+// TestWritePackageDocsSweepsOrphans is the regression test for snipe-s5q.
+// When a package is renamed/moved, its old pkg_path must not linger in
+// package_docs — otherwise consumers (snipe context's project purpose query)
+// surface stale doc text from defunct paths.
+func TestWritePackageDocsSweepsOrphans(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close()
+
+	// First pass: package lives at old path.
+	if err := s.WritePackageDocs([]index.PackageDoc{
+		{PkgPath: "example.com/proj/cmd/trixi", Doc: "old doc"},
+	}); err != nil {
+		t.Fatalf("first WritePackageDocs: %v", err)
+	}
+
+	// Second pass: package moved to new path; only the new path is reported.
+	if err := s.WritePackageDocs([]index.PackageDoc{
+		{PkgPath: "example.com/proj/app/cmd/trixi", Doc: "new doc"},
+	}); err != nil {
+		t.Fatalf("second WritePackageDocs: %v", err)
+	}
+
+	rows, err := s.DB().Query(`SELECT pkg_path, doc FROM package_docs ORDER BY pkg_path`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+
+	var got []struct{ path, doc string }
+	for rows.Next() {
+		var p, d string
+		if err := rows.Scan(&p, &d); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		got = append(got, struct{ path, doc string }{p, d})
+	}
+	if len(got) != 1 {
+		t.Fatalf("want 1 row after sweep, got %d: %+v", len(got), got)
+	}
+	if got[0].path != "example.com/proj/app/cmd/trixi" || got[0].doc != "new doc" {
+		t.Errorf("orphan not swept; got %+v", got[0])
+	}
+}
+
+// TestWritePackageDocsEmptyClearsTable verifies that calling with an empty
+// set wipes all rows — the load reported zero packages with docs, so any
+// surviving rows are by definition orphans.
+func TestWritePackageDocsEmptyClearsTable(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close()
+
+	if err := s.WritePackageDocs([]index.PackageDoc{
+		{PkgPath: "x/y", Doc: "d"},
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := s.WritePackageDocs(nil); err != nil {
+		t.Fatalf("empty WritePackageDocs: %v", err)
+	}
+	var n int
+	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM package_docs`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("want empty table, got %d rows", n)
+	}
+}
