@@ -2,7 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 )
@@ -305,17 +304,12 @@ func (s *Store) getCurrentMigrationVersion() int {
 }
 
 // runMigration executes a single migration in a transaction.
-func (s *Store) runMigration(m migration) error {
+func (s *Store) runMigration(m migration) (err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			// Log rollback error in production
-			_ = err
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	// Handle special migrations
 	switch m.version {

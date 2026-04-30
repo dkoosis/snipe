@@ -31,7 +31,7 @@ func toRelPath(absPath, repoRoot string) string {
 // WriteIndex writes symbols, refs, and call edges to the database.
 // This performs a full reindex (truncate + insert).
 // The repo_root meta value (if set) is used to compute relative file paths.
-func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []index.CallEdge) error {
+func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []index.CallEdge) (err error) {
 	// Get repo root from meta if available (for computing relative paths)
 	repoRoot, _ := s.GetMeta("repo_root")
 
@@ -39,13 +39,7 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() {
-		// Rollback is a no-op if already committed; only log unexpected errors
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			// Log unexpected rollback failure (commit succeeded or genuine error)
-			_ = rbErr // In production, consider logging this
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	// Build set of valid symbol IDs for filtering refs and edges
 	symbolIDs := make(map[string]struct{}, len(symbols))
@@ -332,16 +326,12 @@ func toPlaceholders(ss []string) (placeholders []string, args []any) {
 }
 
 // WriteImports writes import records to the database
-func (s *Store) WriteImports(imports []index.Import) error {
+func (s *Store) WriteImports(imports []index.Import) (err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			_ = rbErr
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	if err := writeImports(tx, imports); err != nil {
 		return err
@@ -382,16 +372,12 @@ func writeImports(tx *sql.Tx, imports []index.Import) error {
 }
 
 // WriteFiles writes file metadata to the database
-func (s *Store) WriteFiles(files []index.FileInfo) error {
+func (s *Store) WriteFiles(files []index.FileInfo) (err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			_ = rbErr
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	// Clear existing file data
 	if _, err := tx.Exec("DELETE FROM files"); err != nil {
@@ -457,7 +443,7 @@ func (s *Store) WriteIndexIncremental(
 	newImports []index.Import,
 	changedFiles []string,
 	deletedFiles []string,
-) (*IncrementalResult, error) {
+) (res *IncrementalResult, err error) {
 	repoRoot, _ := s.GetMeta("repo_root")
 
 	// Read current incremental count
@@ -486,11 +472,7 @@ func (s *Store) WriteIndexIncremental(
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			_ = rbErr
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	// Build set of all affected files (changed + deleted)
 	allAffected := make([]string, 0, len(changedFiles)+len(deletedFiles))
@@ -683,16 +665,12 @@ func isNoSuchTableErr(err error, table string) bool {
 // Callers pass the authoritative current set of package docs from the load;
 // rows for packages no longer present (renamed, moved, or deleted) are pruned
 // so that consumers don't surface stale doc text from defunct package paths.
-func (s *Store) WritePackageDocs(docs []index.PackageDoc) error {
+func (s *Store) WritePackageDocs(docs []index.PackageDoc) (err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			_ = rbErr
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	// Sweep orphans: delete rows whose pkg_path is not in the incoming set.
 	// SQLite has no native parameterized IN-list; build one inline. pkg_path
@@ -756,16 +734,12 @@ func (s *Store) GetStats() (int, int, int, error) {
 
 // WriteLiterals replaces all string_refs records with the given set.
 // Used during full reindex. repoRoot is used to compute relative paths.
-func (s *Store) WriteLiterals(refs []index.StringRef, repoRoot string) error {
+func (s *Store) WriteLiterals(refs []index.StringRef, repoRoot string) (err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			_ = rbErr
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	if _, err := tx.Exec(`DELETE FROM string_refs`); err != nil {
 		return fmt.Errorf("truncate string_refs: %w", err)
@@ -780,16 +754,12 @@ func (s *Store) WriteLiterals(refs []index.StringRef, repoRoot string) error {
 
 // WriteLiteralsForFiles deletes string_refs for the given files and inserts fresh ones.
 // Used during incremental reindex.
-func (s *Store) WriteLiteralsForFiles(refs []index.StringRef, changedFiles, deletedFiles []string, repoRoot string) error {
+func (s *Store) WriteLiteralsForFiles(refs []index.StringRef, changedFiles, deletedFiles []string, repoRoot string) (err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			_ = rbErr
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	allFiles := make([]string, 0, len(changedFiles)+len(deletedFiles))
 	allFiles = append(allFiles, changedFiles...)

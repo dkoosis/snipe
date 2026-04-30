@@ -13,17 +13,12 @@ type SCCRow struct {
 // across the supplied nontrivial SCCs. Each component is assigned a sequential
 // scc_id starting at 1 in the order provided. The whole replacement runs in
 // a single transaction.
-func (s *Store) WriteSCCs(graphKind string, sccs [][]string) error {
+func (s *Store) WriteSCCs(graphKind string, sccs [][]string) (err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback()
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	if _, err := tx.Exec(
 		`DELETE FROM graph_sccs WHERE graph_kind = ?`,
@@ -53,7 +48,6 @@ func (s *Store) WriteSCCs(graphKind string, sccs [][]string) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
-	committed = true
 	return nil
 }
 

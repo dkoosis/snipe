@@ -16,7 +16,7 @@ type MetricRow struct {
 // WriteGraphMetrics replaces all rows for (graphKind, metric) with values from the map.
 // Rows are sorted by value desc, then by node_id asc for stable tie-breaking, and assigned
 // rank=1..N. The whole replacement happens in a single transaction.
-func (s *Store) WriteGraphMetrics(graphKind, metric string, values map[string]float64) error {
+func (s *Store) WriteGraphMetrics(graphKind, metric string, values map[string]float64) (err error) {
 	type kv struct {
 		node string
 		val  float64
@@ -36,12 +36,7 @@ func (s *Store) WriteGraphMetrics(graphKind, metric string, values map[string]fl
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback()
-		}
-	}()
+	defer func() { rollbackOnError(tx, &err) }()
 
 	if _, err := tx.Exec(
 		`DELETE FROM graph_metrics WHERE graph_kind = ? AND metric = ?`,
@@ -67,7 +62,6 @@ func (s *Store) WriteGraphMetrics(graphKind, metric string, values map[string]fl
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
-	committed = true
 	return nil
 }
 
