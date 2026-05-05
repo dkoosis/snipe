@@ -46,7 +46,7 @@ Advanced Commands:
   importers    Find files that import a package
   imports      Show packages imported by a file
   lifecycle    Trace every function creating, mutating, reading, or deleting a type
-  metrics      Show graph metrics (PageRank, etc.) over the import or call graph
+  metrics      Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph
   pkg          Show package overview with exported symbols
   sim          Semantic similarity search
   types        Show type relationships

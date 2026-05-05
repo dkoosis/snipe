@@ -255,6 +255,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		if err := computeImportDegreeAndEigenvector(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: degree/eigenvector computation failed: %v\n", err)
 		}
+		if err := computeImportCoupling(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: coupling computation failed: %v\n", err)
+		}
 		if err := computeCallsGraphMetrics(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: calls-graph metrics computation failed: %v\n", err)
 		}
@@ -755,6 +758,34 @@ func computeImportPageRank(s *store.Store) error {
 	}
 	fmt.Fprintf(os.Stderr, "metrics: pagerank computed for %d packages in %dms\n",
 		len(scores), time.Since(t0).Milliseconds())
+	return nil
+}
+
+// computeImportCoupling loads the intra-repo imports graph (production-only,
+// excluding edges from _test.go files) and persists per-package Ca and Ce
+// (afferent and efferent coupling) as separate metric kinds. Foundation for
+// instability (I = Ce/(Ca+Ce)) and other Martin-style architecture metrics.
+func computeImportCoupling(s *store.Store) error {
+	t0 := time.Now()
+	g, err := graphmetrics.LoadImportsGraphOpts(s, false)
+	if err != nil {
+		return fmt.Errorf("load imports graph: %w", err)
+	}
+	coup := graphmetrics.ComputeCoupling(g)
+	ca := make(map[string]float64, len(coup))
+	ce := make(map[string]float64, len(coup))
+	for n, c := range coup {
+		ca[n] = float64(c.Ca)
+		ce[n] = float64(c.Ce)
+	}
+	if err := s.WriteGraphMetrics("imports", "ca", ca); err != nil {
+		return fmt.Errorf("write ca: %w", err)
+	}
+	if err := s.WriteGraphMetrics("imports", "ce", ce); err != nil {
+		return fmt.Errorf("write ce: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: Ca/Ce computed for %d packages in %dms\n",
+		len(coup), time.Since(t0).Milliseconds())
 	return nil
 }
 

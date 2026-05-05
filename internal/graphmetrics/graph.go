@@ -60,8 +60,15 @@ func (g *Graph) InEdges(n string) []string {
 
 // LoadImportsGraph builds an intra-repo package import graph from the imports table.
 // Only edges where both importer_pkg and pkg_path are inside the current module
-// (per go.mod at repo_root) are included.
+// (per go.mod at repo_root) are included. Includes imports from _test.go files.
 func LoadImportsGraph(s *store.Store) (*Graph, error) {
+	return LoadImportsGraphOpts(s, true)
+}
+
+// LoadImportsGraphOpts is like LoadImportsGraph but lets the caller exclude
+// edges that originate in _test.go files (test-only imports). Used by Ca/Ce
+// computation to separate production coupling from test coupling.
+func LoadImportsGraphOpts(s *store.Store, includeTests bool) (*Graph, error) {
 	modPath, err := moduleImportPath(s)
 	if err != nil {
 		return nil, err
@@ -71,14 +78,22 @@ func LoadImportsGraph(s *store.Store) (*Graph, error) {
 	}
 	prefix := modPath + "/"
 
-	rows, err := s.DB().Query(`
+	q := `
 		SELECT DISTINCT importer_pkg, pkg_path
 		FROM imports
 		WHERE importer_pkg IS NOT NULL
 		  AND importer_pkg <> ''
 		  AND (importer_pkg = ? OR importer_pkg LIKE ?)
 		  AND (pkg_path = ?      OR pkg_path     LIKE ?)
-	`, modPath, prefix+"%", modPath, prefix+"%")
+	`
+	if !includeTests {
+		// _test.go covers in-package test imports; ".test" suffix covers the
+		// synthetic test-binary packages go/packages emits (e.g. "pkg.test").
+		q += ` AND file_path NOT LIKE '%\_test.go' ESCAPE '\'`
+		q += ` AND importer_pkg NOT LIKE '%.test'`
+		q += ` AND pkg_path NOT LIKE '%.test'`
+	}
+	rows, err := s.DB().Query(q, modPath, prefix+"%", modPath, prefix+"%")
 	if err != nil {
 		return nil, fmt.Errorf("query imports: %w", err)
 	}
