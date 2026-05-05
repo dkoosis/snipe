@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/dkoosis/snipe/internal/query"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
+
+	"github.com/dkoosis/snipe/internal/query"
 )
 
 const symbolsSchema = `CREATE TABLE symbols (id TEXT, name TEXT, kind TEXT, signature TEXT, receiver TEXT, file_path_rel TEXT, line_start INTEGER, doc TEXT);`
