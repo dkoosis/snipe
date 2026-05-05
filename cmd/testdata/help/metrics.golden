@@ -17,6 +17,8 @@ Examples:
   snipe metrics --kind=abstractness --pkg=internal/store
   snipe metrics --kind=distance
   snipe metrics --kind=distance --pkg=internal/store
+  snipe metrics --kind=lcom4
+  snipe metrics --kind=lcom4 --pkg=internal/store
   snipe metrics --format=json
 
 Usage:
@@ -25,7 +27,7 @@ Usage:
 Flags:
       --graph string   Graph kind ('imports' or 'calls') (default "imports")
   -h, --help           help for metrics
-      --kind string    Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance (default "pagerank")
+      --kind string    Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4 (default "pagerank")
       --pkg string     Filter to a single package (suffix-matches package import path)
       --top int        Top-N rows to print (default 20)
 

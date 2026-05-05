@@ -261,6 +261,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		if err := computeAbstractness(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: abstractness computation failed: %v\n", err)
 		}
+		if err := computeLCOM4(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: LCOM4 computation failed: %v\n", err)
+		}
 		if err := computeCallsGraphMetrics(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: calls-graph metrics computation failed: %v\n", err)
 		}
@@ -835,6 +838,120 @@ func computeAbstractness(s *store.Store) error {
 		return fmt.Errorf("write abstractness: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "metrics: abstractness computed for %d packages in %dms\n",
+		len(values), time.Since(t0).Milliseconds())
+	return nil
+}
+
+// computeLCOM4 persists per-package LCOM4 = number of connected components in
+// the intra-package call graph (production funcs/methods, no _test.go). Nodes
+// are top-level functions in a package; edges are intra-package func→func
+// references (treated undirected). LCOM4 = 1 means the package is internally
+// connected; LCOM4 > 1 surfaces split candidates (cross-reference with
+// `snipe boundary`). Singleton packages (1 function) report LCOM4 = 1.
+func computeLCOM4(s *store.Store) error {
+	t0 := time.Now()
+
+	pkgNodes := make(map[string]map[string]struct{})
+	nodeRows, err := s.DB().Query(`
+		SELECT pkg_path, id FROM symbols
+		WHERE kind IN ('func','method')
+		  AND pkg_path IS NOT NULL AND pkg_path != ''
+		  AND pkg_path NOT LIKE '%.test'
+		  AND file_path NOT LIKE '%_test.go'
+	`)
+	if err != nil {
+		return fmt.Errorf("query lcom4 nodes: %w", err)
+	}
+	for nodeRows.Next() {
+		var pkg, id string
+		if err := nodeRows.Scan(&pkg, &id); err != nil {
+			nodeRows.Close()
+			return fmt.Errorf("scan lcom4 node: %w", err)
+		}
+		set, ok := pkgNodes[pkg]
+		if !ok {
+			set = make(map[string]struct{})
+			pkgNodes[pkg] = set
+		}
+		set[id] = struct{}{}
+	}
+	nodeRows.Close()
+	if err := nodeRows.Err(); err != nil {
+		return fmt.Errorf("iter lcom4 nodes: %w", err)
+	}
+
+	type edge struct{ pkg, src, dst string }
+	edgeRows, err := s.DB().Query(`
+		SELECT s_enc.pkg_path, r.enclosing_id, r.symbol_id
+		FROM refs r
+		JOIN symbols s_enc ON s_enc.id = r.enclosing_id
+		JOIN symbols s_tgt ON s_tgt.id = r.symbol_id
+		WHERE r.enclosing_id IS NOT NULL
+		  AND r.enclosing_id != r.symbol_id
+		  AND s_enc.pkg_path = s_tgt.pkg_path
+		  AND s_enc.pkg_path IS NOT NULL AND s_enc.pkg_path != ''
+		  AND s_enc.pkg_path NOT LIKE '%.test'
+		  AND s_enc.kind IN ('func','method')
+		  AND s_tgt.kind IN ('func','method')
+		  AND s_enc.file_path NOT LIKE '%_test.go'
+		  AND s_tgt.file_path NOT LIKE '%_test.go'
+	`)
+	if err != nil {
+		return fmt.Errorf("query lcom4 edges: %w", err)
+	}
+	pkgEdges := make(map[string][]edge)
+	for edgeRows.Next() {
+		var e edge
+		if err := edgeRows.Scan(&e.pkg, &e.src, &e.dst); err != nil {
+			edgeRows.Close()
+			return fmt.Errorf("scan lcom4 edge: %w", err)
+		}
+		pkgEdges[e.pkg] = append(pkgEdges[e.pkg], e)
+	}
+	edgeRows.Close()
+	if err := edgeRows.Err(); err != nil {
+		return fmt.Errorf("iter lcom4 edges: %w", err)
+	}
+
+	values := make(map[string]float64, len(pkgNodes))
+	for pkg, nodes := range pkgNodes {
+		parent := make(map[string]string, len(nodes))
+		for n := range nodes {
+			parent[n] = n
+		}
+		find := func(x string) string {
+			for parent[x] != x {
+				parent[x] = parent[parent[x]]
+				x = parent[x]
+			}
+			return x
+		}
+		union := func(a, b string) {
+			ra, rb := find(a), find(b)
+			if ra != rb {
+				parent[ra] = rb
+			}
+		}
+		for _, e := range pkgEdges[pkg] {
+			if _, ok := nodes[e.src]; !ok {
+				continue
+			}
+			if _, ok := nodes[e.dst]; !ok {
+				continue
+			}
+			union(e.src, e.dst)
+		}
+		roots := make(map[string]struct{}, len(nodes))
+		for n := range nodes {
+			roots[find(n)] = struct{}{}
+		}
+		values[pkg] = float64(len(roots))
+	}
+
+	if err := s.WriteGraphMetrics("imports", "lcom4", values); err != nil {
+		return fmt.Errorf("write lcom4: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: LCOM4 computed for %d packages in %dms\n",
 		len(values), time.Since(t0).Milliseconds())
 	return nil
 }

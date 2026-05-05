@@ -15,6 +15,8 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 )
 
+const kindLCOM4 = "lcom4"
+
 var (
 	metricsTopN  int
 	metricsKind  string
@@ -45,6 +47,8 @@ Examples:
   snipe metrics --kind=abstractness --pkg=internal/store
   snipe metrics --kind=distance
   snipe metrics --kind=distance --pkg=internal/store
+  snipe metrics --kind=lcom4
+  snipe metrics --kind=lcom4 --pkg=internal/store
   snipe metrics --format=json`,
 	Args: cobra.NoArgs,
 	RunE: runMetrics,
@@ -52,7 +56,7 @@ Examples:
 
 func init() {
 	metricsCmd.Flags().IntVar(&metricsTopN, "top", 20, "Top-N rows to print")
-	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance")
+	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4")
 	metricsCmd.Flags().StringVar(&metricsGraph, "graph", "imports", "Graph kind ('imports' or 'calls')")
 	metricsCmd.Flags().StringVar(&metricsPkg, "pkg", "", "Filter to a single package (suffix-matches package import path)")
 	rootCmd.AddCommand(metricsCmd)
@@ -68,7 +72,7 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	switch metricsKind {
 	case "pagerank", "betweenness", "hits", "hub", "authority",
 		"cycles", "topo", "degree", "in_degree", "out_degree", "eigenvector",
-		"ca", "ce", "coupling", "instability", "abstractness", "distance":
+		"ca", "ce", "coupling", "instability", "abstractness", "distance", kindLCOM4:
 		// ok
 	default:
 		return w.WriteError("metrics", &output.Error{
@@ -410,12 +414,21 @@ func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
 
 func writeMetricsText(rows []store.MetricRow) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s graph · %s · top %d\n", metricsGraph, metricsKind, len(rows))
+	header := fmt.Sprintf("%s graph · %s · top %d", metricsGraph, metricsKind, len(rows))
+	if metricsKind == kindLCOM4 {
+		header += " (LCOM4 > 1 = split candidate; cross-ref `snipe boundary`)"
+	}
+	fmt.Fprintln(&b, header)
 	if len(rows) == 0 {
 		b.WriteString("  (no metric rows — run `snipe index` to populate)\n")
 	}
 	for _, r := range rows {
-		fmt.Fprintf(&b, "  %2d  %.3f  %s\n", r.Rank, r.Value, r.NodeID)
+		switch metricsKind {
+		case kindLCOM4, "ca", "ce", "in_degree", "out_degree":
+			fmt.Fprintf(&b, "  %2d  %5d  %s\n", r.Rank, int(r.Value), r.NodeID)
+		default:
+			fmt.Fprintf(&b, "  %2d  %.3f  %s\n", r.Rank, r.Value, r.NodeID)
+		}
 	}
 	_, err := os.Stdout.WriteString(b.String())
 	return err
