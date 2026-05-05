@@ -10,41 +10,31 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const symbolsSchema = `CREATE TABLE symbols (id TEXT, name TEXT, kind TEXT, signature TEXT, receiver TEXT, file_path_rel TEXT, line_start INTEGER, doc TEXT);`
+
 func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		seedSQL []string
-		closeDB bool
-		input   string
-		want    []query.MethodInfo
+		name            string
+		seedSQL         []string
+		closeDB         bool
+		input           string
+		want            []query.MethodInfo
 		wantErrContains string
-		inspect func(*testing.T, []query.MethodInfo)
+		inspect         func(*testing.T, []query.MethodInfo)
 	}{
 		{
-			name: "error on closed database without schema",
-			closeDB: true,
-			input:   "Widget",
+			name:            "error on closed database",
+			closeDB:         true,
+			input:           "Widget",
 			wantErrContains: "sql: database is closed",
 		},
 		{
-			name: "error on closed database handle",
-			seedSQL: []string{
-				`CREATE TABLE symbols (id TEXT, name TEXT, kind TEXT, signature TEXT, receiver TEXT, file_path_rel TEXT, line_start INTEGER, doc TEXT);`,
-			},
-			closeDB: true,
-			input:   "Widget",
-			wantErrContains: "sql: database is closed",
-		},
-		{
-			name: "boundary empty typename yields no results",
-			seedSQL: []string{
-				`CREATE TABLE symbols (id TEXT, name TEXT, kind TEXT, signature TEXT, receiver TEXT, file_path_rel TEXT, line_start INTEGER, doc TEXT);`,
-				`INSERT INTO symbols VALUES ('1','Do','method','func()','(Widget)','a.go',10,'');`,
-			},
-			input: "",
-			want:  nil,
+			name:    "boundary empty typename yields no results",
+			seedSQL: []string{`INSERT INTO symbols VALUES ('1','Do','method','func()','(Widget)','a.go',10,'');`},
+			input:   "",
+			want:    nil,
 			inspect: func(t *testing.T, got []query.MethodInfo) {
 				t.Helper()
 				require.Empty(t, got)
@@ -53,7 +43,6 @@ func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t 
 		{
 			name: "happy path includes value and pointer exported methods only",
 			seedSQL: []string{
-				`CREATE TABLE symbols (id TEXT, name TEXT, kind TEXT, signature TEXT, receiver TEXT, file_path_rel TEXT, line_start INTEGER, doc TEXT);`,
 				`INSERT INTO symbols VALUES ('1','Alpha','method','func()','(Widget)','a.go',10,'doc A');`,
 				`INSERT INTO symbols VALUES ('2','Beta','method','func(int)','(*Widget)','a.go',20,'doc B');`,
 				`INSERT INTO symbols VALUES ('3','gamma','method','func()','(Widget)','a.go',30,'private');`,
@@ -75,13 +64,10 @@ func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t 
 			},
 		},
 		{
-			name: "boundary zero values in nullable columns become empty strings",
-			seedSQL: []string{
-				`CREATE TABLE symbols (id TEXT, name TEXT, kind TEXT, signature TEXT, receiver TEXT, file_path_rel TEXT, line_start INTEGER, doc TEXT);`,
-				`INSERT INTO symbols (id,name,kind,receiver,file_path_rel,line_start) VALUES ('9','Zeta','method','(Widget)','z.go',90);`,
-			},
-			input: "Widget",
-			want: []query.MethodInfo{{ID: "9", Name: "Zeta", Signature: "", Receiver: "(Widget)", File: "z.go", Line: 90, Doc: ""}},
+			name:    "boundary zero values in nullable columns become empty strings",
+			seedSQL: []string{`INSERT INTO symbols (id,name,kind,receiver,file_path_rel,line_start) VALUES ('9','Zeta','method','(Widget)','z.go',90);`},
+			input:   "Widget",
+			want:    []query.MethodInfo{{ID: "9", Name: "Zeta", Signature: "", Receiver: "(Widget)", File: "z.go", Line: 90, Doc: ""}},
 			inspect: func(t *testing.T, got []query.MethodInfo) {
 				t.Helper()
 				require.Len(t, got, 1)
@@ -92,7 +78,6 @@ func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t 
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -128,6 +113,9 @@ func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t 
 func openSQLiteDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	db.SetMaxOpenConns(1)
+	_, err = db.Exec(symbolsSchema)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = db.Close()
