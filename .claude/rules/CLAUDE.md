@@ -67,8 +67,10 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 - `make audit` passes before merge
 - hex IDs: 16-char, chain across commands
 
-## lifecycle traps
+## traps
 
+- New `snipe metrics --kind=X` → register in switch in `cmd/metrics.go` + run `go test ./cmd -run TestHelpGolden -update`
+- Index metrics only run on `--force` or full reindex; incremental skips them
 - Indexer ∅ `enclosing_id` on signature-line refs (`func F() *T`). Recovered via `reattachSignatureRefs` in `cmd/lifecycle.go`
 - R2 snippet regex: `func F() *T {` matches `T{` — guard with `isFuncDeclLine` before firing create rules
 - `BASELINE_ORCA.json` timestamp drifts on every run; ✗ stage it
