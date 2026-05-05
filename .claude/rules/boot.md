@@ -1,9 +1,8 @@
 # Boot
-updated: 2026-04-29
-
-state: main @ 5ba26c8, `make` green, no open PRs
+updated: 2026-05-04
 
 → next: `bd ready` and pick
 
 ✓ done
-- merged #143 (config contract tests, polished per gemini review)
+- snipe-8gr: standardized tx rollback err handling across store (rollbackOnError helper)
+- #144: durable table-driven tests for GetMethodsForType (merged with gemini review fixes)
