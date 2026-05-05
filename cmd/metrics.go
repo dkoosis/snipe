@@ -43,6 +43,8 @@ Examples:
   snipe metrics --kind=instability --pkg=internal/store
   snipe metrics --kind=abstractness
   snipe metrics --kind=abstractness --pkg=internal/store
+  snipe metrics --kind=distance
+  snipe metrics --kind=distance --pkg=internal/store
   snipe metrics --format=json`,
 	Args: cobra.NoArgs,
 	RunE: runMetrics,
@@ -50,7 +52,7 @@ Examples:
 
 func init() {
 	metricsCmd.Flags().IntVar(&metricsTopN, "top", 20, "Top-N rows to print")
-	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness")
+	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance")
 	metricsCmd.Flags().StringVar(&metricsGraph, "graph", "imports", "Graph kind ('imports' or 'calls')")
 	metricsCmd.Flags().StringVar(&metricsPkg, "pkg", "", "Filter to a single package (suffix-matches package import path)")
 	rootCmd.AddCommand(metricsCmd)
@@ -66,7 +68,7 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	switch metricsKind {
 	case "pagerank", "betweenness", "hits", "hub", "authority",
 		"cycles", "topo", "degree", "in_degree", "out_degree", "eigenvector",
-		"ca", "ce", "coupling", "instability", "abstractness":
+		"ca", "ce", "coupling", "instability", "abstractness", "distance":
 		// ok
 	default:
 		return w.WriteError("metrics", &output.Error{
@@ -102,6 +104,11 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	// Coupling joins ca + ce into a per-package table.
 	if metricsKind == "coupling" {
 		return runCouplingMetrics(s, dir, start)
+	}
+
+	// Distance joins abstractness + instability into D = |A + I - 1|.
+	if metricsKind == "distance" {
+		return runDistanceMetrics(s, dir, start)
 	}
 
 	// --pkg implies "show this package only" — load all rows, then filter.
@@ -300,6 +307,102 @@ func runCouplingMetrics(s *store.Store, dir string, startedAt time.Time) error {
 	fmt.Fprintf(&b, "  %4s %4s %5s  %s\n", "Ca", "Ce", "I", "pkg")
 	for _, r := range rows {
 		fmt.Fprintf(&b, "  %4d %4d %5.2f  %s\n", r.Ca, r.Ce, r.I, r.Pkg)
+	}
+	_, err = os.Stdout.WriteString(b.String())
+	return err
+}
+
+// distanceRow is the JSON shape for a per-package A/I/D row.
+//
+// D = |A + I - 1| measures distance from Martin's "main sequence":
+// D≈0 = healthy (concrete-stable utility OR abstract-unstable abstraction);
+// D→1 = painful (concrete-unstable junk drawer at A=0,I=1 OR abstract-stable
+// orphan interface at A=1,I=0). D > 0.7 flags a package for arch review.
+type distanceRow struct {
+	Pkg string  `json:"pkg"`
+	A   float64 `json:"a"`
+	I   float64 `json:"i"`
+	D   float64 `json:"d"`
+}
+
+func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
+	aRows, err := s.ReadTopN("imports", "abstractness", 0)
+	if err != nil {
+		return fmt.Errorf("read abstractness: %w", err)
+	}
+	iRows, err := s.ReadTopN("imports", "instability", 0)
+	if err != nil {
+		return fmt.Errorf("read instability: %w", err)
+	}
+	if len(aRows) == 0 && len(iRows) == 0 {
+		_, werr := os.Stdout.WriteString("imports graph · distance · (no rows — run `snipe index` to populate)\n")
+		return werr
+	}
+
+	// Join on pkg. Packages without an abstractness row (zero-type pkgs) are
+	// skipped — A is undefined for them.
+	byPkg := make(map[string]*distanceRow, len(aRows))
+	for _, r := range aRows {
+		byPkg[r.NodeID] = &distanceRow{Pkg: r.NodeID, A: r.Value}
+	}
+	for _, r := range iRows {
+		row, ok := byPkg[r.NodeID]
+		if !ok {
+			continue
+		}
+		row.I = r.Value
+	}
+
+	rows := make([]distanceRow, 0, len(byPkg))
+	for _, r := range byPkg {
+		sum := r.A + r.I - 1
+		if sum < 0 {
+			sum = -sum
+		}
+		r.D = sum
+		if metricsPkg != "" && r.Pkg != metricsPkg && !strings.HasSuffix(r.Pkg, "/"+metricsPkg) {
+			continue
+		}
+		rows = append(rows, *r)
+	}
+	// Sort: highest D (worst) first; tiebreak by pkg.
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].D != rows[j].D {
+			return rows[i].D > rows[j].D
+		}
+		return rows[i].Pkg < rows[j].Pkg
+	})
+	if metricsTopN > 0 && metricsPkg == "" && len(rows) > metricsTopN {
+		rows = rows[:metricsTopN]
+	}
+
+	if GetOutputFormat() == output.OutputJSON {
+		resp := output.Response[distanceRow]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  rows,
+			Meta: output.Meta{
+				Command:  "metrics",
+				Query:    map[string]string{"graph": "imports", "kind": "distance", "pkg": metricsPkg},
+				RepoRoot: dir,
+				Ms:       time.Since(startedAt).Milliseconds(),
+				Total:    len(rows),
+			},
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(resp)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "imports graph · distance · %d packages (D > 0.70 = arch-review flag)\n", len(rows))
+	fmt.Fprintf(&b, "  %5s %5s %5s  %s\n", "A", "I", "D", "pkg")
+	for _, r := range rows {
+		flag := "  "
+		if r.D > 0.70 {
+			flag = "! "
+		}
+		fmt.Fprintf(&b, "%s%5.2f %5.2f %5.2f  %s\n", flag, r.A, r.I, r.D, r.Pkg)
 	}
 	_, err = os.Stdout.WriteString(b.String())
 	return err
