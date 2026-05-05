@@ -774,9 +774,11 @@ func computeImportCoupling(s *store.Store) error {
 	coup := graphmetrics.ComputeCoupling(g)
 	ca := make(map[string]float64, len(coup))
 	ce := make(map[string]float64, len(coup))
+	in := make(map[string]float64, len(coup))
 	for n, c := range coup {
 		ca[n] = float64(c.Ca)
 		ce[n] = float64(c.Ce)
+		in[n] = c.I()
 	}
 	if err := s.WriteGraphMetrics("imports", "ca", ca); err != nil {
 		return fmt.Errorf("write ca: %w", err)
@@ -784,7 +786,10 @@ func computeImportCoupling(s *store.Store) error {
 	if err := s.WriteGraphMetrics("imports", "ce", ce); err != nil {
 		return fmt.Errorf("write ce: %w", err)
 	}
-	fmt.Fprintf(os.Stderr, "metrics: Ca/Ce computed for %d packages in %dms\n",
+	if err := s.WriteGraphMetrics("imports", "instability", in); err != nil {
+		return fmt.Errorf("write instability: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: Ca/Ce/I computed for %d packages in %dms\n",
 		len(coup), time.Since(t0).Milliseconds())
 	return nil
 }
