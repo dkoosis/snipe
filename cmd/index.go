@@ -258,6 +258,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		if err := computeImportCoupling(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: coupling computation failed: %v\n", err)
 		}
+		if err := computeAbstractness(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: abstractness computation failed: %v\n", err)
+		}
 		if err := computeCallsGraphMetrics(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: calls-graph metrics computation failed: %v\n", err)
 		}
@@ -791,6 +794,48 @@ func computeImportCoupling(s *store.Store) error {
 	}
 	fmt.Fprintf(os.Stderr, "metrics: Ca/Ce/I computed for %d packages in %dms\n",
 		len(coup), time.Since(t0).Milliseconds())
+	return nil
+}
+
+// computeAbstractness persists per-package A = abstract / total exported type
+// decls (production files only). "Abstract" = interface decls; "total" =
+// interface + struct + type. Pure-interface pkg → 1.0; pure-impl → 0.0;
+// zero-type pkgs are skipped (no row written). Pairs with instability for
+// distance-from-main-sequence (D = |A + I - 1|).
+func computeAbstractness(s *store.Store) error {
+	t0 := time.Now()
+	rows, err := s.DB().Query(`
+		SELECT pkg_path,
+		       SUM(CASE WHEN kind = 'interface' THEN 1 ELSE 0 END) AS abstract,
+		       SUM(CASE WHEN kind IN ('interface','struct','type') THEN 1 ELSE 0 END) AS total
+		FROM symbols
+		WHERE pkg_path IS NOT NULL AND pkg_path != ''
+		  AND file_path NOT LIKE '%_test.go'
+		  AND substr(name, 1, 1) GLOB '[A-Z]'
+		GROUP BY pkg_path
+		HAVING total > 0
+	`)
+	if err != nil {
+		return fmt.Errorf("query abstractness: %w", err)
+	}
+	defer rows.Close()
+	values := make(map[string]float64)
+	for rows.Next() {
+		var pkg string
+		var abstract, total int
+		if err := rows.Scan(&pkg, &abstract, &total); err != nil {
+			return fmt.Errorf("scan abstractness: %w", err)
+		}
+		values[pkg] = float64(abstract) / float64(total)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iter abstractness: %w", err)
+	}
+	if err := s.WriteGraphMetrics("imports", "abstractness", values); err != nil {
+		return fmt.Errorf("write abstractness: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: abstractness computed for %d packages in %dms\n",
+		len(values), time.Since(t0).Milliseconds())
 	return nil
 }
 

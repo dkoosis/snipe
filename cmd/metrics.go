@@ -41,6 +41,8 @@ Examples:
   snipe metrics --kind=coupling --pkg=internal/store
   snipe metrics --kind=instability
   snipe metrics --kind=instability --pkg=internal/store
+  snipe metrics --kind=abstractness
+  snipe metrics --kind=abstractness --pkg=internal/store
   snipe metrics --format=json`,
 	Args: cobra.NoArgs,
 	RunE: runMetrics,
@@ -48,7 +50,7 @@ Examples:
 
 func init() {
 	metricsCmd.Flags().IntVar(&metricsTopN, "top", 20, "Top-N rows to print")
-	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability")
+	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness")
 	metricsCmd.Flags().StringVar(&metricsGraph, "graph", "imports", "Graph kind ('imports' or 'calls')")
 	metricsCmd.Flags().StringVar(&metricsPkg, "pkg", "", "Filter to a single package (suffix-matches package import path)")
 	rootCmd.AddCommand(metricsCmd)
@@ -64,7 +66,7 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	switch metricsKind {
 	case "pagerank", "betweenness", "hits", "hub", "authority",
 		"cycles", "topo", "degree", "in_degree", "out_degree", "eigenvector",
-		"ca", "ce", "coupling", "instability":
+		"ca", "ce", "coupling", "instability", "abstractness":
 		// ok
 	default:
 		return w.WriteError("metrics", &output.Error{
