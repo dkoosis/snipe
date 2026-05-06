@@ -158,6 +158,7 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 		DependentCount: dependentCount,
 		KeyTypes:       keyTypes,
 		KeyFuncs:       keyFuncs,
+		Files:          fileHeadersForDir(db, pkgDir, ""),
 	}
 
 	resp := output.Response[output.PackPackageResult]{
@@ -225,4 +226,58 @@ func computePackageStats(db *sql.DB, pkgPath, pkgDir string) (int, int, int) {
 	`, pkgPath).Scan(&testCount)
 
 	return fileCount, loc, testCount
+}
+
+// headerMatchesPkgDoc reports whether a per-file header is the same comment
+// block surfaced as the package doc (in which case the renderer should skip it
+// to avoid duplication). Compares normalized (whitespace-collapsed) text and
+// allows the header to be a prefix of pkgDoc (the header may be truncated).
+func headerMatchesPkgDoc(header, pkgDoc string) bool {
+	norm := func(s string) string {
+		return strings.Join(strings.Fields(strings.TrimSuffix(s, "…")), " ")
+	}
+	h, d := norm(header), norm(pkgDoc)
+	if h == "" || d == "" {
+		return false
+	}
+	return h == d || strings.HasPrefix(d, h)
+}
+
+// fileHeadersForDir returns per-file header comments for .go files under pkgDir,
+// sorted by basename. Test files are included. Empty headers are skipped.
+// pkgDoc, when non-empty, suppresses any file whose header equals it (avoids
+// duplicating the package doc surfaced separately).
+func fileHeadersForDir(db *sql.DB, pkgDir, pkgDoc string) []output.FileHeader {
+	if pkgDir == "" {
+		return nil
+	}
+	rows, err := db.Query(`
+		SELECT path, COALESCE(header, '') FROM files
+		WHERE path LIKE ? AND path NOT LIKE ?
+		ORDER BY path
+	`, pkgDir+"/%", pkgDir+"/%/%")
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var out []output.FileHeader
+	for rows.Next() {
+		var path, header string
+		if err := rows.Scan(&path, &header); err != nil {
+			continue
+		}
+		header = strings.TrimSpace(header)
+		if header == "" {
+			continue
+		}
+		if pkgDoc != "" && headerMatchesPkgDoc(header, pkgDoc) {
+			continue
+		}
+		out = append(out, output.FileHeader{
+			Name:   filepath.Base(path),
+			Header: header,
+		})
+	}
+	return out
 }

@@ -403,6 +403,13 @@ func (w *Writer) writeClaudePackPackage(b *strings.Builder, results []PackPackag
 			}
 		}
 
+		if len(r.Files) > 0 {
+			b.WriteString("files:\n")
+			for _, fh := range r.Files {
+				fmt.Fprintf(b, "  %s — %s\n", fh.Name, fh.Header)
+			}
+		}
+
 		// Full export list omitted from Claude output — too noisy.
 		// JSON consumers get it via the Exports field in the envelope.
 	}

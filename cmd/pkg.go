@@ -161,7 +161,13 @@ func runPkg(cmd *cobra.Command, args []string) error {
 		if pkgDoc != "" {
 			fmt.Fprintf(os.Stdout, "%s\n", pkgDoc)
 		}
-		fmt.Fprintf(os.Stdout, "files: %d  loc: %d  exports: %d\n\n", fileCount, loc, len(results))
+		fmt.Fprintf(os.Stdout, "files: %d  loc: %d  exports: %d\n", fileCount, loc, len(results))
+		if headers := fileHeadersForDir(s.DB(), pkgDir, pkgDoc); len(headers) > 0 {
+			for _, fh := range headers {
+				fmt.Fprintf(os.Stdout, "  %s — %s\n", fh.Name, fh.Header)
+			}
+		}
+		fmt.Fprintln(os.Stdout)
 	}
 
 	meta := output.Meta{

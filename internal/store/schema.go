@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 16
+const schemaVersion = 17
 
 // migration represents a database migration.
 type migration struct {
@@ -254,6 +254,13 @@ var migrations = []migration{
 			PRIMARY KEY (graph_kind, node_id)
 		);
 		CREATE INDEX IF NOT EXISTS idx_graph_sccs_scc ON graph_sccs(graph_kind, scc_id);
+		`,
+	},
+	{
+		version: 17,
+		name:    "files_header_comment",
+		up: `
+		ALTER TABLE files ADD COLUMN header TEXT;
 		`,
 	},
 }

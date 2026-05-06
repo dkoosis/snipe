@@ -1,6 +1,7 @@
 package index
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -12,10 +13,14 @@ import (
 
 // FileInfo represents file metadata for change detection
 type FileInfo struct {
-	Path  string
-	Mtime int64
-	Hash  string
+	Path   string
+	Mtime  int64
+	Hash   string
+	Header string // leading comment block above package clause (cleaned, capped)
 }
+
+// maxHeaderLen caps the stored header length to keep token budget honest (D4).
+const maxHeaderLen = 200
 
 // ExtractFileInfo walks the repo directory to collect file hashes.
 // Uses the same directory walk as DetectChanges to ensure the file sets
@@ -75,11 +80,53 @@ func computeFileInfo(path string) (FileInfo, error) {
 		return FileInfo{}, err // HashFileSHA256 already includes path context
 	}
 
+	header, _ := extractFileHeader(path) // best-effort; empty on error
+
 	return FileInfo{
-		Path:  path,
-		Mtime: stat.ModTime().Unix(),
-		Hash:  hash,
+		Path:   path,
+		Mtime:  stat.ModTime().Unix(),
+		Hash:   hash,
+		Header: header,
 	}, nil
+}
+
+// extractFileHeader reads the leading comment block above the `package` clause.
+// Skips build constraints (`//go:build`, `// +build`). Joins consecutive `//`
+// lines with spaces and caps at maxHeaderLen.
+func extractFileHeader(path string) (string, error) {
+	f, err := os.Open(path) // #nosec G304 -- path from indexer walk
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
+	var parts []string
+	for sc.Scan() {
+		line := strings.TrimRight(sc.Text(), " \t")
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, "package ") {
+			break
+		}
+		if trim == "" {
+			continue
+		}
+		if strings.HasPrefix(trim, "//go:build") || strings.HasPrefix(trim, "// +build") {
+			continue
+		}
+		if strings.HasPrefix(trim, "//") {
+			parts = append(parts, strings.TrimSpace(strings.TrimPrefix(trim, "//")))
+			continue
+		}
+		// Non-comment, non-blank line before `package` — bail (e.g. /* */ block).
+		break
+	}
+	joined := strings.TrimSpace(strings.Join(parts, " "))
+	if len(joined) > maxHeaderLen {
+		joined = joined[:maxHeaderLen] + "…"
+	}
+	return joined, nil
 }
 
 // HashFileSHA256 computes a truncated SHA256 hash of a file (16 hex chars).

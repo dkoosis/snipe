@@ -385,14 +385,14 @@ func (s *Store) WriteFiles(files []index.FileInfo) (err error) {
 	}
 
 	// Insert new file data
-	stmt, err := tx.Prepare(`INSERT INTO files (path, mtime, hash) VALUES (?, ?, ?)`)
+	stmt, err := tx.Prepare(`INSERT INTO files (path, mtime, hash, header) VALUES (?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("prepare files insert: %w", err)
 	}
 	defer stmt.Close()
 
 	for _, f := range files {
-		if _, err := stmt.Exec(f.Path, f.Mtime, f.Hash); err != nil {
+		if _, err := stmt.Exec(f.Path, f.Mtime, f.Hash, f.Header); err != nil {
 			return fmt.Errorf("insert file %s: %w", f.Path, err)
 		}
 	}

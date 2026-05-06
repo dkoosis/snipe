@@ -560,6 +560,14 @@ type PackPackageResult struct {
 	DependentCount int             `json:"dependent_count"`
 	KeyTypes       []PackageExport `json:"key_types,omitempty"` // top types by ref count
 	KeyFuncs       []PackageExport `json:"key_funcs,omitempty"` // top funcs/methods by call count
+	Files          []FileHeader    `json:"files,omitempty"`     // per-file header comments (TOC)
+}
+
+// FileHeader is a per-file header comment captured by the indexer.
+// Surfaces as a per-package table of contents in pkg / pack output.
+type FileHeader struct {
+	Name   string `json:"name"`   // basename (e.g. "store.go")
+	Header string `json:"header"` // cleaned leading comment, capped
 }
 
 // DepsResult is the response for single-package dependency queries.
