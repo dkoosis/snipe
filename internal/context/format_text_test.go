@@ -81,4 +81,29 @@ func TestFormatText_DepDAG(t *testing.T) {
 			t.Error("expected no ## deps section when DepDAG.Edges is empty")
 		}
 	})
+
+	t.Run("renders arch warnings sorted with metrics", func(t *testing.T) {
+		bc := &BootContext{
+			Project: "testproj",
+			ArchWarnings: []ArchWarning{
+				{Pkg: "internal/config", A: 0.00, I: 0.00, D: 1.00},
+				{Pkg: "internal/output", A: 0.00, I: 0.17, D: 0.83},
+			},
+		}
+		out := FormatText(bc)
+		if !strings.Contains(out, "## arch warnings") {
+			t.Error("expected ## arch warnings section")
+		}
+		if !strings.Contains(out, "internal/config — A=0.00 I=0.00 D=1.00") {
+			t.Errorf("expected formatted row for config, got:\n%s", out)
+		}
+	})
+
+	t.Run("omits arch warnings section when empty", func(t *testing.T) {
+		bc := &BootContext{Project: "testproj"}
+		out := FormatText(bc)
+		if strings.Contains(out, "## arch warnings") {
+			t.Error("expected no ## arch warnings when empty")
+		}
+	})
 }

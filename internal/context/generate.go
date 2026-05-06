@@ -104,6 +104,7 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 
 	depDAG := buildDepDAG(cfg.DB)
 	totalSymbols, totalPkgs := countSymbolsAndPkgs(cfg.DB)
+	archWarnings := buildArchWarnings(cfg.DB)
 
 	return &BootContext{
 		Project:      proj.Name,
@@ -119,9 +120,85 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		Conventions:  conventions,
 		DBSchemas:    DetectDBSchemas(cfg.RepoRoot),
 		DepDAG:       depDAG,
+		ArchWarnings: archWarnings,
 		TotalSymbols: totalSymbols,
 		TotalPkgs:    totalPkgs,
 	}, nil
+}
+
+// archWarningThreshold flags packages whose distance from the main sequence
+// exceeds this value. Mirrors the `snipe metrics --kind=distance` threshold.
+const archWarningThreshold = 0.70
+
+// archWarningCap limits the number of warnings surfaced in boot context to
+// keep the section tight; rows already sort by D desc.
+const archWarningCap = 5
+
+// buildArchWarnings computes per-package distance from the main sequence
+// (D = |A + I − 1|) and returns up to archWarningCap entries with D above
+// archWarningThreshold, worst first. Returns nil when graph metrics are
+// missing — the section is hidden in that case.
+func buildArchWarnings(db *sql.DB) []ArchWarning {
+	type ai struct {
+		a, i float64
+		hasA bool
+	}
+	rows := make(map[string]*ai)
+
+	scan := func(metric string, set func(*ai, float64)) {
+		rs, err := db.Query(
+			`SELECT node_id, value FROM graph_metrics
+			 WHERE graph_kind = ? AND metric = ?`,
+			"imports", metric,
+		)
+		if err != nil {
+			return
+		}
+		defer func() { _ = rs.Close() }()
+		for rs.Next() {
+			var pkg string
+			var v float64
+			if scanErr := rs.Scan(&pkg, &v); scanErr != nil {
+				continue
+			}
+			r, ok := rows[pkg]
+			if !ok {
+				r = &ai{}
+				rows[pkg] = r
+			}
+			set(r, v)
+		}
+	}
+	scan("abstractness", func(r *ai, v float64) { r.a = v; r.hasA = true })
+	scan("instability", func(r *ai, v float64) { r.i = v })
+
+	out := make([]ArchWarning, 0)
+	for pkg, r := range rows {
+		if !r.hasA {
+			continue
+		}
+		d := r.a + r.i - 1
+		if d < 0 {
+			d = -d
+		}
+		if d <= archWarningThreshold {
+			continue
+		}
+		out = append(out, ArchWarning{Pkg: pkg, A: r.a, I: r.i, D: d})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].D != out[j].D {
+			return out[i].D > out[j].D
+		}
+		return out[i].Pkg < out[j].Pkg
+	})
+	if len(out) > archWarningCap {
+		out = out[:archWarningCap]
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // buildDepDAG builds a compact internal package DAG from the imports table.

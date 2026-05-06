@@ -1,4 +1,12 @@
 {
+  "arch_warnings": [
+    {
+      "a": 0.25,
+      "d": 0.75,
+      "i": 0,
+      "pkg": "example.com/fixture/greet"
+    }
+  ],
   "boot_views": {
     "interface_map": [
       {

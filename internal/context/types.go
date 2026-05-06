@@ -49,6 +49,11 @@ type BootContext struct {
 	// DepDAG is the compact internal package dependency graph.
 	DepDAG *DepDAG `json:"dep_dag,omitempty" yaml:"dep_dag,omitempty"`
 
+	// ArchWarnings flags packages with poor architectural shape (high D from the
+	// main sequence). Populated only when graph_metrics has abstractness +
+	// instability rows; capped at the worst few.
+	ArchWarnings []ArchWarning `json:"arch_warnings,omitempty" yaml:"arch_warnings,omitempty"`
+
 	// Index triage stats — used for the first-line summary in text output.
 	TotalSymbols int    `json:"total_symbols,omitempty" yaml:"total_symbols,omitempty"`
 	TotalPkgs    int    `json:"total_pkgs,omitempty" yaml:"total_pkgs,omitempty"`
@@ -77,6 +82,16 @@ type ImplementorRef struct {
 	Name string `json:"name" yaml:"name"`
 	File string `json:"file" yaml:"file"`
 	Line int    `json:"line" yaml:"line"`
+}
+
+// ArchWarning is one package flagged for poor distance-from-main-sequence (D).
+// D = |A + I − 1|: D≈0 = balanced; D≈1 = either zone of pain (concrete-stable
+// utility) or zone of uselessness (abstract-unstable junk drawer).
+type ArchWarning struct {
+	Pkg string  `json:"pkg" yaml:"pkg"`
+	A   float64 `json:"a" yaml:"a"`
+	I   float64 `json:"i" yaml:"i"`
+	D   float64 `json:"d" yaml:"d"`
 }
 
 // ArchSummary provides a high-level architecture overview grounded in call graph data.

@@ -96,6 +96,15 @@ func FormatText(bc *BootContext) string {
 		}
 	}
 
+	// Architecture warnings (high D from main sequence)
+	if len(bc.ArchWarnings) > 0 {
+		b.WriteString("\n## arch warnings\n")
+		b.WriteString("‡ D > 0.70 = off the main sequence (zone of pain or uselessness)\n")
+		for _, w := range bc.ArchWarnings {
+			fmt.Fprintf(&b, "%s — A=%.2f I=%.2f D=%.2f\n", w.Pkg, w.A, w.I, w.D)
+		}
+	}
+
 	// Conventions
 	if conv := bc.Conventions; conv != nil {
 		formatConventions(&b, conv)
