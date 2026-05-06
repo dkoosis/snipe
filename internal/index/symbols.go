@@ -43,6 +43,10 @@ type Symbol struct {
 	Signature string
 	Doc       string
 	Receiver  string // For methods: "(*T)" or "(T)"
+	// Cyclo is the McCabe cyclomatic complexity for func/method symbols.
+	// In-memory only (not persisted); used for per-package rollups via
+	// PackageCycloRollups. Zero for non-function symbols.
+	Cyclo int
 }
 
 // ExtractSymbols extracts all symbols from loaded packages
@@ -108,6 +112,7 @@ func extractFuncSymbol(pkg *packages.Package, decl *ast.FuncDecl, filePath, pkgP
 	// Prefer type-based signature with qualified types when available
 	sig := formatFuncSignatureTyped(pkg, decl)
 	doc := extractDoc(decl.Doc)
+	cyclo := computeCyclo(decl.Body)
 
 	return &Symbol{
 		// ID uses identifier position for posKey matching with call graph
@@ -127,7 +132,38 @@ func extractFuncSymbol(pkg *packages.Package, decl *ast.FuncDecl, filePath, pkgP
 		Signature: sig,
 		Doc:       doc,
 		Receiver:  receiver,
+		Cyclo:     cyclo,
 	}
+}
+
+// computeCyclo returns the McCabe cyclomatic complexity of a function body.
+// 1 + count of decision points (if/for/range/case/comm/&&/||). Body=nil
+// (interface methods, external decls) → 1.
+func computeCyclo(body *ast.BlockStmt) int {
+	if body == nil {
+		return 1
+	}
+	c := 1
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt:
+			c++
+		case *ast.CaseClause:
+			if len(x.List) > 0 { // skip default:
+				c++
+			}
+		case *ast.CommClause:
+			if x.Comm != nil { // skip default:
+				c++
+			}
+		case *ast.BinaryExpr:
+			if x.Op == token.LAND || x.Op == token.LOR {
+				c++
+			}
+		}
+		return true
+	})
+	return c
 }
 
 func extractGenDeclSymbols(pkg *packages.Package, decl *ast.GenDecl, filePath, pkgPath string, fset *token.FileSet) []Symbol {

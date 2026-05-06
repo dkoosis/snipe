@@ -49,6 +49,8 @@ Examples:
   snipe metrics --kind=distance --pkg=internal/store
   snipe metrics --kind=lcom4
   snipe metrics --kind=lcom4 --pkg=internal/store
+  snipe metrics --kind=cyclo
+  snipe metrics --kind=cyclo --pkg=internal/store
   snipe metrics --format=json`,
 	Args: cobra.NoArgs,
 	RunE: runMetrics,
@@ -56,7 +58,7 @@ Examples:
 
 func init() {
 	metricsCmd.Flags().IntVar(&metricsTopN, "top", 20, "Top-N rows to print")
-	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4")
+	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo")
 	metricsCmd.Flags().StringVar(&metricsGraph, "graph", "imports", "Graph kind ('imports' or 'calls')")
 	metricsCmd.Flags().StringVar(&metricsPkg, "pkg", "", "Filter to a single package (suffix-matches package import path)")
 	rootCmd.AddCommand(metricsCmd)
@@ -72,7 +74,8 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	switch metricsKind {
 	case "pagerank", "betweenness", "hits", "hub", "authority",
 		"cycles", "topo", "degree", "in_degree", "out_degree", "eigenvector",
-		"ca", "ce", "coupling", "instability", "abstractness", "distance", kindLCOM4:
+		"ca", "ce", "coupling", "instability", "abstractness", "distance", kindLCOM4,
+		"cyclo", "cyclo_sum", "cyclo_p95", "cyclo_max":
 		// ok
 	default:
 		return w.WriteError("metrics", &output.Error{
@@ -113,6 +116,11 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	// Distance joins abstractness + instability into D = |A + I - 1|.
 	if metricsKind == "distance" {
 		return runDistanceMetrics(s, dir, start)
+	}
+
+	// Cyclo joins per-package sum/p95/max into a hot-package table.
+	if metricsKind == "cyclo" {
+		return runCycloMetrics(s, dir, start)
 	}
 
 	// --pkg implies "show this package only" — load all rows, then filter.
@@ -407,6 +415,108 @@ func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
 			flag = "! "
 		}
 		fmt.Fprintf(&b, "%s%5.2f %5.2f %5.2f  %s\n", flag, r.A, r.I, r.D, r.Pkg)
+	}
+	_, err = os.Stdout.WriteString(b.String())
+	return err
+}
+
+// cycloRow is the JSON shape for a per-package cyclomatic-complexity row.
+// Sum/Max are integers; P95 may interpolate between samples.
+// Hot-package threshold (per snipe-fac AC): p95 > 10 OR max > 20.
+type cycloRow struct {
+	Pkg string  `json:"pkg"`
+	Sum int     `json:"sum"`
+	P95 float64 `json:"p95"`
+	Max int     `json:"max"`
+}
+
+func runCycloMetrics(s *store.Store, dir string, startedAt time.Time) error {
+	sumRows, err := s.ReadTopN("imports", "cyclo_sum", 0)
+	if err != nil {
+		return fmt.Errorf("read cyclo_sum: %w", err)
+	}
+	p95Rows, err := s.ReadTopN("imports", "cyclo_p95", 0)
+	if err != nil {
+		return fmt.Errorf("read cyclo_p95: %w", err)
+	}
+	maxRows, err := s.ReadTopN("imports", "cyclo_max", 0)
+	if err != nil {
+		return fmt.Errorf("read cyclo_max: %w", err)
+	}
+	if len(sumRows) == 0 && len(p95Rows) == 0 && len(maxRows) == 0 {
+		_, werr := os.Stdout.WriteString("imports graph · cyclo · (no rows — run `snipe index` to populate)\n")
+		return werr
+	}
+
+	byPkg := make(map[string]*cycloRow, len(sumRows))
+	for _, r := range sumRows {
+		byPkg[r.NodeID] = &cycloRow{Pkg: r.NodeID, Sum: int(r.Value)}
+	}
+	for _, r := range p95Rows {
+		row, ok := byPkg[r.NodeID]
+		if !ok {
+			row = &cycloRow{Pkg: r.NodeID}
+			byPkg[r.NodeID] = row
+		}
+		row.P95 = r.Value
+	}
+	for _, r := range maxRows {
+		row, ok := byPkg[r.NodeID]
+		if !ok {
+			row = &cycloRow{Pkg: r.NodeID}
+			byPkg[r.NodeID] = row
+		}
+		row.Max = int(r.Value)
+	}
+
+	rows := make([]cycloRow, 0, len(byPkg))
+	for _, r := range byPkg {
+		if metricsPkg != "" && r.Pkg != metricsPkg && !strings.HasSuffix(r.Pkg, "/"+metricsPkg) {
+			continue
+		}
+		rows = append(rows, *r)
+	}
+	// Sort: highest sum first (hottest packages); tiebreak by max then pkg.
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Sum != rows[j].Sum {
+			return rows[i].Sum > rows[j].Sum
+		}
+		if rows[i].Max != rows[j].Max {
+			return rows[i].Max > rows[j].Max
+		}
+		return rows[i].Pkg < rows[j].Pkg
+	})
+	if metricsTopN > 0 && metricsPkg == "" && len(rows) > metricsTopN {
+		rows = rows[:metricsTopN]
+	}
+
+	if GetOutputFormat() == output.OutputJSON {
+		resp := output.Response[cycloRow]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  rows,
+			Meta: output.Meta{
+				Command:  "metrics",
+				Query:    map[string]string{"graph": "imports", "kind": "cyclo", "pkg": metricsPkg},
+				RepoRoot: dir,
+				Ms:       time.Since(startedAt).Milliseconds(),
+				Total:    len(rows),
+			},
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(resp)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "imports graph · cyclo · %d packages (p95 > 10 OR max > 20 = hot-package flag)\n", len(rows))
+	fmt.Fprintf(&b, "  %5s %5s %5s  %s\n", "sum", "p95", "max", "pkg")
+	for _, r := range rows {
+		flag := "  "
+		if r.P95 > 10 || r.Max > 20 {
+			flag = "! "
+		}
+		fmt.Fprintf(&b, "%s%5d %5.1f %5d  %s\n", flag, r.Sum, r.P95, r.Max, r.Pkg)
 	}
 	_, err = os.Stdout.WriteString(b.String())
 	return err

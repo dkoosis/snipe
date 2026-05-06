@@ -264,6 +264,9 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		if err := computeLCOM4(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: LCOM4 computation failed: %v\n", err)
 		}
+		if err := computeCycloRollups(s, symbols); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: cyclo rollup computation failed: %v\n", err)
+		}
 		if err := computeCallsGraphMetrics(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: calls-graph metrics computation failed: %v\n", err)
 		}
@@ -953,6 +956,40 @@ func computeLCOM4(s *store.Store) error {
 	}
 	fmt.Fprintf(os.Stderr, "metrics: LCOM4 computed for %d packages in %dms\n",
 		len(values), time.Since(t0).Milliseconds())
+	return nil
+}
+
+// computeCycloRollups persists per-package McCabe cyclomatic-complexity
+// rollups (sum, p95, max) computed in-memory from already-extracted symbols.
+// Three metric kinds (cyclo_sum, cyclo_p95, cyclo_max) are stored under the
+// imports graph; `snipe metrics --kind=cyclo` joins them at read time.
+//
+// Hot-package threshold: p95 > 10 OR max > 20.
+func computeCycloRollups(s *store.Store, symbols []index.Symbol) error {
+	t0 := time.Now()
+	rollups := index.PackageCycloRollups(symbols)
+	if len(rollups) == 0 {
+		return nil
+	}
+	sum := make(map[string]float64, len(rollups))
+	p95 := make(map[string]float64, len(rollups))
+	maxv := make(map[string]float64, len(rollups))
+	for pkg, r := range rollups {
+		sum[pkg] = float64(r.Sum)
+		p95[pkg] = r.P95
+		maxv[pkg] = float64(r.Max)
+	}
+	if err := s.WriteGraphMetrics("imports", "cyclo_sum", sum); err != nil {
+		return fmt.Errorf("write cyclo_sum: %w", err)
+	}
+	if err := s.WriteGraphMetrics("imports", "cyclo_p95", p95); err != nil {
+		return fmt.Errorf("write cyclo_p95: %w", err)
+	}
+	if err := s.WriteGraphMetrics("imports", "cyclo_max", maxv); err != nil {
+		return fmt.Errorf("write cyclo_max: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: cyclo rollups computed for %d packages in %dms\n",
+		len(rollups), time.Since(t0).Milliseconds())
 	return nil
 }
 
