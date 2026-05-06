@@ -17,18 +17,22 @@ chains of a Read/Mutate entry are transitive callers of that
 production function — not separate Read entries.
 
 Examples:
-  snipe lifecycle Nug                       # Full lifecycle for type Nug
-  snipe lifecycle f2efb7b35d08313b          # By hex ID (resolves ambiguity)
-  snipe lifecycle Store --format json       # Machine-readable output
-  snipe lifecycle Nug --include-tests       # Include test file refs in groups
+  snipe lifecycle Nug                            # Full lifecycle for type Nug
+  snipe lifecycle f2efb7b35d08313b               # By hex ID (resolves ambiguity)
+  snipe lifecycle Store --pkg internal/store     # Scope by package path
+  snipe lifecycle --at internal/store/store.go:18:6   # Scope by position
+  snipe lifecycle Store --format json            # Machine-readable output
+  snipe lifecycle Nug --include-tests            # Include test file refs in groups
 
 Usage:
   snipe lifecycle <Type> [flags]
 
 Flags:
+      --at string       Resolve the type at file:line:col instead of by name
       --depth int       Caller-chain walk depth per classified function (0 = disabled) (default 3)
   -h, --help            help for lifecycle
       --include-tests   Include _test.go and generated files in CRUD groups (default: bucketed separately)
+      --pkg string      Restrict type lookup to this package path (substring match)
 
 Global Flags:
       --context int        Context lines around match (default 2)

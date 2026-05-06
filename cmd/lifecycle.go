@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"os"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 
 var lifecycleIncludeTests bool
 var lifecycleCallerDepth int
+var lifecyclePkg string
+var lifecycleAt string
 
 var lifecycleCmd = &cobra.Command{
 	Use:     "lifecycle <Type>",
@@ -40,11 +43,13 @@ chains of a Read/Mutate entry are transitive callers of that
 production function — not separate Read entries.
 
 Examples:
-  snipe lifecycle Nug                       # Full lifecycle for type Nug
-  snipe lifecycle f2efb7b35d08313b          # By hex ID (resolves ambiguity)
-  snipe lifecycle Store --format json       # Machine-readable output
-  snipe lifecycle Nug --include-tests       # Include test file refs in groups`,
-	Args: cobra.ExactArgs(1),
+  snipe lifecycle Nug                            # Full lifecycle for type Nug
+  snipe lifecycle f2efb7b35d08313b               # By hex ID (resolves ambiguity)
+  snipe lifecycle Store --pkg internal/store     # Scope by package path
+  snipe lifecycle --at internal/store/store.go:18:6   # Scope by position
+  snipe lifecycle Store --format json            # Machine-readable output
+  snipe lifecycle Nug --include-tests            # Include test file refs in groups`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runLifecycle,
 }
 
@@ -53,6 +58,10 @@ func init() {
 		"Include _test.go and generated files in CRUD groups (default: bucketed separately)")
 	lifecycleCmd.Flags().IntVar(&lifecycleCallerDepth, "depth", 3,
 		"Caller-chain walk depth per classified function (0 = disabled)")
+	lifecycleCmd.Flags().StringVar(&lifecyclePkg, "pkg", "",
+		"Restrict type lookup to this package path (substring match)")
+	lifecycleCmd.Flags().StringVar(&lifecycleAt, "at", "",
+		"Resolve the type at file:line:col instead of by name")
 	rootCmd.AddCommand(lifecycleCmd)
 }
 
@@ -63,7 +72,17 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 
 	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
 
-	typeName := args[0]
+	if len(args) == 0 && lifecycleAt == "" {
+		return w.WriteError("lifecycle", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "provide a type name, hex ID, or --at position",
+		})
+	}
+
+	var typeName string
+	if len(args) == 1 {
+		typeName = args[0]
+	}
 
 	s, dir, err := OpenStore(w, "lifecycle")
 	if err != nil {
@@ -74,8 +93,39 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 	var sym query.SymbolRow
 	resolved := false
 
+	// --at position: resolve to a symbol id, then load it.
+	if lifecycleAt != "" {
+		pos, perr := query.ParsePosition(lifecycleAt)
+		if perr != nil {
+			return w.WriteError("lifecycle", &output.Error{
+				Code:    output.ErrInternal,
+				Message: perr.Error(),
+			})
+		}
+		if !filepath.IsAbs(pos.File) {
+			pos.File = filepath.Join(dir, pos.File)
+		}
+		id, rerr := query.ResolvePosition(s.DB(), pos)
+		if rerr != nil {
+			return w.WriteError("lifecycle", &output.Error{
+				Code:    output.ErrNotFound,
+				Message: "no symbol found at " + lifecycleAt,
+			})
+		}
+		row, lookupErr := query.LookupByID(s.DB(), id)
+		if lookupErr != nil || row == nil {
+			return w.WriteError("lifecycle", &output.Error{
+				Code:    output.ErrNotFound,
+				Message: "symbol id " + id + " not found",
+			})
+		}
+		sym = *row
+		typeName = row.Name
+		resolved = true
+	}
+
 	// Auto-detect 16-char hex ID (chainable from prior disambiguation output).
-	if len(typeName) == 16 {
+	if !resolved && len(typeName) == 16 {
 		if _, hexErr := hex.DecodeString(typeName); hexErr == nil {
 			row, lookupErr := query.LookupByID(s.DB(), typeName)
 			if lookupErr != nil {
@@ -93,7 +143,13 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 	}
 
 	if !resolved {
-		symbols, err := query.LookupByName(s.DB(), typeName)
+		var symbols []query.SymbolRow
+		var err error
+		if lifecyclePkg != "" {
+			symbols, err = query.LookupByNameInPkg(s.DB(), typeName, lifecyclePkg)
+		} else {
+			symbols, err = query.LookupByName(s.DB(), typeName)
+		}
 		if err != nil {
 			return w.WriteError("lifecycle", &output.Error{
 				Code:    output.ErrInternal,
