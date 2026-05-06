@@ -170,6 +170,7 @@ var roleOrder = []lifecycle.Role{
 	lifecycle.RoleMutate,
 	lifecycle.RoleRead,
 	lifecycle.RoleDelete,
+	lifecycle.RoleTypeUse,
 	lifecycle.RoleUnknown,
 }
 

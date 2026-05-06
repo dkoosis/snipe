@@ -93,6 +93,11 @@
         {
           "count": 0,
           "funcs": null,
+          "role": "Type uses"
+        },
+        {
+          "count": 0,
+          "funcs": null,
           "role": "Unknown"
         }
       ],

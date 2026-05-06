@@ -17,10 +17,15 @@ import (
 type Role string
 
 const (
-	RoleCreate  Role = "Create"
-	RoleMutate  Role = "Mutate"
-	RoleRead    Role = "Read"
-	RoleDelete  Role = "Delete"
+	RoleCreate Role = "Create"
+	RoleMutate Role = "Mutate"
+	RoleRead   Role = "Read"
+	RoleDelete Role = "Delete"
+	// RoleTypeUse holds file-scope references — var declarations, struct field
+	// types, interface-assertion lines (`var _ Store = (*X)(nil)`). These
+	// aren't unclassified CRUD ops; they're type-reference sites. Separated
+	// from Unknown so a non-zero Unknown still flags a real classification gap.
+	RoleTypeUse Role = "Type uses"
 	RoleUnknown Role = "Unknown"
 )
 
@@ -232,8 +237,8 @@ func classifyFileScope(p *patterns, r Ref) Classification {
 		c.Signal = "[R6 file-scope] " + sig
 		return c
 	}
-	c.Role = RoleUnknown
-	c.Signal = "[R8 no-enclosing] file-scope reference"
+	c.Role = RoleTypeUse
+	c.Signal = "[R8 type-use] file-scope reference"
 	return c
 }
 

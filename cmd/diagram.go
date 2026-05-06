@@ -746,7 +746,7 @@ func edgeFromType(b *diagram.Builder, role lifecycle.Role, typeNode, fnNode stri
 		b.AddEdge(fnNode, typeNode, "mutate", nil)
 	case lifecycle.RoleDelete:
 		b.AddEdge(fnNode, typeNode, "delete", nil)
-	case lifecycle.RoleUnknown:
+	case lifecycle.RoleUnknown, lifecycle.RoleTypeUse:
 		b.AddDashedEdge(fnNode, typeNode, string(role))
 	default:
 		b.AddDashedEdge(fnNode, typeNode, string(role))

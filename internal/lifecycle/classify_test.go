@@ -236,8 +236,8 @@ func TestClassify_Rules(t *testing.T) {
 				Line:        10,
 				Snippet:     "type Nug struct {",
 			}},
-			wantRole: RoleUnknown,
-			wantRule: "[R8 no-enclosing]",
+			wantRole: RoleTypeUse,
+			wantRule: "[R8 type-use]",
 		},
 
 		// Regression: function signature line must not trigger R2 Create.
