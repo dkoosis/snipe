@@ -1135,7 +1135,9 @@ func computeImportDegreeAndEigenvector(s *store.Store) error {
 // clusters in a more digestible form.
 func computeCallsGraphMetrics(s *store.Store) error {
 	t0 := time.Now()
-	g, err := graphmetrics.LoadCallsGraph(s)
+	// Exclude _test.go-rooted edges so test helpers (testutil.NewStore,
+	// setupTestEnv) don't dominate centrality metrics. snipe-7fk.
+	g, err := graphmetrics.LoadCallsGraphOpts(s, false)
 	if err != nil {
 		return fmt.Errorf("load calls graph: %w", err)
 	}

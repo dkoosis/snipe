@@ -134,13 +134,28 @@ func LoadImportsGraphOpts(s *store.Store, includeTests bool) (*Graph, error) {
 // LoadCallsGraph builds a directed graph from snipe's call_graph table.
 // Nodes are symbol hex IDs; edges are caller -> callee.
 // All callers/callees are in-repo by construction (call_graph only stores resolved edges),
-// so no module-path filtering is needed.
+// so no module-path filtering is needed. Includes edges originating in _test.go files.
 func LoadCallsGraph(s *store.Store) (*Graph, error) {
-	rows, err := s.DB().Query(`
+	return LoadCallsGraphOpts(s, true)
+}
+
+// LoadCallsGraphOpts is like LoadCallsGraph but lets the caller exclude edges
+// where either endpoint's symbol lives in a _test.go file. This keeps test
+// helpers (e.g. testutil.NewStore, setupTestEnv) from dominating call-graph
+// centrality metrics like PageRank.
+func LoadCallsGraphOpts(s *store.Store, includeTests bool) (*Graph, error) {
+	q := `
 		SELECT DISTINCT caller_id, callee_id
 		FROM call_graph
 		WHERE caller_id IS NOT NULL AND callee_id IS NOT NULL
-	`)
+	`
+	if !includeTests {
+		q += `
+			AND caller_id IN (SELECT id FROM symbols WHERE file_path NOT LIKE '%\_test.go' ESCAPE '\')
+			AND callee_id IN (SELECT id FROM symbols WHERE file_path NOT LIKE '%\_test.go' ESCAPE '\')
+		`
+	}
+	rows, err := s.DB().Query(q)
 	if err != nil {
 		return nil, fmt.Errorf("query call_graph: %w", err)
 	}
