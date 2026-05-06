@@ -586,7 +586,10 @@ func (w *Writer) writeClaudeLifecycle(b *strings.Builder, results []LifecycleRes
 		}
 
 		for _, g := range r.Groups {
-			if g.Count == 0 {
+			// Standard CRUD buckets render even when empty so missing
+			// classification is visible (snipe-0sb). Tests bucket is only
+			// added by buildLifecycleResult when non-empty.
+			if g.Count == 0 && !isStandardCRUDRole(g.Role) {
 				continue
 			}
 			fmt.Fprintf(b, "\n## %s (%d)\n", g.Role, g.Count)
@@ -608,11 +611,24 @@ func (w *Writer) writeClaudeLifecycle(b *strings.Builder, results []LifecycleRes
 	w.writeClaudeMeta(b, meta)
 }
 
+// isStandardCRUDRole reports whether a group role is one of the canonical
+// CRUD buckets that should render even when empty (snipe-0sb).
+func isStandardCRUDRole(role string) bool {
+	switch role {
+	case "Create", "Mutate", "Read", "Delete", "Unknown":
+		return true
+	}
+	return false
+}
+
 // writeLifecycleSummary renders a per-group one-line view: counts plus the
 // function names only, no callers, no signal. Target: <50 lines for any type.
 func writeLifecycleSummary(b *strings.Builder, r LifecycleResult) {
 	for _, g := range r.Groups {
 		if g.Count == 0 {
+			if isStandardCRUDRole(g.Role) {
+				fmt.Fprintf(b, "\n## %s (0)\n", g.Role)
+			}
 			continue
 		}
 		fmt.Fprintf(b, "\n## %s (%d)\n", g.Role, g.Count)

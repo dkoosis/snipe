@@ -90,8 +90,8 @@ func TestWriteClaudeLifecycle_CallersRendered(t *testing.T) {
 	if !strings.Contains(out, "## Create (1)") {
 		t.Error("missing Create group")
 	}
-	if strings.Contains(out, "## Read") {
-		t.Error("empty Read group should be suppressed")
+	if !strings.Contains(out, "## Read (0)") {
+		t.Error("standard CRUD bucket should render even when empty (snipe-0sb)")
 	}
 	if !strings.Contains(out, "signal: rule:struct-literal") {
 		t.Error("missing signal")
