@@ -32,6 +32,13 @@ are debuggable at a glance.
 Accepts a type name or 16-char hex symbol ID (chainable from prior
 disambiguation output).
 
+Bucket partition: each enclosing function appears in exactly one bucket.
+Functions in _test.go / _gen.go files go to the 'Tests' bucket (counted
+in (+ N in tests)); all others classify into Create/Mutate/Read/Delete
+or Unknown by the rule engine. Test/Benchmark names appearing in caller
+chains of a Read/Mutate entry are transitive callers of that
+production function — not separate Read entries.
+
 Examples:
   snipe lifecycle Nug                       # Full lifecycle for type Nug
   snipe lifecycle f2efb7b35d08313b          # By hex ID (resolves ambiguity)
