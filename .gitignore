@@ -40,3 +40,7 @@ docs/eval/EVAL_RESULTS.json
 .dolt/
 *.db
 .beads-credential-key
+
+# Local tool output
+.claude/tmp/
+.fo/
