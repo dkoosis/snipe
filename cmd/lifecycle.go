@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"os"
 	"sort"
 	"time"
@@ -28,8 +29,12 @@ new(), make(), store.Delete) outranks name-based heuristics (NewX, DeleteX).
 Each function carries a Signal showing the matching rule, so misclassifications
 are debuggable at a glance.
 
+Accepts a type name or 16-char hex symbol ID (chainable from prior
+disambiguation output).
+
 Examples:
   snipe lifecycle Nug                       # Full lifecycle for type Nug
+  snipe lifecycle f2efb7b35d08313b          # By hex ID (resolves ambiguity)
   snipe lifecycle Store --format json       # Machine-readable output
   snipe lifecycle Nug --include-tests       # Include test file refs in groups`,
 	Args: cobra.ExactArgs(1),
@@ -59,26 +64,47 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 	}
 	defer s.Close()
 
-	// Resolve type symbol.
-	symbols, err := query.LookupByName(s.DB(), typeName)
-	if err != nil {
-		return w.WriteError("lifecycle", &output.Error{
-			Code:    output.ErrInternal,
-			Message: err.Error(),
-		})
-	}
-	if len(symbols) == 0 {
-		return w.WriteError("lifecycle", output.NewNotFoundError(typeName))
-	}
-	if len(symbols) > 1 {
-		candidates := make([]output.Candidate, len(symbols))
-		for i, sym := range symbols {
-			candidates[i] = sym.ToCandidate()
+	var sym query.SymbolRow
+	resolved := false
+
+	// Auto-detect 16-char hex ID (chainable from prior disambiguation output).
+	if len(typeName) == 16 {
+		if _, hexErr := hex.DecodeString(typeName); hexErr == nil {
+			row, lookupErr := query.LookupByID(s.DB(), typeName)
+			if lookupErr != nil {
+				return w.WriteError("lifecycle", &output.Error{
+					Code:    output.ErrInternal,
+					Message: lookupErr.Error(),
+				})
+			}
+			if row != nil {
+				sym = *row
+				typeName = row.Name
+				resolved = true
+			}
 		}
-		return w.WriteError("lifecycle", output.NewAmbiguousError(typeName, candidates))
 	}
 
-	sym := symbols[0]
+	if !resolved {
+		symbols, err := query.LookupByName(s.DB(), typeName)
+		if err != nil {
+			return w.WriteError("lifecycle", &output.Error{
+				Code:    output.ErrInternal,
+				Message: err.Error(),
+			})
+		}
+		if len(symbols) == 0 {
+			return w.WriteError("lifecycle", output.NewNotFoundError(typeName))
+		}
+		if len(symbols) > 1 {
+			candidates := make([]output.Candidate, len(symbols))
+			for i, s := range symbols {
+				candidates[i] = s.ToCandidate()
+			}
+			return w.WriteError("lifecycle", output.NewAmbiguousError(typeName, candidates))
+		}
+		sym = symbols[0]
+	}
 
 	// Fetch all refs. Use a large limit; lifecycle is a holistic view.
 	refRows, err := query.FindRefs(s.DB(), sym.ID, 10000, 0)

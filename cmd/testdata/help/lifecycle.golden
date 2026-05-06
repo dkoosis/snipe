@@ -6,8 +6,12 @@ new(), make(), store.Delete) outranks name-based heuristics (NewX, DeleteX).
 Each function carries a Signal showing the matching rule, so misclassifications
 are debuggable at a glance.
 
+Accepts a type name or 16-char hex symbol ID (chainable from prior
+disambiguation output).
+
 Examples:
   snipe lifecycle Nug                       # Full lifecycle for type Nug
+  snipe lifecycle f2efb7b35d08313b          # By hex ID (resolves ambiguity)
   snipe lifecycle Store --format json       # Machine-readable output
   snipe lifecycle Nug --include-tests       # Include test file refs in groups
 
