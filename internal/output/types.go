@@ -588,6 +588,9 @@ type LifecycleResult struct {
 	FunctionRefs int              `json:"function_refs"`
 	TestRefs     int              `json:"test_refs"`
 	Groups       []LifecycleGroup `json:"groups"`
+	// Summary requests a compact one-line-per-group rendering in the Claude
+	// writer (snipe-29j follow-up snipe-13u). JSON output is unaffected.
+	Summary bool `json:"-"`
 }
 
 // LifecycleGroup is one CRUD bucket: Create, Mutate, Read, Delete, Unknown, Tests.

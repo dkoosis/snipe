@@ -1,6 +1,7 @@
 package output
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -101,6 +102,51 @@ func TestWriteClaudeLifecycle_CallersRendered(t *testing.T) {
 	// ID should not appear in terse mode (dropped for D4)
 	if strings.Contains(out, "[") && strings.Contains(out, "]") && strings.Contains(out, "hex") {
 		t.Error("hex ID leaked into Claude text output")
+	}
+}
+
+func TestWriteClaudeLifecycle_SummaryFormat(t *testing.T) {
+	w := NewWriter(&strings.Builder{}, false, OutputClaude)
+	var b strings.Builder
+	funcs := make([]LifecycleFunction, 0, 15)
+	for i := 0; i < 15; i++ {
+		funcs = append(funcs, LifecycleFunction{
+			Name:   fmt.Sprintf("fn%d", i),
+			File:   "x.go",
+			Line:   i,
+			Signal: "should-not-render",
+			Callers: []LifecycleCallerNode{
+				{Name: "shouldNotRender", Depth: 1},
+			},
+		})
+	}
+	results := []LifecycleResult{
+		{
+			Type:         "Big",
+			TypeFile:     "x.go",
+			TotalRefs:    15,
+			FunctionRefs: 15,
+			Summary:      true,
+			Groups: []LifecycleGroup{
+				{Role: "Read", Count: 15, Funcs: funcs},
+			},
+		},
+	}
+	w.writeClaudeLifecycle(&b, results, Meta{})
+	out := b.String()
+
+	if strings.Contains(out, "should-not-render") || strings.Contains(out, "shouldNotRender") {
+		t.Error("summary leaked signal/callers")
+	}
+	if !strings.Contains(out, "## Read (15)") {
+		t.Error("summary missing group header")
+	}
+	if !strings.Contains(out, "+3 more") {
+		t.Errorf("summary missing inline cap suffix, got:\n%s", out)
+	}
+	// Should be tight: well under 50 lines.
+	if got := strings.Count(out, "\n"); got > 10 {
+		t.Errorf("summary too verbose: %d lines\n%s", got, out)
 	}
 }
 

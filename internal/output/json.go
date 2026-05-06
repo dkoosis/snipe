@@ -580,6 +580,11 @@ func (w *Writer) writeClaudeLifecycle(b *strings.Builder, results []LifecycleRes
 		}
 		b.WriteString("\n")
 
+		if r.Summary {
+			writeLifecycleSummary(b, r)
+			continue
+		}
+
 		for _, g := range r.Groups {
 			if g.Count == 0 {
 				continue
@@ -601,6 +606,32 @@ func (w *Writer) writeClaudeLifecycle(b *strings.Builder, results []LifecycleRes
 		}
 	}
 	w.writeClaudeMeta(b, meta)
+}
+
+// writeLifecycleSummary renders a per-group one-line view: counts plus the
+// function names only, no callers, no signal. Target: <50 lines for any type.
+func writeLifecycleSummary(b *strings.Builder, r LifecycleResult) {
+	for _, g := range r.Groups {
+		if g.Count == 0 {
+			continue
+		}
+		fmt.Fprintf(b, "\n## %s (%d)\n", g.Role, g.Count)
+		const inlineCap = 12
+		names := make([]string, 0, len(g.Funcs))
+		for _, f := range g.Funcs {
+			names = append(names, f.Name)
+		}
+		more := 0
+		if len(names) > inlineCap {
+			more = len(names) - inlineCap
+			names = names[:inlineCap]
+		}
+		fmt.Fprintf(b, "%s", strings.Join(names, ", "))
+		if more > 0 {
+			fmt.Fprintf(b, ", +%d more", more)
+		}
+		b.WriteString("\n")
+	}
 }
 
 // lifecycleCallerCap caps non-test caller names rendered inline.

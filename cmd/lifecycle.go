@@ -124,7 +124,14 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 	refs := lifecycle.FromRefRows(refRows)
 	classifications := lifecycle.Classify(typeName, refs)
 
-	result := buildLifecycleResult(s.DB(), sym, refRows, classifications, lifecycleIncludeTests, lifecycleCallerDepth)
+	summary := GetResponseFormat() == FormatSummary
+	callerDepth := lifecycleCallerDepth
+	if summary {
+		callerDepth = 0 // skip caller-chain walk; summary suppresses them anyway
+	}
+
+	result := buildLifecycleResult(s.DB(), sym, refRows, classifications, lifecycleIncludeTests, callerDepth)
+	result.Summary = summary
 
 	tokenTruncated := false
 	if maxTok := GetMaxTokens(); maxTok > 0 {
