@@ -21,6 +21,18 @@ func TestLifecycleCallerChain(t *testing.T) {
 			{Name: "zzz", Depth: 1},
 			{Name: "aaa", Depth: 1},
 		}, "aaa ← zzz"},
+		{"tests folded into count", []LifecycleCallerNode{
+			{Name: "TestA", Depth: 1},
+			{Name: "TestB", Depth: 1},
+			{Name: "BenchmarkC", Depth: 1},
+			{Name: "realCaller", Depth: 1},
+		}, "realCaller ← +3 tests"},
+		{"non-test cap with +N more", []LifecycleCallerNode{
+			{Name: "a", Depth: 1}, {Name: "b", Depth: 1}, {Name: "c", Depth: 1},
+			{Name: "d", Depth: 1}, {Name: "e", Depth: 1}, {Name: "f", Depth: 1},
+			{Name: "g", Depth: 1}, {Name: "h", Depth: 1}, {Name: "i", Depth: 1},
+			{Name: "j", Depth: 1},
+		}, "a ← b ← c ← d ← e ← f ← g ← h ← +2 more"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

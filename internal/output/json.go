@@ -603,13 +603,19 @@ func (w *Writer) writeClaudeLifecycle(b *strings.Builder, results []LifecycleRes
 	w.writeClaudeMeta(b, meta)
 }
 
+// lifecycleCallerCap caps non-test caller names rendered inline.
+// Test* / Benchmark* callers are folded into a count suffix so a hot symbol
+// reachable from 80 tests does not blow the line / token budget (snipe-29j).
+const lifecycleCallerCap = 8
+
 // lifecycleCallerChain formats a BFS caller list as "fn ← caller1 ← caller2 ← ...".
 // Depth-1 callers are listed in order; deeper hops follow sorted by depth then name.
+// Test/Benchmark callers are collapsed into a "+Nt tests" suffix; remaining
+// non-test callers are capped at lifecycleCallerCap with "+M more".
 func lifecycleCallerChain(callers []LifecycleCallerNode) string {
 	if len(callers) == 0 {
 		return ""
 	}
-	// Sort by depth ascending, then name for stable output.
 	sorted := make([]LifecycleCallerNode, len(callers))
 	copy(sorted, callers)
 	for i := 1; i < len(sorted); i++ {
@@ -618,11 +624,40 @@ func lifecycleCallerChain(callers []LifecycleCallerNode) string {
 			sorted[j], sorted[j-1] = sorted[j-1], sorted[j]
 		}
 	}
-	names := make([]string, len(sorted))
-	for i, c := range sorted {
-		names[i] = c.Name
+
+	var nonTest []string
+	tests := 0
+	for _, c := range sorted {
+		if isTestCaller(c.Name) {
+			tests++
+			continue
+		}
+		nonTest = append(nonTest, c.Name)
 	}
-	return strings.Join(names, " ← ")
+
+	more := 0
+	if len(nonTest) > lifecycleCallerCap {
+		more = len(nonTest) - lifecycleCallerCap
+		nonTest = nonTest[:lifecycleCallerCap]
+	}
+
+	parts := nonTest
+	if more > 0 {
+		parts = append(parts, fmt.Sprintf("+%d more", more))
+	}
+	if tests > 0 {
+		parts = append(parts, fmt.Sprintf("+%d tests", tests))
+	}
+	return strings.Join(parts, " ← ")
+}
+
+// isTestCaller reports whether a Go function name is a test or benchmark entry.
+// Matches the testing package convention: Test*, Benchmark*, Fuzz*, Example*.
+func isTestCaller(name string) bool {
+	return strings.HasPrefix(name, "Test") ||
+		strings.HasPrefix(name, "Benchmark") ||
+		strings.HasPrefix(name, "Fuzz") ||
+		strings.HasPrefix(name, "Example")
 }
 
 // TruncateLifecycleToTokenBudget shrinks r to fit within maxTokens by dropping
