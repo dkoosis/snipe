@@ -117,6 +117,50 @@ func BatchLookupByID(db *sql.DB, ids []string) (map[string]*SymbolRow, error) {
 	return result, nil
 }
 
+// LookupByNameSubstring returns symbols whose name contains pattern (case-insensitive).
+// Restricted to func/method/type/struct/interface so we don't surface every var/const
+// containing the substring. Used by search to augment lexical results when the query
+// is conceptual and the right symbol's name doesn't match exactly (e.g. "Args" → ExactArgs).
+func LookupByNameSubstring(db *sql.DB, pattern string, limit int) ([]SymbolRow, error) {
+	if pattern == "" || limit <= 0 {
+		return nil, nil
+	}
+	like := "%" + strings.ToLower(pattern) + "%"
+	rows, err := db.Query(`
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE LOWER(s.name) LIKE ?
+		  AND s.kind IN ('func','method','type','struct','interface')
+		ORDER BY LENGTH(s.name) ASC, s.kind, s.file_path, s.line_start
+		LIMIT ?
+	`, like, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query symbols by name substring: %w", err)
+	}
+	defer rows.Close()
+	return scanSymbolRows(rows)
+}
+
+// StemQuery returns a stemmed version of an identifier-like query, or "" if no
+// stem applies. Drops common English suffixes so "matcher" → "match",
+// "staleness" → "stale", "validation" → "valid". Returns "" when the stem
+// would be too short (<4) or identical to the input.
+func StemQuery(q string) string {
+	lower := strings.ToLower(q)
+	suffixes := []string{"ization", "ization", "ation", "ness", "tion", "sion", "ing", "ers", "ies", "er", "ed", "es", "s"}
+	for _, suf := range suffixes {
+		if len(lower) > len(suf)+3 && strings.HasSuffix(lower, suf) {
+			stem := lower[:len(lower)-len(suf)]
+			if stem != lower {
+				return stem
+			}
+		}
+	}
+	return ""
+}
+
 // LookupByName looks up symbols by name
 // Returns candidates if multiple matches
 func LookupByName(db *sql.DB, name string) ([]SymbolRow, error) {
@@ -1347,10 +1391,11 @@ func FindSymbolAtPosition(db *sql.DB, filePathRel string, line int) *SymbolRow {
 
 // FindEnclosingSymbol returns the enclosing func/method/type for a hit at filePathRel:line.
 // Differs from FindSymbolAtPosition by:
-//   1. Preferring func/method/type/struct/interface kinds over inner var/const declarations
-//      (rg hits inside a function body resolve to the function, not a local var).
-//   2. Falling back to the symbol whose doc comment starts at or just before `line`
-//      (rg hits in doc comments resolve to the symbol they document).
+//  1. Preferring func/method/type/struct/interface kinds over inner var/const declarations
+//     (rg hits inside a function body resolve to the function, not a local var).
+//  2. Falling back to the symbol whose doc comment starts at or just before `line`
+//     (rg hits in doc comments resolve to the symbol they document).
+//
 // Returns nil if no reasonable enclosing symbol is found.
 func FindEnclosingSymbol(db *sql.DB, filePathRel string, line int) *SymbolRow {
 	// Kinds we treat as "enclosing scopes": funcs/methods/types, never local vars/consts.

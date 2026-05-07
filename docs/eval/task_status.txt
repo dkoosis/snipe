@@ -16,10 +16,10 @@ cobra-refs-01            PASS
 cobra-callers-01         PASS
 cobra-callees-01         PASS
 cobra-pack-01            PASS
-cobra-search-01          PASS  (was: FAIL)
+cobra-search-01          PASS
 cobra-search-02          PASS
 cobra-search-03          PASS
-cobra-cross-01           FAIL
+cobra-cross-01           PASS
 cobra-cross-02           PASS
 bbolt-def-01             PASS
 bbolt-def-02             PASS
@@ -35,7 +35,7 @@ fzf-refs-01              PASS
 fzf-search-01            PASS
 fzf-search-02            PASS
 fzf-search-03            PASS
-fzf-cross-01             FAIL
+fzf-cross-01             PASS
 orca-def-01              PASS
 orca-def-02              PASS
 orca-def-03              PASS
@@ -57,7 +57,7 @@ orca-pkg-03              PASS
 orca-search-01           PASS
 orca-search-02           PASS
 orca-search-03           PASS
-orca-search-04           FAIL
+orca-search-04           PASS
 orca-search-05           PASS
 orca-cross-01            PASS
 orca-cross-02            PASS

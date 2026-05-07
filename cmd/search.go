@@ -189,6 +189,79 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		results = ApplySelection(results)
 	}
 
+	// Augmentation — when rg has hits but the query is conceptual (identifier-like
+	// single word), the right symbol may not match the query exactly. Two paths:
+	//   1. Substring on indexed symbol names (covers "Args" → ExactArgs).
+	//   2. Stemmed substring (covers "matcher" → "match" → FuzzyMatchV2,
+	//      "staleness" → "stale" → findStaleNuggets).
+	//   3. Semantic search when embeddings exist (vague concepts).
+	// Augments are appended at the end so they don't displace top rg hits.
+	if !usedFallback && !indexFallbackFound && len(results) > 0 && searchFile == "" &&
+		s != nil && identifierRe.MatchString(pattern) && !strings.Contains(pattern, ".") {
+		existing := make(map[string]bool, len(results)+8)
+		for i := range results {
+			existing[fmt.Sprintf("%s:%d:%s", results[i].File, results[i].Range.Start.Line, results[i].Name)] = true
+		}
+		appendUnique := func(sym query.SymbolRow) bool {
+			r := sym.ToResult()
+			key := fmt.Sprintf("%s:%d:%s", r.File, r.Range.Start.Line, r.Name)
+			if existing[key] {
+				return false
+			}
+			existing[key] = true
+			results = append(results, r)
+			return true
+		}
+
+		augAdded := 0
+		// Substring on full pattern.
+		if subRows, subErr := query.LookupByNameSubstring(s.DB(), pattern, 15); subErr == nil {
+			for i := range subRows {
+				if appendUnique(subRows[i]) {
+					augAdded++
+				}
+			}
+		}
+		// Stemmed substring — covers "matcher"→"match", "staleness"→"stale".
+		if stem := query.StemQuery(pattern); stem != "" && stem != strings.ToLower(pattern) {
+			if stemRows, stemErr := query.LookupByNameSubstring(s.DB(), stem, 15); stemErr == nil {
+				for i := range stemRows {
+					if appendUnique(stemRows[i]) {
+						augAdded++
+					}
+				}
+			}
+		}
+		if augAdded > 0 {
+			decisionPath = append(decisionPath, fmt.Sprintf("name_augment:%d_added", augAdded))
+			enriched = true
+		}
+
+		// Semantic augment if embeddings present.
+		if embed.HasCredentials() {
+			if client, clientErr := embed.NewClient(); clientErr == nil {
+				simResults, simDur, simErr := embed.Search(cmd.Context(), pattern, s, client, 5, 0.4)
+				if simErr == nil && len(simResults) > 0 {
+					simAdded := 0
+					for i := range simResults {
+						key := fmt.Sprintf("%s:%d:%s", simResults[i].File, simResults[i].Range.Start.Line, simResults[i].Name)
+						if existing[key] {
+							continue
+						}
+						existing[key] = true
+						results = append(results, simResults[i])
+						simAdded++
+					}
+					if simAdded > 0 {
+						decisionPath = append(decisionPath,
+							fmt.Sprintf("sim_augment:%d_added:%dms", simAdded, simDur.Milliseconds()))
+						enriched = true
+					}
+				}
+			}
+		}
+	}
+
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
