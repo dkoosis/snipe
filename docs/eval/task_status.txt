@@ -12,7 +12,7 @@ chi-cross-02             PASS
 cobra-def-01             PASS
 cobra-def-02             PASS
 cobra-def-03             PASS
-cobra-refs-01            FAIL
+cobra-refs-01            PASS  (was: FAIL)
 cobra-callers-01         PASS
 cobra-callees-01         PASS
 cobra-pack-01            PASS
@@ -73,4 +73,4 @@ orca-search-06           PASS
 orca-impl-03             PASS
 orca-cross-06            PASS
 orca-search-07           PASS
-orca-search-08           PASS  (was: FAIL)
+orca-search-08           PASS

@@ -386,6 +386,8 @@ func scanSymbolRows(rows *sql.Rows) ([]SymbolRow, error) {
 
 // FindRefs finds all references to a symbol
 func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) {
+	// Sort def-file refs first so high-fanout types (e.g. cobra.Command with
+	// 800+ refs) don't truncate away the definition file under default limit.
 	rows, err := db.Query(`
 		SELECT r.id, r.symbol_id, r.file_path, r.file_path_rel, r.line, r.col, r.enclosing_id, r.snippet,
 		       s.name, s.kind, s.signature, f.hash
@@ -393,9 +395,12 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 		LEFT JOIN symbols s ON r.enclosing_id = s.id
 		LEFT JOIN files f ON r.file_path = f.path
 		WHERE r.symbol_id = ?
-		ORDER BY r.file_path, r.line
+		ORDER BY
+		  CASE WHEN r.file_path = (SELECT file_path FROM symbols WHERE id = ?) THEN 0 ELSE 1 END,
+		  r.file_path,
+		  r.line
 		LIMIT ? OFFSET ?
-	`, symbolID, limit, offset)
+	`, symbolID, symbolID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query refs: %w", err)
 	}
