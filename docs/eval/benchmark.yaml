@@ -189,13 +189,13 @@ orca:
     task: "Find what the linker pipeline calls during processing"
     commands: ["callees Linker.Process"]
     expected_symbols:
-      - "Store.Save"
-      - "Deduplicator.CheckDuplicate"
+      - "Linker.processClassify"
+      - "Linker.processDedup"
     expected_files:
       - "internal/kg/linker/linker.go"
     max_calls: 1
     difficulty: medium
-    notes: "Linker.Process is the central pipeline function. Callees should reveal the pipeline stages."
+    notes: "Linker.Process is the central pipeline function. Direct callees are the process* pipeline stages (classify, dedup, NER, name, semantic, enrich)."
 
   # --- pack tasks (deep dive — def + refs + callers + callees) ---
 
@@ -428,7 +428,8 @@ orca:
     task: "Find what HandleGoSymbol calls during execution"
     commands: ["callees HandleGoSymbol"]
     expected_symbols:
-      - "HandleGoSymbol"
+      - "findGoSymbolViaSnipe"
+      - "findGoSymbolFallback"
     expected_files:
       - "internal/mcp/server/go_symbol_handler.go"
     max_calls: 1

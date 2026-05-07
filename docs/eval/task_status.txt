@@ -2,7 +2,7 @@ chi-def-01               PASS
 chi-def-02               PASS
 chi-refs-01              PASS
 chi-callers-01           PASS
-chi-callees-01           PASS  (was: FAIL)
+chi-callees-01           PASS
 chi-pack-01              PASS
 chi-impl-01              PASS
 chi-pkg-01               PASS
@@ -14,7 +14,7 @@ cobra-def-02             PASS
 cobra-def-03             PASS
 cobra-refs-01            FAIL
 cobra-callers-01         PASS
-cobra-callees-01         PASS  (was: FAIL)
+cobra-callees-01         PASS
 cobra-pack-01            PASS
 cobra-search-01          FAIL
 cobra-search-02          PASS
@@ -25,7 +25,7 @@ bbolt-def-01             PASS
 bbolt-def-02             PASS
 bbolt-refs-01            PASS
 bbolt-callers-01         FAIL
-bbolt-callees-01         PASS  (was: FAIL)
+bbolt-callees-01         PASS
 bbolt-search-01          SKIP  (known_gap)
 bbolt-search-02          SKIP  (known_gap)
 bbolt-cross-01           SKIP  (known_gap)
@@ -46,7 +46,7 @@ orca-refs-03             PASS
 orca-callers-01          FAIL
 orca-callers-02          PASS
 orca-callers-03          PASS
-orca-callees-01          FAIL
+orca-callees-01          PASS  (was: FAIL)
 orca-pack-01             FAIL
 orca-pack-02             PASS
 orca-impl-01             PASS
@@ -63,7 +63,7 @@ orca-cross-01            FAIL
 orca-cross-02            FAIL
 orca-cross-03            PASS
 orca-def-05              PASS
-orca-callees-02          FAIL
+orca-callees-02          PASS  (was: FAIL)
 orca-cross-04            PASS
 orca-refs-04             PASS
 orca-cross-05            PASS
