@@ -108,6 +108,57 @@ func TestLookupByName_MethodByBareName(t *testing.T) {
 	}
 }
 
+// Regression: T.Method form must resolve when T is unexported (e.g.
+// `node.put`, `freelist.Free` against bbolt-style internal types). The earlier
+// heuristic only attempted method lookup when the receiver name began with an
+// uppercase letter, falling through to package-qualified lookup otherwise.
+func TestLookupByName_UnexportedTypeMethod(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`
+		CREATE TABLE symbols (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			kind TEXT,
+			file_path TEXT,
+			file_path_rel TEXT,
+			pkg_path TEXT,
+			line_start INTEGER,
+			col_start INTEGER,
+			line_end INTEGER,
+			col_end INTEGER,
+			signature TEXT,
+			doc TEXT,
+			receiver TEXT
+		);
+		CREATE TABLE files (path TEXT PRIMARY KEY, hash TEXT);
+		CREATE INDEX idx_symbols_name ON symbols(name);
+		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path, line_start, col_start, line_end, col_end, receiver)
+		VALUES ('1', 'put', 'method', '/repo/node.go', 'node.go', 'go.etcd.io/bbolt', 117, 1, 142, 1, '(*node)');
+	`)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	results, err := LookupByName(db, "node.put")
+	if err != nil {
+		t.Fatalf("lookup: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for node.put, got %d", len(results))
+	}
+	if results[0].Name != "put" {
+		t.Errorf("unexpected name: %s", results[0].Name)
+	}
+	if !results[0].Receiver.Valid || results[0].Receiver.String != "(*node)" {
+		t.Errorf("unexpected receiver: %v", results[0].Receiver)
+	}
+}
+
 func TestLookupByName_ExactMatchTakesPrecedence(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {

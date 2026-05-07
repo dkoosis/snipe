@@ -242,6 +242,7 @@ Epic snipe-ahi: `snipe lifecycle <Type>` traces CRUD usage across the index.
 | Change | Commit | Notes |
 |--------|--------|-------|
 | snipe-3js: replace imported-pkg filter with types.Implements | — | callgraph.go: precompute methodImpls map across all loaded pkgs, filter interface-dispatch candidates by interface satisfaction (handles dependency-inversion: caller→interface, impl in separate pkg). Eval orca-callers-01 PASS. |
+| snipe-lwk: T.Method lookup for unexported types | — | lookup.go: drop uppercase-only constraint on receiver prefix; attempt method lookup for any single-segment prefix (`node.put`, `freelist.Free`). Closed bbolt-search-02. |
 
 ---
 

@@ -174,9 +174,11 @@ func LookupByName(db *sql.DB, name string) ([]SymbolRow, error) {
 		prefix := name[:idx]
 		suffix := name[idx+1:]
 
-		// If prefix looks like a type name (starts with uppercase, no slashes),
-		// try method lookup first
-		if len(prefix) > 0 && prefix[0] >= 'A' && prefix[0] <= 'Z' && !strings.Contains(prefix, "/") {
+		// Single-segment prefix could be a type name (Type.Method) — including
+		// unexported types like `node.put` or `freelist.allocate`. Try method
+		// lookup first, then fall back to package-qualified lookup. Slashed
+		// prefixes (pkg/path.Symbol) skip the method attempt entirely.
+		if len(prefix) > 0 && !strings.Contains(prefix, "/") {
 			results, err := lookupMethod(db, name)
 			if err != nil {
 				return nil, err
