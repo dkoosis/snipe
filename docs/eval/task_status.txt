@@ -43,7 +43,7 @@ orca-def-04              PASS
 orca-refs-01             PASS
 orca-refs-02             PASS
 orca-refs-03             PASS
-orca-callers-01          FAIL
+orca-callers-01          PASS  (was: FAIL)
 orca-callers-02          PASS
 orca-callers-03          PASS
 orca-callees-01          PASS

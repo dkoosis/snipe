@@ -130,27 +130,20 @@ func ExtractRefsFiltered(result *LoadResult, symbols []Symbol, cache *util.FileC
 // When packages are loaded in chunks, obj.Pos() may return declaration start (col 1)
 // instead of identifier position. The fallback index handles this case.
 type SymbolPosIndex struct {
-	exact         map[string]string   // file:line:col -> symbol ID
-	fallback      map[string]string   // file:line -> symbol ID (for col 1 lookups)
-	methodsByName map[string][]string // method name -> [symbol IDs] for interface dispatch
-	idToPkg       map[string]string   // symbol ID -> package path (for import-set filtering)
+	exact    map[string]string // file:line:col -> symbol ID
+	fallback map[string]string // file:line -> symbol ID (for col 1 lookups)
 }
 
 // buildSymbolPosIndex creates a position index with exact and fallback lookups.
 func buildSymbolPosIndex(symbols []Symbol) *SymbolPosIndex {
 	idx := &SymbolPosIndex{
-		exact:         make(map[string]string),
-		fallback:      make(map[string]string),
-		methodsByName: make(map[string][]string),
-		idToPkg:       make(map[string]string),
+		exact:    make(map[string]string),
+		fallback: make(map[string]string),
 	}
 	for _, sym := range symbols {
 		// Exact key using identifier position
 		exactKey := posKey(sym.FilePath, sym.NameLine, sym.NameCol)
 		idx.exact[exactKey] = sym.ID
-
-		// Track symbol ID → package path for import-set filtering
-		idx.idToPkg[sym.ID] = sym.PkgPath
 
 		// Fallback key for declaration start (col 1) - only for funcs/methods
 		// which are the primary callees we care about
@@ -160,11 +153,6 @@ func buildSymbolPosIndex(symbols []Symbol) *SymbolPosIndex {
 			if _, exists := idx.fallback[fallbackKey]; !exists {
 				idx.fallback[fallbackKey] = sym.ID
 			}
-		}
-
-		// Index methods by name for interface dispatch resolution
-		if sym.Kind == KindMethod {
-			idx.methodsByName[sym.Name] = append(idx.methodsByName[sym.Name], sym.ID)
 		}
 	}
 	return idx
@@ -184,23 +172,6 @@ func (idx *SymbolPosIndex) Lookup(file string, line, col int) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// LookupMethodsByNameInPkgs returns method symbol IDs filtered to only those
-// whose package is in the provided import set. Eliminates false-positive
-// cross-package edges from common method names (e.g., Close, String).
-func (idx *SymbolPosIndex) LookupMethodsByNameInPkgs(name string, importedPkgs map[string]bool) []string {
-	all := idx.methodsByName[name]
-	if len(importedPkgs) == 0 {
-		return all
-	}
-	var filtered []string
-	for _, id := range all {
-		if pkg, ok := idx.idToPkg[id]; ok && importedPkgs[pkg] {
-			filtered = append(filtered, id)
-		}
-	}
-	return filtered
 }
 
 func posKey(file string, line, col int) string {

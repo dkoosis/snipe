@@ -237,6 +237,14 @@ Epic snipe-ahi: `snipe lifecycle <Type>` traces CRUD usage across the index.
 
 ---
 
+## Call graph: interface dispatch cross-pkg (2026-05-06)
+
+| Change | Commit | Notes |
+|--------|--------|-------|
+| snipe-3js: replace imported-pkg filter with types.Implements | — | callgraph.go: precompute methodImpls map across all loaded pkgs, filter interface-dispatch candidates by interface satisfaction (handles dependency-inversion: caller→interface, impl in separate pkg). Eval orca-callers-01 PASS. |
+
+---
+
 ## Decisions log
 
 Canonical decision table now in CLAUDE.md (D1-D6). Below is history.

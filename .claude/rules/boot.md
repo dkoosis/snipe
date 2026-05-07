@@ -1,15 +1,8 @@
 # Boot
 updated: 2026-05-06
 
-→ next: 3 remaining snipe-4ip failures + 1 partial. orca-callers-01 (file-miss, cross-pkg call graph), cobra-cross-01 (search 'Args' missing ExactArgs), fzf-cross-01 (search 'matcher' missing FuzzyMatchV2). Partial: orca-search-04 — GetCurationHints now passes; findStaleNuggets still missing because "staleness" doesn't lexically appear near it. Likely needs semantic-fallback-on-existing-results for vague-concept queries.
+→ next: bbolt-search-02 / bbolt-cross-01 — last 3 known eval gaps. Likely indexer side: `freelist.allocate`, `node.put`, `node.spill`, `Tx.Commit` not surfacing. Reproduce against `../bbolt`.
 
 ✓ done
-- orca-search-04 (partial): added FindEnclosingSymbol — preserves func/method enclosing scope, with doc-comment fallback (line+20). search 'curation' → GetCurationHints now resolves with receiver=(*Checker).
-- orca-search-08: stale-spec fix (GoSymbolService refactored in orca)
-- cobra-refs-01: real fix — FindRefs ORDER BY now biases def-file first
-
-‡ score: 92% → 95.9% symbol accuracy after this session. 73 tasks scored, 4 failures + 3 known gaps.
-
-‡ traps
-- Eval uses `../cobra` and `../orca`, not `.eval-repos/`. Reproduce results from those paths.
-- Search enrichment now prefers func/method/type/struct/interface over inner var/const. If a hit lands in a doc comment, falls back to nearest func/method/type whose line_start is within 20 lines after.
+- snipe-3js: callgraph interface-dispatch cross-pkg fix. Replaced caller-imports-impl-pkg heuristic with `types.Implements`. Eval all-PASS, callers 100%, +regression test.
+- snipe-yue: search augmentation w/ name+stem substring lookup. Symbol acc 95.9%→100%.
