@@ -1345,6 +1345,68 @@ func FindSymbolAtPosition(db *sql.DB, filePathRel string, line int) *SymbolRow {
 	return &s
 }
 
+// FindEnclosingSymbol returns the enclosing func/method/type for a hit at filePathRel:line.
+// Differs from FindSymbolAtPosition by:
+//   1. Preferring func/method/type/struct/interface kinds over inner var/const declarations
+//      (rg hits inside a function body resolve to the function, not a local var).
+//   2. Falling back to the symbol whose doc comment starts at or just before `line`
+//      (rg hits in doc comments resolve to the symbol they document).
+// Returns nil if no reasonable enclosing symbol is found.
+func FindEnclosingSymbol(db *sql.DB, filePathRel string, line int) *SymbolRow {
+	// Kinds we treat as "enclosing scopes": funcs/methods/types, never local vars/consts.
+	enclosingKinds := "('func','method','type','struct','interface')"
+
+	scan := func(s *SymbolRow, fileHash, relPath, pkgPath *sql.NullString, row *sql.Row) error {
+		return row.Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, relPath, pkgPath,
+			&s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
+			&s.Signature, &s.Doc, &s.Receiver, fileHash)
+	}
+
+	cols := `s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path,
+	         s.line_start, s.col_start, s.line_end, s.col_end,
+	         s.signature, s.doc, s.receiver, f.hash`
+
+	var s SymbolRow
+	var fileHash, relPath, pkgPath sql.NullString
+
+	// 1. Smallest enclosing func/method/type whose body contains `line`.
+	row := db.QueryRow(`
+		SELECT `+cols+`
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.file_path_rel = ? AND s.line_start <= ? AND s.line_end >= ?
+		      AND s.kind IN `+enclosingKinds+`
+		ORDER BY (s.line_end - s.line_start) ASC
+		LIMIT 1
+	`, filePathRel, line, line)
+	if err := scan(&s, &fileHash, &relPath, &pkgPath, row); err == nil {
+		s.FileHash = fileHash.String
+		s.FilePathRel = relPath.String
+		s.PkgPath = pkgPath.String
+		return &s
+	}
+
+	// 2. Doc-comment fallback: nearest func/method/type whose declaration starts within
+	//    20 lines after `line`. Catches rg hits in doc comments.
+	row = db.QueryRow(`
+		SELECT `+cols+`
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE s.file_path_rel = ? AND s.line_start > ? AND s.line_start <= ?
+		      AND s.kind IN `+enclosingKinds+`
+		ORDER BY s.line_start ASC
+		LIMIT 1
+	`, filePathRel, line, line+20)
+	if err := scan(&s, &fileHash, &relPath, &pkgPath, row); err == nil {
+		s.FileHash = fileHash.String
+		s.FilePathRel = relPath.String
+		s.PkgPath = pkgPath.String
+		return &s
+	}
+
+	return nil
+}
+
 // GetCallersPreview returns a preview of top N callers for a symbol.
 // Used for quick caller context without full call graph traversal.
 func GetCallersPreview(db *sql.DB, symbolID string, limit int) ([]output.CallerPreview, error) {

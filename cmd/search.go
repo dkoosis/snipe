@@ -152,7 +152,17 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	switch {
 	case s != nil && !usedFallback && !indexFallbackFound:
 		for i := range results {
-			if sym := query.FindSymbolAtPosition(s.DB(), results[i].File, results[i].Range.Start.Line); sym != nil {
+			line := results[i].Range.Start.Line
+			// Enclosing func/method/type — also fills doc-comment hits via line+20 fallback.
+			if enc := query.FindEnclosingSymbol(s.DB(), results[i].File, line); enc != nil {
+				results[i].Name = enc.Name
+				results[i].Kind = enc.Kind
+				if enc.Receiver.Valid && enc.Receiver.String != "" {
+					results[i].Receiver = enc.Receiver.String
+				}
+				enriched = true
+			} else if sym := query.FindSymbolAtPosition(s.DB(), results[i].File, line); sym != nil {
+				// Fallback: any symbol (var/const) when no func/method/type contains the hit.
 				results[i].Name = sym.Name
 				results[i].Kind = sym.Kind
 				if sym.Receiver.Valid && sym.Receiver.String != "" {

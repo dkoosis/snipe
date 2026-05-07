@@ -12,11 +12,11 @@ chi-cross-02             PASS
 cobra-def-01             PASS
 cobra-def-02             PASS
 cobra-def-03             PASS
-cobra-refs-01            PASS  (was: FAIL)
+cobra-refs-01            PASS
 cobra-callers-01         PASS
 cobra-callees-01         PASS
 cobra-pack-01            PASS
-cobra-search-01          FAIL
+cobra-search-01          PASS  (was: FAIL)
 cobra-search-02          PASS
 cobra-search-03          PASS
 cobra-cross-01           FAIL
