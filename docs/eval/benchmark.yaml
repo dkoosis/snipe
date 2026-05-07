@@ -564,15 +564,16 @@ orca:
 
   - id: orca-search-08
     category: search
-    task: "Find the GoSymbolService and how it falls back between strategies"
-    commands: ["search 'GoSymbolService'", "search 'textSearch'"]
+    task: "Find the go_symbol handler and how it falls back between strategies"
+    commands: ["search 'findGoSymbolFallback'", "search 'findGoSymbolViaTextSearch'"]
     expected_symbols:
-      - "GoSymbolService"
+      - "findGoSymbolFallback"
+      - "findGoSymbolViaTextSearch"
     expected_files:
-      - "internal/kits/code/service/go_symbol_service.go"
+      - "internal/mcp/server/go_symbol_handler.go"
     max_calls: 2
     difficulty: medium
-    notes: "The service layer has snipe → gopls → ripgrep fallback chain. Can search surface the strategy?"
+    notes: "The handler has snipe → gopls → ripgrep fallback chain. Can search surface the strategy? (Refactored from GoSymbolService into procedural funcs.)"
 
 # ============================================================
 # CHI (small codebase, ~5k LOC, HTTP router)

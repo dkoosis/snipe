@@ -16,7 +16,7 @@ cobra-refs-01            FAIL
 cobra-callers-01         PASS
 cobra-callees-01         PASS
 cobra-pack-01            PASS
-cobra-search-01          FAIL  (was: PASS)
+cobra-search-01          FAIL
 cobra-search-02          PASS
 cobra-search-03          PASS
 cobra-cross-01           FAIL
@@ -60,7 +60,7 @@ orca-search-03           PASS
 orca-search-04           FAIL
 orca-search-05           PASS
 orca-cross-01            PASS
-orca-cross-02            PASS  (was: FAIL)
+orca-cross-02            PASS
 orca-cross-03            PASS
 orca-def-05              PASS
 orca-callees-02          PASS
@@ -73,4 +73,4 @@ orca-search-06           PASS
 orca-impl-03             PASS
 orca-cross-06            PASS
 orca-search-07           PASS
-orca-search-08           FAIL
+orca-search-08           PASS  (was: FAIL)
