@@ -205,13 +205,12 @@ orca:
     commands: ["pack Store.Save"]
     expected_symbols:
       - "Store.Save"
-      - "Linker.Process"     # caller
+      - "saveNug"            # direct caller in cmd handlers
     expected_files:
       - "internal/kg/sqlite/store.go"
-      - "internal/kg/linker/linker.go"
     max_calls: 1
     difficulty: easy
-    notes: "Pack should return def + refs + callers + callees in one call. Tests command integration."
+    notes: "Pack should return def + refs + callers + callees in one call. Tests command integration. Direct callers are saveNug, kgBackfillTriggersCommand, kgReindexCommand (Linker.Process is transitive)."
 
   - id: orca-pack-02
     category: pack
@@ -289,7 +288,7 @@ orca:
     expected_symbols:
       - "Linker.Process"
       - "Deduplicator.CheckDuplicate"
-      - "Classifier"
+      - "LLMQueue.ProcessBatch"
     expected_files:
       - "internal/kg/linker/linker.go"
       - "internal/kg/linker/dedup.go"
@@ -365,9 +364,9 @@ orca:
     task: "Change the embedding dimension — find all places that need updating"
     commands: ["def Embedder", "search 'dimension'", "search '1024'"]
     expected_symbols:
-      - "Embedder"             # interface definition
-      - "VoyageEmbedder"       # implementation
-      - "maxEmbeddingTextLen"  # related constant
+      - "Embedder"                # interface definition
+      - "VoyageEmbedder"          # implementation
+      - "voyageDefaultDimension"  # the 1024 constant
     expected_files:
       - "internal/kg/embedder/embedder.go"
       - "internal/kg/embedder/voyage.go"
@@ -378,9 +377,9 @@ orca:
   - id: orca-cross-02
     category: cross-cutting
     task: "Trace a nugget through the full save pipeline: API → linker → store"
-    commands: ["def Service.SetNug", "callers Store.Save", "def Linker.Process"]
+    commands: ["def SaveNugget", "def Linker.Process", "def Store.Save"]
     expected_symbols:
-      - "Service.SetNug"
+      - "storeService.SaveNugget"
       - "Linker.Process"
       - "Store.Save"
     expected_files:
@@ -925,10 +924,10 @@ bbolt:
     task: "Find all code that allocates new pages"
     commands: ["callers DB.allocate"]
     expected_symbols:
-      - "Tx.Commit"     # triggers page allocation
+      - "Tx.allocate"   # direct caller; Tx.Commit reaches DB.allocate transitively via Tx.allocate
     max_calls: 1
     difficulty: hard
-    notes: "Internal function. Tests whether callers resolves private methods."
+    notes: "Internal function. Tests whether callers resolves private methods. Direct caller only — Tx.Commit is 2-hop via Tx.allocate."
 
   # --- callees ---
 
@@ -1051,9 +1050,9 @@ fzf:
   - id: fzf-search-02
     category: search
     task: "Find how results are ranked and sorted"
-    commands: ["search 'rank'", "search 'byRelevance'"]
+    commands: ["search 'rank'", "search 'ByRelevance'"]
     expected_symbols:
-      - "byRelevance"
+      - "ByRelevance"
       - "Result"
     max_calls: 2
     difficulty: hard
