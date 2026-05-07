@@ -2,7 +2,7 @@ chi-def-01               PASS
 chi-def-02               PASS
 chi-refs-01              PASS
 chi-callers-01           PASS
-chi-callees-01           FAIL
+chi-callees-01           PASS  (was: FAIL)
 chi-pack-01              PASS
 chi-impl-01              PASS
 chi-pkg-01               PASS
@@ -14,7 +14,7 @@ cobra-def-02             PASS
 cobra-def-03             PASS
 cobra-refs-01            FAIL
 cobra-callers-01         PASS
-cobra-callees-01         FAIL
+cobra-callees-01         PASS  (was: FAIL)
 cobra-pack-01            PASS
 cobra-search-01          FAIL
 cobra-search-02          PASS
@@ -25,7 +25,7 @@ bbolt-def-01             PASS
 bbolt-def-02             PASS
 bbolt-refs-01            PASS
 bbolt-callers-01         FAIL
-bbolt-callees-01         FAIL
+bbolt-callees-01         PASS  (was: FAIL)
 bbolt-search-01          SKIP  (known_gap)
 bbolt-search-02          SKIP  (known_gap)
 bbolt-cross-01           SKIP  (known_gap)

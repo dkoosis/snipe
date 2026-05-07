@@ -630,7 +630,7 @@ chi:
     task: "Find what routeHTTP calls during request dispatch"
     commands: ["callees Mux.routeHTTP"]
     expected_symbols:
-      - "Mux.routeHTTP"
+      - "node.FindRoute"
     expected_files:
       - "mux.go"
     max_calls: 1
@@ -790,7 +790,8 @@ cobra:
     task: "Find what happens inside Command.execute"
     commands: ["callees Command.execute"]
     expected_symbols:
-      - "Command.execute"
+      - "Command.ParseFlags"
+      - "Command.ValidateArgs"
     expected_files:
       - "command.go"
     max_calls: 1
@@ -935,7 +936,8 @@ bbolt:
     task: "Find what Tx.Commit calls during commit"
     commands: ["callees Tx.Commit"]
     expected_symbols:
-      - "Tx.Commit"
+      - "Tx.commitFreelist"
+      - "Tx.write"
     expected_files:
       - "tx.go"
     max_calls: 1
