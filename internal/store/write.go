@@ -548,22 +548,22 @@ func (s *Store) WriteIndexIncremental(
 		return nil, fmt.Errorf("sweep orphaned refs: %w", err)
 	}
 
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
-
-	// Count orphaned refs (outside transaction)
+	// Count orphans + write meta inside the same tx so a crash can't leave
+	// counters trailing the on-disk schema, and concurrent readers can't see
+	// orphaned_refs and incremental_count from different generations.
 	var orphanCount int
-	if err := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`).Scan(&orphanCount); err != nil {
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`).Scan(&orphanCount); err != nil {
 		return nil, fmt.Errorf("count orphaned refs: %w", err)
 	}
-
-	// Store incremental metadata
-	if _, err := conn.ExecContext(context.Background(), `INSERT OR REPLACE INTO meta (key, value) VALUES ('orphaned_refs', ?)`, fmt.Sprintf("%d", orphanCount)); err != nil {
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('orphaned_refs', ?)`, fmt.Sprintf("%d", orphanCount)); err != nil {
 		return nil, fmt.Errorf("set orphaned_refs: %w", err)
 	}
-	if _, err := conn.ExecContext(context.Background(), `INSERT OR REPLACE INTO meta (key, value) VALUES ('incremental_count', ?)`, fmt.Sprintf("%d", incCount)); err != nil {
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('incremental_count', ?)`, fmt.Sprintf("%d", incCount)); err != nil {
 		return nil, fmt.Errorf("set incremental_count: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return &IncrementalResult{

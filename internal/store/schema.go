@@ -292,9 +292,17 @@ func (s *Store) initSchema() error {
 		}
 	}
 
-	// Set schema version in meta table
-	if _, err := s.db.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)`, schemaVersion); err != nil {
-		return fmt.Errorf("set schema version: %w", err)
+	// schema_version is advertised inside each migration's tx (see runMigration)
+	// so meta is always atomically consistent with the migrations table.
+	// Bootstrap path: if no migrations ran (fresh DB but already at current version,
+	// or DB created before meta entry existed), write it now outside any tx — no
+	// crash window matters because there's nothing to be inconsistent with.
+	var have string
+	_ = s.db.QueryRow(`SELECT value FROM meta WHERE key='schema_version'`).Scan(&have)
+	if have == "" {
+		if _, err := s.db.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)`, schemaVersion); err != nil {
+			return fmt.Errorf("set schema version: %w", err)
+		}
 	}
 
 	return nil
@@ -351,6 +359,16 @@ func (s *Store) runMigration(m migration) (err error) {
 		m.version, m.name, time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("record migration: %w", err)
+	}
+
+	// Advertise schema_version inside the same tx so a crash can't leave meta
+	// trailing the migrations table. Tooling reading meta.schema_version is
+	// then guaranteed consistent with the actually-applied schema.
+	if _, err := tx.Exec(
+		`INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)`,
+		m.version,
+	); err != nil {
+		return fmt.Errorf("set schema_version meta: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
