@@ -20,7 +20,7 @@ var (
 var boundaryCmd = &cobra.Command{
 	Use:     "boundary <pkg-set-a> <pkg-set-b>",
 	Short:   "Show symbols whose refs cross between two package sets",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Find every symbol whose references cross the boundary between two
 package sets — the data needed to plan a module split.
 

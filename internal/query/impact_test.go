@@ -58,7 +58,7 @@ func TestFindImpactCallers_Direct(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("expected 1 caller, got %d", len(rows))
 	}
-	if rows[0].ID != "bbb" { //nolint:goconst // test fixture IDs are intentionally literal
+	if rows[0].ID != "bbb" {
 		t.Errorf("expected caller bbb, got %s", rows[0].ID)
 	}
 	if rows[0].Hop != 1 {

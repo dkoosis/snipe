@@ -12,9 +12,9 @@ import (
 )
 
 var statusCmd = &cobra.Command{
-	Use:     "status",
+	Use:     cmdNameStatus,
 	Short:   "Show index status and statistics",
-	GroupID: "index",
+	GroupID: cmdNameIndex,
 	Long: `Shows the current state of the snipe index including:
 - Whether the index is fresh, stale, or missing
 - Git commit at time of indexing
@@ -48,14 +48,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Find repo root
 	cwd, err := os.Getwd()
 	if err != nil {
-		return w.WriteError("status", &output.Error{
+		return w.WriteError(cmdNameStatus, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "failed to get working directory: " + err.Error(),
 		})
 	}
 	dir := util.FindProjectRoot(cwd)
 	if dir == "" {
-		return w.WriteError("status", &output.Error{
+		return w.WriteError(cmdNameStatus, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "not in a git repository",
 		})
@@ -71,7 +71,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				State: output.IndexMissing,
 			}},
 			Meta: output.Meta{
-				Command:    "status",
+				Command:    cmdNameStatus,
 				RepoRoot:   dir,
 				IndexState: output.IndexMissing,
 				Ms:         w.Elapsed(),
@@ -84,7 +84,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Open store (read-only mode)
 	s, err := store.Open(dbPath)
 	if err != nil {
-		return w.WriteError("status", &output.Error{
+		return w.WriteError(cmdNameStatus, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -94,7 +94,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Get stats
 	symbols, refs, calls, err := s.GetStats()
 	if err != nil {
-		return w.WriteError("status", &output.Error{
+		return w.WriteError(cmdNameStatus, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "failed to get stats: " + err.Error(),
 		})
@@ -122,7 +122,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			Fingerprint: fingerprint,
 		}},
 		Meta: output.Meta{
-			Command:    "status",
+			Command:    cmdNameStatus,
 			RepoRoot:   dir,
 			IndexState: state,
 			Ms:         w.Elapsed(),

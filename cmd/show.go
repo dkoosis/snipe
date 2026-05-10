@@ -15,7 +15,7 @@ import (
 var showCmd = &cobra.Command{
 	Use:     "show <id>",
 	Short:   "Show symbol details by ID",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Shows full details for a symbol given its 16-char hex ID.
 
 Use this to expand IDs from other command outputs — part of the
@@ -42,19 +42,19 @@ func runShow(cmd *cobra.Command, args []string) error {
 
 	// Validate symbol ID format (16-char hex string)
 	if len(symbolID) != 16 {
-		return w.WriteError("show", &output.Error{
+		return w.WriteError(cmdNameShow, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "invalid symbol ID: must be 16 characters",
 		})
 	}
 	if _, err := hex.DecodeString(symbolID); err != nil {
-		return w.WriteError("show", &output.Error{
+		return w.WriteError(cmdNameShow, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "invalid symbol ID: must be hexadecimal",
 		})
 	}
 
-	s, dir, err := OpenStore(w, "show")
+	s, dir, err := OpenStore(w, cmdNameShow)
 	if err != nil {
 		return err
 	}
@@ -63,14 +63,14 @@ func runShow(cmd *cobra.Command, args []string) error {
 	// Look up by ID
 	sym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteError("show", &output.Error{
+		return w.WriteError(cmdNameShow, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if sym == nil {
-		return w.WriteError("show", &output.Error{
+		return w.WriteError(cmdNameShow, &output.Error{
 			Code:    output.ErrNotFound,
 			Message: "symbol not found: " + symbolID,
 		})
@@ -136,7 +136,7 @@ func runShow(cmd *cobra.Command, args []string) error {
 		Results:     results,
 		Suggestions: output.SuggestionsForDef(&result),
 		Meta: output.Meta{
-			Command:       "show",
+			Command:       cmdNameShow,
 			Query:         map[string]string{"id": symbolID},
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

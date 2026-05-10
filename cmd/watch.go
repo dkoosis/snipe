@@ -44,7 +44,7 @@ Events emitted:
   {"event": "change_detected", "files": [...], "timestamp": "..."}
   {"event": "reindex_started", "timestamp": "..."}
   {"event": "reindexed", "files": [...], "ms": 123, "timestamp": "..."}
-  {"event": "error", "error": "...", "timestamp": "..."}
+  {"event": cmdKindError, cmdKindError: "...", "timestamp": "..."}
 
 Note: V2 will add incremental file-level reindexing.
 
@@ -159,7 +159,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 
 			if err != nil {
 				emitEvent(WatchEvent{
-					Event:     "error",
+					Event:     cmdKindError,
 					Error:     err.Error(),
 					Timestamp: time.Now().Format(time.RFC3339),
 				})
@@ -177,7 +177,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 				return nil
 			}
 			emitEvent(WatchEvent{
-				Event:     "error",
+				Event:     cmdKindError,
 				Error:     err.Error(),
 				Timestamp: time.Now().Format(time.RFC3339),
 			})

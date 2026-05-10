@@ -70,7 +70,7 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 		_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? LIMIT 1`, fullPkgPath).Scan(&exists)
 	}
 	if exists == 0 {
-		return w.WriteError("pack", &output.Error{
+		return w.WriteError(cmdNamePack, &output.Error{
 			Code:    output.ErrNotFound,
 			Message: "no package found matching: " + arg,
 		})
@@ -79,7 +79,7 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 	// Exports via existing machinery.
 	symbols, err := query.FindPackageSymbols(db, fullPkgPath, 500, 0)
 	if err != nil {
-		return w.WriteError("pack", &output.Error{
+		return w.WriteError(cmdNamePack, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -166,8 +166,8 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 		Ok:       true,
 		Results:  []output.PackPackageResult{result},
 		Meta: output.Meta{
-			Command:    "pack",
-			Query:      map[string]string{"package": displayPkg},
+			Command:    cmdNamePack,
+			Query:      map[string]string{flagPackage: displayPkg},
 			RepoRoot:   dir,
 			IndexState: query.CheckIndexState(db, dir, Version),
 			Ms:         time.Since(start).Milliseconds(),

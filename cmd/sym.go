@@ -25,7 +25,7 @@ var (
 var symCmd = &cobra.Command{
 	Use:     "sym [symbol]",
 	Short:   "Combined symbol query (def + refs + callers + callees)",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Returns definition, references, callers, and callees in a single query.
 Matches go_symbol's single-call pattern for LLM integration.
 
@@ -54,14 +54,14 @@ func runSym(cmd *cobra.Command, args []string) error {
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && symAt == "" {
-		return w.WriteError("sym", &output.Error{
+		return w.WriteError(cmdNameSym, &output.Error{
 			Code:    output.ErrInternal,
-			Message: "provide a symbol name or --at position",
+			Message: errProvideSymbolOrAt,
 		})
 	}
 
 	// Find repo root and open store (auto-indexes if needed)
-	s, dir, err := OpenStore(w, "sym")
+	s, dir, err := OpenStore(w, cmdNameSym)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func runSym(cmd *cobra.Command, args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(symAt)
 		if err != nil {
-			return w.WriteError("sym", &output.Error{
+			return w.WriteError(cmdNameSym, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -87,7 +87,7 @@ func runSym(cmd *cobra.Command, args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError("sym", &output.Error{
+			return w.WriteError(cmdNameSym, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -109,7 +109,7 @@ func runSym(cmd *cobra.Command, args []string) error {
 			_, lim, off, _, _, _ := GetOutputConfig()
 			symbols, err := query.FindSymbolsInFile(s.DB(), name, lim, off)
 			if err != nil {
-				return w.WriteError("sym", &output.Error{
+				return w.WriteError(cmdNameSym, &output.Error{
 					Code:    output.ErrInternal,
 					Message: err.Error(),
 				})
@@ -119,13 +119,13 @@ func runSym(cmd *cobra.Command, args []string) error {
 				for i, sym := range symbols {
 					candidates[i] = sym.ToCandidate()
 				}
-				return w.WriteError("sym", &output.Error{
+				return w.WriteError(cmdNameSym, &output.Error{
 					Code:       output.ErrFileListing,
 					Message:    fmt.Sprintf("%s (%d symbols)", name, len(candidates)),
 					Candidates: candidates,
 				})
 			}
-			return w.WriteError("sym", &output.Error{
+			return w.WriteError(cmdNameSym, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: "no symbols found in " + name,
 			})
@@ -138,21 +138,21 @@ func runSym(cmd *cobra.Command, args []string) error {
 			if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteError("sym", &output.Error{
+					return w.WriteError(cmdNameSym, &output.Error{
 						Code:    output.ErrInternal,
 						Message: err.Error(),
 					})
 				}
 				if len(symbols) == 1 {
 					symbolID = symbols[0].ID
-					queryInfo = map[string]string{"symbol": symbolPart, "file": filePart}
+					queryInfo = map[string]string{flagSymbol: symbolPart, flagFile: filePart}
 					goto lookup
 				} else if len(symbols) > 1 {
 					candidates := make([]output.Candidate, len(symbols))
 					for i, s := range symbols {
 						candidates[i] = s.ToCandidate()
 					}
-					return w.WriteError("sym", output.NewAmbiguousError(name, candidates))
+					return w.WriteError(cmdNameSym, output.NewAmbiguousError(name, candidates))
 				}
 			}
 		}
@@ -160,7 +160,7 @@ func runSym(cmd *cobra.Command, args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("sym", &output.Error{
+			return w.WriteError(cmdNameSym, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -170,9 +170,9 @@ func runSym(cmd *cobra.Command, args []string) error {
 			maxDist := query.DefaultMaxDistance(name)
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
-				return w.WriteError("sym", output.NewNotFoundError(name))
+				return w.WriteError(cmdNameSym, output.NewNotFoundError(name))
 			}
-			return w.WriteError("sym", output.NewNotFoundError(name, suggestions...))
+			return w.WriteError(cmdNameSym, output.NewNotFoundError(name, suggestions...))
 		}
 
 		if len(symbols) > 1 {
@@ -180,25 +180,25 @@ func runSym(cmd *cobra.Command, args []string) error {
 			for i, s := range symbols {
 				candidates[i] = s.ToCandidate()
 			}
-			return w.WriteError("sym", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameSym, output.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
-		queryInfo = map[string]string{"symbol": name}
+		queryInfo = map[string]string{flagSymbol: name}
 	}
 
 lookup:
 	// Get the symbol details
 	sym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteError("sym", &output.Error{
+		return w.WriteError(cmdNameSym, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if sym == nil {
-		return w.WriteError("sym", &output.Error{
+		return w.WriteError(cmdNameSym, &output.Error{
 			Code:    output.ErrNotFound,
 			Message: fmt.Sprintf("symbol %s not found", symbolID),
 		})
@@ -207,7 +207,7 @@ lookup:
 	var degraded []string
 
 	// Record query in session for active work tracking
-	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "sym")
+	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameSym)
 
 	// Build definition result
 	defResult := sym.ToResultWithHints(s.DB())
@@ -266,7 +266,7 @@ lookup:
 			File:       filePath,
 			FileAbs:    ref.FilePath,
 			Range:      refRange,
-			Kind:       "ref",
+			Kind:       flagRef,
 			Name:       sym.Name,
 			Match:      ref.Snippet,
 			EditTarget: output.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
@@ -366,7 +366,7 @@ lookup:
 		Ok:       true,
 		Results:  []output.SymResult{symResp},
 		Meta: output.Meta{
-			Command:       "sym",
+			Command:       cmdNameSym,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

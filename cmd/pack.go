@@ -27,7 +27,7 @@ var (
 var packCmd = &cobra.Command{
 	Use:     "pack [symbol|package...]",
 	Short:   "Full symbol or package profile in a single query",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Returns everything an LLM needs about a symbol (or package) in one query.
 
 Symbol mode combines definition, references, callers, callees, role, and purpose.
@@ -60,13 +60,13 @@ func runPack(cmd *cobra.Command, args []string) error {
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && packAt == "" {
-		return w.WriteError("pack", &output.Error{
+		return w.WriteError(cmdNamePack, &output.Error{
 			Code:    output.ErrInternal,
-			Message: "provide a symbol name or --at position",
+			Message: errProvideSymbolOrAt,
 		})
 	}
 
-	s, dir, err := OpenStore(w, "pack")
+	s, dir, err := OpenStore(w, cmdNamePack)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func runPack(cmd *cobra.Command, args []string) error {
 
 	packResult, degraded, allResults, err := buildPackForSymbol(s, dir, symbolID, opts)
 	if err != nil {
-		return w.WriteError("pack", &output.Error{
+		return w.WriteError(cmdNamePack, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -120,7 +120,7 @@ func runPack(cmd *cobra.Command, args []string) error {
 		Results:     []output.PackResult{packResult},
 		Suggestions: output.SuggestionsForPack(packResult.Definition),
 		Meta: output.Meta{
-			Command:       "pack",
+			Command:       cmdNamePack,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
@@ -141,13 +141,13 @@ func runPackMulti(w *output.Writer, s *store.Store, dir string, args []string, o
 	ids := make([]string, 0, len(args))
 	for _, arg := range args {
 		if len(arg) != 16 {
-			return w.WriteError("pack", &output.Error{
+			return w.WriteError(cmdNamePack, &output.Error{
 				Code:    output.ErrInternal,
 				Message: fmt.Sprintf("multi-ID mode requires 16-char hex IDs, got %q", arg),
 			})
 		}
 		if _, err := hex.DecodeString(arg); err != nil {
-			return w.WriteError("pack", &output.Error{
+			return w.WriteError(cmdNamePack, &output.Error{
 				Code:    output.ErrInternal,
 				Message: fmt.Sprintf("invalid hex ID %q", arg),
 			})
@@ -182,7 +182,7 @@ func runPackMulti(w *output.Writer, s *store.Store, dir string, args []string, o
 		Ok:       true,
 		Results:  allPackResults,
 		Meta: output.Meta{
-			Command:       "pack",
+			Command:       cmdNamePack,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
@@ -209,7 +209,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 	if at != "" {
 		pos, err := query.ParsePosition(at)
 		if err != nil {
-			return "", nil, w.WriteError("pack", &output.Error{
+			return "", nil, w.WriteError(cmdNamePack, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -219,7 +219,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		}
 		symbolID, err := query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return "", nil, w.WriteError("pack", &output.Error{
+			return "", nil, w.WriteError(cmdNamePack, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -243,20 +243,20 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 			symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 			if err != nil {
-				return "", nil, w.WriteError("pack", &output.Error{
+				return "", nil, w.WriteError(cmdNamePack, &output.Error{
 					Code:    output.ErrInternal,
 					Message: err.Error(),
 				})
 			}
 			if len(symbols) == 1 {
-				return symbols[0].ID, map[string]string{"symbol": symbolPart, "file": filePart}, nil
+				return symbols[0].ID, map[string]string{flagSymbol: symbolPart, flagFile: filePart}, nil
 			}
 			if len(symbols) > 1 {
 				candidates := make([]output.Candidate, len(symbols))
 				for i, sym := range symbols {
 					candidates[i] = sym.ToCandidate()
 				}
-				return "", nil, w.WriteError("pack", output.NewAmbiguousError(name, candidates))
+				return "", nil, w.WriteError(cmdNamePack, output.NewAmbiguousError(name, candidates))
 			}
 		}
 	}
@@ -264,7 +264,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 	// Look up by name
 	symbols, err := query.LookupByName(s.DB(), name)
 	if err != nil {
-		return "", nil, w.WriteError("pack", &output.Error{
+		return "", nil, w.WriteError(cmdNamePack, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -274,9 +274,9 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		maxDist := query.DefaultMaxDistance(name)
 		suggestions, sErr := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 		if sErr != nil {
-			return "", nil, w.WriteError("pack", output.NewNotFoundError(name))
+			return "", nil, w.WriteError(cmdNamePack, output.NewNotFoundError(name))
 		}
-		return "", nil, w.WriteError("pack", output.NewNotFoundError(name, suggestions...))
+		return "", nil, w.WriteError(cmdNamePack, output.NewNotFoundError(name, suggestions...))
 	}
 
 	if len(symbols) > 1 {
@@ -284,10 +284,10 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		for i, sym := range symbols {
 			candidates[i] = sym.ToCandidate()
 		}
-		return "", nil, w.WriteError("pack", output.NewAmbiguousError(name, candidates))
+		return "", nil, w.WriteError(cmdNamePack, output.NewAmbiguousError(name, candidates))
 	}
 
-	return symbols[0].ID, map[string]string{"symbol": name}, nil
+	return symbols[0].ID, map[string]string{flagSymbol: name}, nil
 }
 
 // buildPackForSymbol builds a full PackResult for a single symbol ID.
@@ -304,7 +304,7 @@ func buildPackForSymbol(s *store.Store, dir, symbolID string, opts packOpts) (ou
 		return output.PackResult{}, nil, nil, fmt.Errorf("symbol %s not found", symbolID)
 	}
 
-	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "pack")
+	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNamePack)
 
 	// Build definition result
 	defResult := sym.ToResultWithHints(db)
@@ -465,7 +465,7 @@ func buildRefResults(db *sql.DB, symbolID, symName string) ([]output.Result, []s
 			File:       filePath,
 			FileAbs:    ref.FilePath,
 			Range:      refRange,
-			Kind:       "ref",
+			Kind:       flagRef,
 			Name:       symName,
 			Match:      ref.Snippet,
 			EditTarget: output.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
@@ -534,8 +534,8 @@ func extractRelatedTypes(signature string) []string {
 	builtins := map[string]bool{
 		"string": true, "int": true, "int64": true, "int32": true,
 		"float64": true, "float32": true, "bool": true, "byte": true,
-		"error": true, "any": true, "rune": true, "uint": true,
-		"uint64": true, "uint32": true, "nil": true, "func": true,
+		cmdKindError: true, "any": true, "rune": true, "uint": true,
+		"uint64": true, "uint32": true, "nil": true, cmdKindFunc: true,
 	}
 
 	seen := make(map[string]bool)
@@ -565,5 +565,5 @@ func extractRelatedTypes(signature string) []string {
 
 // isTypeKind returns true for symbol kinds that represent Go types.
 func isTypeKind(kind string) bool {
-	return kind == "struct" || kind == "interface" || kind == "type"
+	return kind == cmdKindStruct || kind == cmdKindInterface || kind == cmdKindType
 }

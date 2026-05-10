@@ -18,7 +18,7 @@ func WorkspacePatterns(dir string) ([]string, error) {
 	data, err := os.ReadFile(goWorkPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return []string{"./..."}, nil
+			return []string{patternAllPkgs}, nil
 		}
 		return nil, fmt.Errorf("read go.work: %w", err)
 	}
@@ -29,7 +29,7 @@ func WorkspacePatterns(dir string) ([]string, error) {
 	}
 
 	if len(wf.Use) == 0 {
-		return []string{"./..."}, nil
+		return []string{patternAllPkgs}, nil
 	}
 
 	patterns := make([]string, 0, len(wf.Use))

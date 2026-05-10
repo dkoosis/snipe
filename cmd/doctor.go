@@ -42,9 +42,9 @@ const (
 const remediationReindex = "snipe index"
 
 var doctorCmd = &cobra.Command{
-	Use:     "doctor",
+	Use:     cmdNameDoctor,
 	Short:   "Check snipe installation and configuration",
-	GroupID: "index",
+	GroupID: cmdNameIndex,
 	Long: `Runs diagnostic checks to verify snipe is properly installed and configured.
 
 Checks include:
@@ -117,7 +117,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		Ok:       allOK,
 		Results:  checks,
 		Meta: output.Meta{
-			Command:  "doctor",
+			Command:  cmdNameDoctor,
 			RepoRoot: repoRoot,
 			Ms:       w.Elapsed(),
 			Total:    len(checks),
@@ -163,7 +163,7 @@ func checkRipgrep() DoctorCheck {
 
 func checkIndex() DoctorCheck {
 	check := DoctorCheck{
-		Name: "index",
+		Name: cmdNameIndex,
 	}
 
 	// Find project root (look for .git directory)

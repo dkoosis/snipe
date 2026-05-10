@@ -582,16 +582,16 @@ func getExportedSymbols(db *sql.DB, pkgPath string, limit int) []string {
 // inferOwnership determines what a package is responsible for based on its name.
 func inferOwnership(pkgName string) []string {
 	ownership := map[string][]string{
-		"internal/store":   {"SQLite database", "persistence", "transactions"},
-		"internal/query":   {"symbol lookup", "reference lookup", "call graph queries"},
-		"internal/index":   {"Go package loading", "symbol extraction", "call graph building"},
-		"internal/output":  {"JSON formatting", "response structures", "suggestions"},
-		"internal/config":  {"configuration loading", "defaults", "validation"},
-		"internal/search":  {"ripgrep integration", "regex patterns", "result parsing"},
-		"internal/embed":   {"vector embeddings", "similarity search", "embedding API"},
-		"internal/context": {"boot context", "project analysis", "LLM summaries"},
-		"internal/analyze": {"function analysis", "warning detection", "doc status"},
-		"cmd":              {"CLI commands", "flags", "output formatting"},
+		pkgInternalStore:   {"SQLite database", "persistence", "transactions"},
+		pkgInternalQuery:   {"symbol lookup", "reference lookup", "call graph queries"},
+		pkgInternalIndex:   {"Go package loading", "symbol extraction", "call graph building"},
+		pkgInternalOutput:  {"JSON formatting", "response structures", "suggestions"},
+		pkgInternalConfig:  {"configuration loading", "defaults", "validation"},
+		pkgInternalSearch:  {"ripgrep integration", "regex patterns", "result parsing"},
+		pkgInternalEmbed:   {"vector embeddings", "similarity search", "embedding API"},
+		pkgInternalContext: {"boot context", "project analysis", "LLM summaries"},
+		pkgInternalAnalyze: {"function analysis", "warning detection", "doc status"},
+		pkgCmd:             {"CLI commands", "flags", "output formatting"},
 	}
 
 	if owns, ok := ownership[pkgName]; ok {
@@ -645,7 +645,7 @@ func getPackageInfo(db *sql.DB, repoRoot string) []packageInfo {
 		keyFiles := []string{}
 		switch pkgDir {
 		case pkgCmd:
-			entry = "cmd/root.go"
+			entry = pathCmdRootGo
 			keyFiles = append(keyFiles, "cmd/*.go")
 		case pkgInternal:
 			// Get subdirectories
@@ -665,24 +665,24 @@ func getPackageInfo(db *sql.DB, repoRoot string) []packageInfo {
 
 func inferPurpose(dir string) string {
 	purposes := map[string]string{
-		"cmd":      "Command-line interface",
-		"internal": "Internal implementation packages",
-		"pkg":      "Public packages",
-		"api":      "API definitions",
-		"store":    "Data storage and persistence",
-		"query":    "Query execution",
-		"index":    "Code indexing",
-		"output":   "Output formatting",
-		"config":   "Configuration management",
-		"search":   "Search functionality",
-		"embed":    "Embedding/vector operations",
-		"util":     "Utility functions",
-		"test":     "Test utilities",
+		pkgCmd:      "Command-line interface",
+		pkgInternal: "Internal implementation packages",
+		"pkg":       "Public packages",
+		"api":       "API definitions",
+		segStore:    purposeDataStorage,
+		segQuery:    purposeQueryExecution,
+		segIndex:    "Code indexing",
+		segOutput:   "Output formatting",
+		segConfig:   "Configuration management",
+		segSearch:   "Search functionality",
+		segEmbed:    "Embedding/vector operations",
+		"util":      purposeUtilFunctions,
+		segTest:     "Test utilities",
 	}
 	if purpose, ok := purposes[dir]; ok {
 		return purpose
 	}
-	return "Application logic"
+	return purposeApplicationLogic
 }
 
 func generateFiles(db *sql.DB, repoRoot string) Files {
@@ -802,22 +802,22 @@ func categorizeByConcern(relPath string) string {
 	// Check for internal packages
 	if len(parts) >= 2 && parts[0] == pkgInternal {
 		switch parts[1] {
-		case "store":
+		case segStore:
 			return "storage"
-		case "query":
-			return "query"
-		case "index":
+		case segQuery:
+			return segQuery
+		case segIndex:
 			return "indexing"
-		case "output":
-			return "output"
-		case "config":
+		case segOutput:
+			return segOutput
+		case segConfig:
 			return "configuration"
-		case "search":
-			return "search"
-		case "embed":
+		case segSearch:
+			return segSearch
+		case segEmbed:
 			return "embeddings"
-		case "context":
-			return "context"
+		case segContext:
+			return segContext
 		}
 	}
 
@@ -827,7 +827,7 @@ func categorizeByConcern(relPath string) string {
 		return "cli"
 	case pkgInternal:
 		return pkgInternal
-	case "test":
+	case segTest:
 		return "testing"
 	}
 
@@ -839,12 +839,12 @@ func describeFile(relPath string) string {
 	name := strings.TrimSuffix(base, ".go")
 
 	descriptions := map[string]string{
-		"main":        "Application entry point",
+		epMain:        "Application entry point",
 		"root":        "CLI root command",
-		"store":       "Database operations",
+		segStore:      "Database operations",
 		"schema":      "Database schema",
 		"types":       "Type definitions",
-		"config":      "Configuration handling",
+		segConfig:     "Configuration handling",
 		"loader":      "Package loading",
 		"refs":        "Reference extraction",
 		"symbols":     "Symbol extraction",
@@ -857,10 +857,10 @@ func describeFile(relPath string) string {
 		"generate":    "Code generation",
 		"imports":     "Import analysis",
 		"doctor":      "Health checks",
-		"search":      "Search command",
-		"def":         "Definition lookup",
+		segSearch:     "Search command",
+		fnDef:         "Definition lookup",
 		"show":        "Symbol display",
-		"index":       "Index command",
+		segIndex:      "Index command",
 		"callers":     "Caller analysis",
 		"callees":     "Callee analysis",
 		"version":     "Version information",

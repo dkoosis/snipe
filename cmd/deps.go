@@ -17,7 +17,7 @@ var depsTreeFlag bool
 var depsCmd = &cobra.Command{
 	Use:     "deps [package]",
 	Short:   "Show dependency topology for a package or the full project",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Shows what a package depends on and what depends on it.
 
 Without arguments, shows dependencies for the current directory's package.
@@ -94,7 +94,7 @@ func runDepsSingle(w *output.Writer, db *sql.DB, pkgPath, modulePath, dir string
 		Protocol: output.ProtocolVersion,
 		Ok:       true,
 		Results:  []output.DepsResult{result},
-		Meta:     depsMeta(db, dir, start, map[string]string{"package": pkgPath}, len(deps.Dependencies)+len(deps.Dependents)),
+		Meta:     depsMeta(db, dir, start, map[string]string{flagPackage: pkgPath}, len(deps.Dependencies)+len(deps.Dependents)),
 	}
 
 	return w.WriteResponse(resp)

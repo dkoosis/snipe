@@ -25,9 +25,9 @@ var (
 )
 
 var metricsCmd = &cobra.Command{
-	Use:     "metrics",
+	Use:     cmdNameMetrics,
 	Short:   "Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Print graph metrics computed during indexing.
 
 Defaults to the top-20 packages by import-graph PageRank.
@@ -59,8 +59,8 @@ Examples:
 func init() {
 	metricsCmd.Flags().IntVar(&metricsTopN, "top", 20, "Top-N rows to print")
 	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo")
-	metricsCmd.Flags().StringVar(&metricsGraph, "graph", "imports", "Graph kind ('imports' or 'calls')")
-	metricsCmd.Flags().StringVar(&metricsPkg, "pkg", "", "Filter to a single package (suffix-matches package import path)")
+	metricsCmd.Flags().StringVar(&metricsGraph, cmdKindGraph, cmdNameImports, "Graph kind ('imports' or 'calls')")
+	metricsCmd.Flags().StringVar(&metricsPkg, flagPkg, "", "Filter to a single package (suffix-matches package import path)")
 	rootCmd.AddCommand(metricsCmd)
 }
 
@@ -73,18 +73,18 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	// Validate --kind. Empty results from ReadTopN signal "not yet populated".
 	switch metricsKind {
 	case "pagerank", "betweenness", "hits", "hub", "authority",
-		"cycles", "topo", "degree", "in_degree", "out_degree", "eigenvector",
-		"ca", "ce", "coupling", "instability", "abstractness", "distance", kindLCOM4,
-		"cyclo", "cyclo_sum", "cyclo_p95", "cyclo_max":
+		cmdKindCycles, cmdKindTopo, "degree", "in_degree", "out_degree", "eigenvector",
+		"ca", "ce", cmdKindCoupling, "instability", "abstractness", cmdKindDistance, kindLCOM4,
+		cmdKindCyclo, "cyclo_sum", "cyclo_p95", "cyclo_max":
 		// ok
 	default:
-		return w.WriteError("metrics", &output.Error{
+		return w.WriteError(cmdNameMetrics, &output.Error{
 			Code:    output.ErrInternal,
 			Message: fmt.Sprintf("unknown --kind %q", metricsKind),
 		})
 	}
 
-	s, dir, err := OpenStore(w, "metrics")
+	s, dir, err := OpenStore(w, cmdNameMetrics)
 	if err != nil {
 		return err
 	}
@@ -93,9 +93,9 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	// Topo sort is transient — recomputed on demand from the imports graph.
 	// Intentionally not supported on the call graph: recursion is normal in code,
 	// so a cycle witness on calls isn't useful (use --kind=cycles instead).
-	if metricsKind == "topo" {
-		if metricsGraph != "imports" {
-			return w.WriteError("metrics", &output.Error{
+	if metricsKind == cmdKindTopo {
+		if metricsGraph != cmdNameImports {
+			return w.WriteError(cmdNameMetrics, &output.Error{
 				Code:    output.ErrInternal,
 				Message: "topo is only supported for --graph=imports (use --kind=cycles on calls graph)",
 			})
@@ -104,22 +104,22 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	}
 
 	// Cycles are persisted SCC components — separate output path (not ranked rows).
-	if metricsKind == "cycles" {
+	if metricsKind == cmdKindCycles {
 		return runCyclesMetrics(s, dir, start)
 	}
 
 	// Coupling joins ca + ce into a per-package table.
-	if metricsKind == "coupling" {
+	if metricsKind == cmdKindCoupling {
 		return runCouplingMetrics(s, dir, start)
 	}
 
 	// Distance joins abstractness + instability into D = |A + I - 1|.
-	if metricsKind == "distance" {
+	if metricsKind == cmdKindDistance {
 		return runDistanceMetrics(s, dir, start)
 	}
 
 	// Cyclo joins per-package sum/p95/max into a hot-package table.
-	if metricsKind == "cyclo" {
+	if metricsKind == cmdKindCyclo {
 		return runCycloMetrics(s, dir, start)
 	}
 
@@ -130,7 +130,7 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	}
 	rows, err := s.ReadTopN(metricsGraph, metricsKind, readN)
 	if err != nil {
-		return w.WriteError("metrics", &output.Error{
+		return w.WriteError(cmdNameMetrics, &output.Error{
 			Code: output.ErrInternal, Message: err.Error(),
 		})
 	}
@@ -162,8 +162,8 @@ func writeMetricsJSON(rows []store.MetricRow, dir string, start time.Time) error
 		Ok:       true,
 		Results:  out,
 		Meta: output.Meta{
-			Command:  "metrics",
-			Query:    map[string]string{"graph": metricsGraph, "kind": metricsKind, "top": fmt.Sprintf("%d", metricsTopN)},
+			Command:  cmdNameMetrics,
+			Query:    map[string]string{cmdKindGraph: metricsGraph, jsonKeyKind: metricsKind, "top": fmt.Sprintf("%d", metricsTopN)},
 			RepoRoot: dir,
 			Ms:       time.Since(start).Milliseconds(),
 			Total:    len(out),
@@ -195,8 +195,8 @@ func runTopoMetrics(s *store.Store, dir string, start time.Time) error {
 			Ok:       true,
 			Results:  []topoResult{res},
 			Meta: output.Meta{
-				Command:  "metrics",
-				Query:    map[string]string{"graph": metricsGraph, "kind": "topo"},
+				Command:  cmdNameMetrics,
+				Query:    map[string]string{cmdKindGraph: metricsGraph, jsonKeyKind: cmdKindTopo},
 				RepoRoot: dir,
 				Ms:       time.Since(start).Milliseconds(),
 				Total:    len(order),
@@ -245,11 +245,11 @@ type couplingRow struct {
 }
 
 func runCouplingMetrics(s *store.Store, dir string, startedAt time.Time) error {
-	caRows, err := s.ReadTopN("imports", "ca", 0)
+	caRows, err := s.ReadTopN(cmdNameImports, "ca", 0)
 	if err != nil {
 		return fmt.Errorf("read ca: %w", err)
 	}
-	ceRows, err := s.ReadTopN("imports", "ce", 0)
+	ceRows, err := s.ReadTopN(cmdNameImports, "ce", 0)
 	if err != nil {
 		return fmt.Errorf("read ce: %w", err)
 	}
@@ -302,8 +302,8 @@ func runCouplingMetrics(s *store.Store, dir string, startedAt time.Time) error {
 			Ok:       true,
 			Results:  rows,
 			Meta: output.Meta{
-				Command:  "metrics",
-				Query:    map[string]string{"graph": "imports", "kind": "coupling", "pkg": metricsPkg},
+				Command:  cmdNameMetrics,
+				Query:    map[string]string{cmdKindGraph: cmdNameImports, jsonKeyKind: cmdKindCoupling, flagPkg: metricsPkg},
 				RepoRoot: dir,
 				Ms:       time.Since(startedAt).Milliseconds(),
 				Total:    len(rows),
@@ -316,7 +316,7 @@ func runCouplingMetrics(s *store.Store, dir string, startedAt time.Time) error {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "imports graph · coupling · %d packages\n", len(rows))
-	fmt.Fprintf(&b, "  %4s %4s %5s  %s\n", "Ca", "Ce", "I", "pkg")
+	fmt.Fprintf(&b, "  %4s %4s %5s  %s\n", "Ca", "Ce", "I", flagPkg)
 	for _, r := range rows {
 		fmt.Fprintf(&b, "  %4d %4d %5.2f  %s\n", r.Ca, r.Ce, r.I, r.Pkg)
 	}
@@ -338,11 +338,11 @@ type distanceRow struct {
 }
 
 func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
-	aRows, err := s.ReadTopN("imports", "abstractness", 0)
+	aRows, err := s.ReadTopN(cmdNameImports, "abstractness", 0)
 	if err != nil {
 		return fmt.Errorf("read abstractness: %w", err)
 	}
-	iRows, err := s.ReadTopN("imports", "instability", 0)
+	iRows, err := s.ReadTopN(cmdNameImports, "instability", 0)
 	if err != nil {
 		return fmt.Errorf("read instability: %w", err)
 	}
@@ -394,8 +394,8 @@ func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
 			Ok:       true,
 			Results:  rows,
 			Meta: output.Meta{
-				Command:  "metrics",
-				Query:    map[string]string{"graph": "imports", "kind": "distance", "pkg": metricsPkg},
+				Command:  cmdNameMetrics,
+				Query:    map[string]string{cmdKindGraph: cmdNameImports, jsonKeyKind: cmdKindDistance, flagPkg: metricsPkg},
 				RepoRoot: dir,
 				Ms:       time.Since(startedAt).Milliseconds(),
 				Total:    len(rows),
@@ -408,7 +408,7 @@ func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "imports graph · distance · %d packages (D > 0.70 = arch-review flag)\n", len(rows))
-	fmt.Fprintf(&b, "  %5s %5s %5s  %s\n", "A", "I", "D", "pkg")
+	fmt.Fprintf(&b, "  %5s %5s %5s  %s\n", "A", "I", "D", flagPkg)
 	for _, r := range rows {
 		flag := "  "
 		if r.D > 0.70 {
@@ -431,15 +431,15 @@ type cycloRow struct {
 }
 
 func runCycloMetrics(s *store.Store, dir string, startedAt time.Time) error {
-	sumRows, err := s.ReadTopN("imports", "cyclo_sum", 0)
+	sumRows, err := s.ReadTopN(cmdNameImports, "cyclo_sum", 0)
 	if err != nil {
 		return fmt.Errorf("read cyclo_sum: %w", err)
 	}
-	p95Rows, err := s.ReadTopN("imports", "cyclo_p95", 0)
+	p95Rows, err := s.ReadTopN(cmdNameImports, "cyclo_p95", 0)
 	if err != nil {
 		return fmt.Errorf("read cyclo_p95: %w", err)
 	}
-	maxRows, err := s.ReadTopN("imports", "cyclo_max", 0)
+	maxRows, err := s.ReadTopN(cmdNameImports, "cyclo_max", 0)
 	if err != nil {
 		return fmt.Errorf("read cyclo_max: %w", err)
 	}
@@ -496,8 +496,8 @@ func runCycloMetrics(s *store.Store, dir string, startedAt time.Time) error {
 			Ok:       true,
 			Results:  rows,
 			Meta: output.Meta{
-				Command:  "metrics",
-				Query:    map[string]string{"graph": "imports", "kind": "cyclo", "pkg": metricsPkg},
+				Command:  cmdNameMetrics,
+				Query:    map[string]string{cmdKindGraph: cmdNameImports, jsonKeyKind: cmdKindCyclo, flagPkg: metricsPkg},
 				RepoRoot: dir,
 				Ms:       time.Since(startedAt).Milliseconds(),
 				Total:    len(rows),
@@ -510,7 +510,7 @@ func runCycloMetrics(s *store.Store, dir string, startedAt time.Time) error {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "imports graph · cyclo · %d packages (p95 > 10 OR max > 20 = hot-package flag)\n", len(rows))
-	fmt.Fprintf(&b, "  %5s %5s %5s  %s\n", "sum", "p95", "max", "pkg")
+	fmt.Fprintf(&b, "  %5s %5s %5s  %s\n", "sum", "p95", "max", flagPkg)
 	for _, r := range rows {
 		flag := "  "
 		if r.P95 > 10 || r.Max > 20 {

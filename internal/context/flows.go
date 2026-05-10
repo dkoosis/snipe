@@ -531,13 +531,13 @@ func subHandlerPurpose(name string) string {
 // runDef and runRefs get highest core priority — they're the bread-and-butter commands.
 func flowPriority(name string) int {
 	switch name {
-	case "main", "Execute":
+	case epMain, epExecute:
 		return 0 // always include
-	case "runDef", "runRefs":
+	case fnRunDef, fnRunRefs:
 		return 1 // most-used navigation
 	case "runCallers", "runCallees", "runSearch":
 		return 2 // other core navigation
-	case "runIndex", "runContext", "runPack", "runImpl":
+	case "runIndex", fnRunContext, "runPack", "runImpl":
 		return 3 // important operations
 	case "runEdit", "runImpact", "runTests", "runSim", "runDeps":
 		return 4 // secondary commands

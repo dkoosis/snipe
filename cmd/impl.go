@@ -14,7 +14,7 @@ import (
 var implCmd = &cobra.Command{
 	Use:     "impl [interface]",
 	Short:   "Find types implementing an interface",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Finds types that potentially implement a given interface.
 
 Since Go uses structural typing, this command finds types that reference
@@ -45,13 +45,13 @@ func runImpl(cmd *cobra.Command, args []string) error {
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && implID == "" {
-		return w.WriteError("impl", &output.Error{
+		return w.WriteError(cmdNameImpl, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "provide an interface name or --id",
 		})
 	}
 
-	s, dir, err := OpenStore(w, "impl")
+	s, dir, err := OpenStore(w, cmdNameImpl)
 	if err != nil {
 		return err
 	}
@@ -77,26 +77,26 @@ func runImpl(cmd *cobra.Command, args []string) error {
 
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("impl", &output.Error{
+			return w.WriteError(cmdNameImpl, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError("impl", output.NewNotFoundError(name))
+			return w.WriteError(cmdNameImpl, output.NewNotFoundError(name))
 		}
 
 		// Filter to interfaces only
 		var interfaces []query.SymbolRow
 		for _, sym := range symbols {
-			if sym.Kind == "interface" {
+			if sym.Kind == cmdKindInterface {
 				interfaces = append(interfaces, sym)
 			}
 		}
 
 		if len(interfaces) == 0 {
-			return w.WriteError("impl", &output.Error{
+			return w.WriteError(cmdNameImpl, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: name + " is not an interface",
 				Suggestions: []output.Suggestion{
@@ -111,18 +111,18 @@ func runImpl(cmd *cobra.Command, args []string) error {
 			for i, sym := range interfaces {
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError("impl", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameImpl, output.NewAmbiguousError(name, candidates))
 		}
 
 		interfaceID = interfaces[0].ID
-		queryInfo = map[string]string{"interface": name}
+		queryInfo = map[string]string{cmdKindInterface: name}
 	}
 
 findImplementers:
 	// Find implementers
 	implementers, err := query.FindImplementers(s.DB(), interfaceID, lim, off)
 	if err != nil {
-		return w.WriteError("impl", &output.Error{
+		return w.WriteError(cmdNameImpl, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -187,7 +187,7 @@ findImplementers:
 			Ok:       true,
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
-				Command:    "impl",
+				Command:    cmdNameImpl,
 				Query:      queryInfo,
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
@@ -214,7 +214,7 @@ findImplementers:
 		Ok:       true,
 		Results:  results,
 		Meta: output.Meta{
-			Command:       "impl",
+			Command:       cmdNameImpl,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

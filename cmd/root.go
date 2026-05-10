@@ -135,7 +135,7 @@ func Execute() {
 	args := os.Args[1:]
 	if len(args) > 0 && !isKnownSubcommandOrFlag(args[0]) {
 		// Rewrite args to use sym subcommand: "snipe Store" -> "snipe sym Store"
-		newArgs := append([]string{os.Args[0], "sym"}, args...)
+		newArgs := append([]string{os.Args[0], cmdNameSym}, args...)
 		os.Args = newArgs
 	}
 
@@ -150,17 +150,17 @@ func Execute() {
 var knownSubcommands = map[string]bool{
 	"help": true, "completion": true,
 	// Core commands
-	"index": true, "def": true, "refs": true, "callers": true, "callees": true,
-	"search": true, "show": true, "sym": true, "status": true, "tests": true, "impact": true,
+	cmdNameIndex: true, cmdNameDef: true, cmdNameRefs: true, cmdNameCallers: true, cmdNameCallees: true,
+	cmdNameSearch: true, cmdNameShow: true, cmdNameSym: true, cmdNameStatus: true, cmdNameTests: true, cmdNameImpact: true,
 	// Analysis commands
-	"impl": true, "types": true, "imports": true, "importers": true, "pkg": true, "deps": true,
+	cmdNameImpl: true, cmdNameTypes: true, cmdNameImports: true, cmdNameImporters: true, cmdNamePkg: true, "deps": true,
 	// Edit, explain, and pack
-	"edit": true, "explain": true, "pack": true,
+	cmdNameEdit: true, cmdNameExplain: true, cmdNamePack: true,
 	// Maintenance commands
-	"baseline": true, "context": true, "embed-status": true, "version": true,
-	"doctor": true, "schema": true, "check": true, "history": true,
+	"baseline": true, "context": true, cmdNameEmbedStatus: true, "version": true,
+	cmdNameDoctor: true, "schema": true, "check": true, "history": true,
 	// Semantic search
-	"sim": true,
+	cmdNameSim: true,
 	// Watch mode
 	"watch": true,
 	// Lifecycle tracing
@@ -168,7 +168,7 @@ var knownSubcommands = map[string]bool{
 	// Module-split planning
 	"boundary": true,
 	// Graph metrics (PageRank, etc.)
-	"metrics": true,
+	cmdNameMetrics: true,
 	// D2 diagram emitter
 	"diagram": true,
 	// String literal / env-var lookup and call-chain trace
@@ -190,9 +190,9 @@ func init() {
 
 	// Add command groups for 3-tier visibility
 	rootCmd.AddGroup(
-		&cobra.Group{ID: "core", Title: "Core Commands:"},
+		&cobra.Group{ID: categoryCore, Title: "Core Commands:"},
 		&cobra.Group{ID: "index", Title: "Index Commands:"},
-		&cobra.Group{ID: "advanced", Title: "Advanced Commands:"},
+		&cobra.Group{ID: categoryAdvanced, Title: "Advanced Commands:"},
 	)
 
 	rootCmd.PersistentFlags().IntVar(&limit, "limit", 10, "Cap results")
@@ -321,15 +321,15 @@ func uniqueStrings(ss []string) []string {
 // Should be called after ScoreAndSort.
 func ApplySelection(results []output.Result) []output.Result {
 	switch selectMode {
-	case "best":
+	case selectBest:
 		if len(results) > 1 {
 			return results[:1]
 		}
-	case "top3":
+	case selectTop3:
 		if len(results) > 3 {
 			return results[:3]
 		}
-	case "top5":
+	case selectTop5:
 		if len(results) > 5 {
 			return results[:5]
 		}
@@ -345,7 +345,7 @@ func ApplySelection(results []output.Result) []output.Result {
 // preserving the explicit ambiguity error for users who did not opt in.
 func pickSelectedSymbol(symbols []query.SymbolRow, name string) (query.SymbolRow, bool) {
 	switch selectMode {
-	case "best", "top3", "top5":
+	case selectBest, selectTop3, selectTop5:
 	default:
 		return query.SymbolRow{}, false
 	}

@@ -66,7 +66,7 @@ func runSchema(cmd *cobra.Command, args []string) error {
 		schema = reflector.Reflect(&output.Meta{})
 		schema.Title = "SnipeMeta"
 		schema.Description = "Response metadata"
-	case "error":
+	case cmdKindError:
 		schema = reflector.Reflect(&output.Error{})
 		schema.Title = "SnipeError"
 		schema.Description = "Error response structure"

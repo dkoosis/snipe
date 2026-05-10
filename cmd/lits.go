@@ -14,7 +14,7 @@ import (
 var litsCmd = &cobra.Command{
 	Use:     "lits <value>",
 	Short:   "Find all locations of a string literal or env var name",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Finds all call sites where a string literal appears in source — env var lookups
 (os.Getenv, os.LookupEnv) and named string constants.
 

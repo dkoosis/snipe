@@ -57,8 +57,8 @@ func runCyclesMetrics(s *store.Store, dir string, start time.Time) error {
 			Ok:       true,
 			Results:  []cyclesPayload{{SCCs: groups}},
 			Meta: output.Meta{
-				Command:  "metrics",
-				Query:    map[string]string{"graph": metricsGraph, "kind": "cycles"},
+				Command:  cmdNameMetrics,
+				Query:    map[string]string{"graph": metricsGraph, jsonKeyKind: cmdKindCycles},
 				RepoRoot: dir,
 				Ms:       time.Since(start).Milliseconds(),
 				Total:    len(groups),

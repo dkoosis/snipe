@@ -14,7 +14,7 @@ import (
 var callersCmd = &cobra.Command{
 	Use:     "callers [symbol|id]",
 	Short:   "Find functions that call a symbol",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Finds all functions that call a given symbol.
 
 Accepts symbol name or 16-char hex ID (auto-detected).
@@ -49,14 +49,14 @@ func runCallers(cmd *cobra.Command, args []string) error {
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && callersID == "" {
-		return w.WriteError("callers", &output.Error{
+		return w.WriteError(cmdNameCallers, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "provide a symbol name or --id",
 		})
 	}
 
 	// Find repo root and open store (auto-indexes if needed)
-	s, dir, err := OpenStore(w, "callers")
+	s, dir, err := OpenStore(w, cmdNameCallers)
 	if err != nil {
 		return err
 	}
@@ -82,14 +82,14 @@ func runCallers(cmd *cobra.Command, args []string) error {
 
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("callers", &output.Error{
+			return w.WriteError(cmdNameCallers, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError("callers", output.NewNotFoundError(name))
+			return w.WriteError(cmdNameCallers, output.NewNotFoundError(name))
 		}
 
 		if len(symbols) > 1 {
@@ -97,11 +97,11 @@ func runCallers(cmd *cobra.Command, args []string) error {
 			for i, sym := range symbols {
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError("callers", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameCallers, output.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
-		queryInfo = map[string]string{"symbol": name}
+		queryInfo = map[string]string{flagSymbol: name}
 	}
 
 findCallers:
@@ -110,13 +110,13 @@ findCallers:
 	var symName string
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symName = sym.Name
-		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "callers")
+		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameCallers)
 	}
 
 	// Find callers
 	calls, err := query.FindCallers(s.DB(), symbolID, lim, off)
 	if err != nil {
-		return w.WriteError("callers", &output.Error{
+		return w.WriteError(cmdNameCallers, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -198,7 +198,7 @@ findCallers:
 			Ok:       true,
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
-				Command:    "callers",
+				Command:    cmdNameCallers,
 				Query:      queryInfo,
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
@@ -226,7 +226,7 @@ findCallers:
 		Results:     results,
 		Suggestions: output.SuggestionsForCallers(symName, len(results)),
 		Meta: output.Meta{
-			Command:       "callers",
+			Command:       cmdNameCallers,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

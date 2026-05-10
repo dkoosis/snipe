@@ -10,6 +10,16 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+// patternAllPkgs is the Go package pattern for all packages in a module.
+const patternAllPkgs = "./..."
+
+// excludeNodeModules names the npm package directory excluded from indexing.
+const excludeNodeModules = "node_modules"
+
+const excludeTestdata = "testdata"
+
+const excludeVendor = "vendor"
+
 // LoadConfig configures how packages are loaded
 type LoadConfig struct {
 	// Context for cancellation support (optional, defaults to context.Background)
@@ -41,7 +51,7 @@ type LoadResult struct {
 
 // DefaultExclude returns the default exclude patterns
 func DefaultExclude() []string {
-	return []string{"vendor", "node_modules", "testdata", ".git"}
+	return []string{excludeVendor, excludeNodeModules, excludeTestdata, ".git"}
 }
 
 // Load loads Go packages from the specified directory.
@@ -59,7 +69,7 @@ func Load(cfg LoadConfig) (*LoadResult, error) {
 	if len(cfg.Patterns) == 0 {
 		cfg.Patterns, _ = WorkspacePatterns(cfg.Dir)
 		if len(cfg.Patterns) == 0 {
-			cfg.Patterns = []string{"./..."}
+			cfg.Patterns = []string{patternAllPkgs}
 		}
 	}
 	if cfg.Exclude == nil {

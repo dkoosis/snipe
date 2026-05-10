@@ -593,7 +593,7 @@ func (s *SymbolRow) ToResultWithHints(db *sql.DB) output.Result {
 	}
 
 	// Add function analysis for func/method kinds
-	if s.Kind == "func" || s.Kind == "method" {
+	if s.Kind == kindFunc || s.Kind == "method" {
 		result.Analysis = s.ComputeFuncAnalysis()
 	}
 
@@ -630,7 +630,7 @@ func (s *SymbolRow) ComputeFuncAnalysis() *output.FuncAnalysis {
 // Example: "func (*Writer) WriteError(cmd string, err *Error) error" -> (2, 1, false)
 func parseSignatureCounts(sig string) (params, results int, variadic bool) {
 	// Skip "func" prefix if present
-	sig = strings.TrimPrefix(sig, "func")
+	sig = strings.TrimPrefix(sig, kindFunc)
 	sig = strings.TrimSpace(sig)
 
 	// Skip receiver if present (e.g., "(*Writer)" or "(T)")

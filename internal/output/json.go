@@ -1112,7 +1112,7 @@ func ScoreResult(result *Result, query string) float64 {
 
 	// Bonus for definitions over references
 	switch result.Kind {
-	case KindFunc, KindMethod, "type", "struct", "interface", "const", "var":
+	case KindFunc, KindMethod, KindType, KindStruct, KindInterface, KindConst, KindVar:
 		score += 30
 	}
 
@@ -1281,7 +1281,7 @@ func (w *Writer) WriteClaudePkgGrouped(results []Result, meta Meta) {
 
 	for _, r := range results {
 		switch r.Kind {
-		case "struct", "interface", "type":
+		case KindStruct, KindInterface, KindType:
 			typesByName[r.Name] = len(types)
 			types = append(types, r)
 		case KindMethod:

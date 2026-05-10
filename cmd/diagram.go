@@ -38,7 +38,7 @@ var (
 var diagramCmd = &cobra.Command{
 	Use:     "diagram",
 	Short:   "Render snipe graphs as D2 diagram source",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Emit D2 (https://d2lang.com) source from snipe's import, call, and lifecycle graphs.
 
 Three opinionated subcommands:
@@ -161,7 +161,7 @@ func runDiagramArch(_ *cobra.Command, _ []string) error {
 	b.Title = "snipe arch · imports graph"
 	b.Direction = "down"
 
-	containerStyle := map[string]string{"fill": "#f5f5f5"}
+	containerStyle := map[string]string{diagramFill: "#f5f5f5"}
 	for _, p := range pkgs {
 		layer := layerOf(p, module)
 		container := "layer_" + diagram.SanitizeID(layer)
@@ -236,9 +236,9 @@ func nodeStyleForRank(rank int) map[string]string {
 	case rank == 0:
 		return nil
 	case rank <= 3:
-		return map[string]string{"fill": "#fde68a", "bold": "true"}
+		return map[string]string{diagramFill: diagramColorWarn, "bold": diagramTrue}
 	case rank <= 10:
-		return map[string]string{"fill": "#fef3c7"}
+		return map[string]string{diagramFill: "#fef3c7"}
 	default:
 		return nil
 	}
@@ -391,8 +391,8 @@ func runDiagramFlow(_ *cobra.Command, args []string) error {
 		nodeID := diagram.SanitizeID(id)
 		style := map[string]string{}
 		if id == root.ID {
-			style["fill"] = "#fde68a"
-			style["bold"] = "true"
+			style[diagramFill] = diagramColorWarn
+			style["bold"] = diagramTrue
 		}
 		if len(style) == 0 {
 			style = nil
@@ -430,7 +430,7 @@ func pickFlowEntry(entry string, syms []query.SymbolRow) (query.SymbolRow, error
 		return query.SymbolRow{}, fmt.Errorf("symbol %q not found (try 'snipe search' to confirm name)", entry)
 	}
 
-	isFn := func(k string) bool { return k == "func" || k == "method" }
+	isFn := func(k string) bool { return k == cmdKindFunc || k == "method" }
 	inRepo := func(s query.SymbolRow) bool { return s.FilePathRel != "" }
 
 	// Tier 1: in-repo func/method.
@@ -662,7 +662,7 @@ func runDiagramLifecycle(_ *cobra.Command, args []string) error {
 
 	// Center node: the type.
 	typeNodeID := "type_" + diagram.SanitizeID(sym.Name)
-	b.AddNode(typeNodeID, sym.Name, "cylinder", map[string]string{"fill": "#fde68a", "bold": "true"})
+	b.AddNode(typeNodeID, sym.Name, "cylinder", map[string]string{diagramFill: diagramColorWarn, "bold": diagramTrue})
 
 	// One container per role with role-specific tint.
 	roleColors := map[lifecycle.Role]string{
@@ -690,7 +690,7 @@ func runDiagramLifecycle(_ *cobra.Command, args []string) error {
 			continue
 		}
 		container := "role_" + diagram.SanitizeID(string(role))
-		b.AddContainer(container, string(role), map[string]string{"fill": roleColors[role]})
+		b.AddContainer(container, string(role), map[string]string{diagramFill: roleColors[role]})
 		// Cap per role so a busy struct doesn't explode the diagram.
 		const perRoleCap = 8
 		shown := fns

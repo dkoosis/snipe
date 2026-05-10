@@ -181,16 +181,16 @@ func normalizePackageName(name string) string {
 func inferPackagePurpose(pkg string) string {
 	// Map of package patterns to purposes
 	purposes := map[string]string{
-		"cmd":              "CLI commands and entry points",
-		"internal/store":   "SQLite persistence and database operations",
-		"internal/query":   "Symbol lookup and reference queries",
-		"internal/index":   "Go package loading and symbol extraction",
-		"internal/output":  "JSON/human output formatting",
-		"internal/config":  "Configuration management",
-		"internal/search":  "Ripgrep integration and search",
-		"internal/embed":   "Vector embeddings and similarity",
-		"internal/context": "Boot context and LLM summaries",
-		"internal/analyze": "Function analysis and diagnostics",
+		pkgCmd:             "CLI commands and entry points",
+		pkgInternalStore:   "SQLite persistence and database operations",
+		pkgInternalQuery:   "Symbol lookup and reference queries",
+		pkgInternalIndex:   "Go package loading and symbol extraction",
+		pkgInternalOutput:  "JSON/human output formatting",
+		pkgInternalConfig:  "Configuration management",
+		pkgInternalSearch:  "Ripgrep integration and search",
+		pkgInternalEmbed:   "Vector embeddings and similarity",
+		pkgInternalContext: "Boot context and LLM summaries",
+		pkgInternalAnalyze: "Function analysis and diagnostics",
 		"internal/edit":    "AST-safe code editing operations",
 		"internal/kg":      "Knowledge graph integration (orca)",
 		"internal/metrics": "Index and query metrics collection",
@@ -198,10 +198,10 @@ func inferPackagePurpose(pkg string) string {
 		"internal/vector":  "Vector math for embedding similarity",
 		"pkg":              "Public library packages",
 		"api":              "API definitions and handlers",
-		"test":             "Test utilities and fixtures",
-		"bench":            "Benchmarks and baseline capture",
+		segTest:            "Test utilities and fixtures",
+		"bench":            purposeBenchmarks,
 		"test/blackbox":    "Integration tests (blackbox)",
-		"test/bench":       "Benchmarks and baseline capture",
+		"test/bench":       purposeBenchmarks,
 	}
 
 	// Check for exact match first
@@ -224,29 +224,29 @@ func inferPackagePurpose(pkg string) string {
 	lastPart := parts[len(parts)-1]
 
 	segmentPurposes := map[string]string{
-		"store":    "Data storage and persistence",
-		"query":    "Query execution",
-		"index":    "Indexing operations",
-		"output":   "Output formatting",
-		"config":   "Configuration",
-		"search":   "Search functionality",
-		"embed":    "Embeddings",
-		"context":  "Context generation",
-		"analyze":  "Analysis",
-		"util":     "Utility functions",
-		"utils":    "Utility functions",
-		"internal": "Internal implementation",
+		segStore:    purposeDataStorage,
+		segQuery:    purposeQueryExecution,
+		segIndex:    "Indexing operations",
+		segOutput:   "Output formatting",
+		segConfig:   "Configuration",
+		segSearch:   "Search functionality",
+		segEmbed:    "Embeddings",
+		segContext:  "Context generation",
+		"analyze":   "Analysis",
+		"util":      purposeUtilFunctions,
+		"utils":     purposeUtilFunctions,
+		pkgInternal: "Internal implementation",
 	}
 
 	if purpose, ok := segmentPurposes[lastPart]; ok {
 		return purpose
 	}
 
-	return "Application logic"
+	return purposeApplicationLogic
 }
 
 // shortenPackagePath extracts the short form of a package path.
-// Example: "github.com/user/snipe/internal/store" -> "internal/store"
+// Example: "github.com/user/snipe/internal/store" -> pkgInternalStore
 func shortenPackagePath(pkgPath string) string {
 	// Find /internal/ or /cmd/ and take from there
 	if idx := strings.Index(pkgPath, "/internal/"); idx != -1 {
@@ -256,7 +256,7 @@ func shortenPackagePath(pkgPath string) string {
 		return pkgPath[idx+1:]
 	}
 	if strings.HasSuffix(pkgPath, "/cmd") {
-		return "cmd"
+		return pkgCmd
 	}
 
 	// Root module package — use last segment (project name)

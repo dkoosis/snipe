@@ -26,7 +26,7 @@ var (
 var contextCmd = &cobra.Command{
 	Use:     "context [path]",
 	Short:   "Generate Claude-optimized project context",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Generate Claude-optimized project orientation context.
 
 By default, outputs a lean orientation (~5k tokens) with project metadata,

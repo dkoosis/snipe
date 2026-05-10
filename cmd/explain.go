@@ -22,7 +22,7 @@ var (
 var explainCmd = &cobra.Command{
 	Use:     "explain [symbol]",
 	Short:   "Structured function explanation for LLMs",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Generates a structured explanation of a function or method.
 
 Output includes:
@@ -66,14 +66,14 @@ func runExplain(cmd *cobra.Command, args []string) error {
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && explainAt == "" {
-		return w.WriteError("explain", &output.Error{
+		return w.WriteError(cmdNameExplain, &output.Error{
 			Code:    output.ErrInternal,
-			Message: "provide a symbol name or --at position",
+			Message: errProvideSymbolOrAt,
 		})
 	}
 
 	// Open store
-	s, dir, err := OpenStore(w, "explain")
+	s, dir, err := OpenStore(w, cmdNameExplain)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(explainAt)
 		if err != nil {
-			return w.WriteError("explain", &output.Error{
+			return w.WriteError(cmdNameExplain, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -99,7 +99,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError("explain", &output.Error{
+			return w.WriteError(cmdNameExplain, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -124,21 +124,21 @@ func runExplain(cmd *cobra.Command, args []string) error {
 			if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteError("explain", &output.Error{
+					return w.WriteError(cmdNameExplain, &output.Error{
 						Code:    output.ErrInternal,
 						Message: err.Error(),
 					})
 				}
 				if len(symbols) == 1 {
 					symbolID = symbols[0].ID
-					queryInfo = map[string]string{"symbol": symbolPart, "file": filePart}
+					queryInfo = map[string]string{flagSymbol: symbolPart, flagFile: filePart}
 					goto explain
 				} else if len(symbols) > 1 {
 					candidates := make([]output.Candidate, len(symbols))
 					for i, sym := range symbols {
 						candidates[i] = sym.ToCandidate()
 					}
-					return w.WriteError("explain", output.NewAmbiguousError(name, candidates))
+					return w.WriteError(cmdNameExplain, output.NewAmbiguousError(name, candidates))
 				}
 			}
 		}
@@ -146,7 +146,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("explain", &output.Error{
+			return w.WriteError(cmdNameExplain, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -156,9 +156,9 @@ func runExplain(cmd *cobra.Command, args []string) error {
 			maxDist := query.DefaultMaxDistance(name)
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
-				return w.WriteError("explain", output.NewNotFoundError(name))
+				return w.WriteError(cmdNameExplain, output.NewNotFoundError(name))
 			}
-			return w.WriteError("explain", output.NewNotFoundError(name, suggestions...))
+			return w.WriteError(cmdNameExplain, output.NewNotFoundError(name, suggestions...))
 		}
 
 		if len(symbols) > 1 {
@@ -166,11 +166,11 @@ func runExplain(cmd *cobra.Command, args []string) error {
 			for i, sym := range symbols {
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError("explain", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameExplain, output.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
-		queryInfo = map[string]string{"symbol": name}
+		queryInfo = map[string]string{flagSymbol: name}
 	}
 
 explain:
@@ -185,7 +185,7 @@ explain:
 	case "deep":
 		opts.Mode = output.ExplainDeep
 	default:
-		return w.WriteError("explain", &output.Error{
+		return w.WriteError(cmdNameExplain, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "invalid --mode: use brief, normal, or deep",
 		})
@@ -199,7 +199,7 @@ explain:
 	case "full":
 		opts.WarningsMode = output.WarningsFull
 	default:
-		return w.WriteError("explain", &output.Error{
+		return w.WriteError(cmdNameExplain, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "invalid --warnings: use none, fast, or full",
 		})
@@ -214,7 +214,7 @@ explain:
 	// Run explain
 	result, err := query.Explain(s.DB(), symbolID, opts)
 	if err != nil {
-		return w.WriteError("explain", &output.Error{
+		return w.WriteError(cmdNameExplain, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -225,7 +225,7 @@ explain:
 		Ok:       true,
 		Results:  []output.ExplainResult{*result},
 		Meta: output.Meta{
-			Command:    "explain",
+			Command:    cmdNameExplain,
 			Query:      queryInfo,
 			RepoRoot:   dir,
 			IndexState: query.CheckIndexState(s.DB(), dir, Version),

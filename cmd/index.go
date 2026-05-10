@@ -21,7 +21,7 @@ import (
 var indexCmd = &cobra.Command{
 	Use:     "index [path]",
 	Short:   "Build or update the code index",
-	GroupID: "index",
+	GroupID: cmdNameIndex,
 	Long: `Builds a SQLite index of symbols, references, and call graph for fast navigation.
 
 By default, generates embeddings (auto mode) and LLM-based symbol purposes (enrich).
@@ -731,7 +731,7 @@ func indexResponse(absDir string, start time.Time, symCount int, suggestions []o
 		Ok:          true,
 		Suggestions: suggestions,
 		Meta: output.Meta{
-			Command:    "index",
+			Command:    cmdNameIndex,
 			RepoRoot:   absDir,
 			IndexState: output.IndexFresh,
 			Ms:         time.Since(start).Milliseconds(),
@@ -1078,7 +1078,7 @@ func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start ti
 			Ok:       true,
 			Results:  nil,
 			Meta: output.Meta{
-				Command:    "index",
+				Command:    cmdNameIndex,
 				RepoRoot:   absDir,
 				IndexState: output.IndexFresh,
 				Ms:         time.Since(start).Milliseconds(),

@@ -14,7 +14,7 @@ import (
 var importsCmd = &cobra.Command{
 	Use:     "imports <file>",
 	Short:   "Show packages imported by a file",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Shows all packages imported by a given Go file.
 
 Examples:
@@ -36,7 +36,7 @@ func runImports(cmd *cobra.Command, args []string) error {
 
 	filePath := args[0]
 
-	s, dir, err := OpenStore(w, "imports")
+	s, dir, err := OpenStore(w, cmdNameImports)
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func runImports(cmd *cobra.Command, args []string) error {
 
 	imports, err := query.FindImports(s.DB(), filePath, lim, offset)
 	if err != nil {
-		return w.WriteError("imports", &output.Error{
+		return w.WriteError(cmdNameImports, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -107,8 +107,8 @@ func runImports(cmd *cobra.Command, args []string) error {
 		Ok:       true,
 		Results:  results,
 		Meta: output.Meta{
-			Command:       "imports",
-			Query:         map[string]string{"file": args[0]},
+			Command:       cmdNameImports,
+			Query:         map[string]string{flagFile: args[0]},
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Ms:            time.Since(start).Milliseconds(),

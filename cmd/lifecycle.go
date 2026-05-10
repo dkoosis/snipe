@@ -23,7 +23,7 @@ var lifecycleAt string
 var lifecycleCmd = &cobra.Command{
 	Use:     "lifecycle <Type>",
 	Short:   "Trace every function creating, mutating, reading, or deleting a type",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Traces all functions that create, mutate, read, or delete instances of a type,
 grouped by CRUD role.
 
@@ -203,7 +203,7 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 
 	meta := output.Meta{
 		Command:   "lifecycle",
-		Query:     map[string]string{"type": typeName},
+		Query:     map[string]string{cmdKindType: typeName},
 		RepoRoot:  dir,
 		Ms:        time.Since(start).Milliseconds(),
 		Total:     1,

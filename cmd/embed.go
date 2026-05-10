@@ -15,9 +15,9 @@ import (
 )
 
 var embedCmd = &cobra.Command{
-	Use:     "embed-status",
+	Use:     cmdNameEmbedStatus,
 	Short:   "Check status of batch embedding job",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Check the status of an async batch embedding job.
 
 If the batch is complete, downloads results and saves embeddings to the index.
@@ -94,7 +94,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 			Protocol: output.ProtocolVersion,
 			Ok:       true,
 			Results:  []EmbedStatusResult{result},
-			Meta:     output.Meta{Command: "embed-status"},
+			Meta:     output.Meta{Command: cmdNameEmbedStatus},
 		})
 	}
 
@@ -148,7 +148,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 				Protocol: output.ProtocolVersion,
 				Ok:       true,
 				Results:  []EmbedStatusResult{result},
-				Meta:     output.Meta{Command: "embed-status"},
+				Meta:     output.Meta{Command: cmdNameEmbedStatus},
 			})
 		}
 
@@ -172,7 +172,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 				Protocol: output.ProtocolVersion,
 				Ok:       true,
 				Results:  []EmbedStatusResult{result},
-				Meta:     output.Meta{Command: "embed-status"},
+				Meta:     output.Meta{Command: cmdNameEmbedStatus},
 			})
 		}
 
@@ -200,7 +200,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 				Protocol: output.ProtocolVersion,
 				Ok:       true,
 				Results:  []EmbedStatusResult{result},
-				Meta:     output.Meta{Command: "embed-status"},
+				Meta:     output.Meta{Command: cmdNameEmbedStatus},
 			})
 		}
 

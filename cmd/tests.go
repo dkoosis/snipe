@@ -16,7 +16,7 @@ import (
 var testsCmd = &cobra.Command{
 	Use:     "tests [symbol|id]",
 	Short:   "Find tests that exercise a symbol",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Finds test functions that call a given symbol (direct or via helpers).
 
 By default uses 2-hop transitive search: finds Test*/Benchmark*/Fuzz*/Example*
@@ -57,13 +57,13 @@ func runTests(cmd *cobra.Command, args []string) error {
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && testsAt == "" && testsID == "" {
-		return w.WriteError("tests", &output.Error{
+		return w.WriteError(cmdNameTests, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "provide a symbol name, --at position, or --id",
 		})
 	}
 
-	s, dir, err := OpenStore(w, "tests")
+	s, dir, err := OpenStore(w, cmdNameTests)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func runTests(cmd *cobra.Command, args []string) error {
 	case testsAt != "":
 		pos, err := query.ParsePosition(testsAt)
 		if err != nil {
-			return w.WriteError("tests", &output.Error{
+			return w.WriteError(cmdNameTests, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -95,7 +95,7 @@ func runTests(cmd *cobra.Command, args []string) error {
 		}
 		sym := query.FindSymbolAtPosition(s.DB(), filePath, pos.Line)
 		if sym == nil {
-			return w.WriteError("tests", &output.Error{
+			return w.WriteError(cmdNameTests, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: "no symbol found at " + testsAt,
 			})
@@ -117,23 +117,23 @@ func runTests(cmd *cobra.Command, args []string) error {
 
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("tests", &output.Error{
+			return w.WriteError(cmdNameTests, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 		if len(symbols) == 0 {
-			return w.WriteError("tests", output.NewNotFoundError(name))
+			return w.WriteError(cmdNameTests, output.NewNotFoundError(name))
 		}
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
 			for i, sym := range symbols {
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError("tests", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameTests, output.NewAmbiguousError(name, candidates))
 		}
 		symbolID = symbols[0].ID
-		queryInfo = map[string]string{"symbol": name}
+		queryInfo = map[string]string{flagSymbol: name}
 	}
 
 	// Look up symbol for session tracking and suggestions
@@ -141,13 +141,13 @@ func runTests(cmd *cobra.Command, args []string) error {
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symName = sym.Name
 		symFileRel = sym.FilePathRel
-		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "tests")
+		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameTests)
 	}
 
 	// Find tests
 	testRows, err := query.FindTests(s.DB(), symbolID, testsDirect, lim, off)
 	if err != nil {
-		return w.WriteError("tests", &output.Error{
+		return w.WriteError(cmdNameTests, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -221,7 +221,7 @@ func runTests(cmd *cobra.Command, args []string) error {
 			Ok:       true,
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
-				Command:    "tests",
+				Command:    cmdNameTests,
 				Query:      queryInfo,
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
@@ -254,7 +254,7 @@ func runTests(cmd *cobra.Command, args []string) error {
 		Results:     results,
 		Suggestions: output.SuggestionsForTests(symName, len(results), suggestedFile),
 		Meta: output.Meta{
-			Command:       "tests",
+			Command:       cmdNameTests,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

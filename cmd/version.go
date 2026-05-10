@@ -20,10 +20,10 @@ var versionJSON bool
 // Features lists all snipe subcommands available for LLM callers.
 // Derived from knownSubcommands but hardcoded for stability.
 var Features = []string{
-	"def", "refs", "callers", "callees", "search",
-	"context", "explain", "sym", "index", "show",
-	"sim", "types", "impl", "imports", "importers",
-	"pkg", "edit", "pack",
+	cmdNameDef, cmdNameRefs, cmdNameCallers, cmdNameCallees, cmdNameSearch,
+	"context", cmdNameExplain, cmdNameSym, cmdNameIndex, cmdNameShow,
+	cmdNameSim, cmdNameTypes, cmdNameImpl, cmdNameImports, cmdNameImporters,
+	cmdNamePkg, cmdNameEdit, cmdNamePack,
 }
 
 var versionCmd = &cobra.Command{

@@ -15,7 +15,7 @@ import (
 var importersCmd = &cobra.Command{
 	Use:     "importers <package>",
 	Short:   "Find files that import a package",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Shows all files that import a given package.
 
 Examples:
@@ -38,7 +38,7 @@ func runImporters(cmd *cobra.Command, args []string) error {
 
 	pkgPath := args[0]
 
-	s, dir, err := OpenStore(w, "importers")
+	s, dir, err := OpenStore(w, cmdNameImporters)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func runImporters(cmd *cobra.Command, args []string) error {
 	}
 
 	if err != nil {
-		return w.WriteError("importers", &output.Error{
+		return w.WriteError(cmdNameImporters, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -125,8 +125,8 @@ func runImporters(cmd *cobra.Command, args []string) error {
 		Ok:       true,
 		Results:  results,
 		Meta: output.Meta{
-			Command:       "importers",
-			Query:         map[string]string{"package": pkgPath},
+			Command:       cmdNameImporters,
+			Query:         map[string]string{flagPackage: pkgPath},
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Ms:            time.Since(start).Milliseconds(),

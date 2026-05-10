@@ -25,7 +25,7 @@ var (
 var defCmd = &cobra.Command{
 	Use:     "def [symbol]",
 	Short:   "Jump to symbol definition",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Finds the definition of a symbol by name or position.
 
 Scoped queries:
@@ -43,8 +43,8 @@ Examples:
 
 func init() {
 	defCmd.Flags().StringVar(&defAt, "at", "", "Position to look up (file:line:col)")
-	defCmd.Flags().StringVar(&defFile, "file", "", "List all symbols in file")
-	defCmd.Flags().StringVar(&defPkg, "pkg", "", "List exported symbols in package")
+	defCmd.Flags().StringVar(&defFile, flagFile, "", "List all symbols in file")
+	defCmd.Flags().StringVar(&defPkg, flagPkg, "", "List exported symbols in package")
 	rootCmd.AddCommand(defCmd)
 }
 
@@ -71,14 +71,14 @@ func runDef(cmd *cobra.Command, args []string) error {
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && defAt == "" {
-		return w.WriteError("def", &output.Error{
+		return w.WriteError(cmdNameDef, &output.Error{
 			Code:    output.ErrInternal,
-			Message: "provide a symbol name or --at position",
+			Message: errProvideSymbolOrAt,
 		})
 	}
 
 	// Find repo root and open store (auto-indexes if needed)
-	s, dir, err := OpenStore(w, "def")
+	s, dir, err := OpenStore(w, cmdNameDef)
 	if err != nil {
 		return err // Error already written by OpenStore
 	}
@@ -92,7 +92,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(defAt)
 		if err != nil {
-			return w.WriteError("def", &output.Error{
+			return w.WriteError(cmdNameDef, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -105,7 +105,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError("def", &output.Error{
+			return w.WriteError(cmdNameDef, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: "no symbol found at " + defAt,
 			})
@@ -133,14 +133,14 @@ func runDef(cmd *cobra.Command, args []string) error {
 				// This looks like file:symbol syntax
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteError("def", &output.Error{
+					return w.WriteError(cmdNameDef, &output.Error{
 						Code:    output.ErrInternal,
 						Message: err.Error(),
 					})
 				}
 				if len(symbols) == 1 {
 					symbolID = symbols[0].ID
-					queryInfo = map[string]string{"symbol": symbolPart, "file": filePart}
+					queryInfo = map[string]string{flagSymbol: symbolPart, flagFile: filePart}
 					decisionPath = append(decisionPath, "lookup:file_qualified")
 					goto lookup
 				} else if len(symbols) > 1 {
@@ -148,7 +148,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 					for i, s := range symbols {
 						candidates[i] = s.ToCandidate()
 					}
-					return w.WriteError("def", output.NewAmbiguousError(name, candidates))
+					return w.WriteError(cmdNameDef, output.NewAmbiguousError(name, candidates))
 				}
 				// Fall through to regular lookup if not found
 			}
@@ -157,7 +157,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("def", &output.Error{
+			return w.WriteError(cmdNameDef, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -169,9 +169,9 @@ func runDef(cmd *cobra.Command, args []string) error {
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
 				// If fuzzy search fails, just return the basic error
-				return w.WriteError("def", output.NewNotFoundError(name))
+				return w.WriteError(cmdNameDef, output.NewNotFoundError(name))
 			}
-			return w.WriteError("def", output.NewNotFoundError(name, suggestions...))
+			return w.WriteError(cmdNameDef, output.NewNotFoundError(name, suggestions...))
 		}
 
 		if len(symbols) > 1 {
@@ -180,7 +180,7 @@ func runDef(cmd *cobra.Command, args []string) error {
 			// Satisfies D2: "one command should just work".
 			if picked, ok := pickSelectedSymbol(symbols, name); ok {
 				symbolID = picked.ID
-				queryInfo = map[string]string{"symbol": name}
+				queryInfo = map[string]string{flagSymbol: name}
 				decisionPath = append(decisionPath, "lookup:name_select")
 				goto lookup
 			}
@@ -188,11 +188,11 @@ func runDef(cmd *cobra.Command, args []string) error {
 			for i, s := range symbols {
 				candidates[i] = s.ToCandidate()
 			}
-			return w.WriteError("def", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameDef, output.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
-		queryInfo = map[string]string{"symbol": name}
+		queryInfo = map[string]string{flagSymbol: name}
 		decisionPath = append(decisionPath, "lookup:name")
 	}
 
@@ -200,14 +200,14 @@ lookup:
 	// Get the symbol details
 	sym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteError("def", &output.Error{
+		return w.WriteError(cmdNameDef, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if sym == nil {
-		return w.WriteError("def", &output.Error{
+		return w.WriteError(cmdNameDef, &output.Error{
 			Code:    output.ErrNotFound,
 			Message: fmt.Sprintf("symbol %s not found", symbolID),
 		})
@@ -217,7 +217,7 @@ lookup:
 	var degraded []string
 
 	// Record query in session for active work tracking
-	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "def")
+	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameDef)
 
 	// Add full body if requested
 	if withBody {
@@ -251,7 +251,7 @@ lookup:
 	}
 
 	// Add callers_preview for func/method kinds (always include top 3)
-	if sym.Kind == "func" || sym.Kind == "method" {
+	if sym.Kind == cmdKindFunc || sym.Kind == "method" {
 		callers, err := query.GetCallersPreview(s.DB(), sym.ID, 3)
 		if err != nil {
 			degraded = append(degraded, "callers_preview_failed")
@@ -318,7 +318,7 @@ lookup:
 		Results:     results,
 		Suggestions: output.SuggestionsForDef(&result),
 		Meta: output.Meta{
-			Command:       "def",
+			Command:       cmdNameDef,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
@@ -338,7 +338,7 @@ lookup:
 // runDefInPkg handles `def --pkg <pkg> <name>`: find a named symbol within a package.
 // Returns the symbol if unique, candidates if ambiguous, or not-found with suggestions.
 func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, contextLines int) error {
-	s, dir, err := OpenStore(w, "def")
+	s, dir, err := OpenStore(w, cmdNameDef)
 	if err != nil {
 		return err
 	}
@@ -346,7 +346,7 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 
 	symbols, err := query.LookupByNameInPkg(s.DB(), name, defPkg)
 	if err != nil {
-		return w.WriteError("def", &output.Error{
+		return w.WriteError(cmdNameDef, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -358,7 +358,7 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 		for i, sym := range pkgSyms {
 			names[i] = sym.Name
 		}
-		return w.WriteError("def", output.NewNotFoundError(name+" in pkg "+defPkg, names...))
+		return w.WriteError(cmdNameDef, output.NewNotFoundError(name+" in pkg "+defPkg, names...))
 	}
 
 	if len(symbols) > 1 {
@@ -366,14 +366,14 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 		for i, sym := range symbols {
 			candidates[i] = sym.ToCandidate()
 		}
-		return w.WriteError("def", output.NewAmbiguousError(name, candidates))
+		return w.WriteError(cmdNameDef, output.NewAmbiguousError(name, candidates))
 	}
 
 	sym := &symbols[0]
 	result := sym.ToResultWithHints(s.DB())
 	var degraded []string
 
-	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "def")
+	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameDef)
 
 	if withBody {
 		if err := output.AddBody(&result); err != nil {
@@ -397,8 +397,8 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 		Results:     []output.Result{result},
 		Suggestions: output.SuggestionsForDef(&result),
 		Meta: output.Meta{
-			Command:       "def",
-			Query:         map[string]string{"symbol": name, "pkg": defPkg},
+			Command:       cmdNameDef,
+			Query:         map[string]string{flagSymbol: name, flagPkg: defPkg},
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Degraded:      degraded,
@@ -416,7 +416,7 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines int) error {
 	_, lim, off, _, _, _ := GetOutputConfig()
 
-	s, dir, err := OpenStore(w, "def")
+	s, dir, err := OpenStore(w, cmdNameDef)
 	if err != nil {
 		return err
 	}
@@ -426,7 +426,7 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 	var queryInfo map[string]string
 
 	if defFile != "" && defPkg != "" {
-		return w.WriteError("def", &output.Error{
+		return w.WriteError(cmdNameDef, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "--file and --pkg are mutually exclusive",
 		})
@@ -434,14 +434,14 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 
 	if defFile != "" {
 		symbols, err = query.FindSymbolsInFile(s.DB(), defFile, lim, off)
-		queryInfo = map[string]string{"file": defFile}
+		queryInfo = map[string]string{flagFile: defFile}
 	} else {
 		symbols, err = query.FindPackageSymbols(s.DB(), defPkg, lim, off)
-		queryInfo = map[string]string{"pkg": defPkg}
+		queryInfo = map[string]string{flagPkg: defPkg}
 	}
 
 	if err != nil {
-		return w.WriteError("def", &output.Error{
+		return w.WriteError(cmdNameDef, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -452,7 +452,7 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 		if scope == "" {
 			scope = defPkg
 		}
-		return w.WriteError("def", &output.Error{
+		return w.WriteError(cmdNameDef, &output.Error{
 			Code:    output.ErrNotFound,
 			Message: "no symbols found in " + scope,
 		})
@@ -503,7 +503,7 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 		Ok:       true,
 		Results:  results,
 		Meta: output.Meta{
-			Command:       "def",
+			Command:       cmdNameDef,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

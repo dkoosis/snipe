@@ -16,7 +16,7 @@ import (
 var impactCmd = &cobra.Command{
 	Use:     "impact [symbol|id]",
 	Short:   "Show blast radius for changing a symbol",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Analyzes what breaks if a symbol changes: transitive callers,
 interface implementers, and test coverage in one call.
 
@@ -58,13 +58,13 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && impactAt == "" && impactID == "" {
-		return w.WriteError("impact", &output.Error{
+		return w.WriteError(cmdNameImpact, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "provide a symbol name, --at position, or --id",
 		})
 	}
 
-	s, dir, err := OpenStore(w, "impact")
+	s, dir, err := OpenStore(w, cmdNameImpact)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	case impactAt != "":
 		pos, err := query.ParsePosition(impactAt)
 		if err != nil {
-			return w.WriteError("impact", &output.Error{
+			return w.WriteError(cmdNameImpact, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -95,7 +95,7 @@ func runImpact(cmd *cobra.Command, args []string) error {
 		}
 		sym := query.FindSymbolAtPosition(s.DB(), filePath, pos.Line)
 		if sym == nil {
-			return w.WriteError("impact", &output.Error{
+			return w.WriteError(cmdNameImpact, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: "no symbol found at " + impactAt,
 			})
@@ -114,23 +114,23 @@ func runImpact(cmd *cobra.Command, args []string) error {
 		}
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("impact", &output.Error{
+			return w.WriteError(cmdNameImpact, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 		if len(symbols) == 0 {
-			return w.WriteError("impact", output.NewNotFoundError(name))
+			return w.WriteError(cmdNameImpact, output.NewNotFoundError(name))
 		}
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
 			for i, sym := range symbols {
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError("impact", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameImpact, output.NewAmbiguousError(name, candidates))
 		}
 		symbolID = symbols[0].ID
-		queryInfo = map[string]string{"symbol": name}
+		queryInfo = map[string]string{flagSymbol: name}
 	}
 
 	// Look up symbol metadata for hints and session tracking
@@ -138,7 +138,7 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symName = sym.Name
 		symKind = sym.Kind
-		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "impact")
+		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameImpact)
 	}
 
 	var degraded []string
@@ -151,7 +151,7 @@ func runImpact(cmd *cobra.Command, args []string) error {
 
 	// For structs/types, expand to include callers of methods on the type
 	var callerRows []query.ImpactRow
-	isType := symKind == "struct" || symKind == "type"
+	isType := symKind == "struct" || symKind == cmdKindType
 	if isType {
 		methodIDs, mErr := query.FindMethodIDs(s.DB(), symName)
 		if mErr != nil {
@@ -367,7 +367,7 @@ func runImpact(cmd *cobra.Command, args []string) error {
 			Results:     []output.Summary{summaryData},
 			Suggestions: suggestions,
 			Meta: output.Meta{
-				Command:    "impact",
+				Command:    cmdNameImpact,
 				Query:      queryInfo,
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
@@ -393,7 +393,7 @@ func runImpact(cmd *cobra.Command, args []string) error {
 		Results:     results,
 		Suggestions: suggestions,
 		Meta: output.Meta{
-			Command:       "impact",
+			Command:       cmdNameImpact,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

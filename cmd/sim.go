@@ -14,7 +14,7 @@ import (
 var simCmd = &cobra.Command{
 	Use:     "sim <query>",
 	Short:   "Semantic similarity search",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Finds symbols semantically similar to the query using embeddings.
 
 Requires embeddings to be generated first with 'snipe index --embed'.
@@ -46,7 +46,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 	summary := format == FormatSummary
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
-	s, dir, err := OpenStore(w, "sim")
+	s, dir, err := OpenStore(w, cmdNameSim)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 	// Get embedding client
 	client, err := embed.NewClient()
 	if err != nil {
-		return w.WriteError("sim", &output.Error{
+		return w.WriteError(cmdNameSim, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "embedding client: " + err.Error(),
 		})
@@ -66,13 +66,13 @@ func runSim(cmd *cobra.Command, args []string) error {
 	searchLimit := off + lim
 	results, _, simErr := embed.Search(cmd.Context(), queryText, s, client, searchLimit, threshold)
 	if simErr != nil {
-		return w.WriteError("sim", &output.Error{
+		return w.WriteError(cmdNameSim, &output.Error{
 			Code:    output.ErrInternal,
 			Message: simErr.Error(),
 		})
 	}
 	if results == nil {
-		return w.WriteError("sim", &output.Error{
+		return w.WriteError(cmdNameSim, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "no embeddings found. Run 'snipe index --embed' first",
 		})
@@ -121,7 +121,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 			Ok:       true,
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
-				Command:    "sim",
+				Command:    cmdNameSim,
 				Query:      map[string]string{"query": queryText, "threshold": cmd.Flag("threshold").Value.String()},
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
@@ -148,7 +148,7 @@ func runSim(cmd *cobra.Command, args []string) error {
 		Ok:       true,
 		Results:  results,
 		Meta: output.Meta{
-			Command:       "sim",
+			Command:       cmdNameSim,
 			Query:         map[string]string{"query": queryText, "threshold": cmd.Flag("threshold").Value.String()},
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

@@ -42,7 +42,7 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*output.ExplainR
 	}
 
 	// Only explain funcs and methods for now
-	if sym.Kind != "func" && sym.Kind != "method" {
+	if sym.Kind != kindFunc && sym.Kind != "method" {
 		return nil, fmt.Errorf("explain only supports func/method, got %s", sym.Kind)
 	}
 
@@ -185,26 +185,26 @@ var exactActionMap = map[string]string{
 	"Read":      "reads",
 	"Write":     "writes",
 	"Get":       "retrieves",
-	"Set":       "updates",
-	"Save":      "persists",
-	"Store":     "persists",
+	"Set":       actionUpdates,
+	"Save":      actionPersists,
+	"Store":     actionPersists,
 	"Load":      "loads",
 	"Parse":     "parses",
 	"Format":    "formats",
-	"Validate":  "validates",
-	"Check":     "validates",
+	"Validate":  actionValidates,
+	"Check":     actionValidates,
 	"Execute":   "executes",
 	"Run":       "executes",
 	"Start":     "starts",
 	"Stop":      "stops",
 	"Init":      "initializes",
-	"Create":    "creates",
+	"Create":    actionCreates,
 	"Delete":    "deletes",
 	"Remove":    "removes",
 	"Add":       "adds",
 	"Append":    "appends",
 	"Insert":    "inserts",
-	"Update":    "updates",
+	"Update":    actionUpdates,
 	"Find":      "finds",
 	"Search":    "searches",
 	"Query":     "queries",
@@ -221,14 +221,14 @@ var exactActionMap = map[string]string{
 var actionPrefixes = []struct {
 	prefix, action string
 }{
-	{"Is", "validates"},
-	{"Has", "validates"},
-	{"Check", "validates"},
-	{"New", "creates"},
-	{"Make", "creates"},
+	{"Is", actionValidates},
+	{"Has", actionValidates},
+	{"Check", actionValidates},
+	{"New", actionCreates},
+	{"Make", actionCreates},
 	{"Get", "retrieves"},
-	{"Set", "updates"},
-	{"Save", "persists"},
+	{"Set", actionUpdates},
+	{"Save", actionPersists},
 	{"Load", "loads"},
 	{"Parse", "parses"},
 	{"Format", "formats"},
@@ -295,9 +295,9 @@ func extractDeps(sig string, deps map[string]struct{}) {
 }
 
 var goKeywords = map[string]bool{
-	"func": true, "return": true, "if": true, "else": true, "for": true,
+	kindFunc: true, "return": true, "if": true, "else": true, "for": true,
 	"range": true, "switch": true, "case": true, "default": true,
-	"type": true, "struct": true, "interface": true, "map": true,
+	"type": true, kindStruct: true, "interface": true, "map": true,
 	"chan": true, "go": true, "defer": true, "select": true,
 }
 

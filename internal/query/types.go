@@ -64,7 +64,7 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 	}
 
 	// Only struct, interface, type alias kinds are valid
-	if sym.Kind != "struct" && sym.Kind != "interface" && sym.Kind != "type" {
+	if sym.Kind != kindStruct && sym.Kind != "interface" && sym.Kind != "type" {
 		return nil, fmt.Errorf("types command requires struct/interface/type, got %s", sym.Kind)
 	}
 

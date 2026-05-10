@@ -15,7 +15,7 @@ import (
 var pkgCmd = &cobra.Command{
 	Use:     "pkg <name>",
 	Short:   "Show package overview with exported symbols",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Shows an overview of a package including its exported symbols.
 
 Displays all exported types, functions, constants, and variables in a package,
@@ -49,7 +49,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 
 	pkgPattern := args[0]
 
-	s, dir, err := OpenStore(w, "pkg")
+	s, dir, err := OpenStore(w, cmdNamePkg)
 	if err != nil {
 		return err
 	}
@@ -61,19 +61,19 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	// Resolve full pkg path for doc lookup.
 	fullPkgPath := query.FindFullPkgPath(s.DB(), pkgPattern)
 
-	queryInfo := map[string]string{"package": pkgPattern}
+	queryInfo := map[string]string{flagPackage: pkgPattern}
 
 	// Find package symbols ranked by usage.
 	symbols, err := query.FindPackageSymbolsByUsage(s.DB(), pkgPattern, lim, off)
 	if err != nil {
-		return w.WriteError("pkg", &output.Error{
+		return w.WriteError(cmdNamePkg, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if len(symbols) == 0 {
-		return w.WriteError("pkg", &output.Error{
+		return w.WriteError(cmdNamePkg, &output.Error{
 			Code:    output.ErrNotFound,
 			Message: "no exported symbols found in package matching: " + pkgPattern,
 		})
@@ -124,7 +124,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 			Ok:       true,
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
-				Command:    "pkg",
+				Command:    cmdNamePkg,
 				Query:      queryInfo,
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
@@ -171,7 +171,7 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	}
 
 	meta := output.Meta{
-		Command:       "pkg",
+		Command:       cmdNamePkg,
 		Query:         queryInfo,
 		RepoRoot:      dir,
 		IndexState:    query.CheckIndexState(s.DB(), dir, Version),

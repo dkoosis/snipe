@@ -24,7 +24,7 @@ var searchFile string
 var searchCmd = &cobra.Command{
 	Use:     "search <pattern>",
 	Short:   "Text search via ripgrep",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Searches for a pattern using ripgrep. Works without an index.
 
 If no text matches are found for an identifier-like query and an index exists,
@@ -62,7 +62,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	// Get current directory
 	dir, err := os.Getwd()
 	if err != nil {
-		return w.WriteError("search", &output.Error{
+		return w.WriteError(cmdNameSearch, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "failed to get working directory: " + err.Error(),
 		})
@@ -97,7 +97,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		if strings.Contains(err.Error(), "not found") {
 			code = output.ErrRgNotFound
 		}
-		return w.WriteError("search", &output.Error{
+		return w.WriteError(cmdNameSearch, &output.Error{
 			Code:    code,
 			Message: err.Error(),
 		})
@@ -286,7 +286,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			Ok:       true,
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
-				Command:      "search",
+				Command:      cmdNameSearch,
 				Query:        searchQueryInfo(pattern),
 				IndexState:   searchIndexState,
 				Degraded:     searchDegraded,
@@ -311,7 +311,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		Results:     results,
 		Suggestions: output.SuggestionsForSearch(pattern, len(results), usedFallback),
 		Meta: output.Meta{
-			Command:       "search",
+			Command:       cmdNameSearch,
 			Query:         searchQueryInfo(pattern),
 			IndexState:    searchIndexState,
 			Degraded:      searchDegraded,

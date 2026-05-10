@@ -14,7 +14,7 @@ import (
 var calleesCmd = &cobra.Command{
 	Use:     "callees [symbol|id]",
 	Short:   "Find functions that a symbol calls",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Finds all functions called by a given symbol.
 
 Accepts symbol name or 16-char hex ID (auto-detected).
@@ -49,14 +49,14 @@ func runCallees(cmd *cobra.Command, args []string) error {
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && calleesID == "" {
-		return w.WriteError("callees", &output.Error{
+		return w.WriteError(cmdNameCallees, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "provide a symbol name or --id",
 		})
 	}
 
 	// Find repo root and open store (auto-indexes if needed)
-	s, dir, err := OpenStore(w, "callees")
+	s, dir, err := OpenStore(w, cmdNameCallees)
 	if err != nil {
 		return err
 	}
@@ -82,14 +82,14 @@ func runCallees(cmd *cobra.Command, args []string) error {
 
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("callees", &output.Error{
+			return w.WriteError(cmdNameCallees, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError("callees", output.NewNotFoundError(name))
+			return w.WriteError(cmdNameCallees, output.NewNotFoundError(name))
 		}
 
 		if len(symbols) > 1 {
@@ -97,11 +97,11 @@ func runCallees(cmd *cobra.Command, args []string) error {
 			for i, sym := range symbols {
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError("callees", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameCallees, output.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
-		queryInfo = map[string]string{"symbol": name}
+		queryInfo = map[string]string{flagSymbol: name}
 	}
 
 findCallees:
@@ -110,13 +110,13 @@ findCallees:
 	var symName string
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symName = sym.Name
-		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "callees")
+		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameCallees)
 	}
 
 	// Find callees
 	calls, err := query.FindCallees(s.DB(), symbolID, lim, off)
 	if err != nil {
-		return w.WriteError("callees", &output.Error{
+		return w.WriteError(cmdNameCallees, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -198,7 +198,7 @@ findCallees:
 			Ok:       true,
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
-				Command:    "callees",
+				Command:    cmdNameCallees,
 				Query:      queryInfo,
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
@@ -226,7 +226,7 @@ findCallees:
 		Results:     results,
 		Suggestions: output.SuggestionsForCallees(symName, len(results)),
 		Meta: output.Meta{
-			Command:       "callees",
+			Command:       cmdNameCallees,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

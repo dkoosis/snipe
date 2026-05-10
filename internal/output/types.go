@@ -9,6 +9,9 @@ import (
 // Bump when the response envelope schema changes in a breaking way.
 const ProtocolVersion = 1
 
+// descViewFuncDef is the canonical suggestion description for jumping to a function definition.
+const descViewFuncDef = "View the function definition"
+
 // Response is the top-level response structure for all commands
 type Response[T any] struct {
 	Protocol    int          `json:"protocol"`
@@ -138,8 +141,13 @@ type KGHint struct {
 // Hint constants for static analysis
 // Symbol kind constants used for conditional rendering.
 const (
-	KindFunc   = "func"
-	KindMethod = "method"
+	KindFunc      = "func"
+	KindMethod    = "method"
+	KindType      = "type"
+	KindStruct    = "struct"
+	KindInterface = "interface"
+	KindConst     = "const"
+	KindVar       = "var"
 )
 
 const (
@@ -410,7 +418,7 @@ func SuggestionsForCallers(symbol string, resultCount int) []Suggestion {
 	suggestions := []Suggestion{
 		{
 			Command:     "snipe def " + symbol,
-			Description: "View the function definition",
+			Description: descViewFuncDef,
 			Priority:    1,
 		},
 		{
@@ -428,7 +436,7 @@ func SuggestionsForCallees(symbol string, resultCount int) []Suggestion {
 	return []Suggestion{
 		{
 			Command:     "snipe def " + symbol,
-			Description: "View the function definition",
+			Description: descViewFuncDef,
 			Priority:    1,
 		},
 		{
@@ -460,7 +468,7 @@ func SuggestionsForTests(symbol string, resultCount int, suggestedFile string) [
 	return []Suggestion{
 		{
 			Command:     "snipe def " + symbol,
-			Description: "View the function definition",
+			Description: descViewFuncDef,
 			Priority:    1,
 		},
 		{

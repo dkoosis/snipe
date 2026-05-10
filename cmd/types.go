@@ -21,7 +21,7 @@ var (
 var typesCmd = &cobra.Command{
 	Use:     "types [type-name]",
 	Short:   "Show type relationships",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Displays type information including methods, embeds, and fields.
 
 Output includes:
@@ -53,13 +53,13 @@ func runTypes(cmd *cobra.Command, args []string) error {
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
 	if len(args) == 0 && typesAt == "" {
-		return w.WriteError("types", &output.Error{
+		return w.WriteError(cmdNameTypes, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "provide a type name or --at position",
 		})
 	}
 
-	s, dir, err := OpenStore(w, "types")
+	s, dir, err := OpenStore(w, cmdNameTypes)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func runTypes(cmd *cobra.Command, args []string) error {
 	if typesAt != "" {
 		pos, err := query.ParsePosition(typesAt)
 		if err != nil {
-			return w.WriteError("types", &output.Error{
+			return w.WriteError(cmdNameTypes, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -92,7 +92,7 @@ func runTypes(cmd *cobra.Command, args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError("types", &output.Error{
+			return w.WriteError(cmdNameTypes, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -117,21 +117,21 @@ func runTypes(cmd *cobra.Command, args []string) error {
 			if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteError("types", &output.Error{
+					return w.WriteError(cmdNameTypes, &output.Error{
 						Code:    output.ErrInternal,
 						Message: err.Error(),
 					})
 				}
 				if len(symbols) == 1 {
 					symbolID = symbols[0].ID
-					queryInfo = map[string]string{"symbol": symbolPart, "file": filePart}
+					queryInfo = map[string]string{flagSymbol: symbolPart, flagFile: filePart}
 					goto getTypes
 				} else if len(symbols) > 1 {
 					candidates := make([]output.Candidate, len(symbols))
 					for i, sym := range symbols {
 						candidates[i] = sym.ToCandidate()
 					}
-					return w.WriteError("types", output.NewAmbiguousError(name, candidates))
+					return w.WriteError(cmdNameTypes, output.NewAmbiguousError(name, candidates))
 				}
 			}
 		}
@@ -139,7 +139,7 @@ func runTypes(cmd *cobra.Command, args []string) error {
 		// Regular lookup
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("types", &output.Error{
+			return w.WriteError(cmdNameTypes, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -149,9 +149,9 @@ func runTypes(cmd *cobra.Command, args []string) error {
 			maxDist := query.DefaultMaxDistance(name)
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
-				return w.WriteError("types", output.NewNotFoundError(name))
+				return w.WriteError(cmdNameTypes, output.NewNotFoundError(name))
 			}
-			return w.WriteError("types", output.NewNotFoundError(name, suggestions...))
+			return w.WriteError(cmdNameTypes, output.NewNotFoundError(name, suggestions...))
 		}
 
 		// Filter to type-like symbols
@@ -163,7 +163,7 @@ func runTypes(cmd *cobra.Command, args []string) error {
 		}
 
 		if len(typeSymbols) == 0 {
-			return w.WriteError("types", &output.Error{
+			return w.WriteError(cmdNameTypes, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: "'" + name + "' is not a type (found " + symbols[0].Kind + ")",
 			})
@@ -174,17 +174,17 @@ func runTypes(cmd *cobra.Command, args []string) error {
 			for i, sym := range typeSymbols {
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError("types", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameTypes, output.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = typeSymbols[0].ID
-		queryInfo = map[string]string{"symbol": name}
+		queryInfo = map[string]string{flagSymbol: name}
 	}
 
 getTypes:
 	typeInfo, err := query.GetTypeInfo(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteError("types", &output.Error{
+		return w.WriteError(cmdNameTypes, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -238,7 +238,7 @@ getTypes:
 		Ok:       true,
 		Results:  []output.TypesResult{result},
 		Meta: output.Meta{
-			Command:    "types",
+			Command:    cmdNameTypes,
 			Query:      queryInfo,
 			RepoRoot:   dir,
 			IndexState: query.CheckIndexState(s.DB(), dir, Version),
@@ -304,8 +304,8 @@ func runTypesForPackage(w *output.Writer, s interface {
 		Ok:       true,
 		Results:  results,
 		Meta: output.Meta{
-			Command:    "types",
-			Query:      map[string]string{"pkg": pkgPath},
+			Command:    cmdNameTypes,
+			Query:      map[string]string{flagPkg: pkgPath},
 			RepoRoot:   dir,
 			IndexState: query.CheckIndexState(s.DB(), dir, Version),
 			Ms:         time.Since(start).Milliseconds(),

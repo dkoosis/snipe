@@ -50,7 +50,7 @@ type BatchEditRequest struct {
 var editCmd = &cobra.Command{
 	Use:     "edit [symbol]",
 	Short:   "AST-aware code editing",
-	GroupID: "advanced",
+	GroupID: categoryAdvanced,
 	Long: `Performs AST-aware edits on Go source code.
 
 Operations:
@@ -94,14 +94,14 @@ func runEdit(cmd *cobra.Command, args []string) error {
 
 	// Single edit mode - need symbol name or --at position
 	if len(args) == 0 && editAt == "" {
-		return w.WriteError("edit", &output.Error{
+		return w.WriteError(cmdNameEdit, &output.Error{
 			Code:    output.ErrInternal,
-			Message: "provide a symbol name or --at position",
+			Message: errProvideSymbolOrAt,
 		})
 	}
 
 	if editOperation == "" {
-		return w.WriteError("edit", &output.Error{
+		return w.WriteError(cmdNameEdit, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "provide --operation: replace_body, replace_full, insert_after, insert_before",
 		})
@@ -112,7 +112,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	if editNewCodeFile != "" {
 		data, err := os.ReadFile(editNewCodeFile) // #nosec G304 -- CLI tool accepts user-specified file paths
 		if err != nil {
-			return w.WriteError("edit", &output.Error{
+			return w.WriteError(cmdNameEdit, &output.Error{
 				Code:    output.ErrInternal,
 				Message: "read new-code-file: " + err.Error(),
 			})
@@ -121,14 +121,14 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	}
 
 	if newCode == "" {
-		return w.WriteError("edit", &output.Error{
+		return w.WriteError(cmdNameEdit, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "provide --new-code or --new-code-file",
 		})
 	}
 
 	// Find repo root and open store
-	s, dir, err := OpenStore(w, "edit")
+	s, dir, err := OpenStore(w, cmdNameEdit)
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	if editAt != "" {
 		pos, err := query.ParsePosition(editAt)
 		if err != nil {
-			return w.WriteError("edit", &output.Error{
+			return w.WriteError(cmdNameEdit, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -155,7 +155,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 
 		symbolID, err := query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError("edit", &output.Error{
+			return w.WriteError(cmdNameEdit, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -163,7 +163,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 
 		sym, err := query.LookupByID(s.DB(), symbolID)
 		if err != nil || sym == nil {
-			return w.WriteError("edit", &output.Error{
+			return w.WriteError(cmdNameEdit, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: "symbol not found at position",
 			})
@@ -183,7 +183,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 			if _, err := hex.DecodeString(name); err == nil {
 				sym, err := query.LookupByID(s.DB(), name)
 				if err != nil || sym == nil {
-					return w.WriteError("edit", &output.Error{
+					return w.WriteError(cmdNameEdit, &output.Error{
 						Code:    output.ErrNotFound,
 						Message: "symbol not found: " + name,
 					})
@@ -211,14 +211,14 @@ func runEdit(cmd *cobra.Command, args []string) error {
 		// Regular name lookup
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("edit", &output.Error{
+			return w.WriteError(cmdNameEdit, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError("edit", output.NewNotFoundError(name))
+			return w.WriteError(cmdNameEdit, output.NewNotFoundError(name))
 		}
 
 		if len(symbols) > 1 {
@@ -226,7 +226,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 			for i, sym := range symbols {
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError("edit", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameEdit, output.NewAmbiguousError(name, candidates))
 		}
 
 		filePath = symbols[0].FilePath
@@ -255,7 +255,7 @@ doEdit:
 	}
 
 	if err != nil {
-		return w.WriteError("edit", &output.Error{
+		return w.WriteError(cmdNameEdit, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -285,8 +285,8 @@ doEdit:
 		Ok:       true,
 		Results:  []EditResponse{editResp},
 		Meta: output.Meta{
-			Command:  "edit",
-			Query:    map[string]string{"symbol": symbolName, "operation": editOperation},
+			Command:  cmdNameEdit,
+			Query:    map[string]string{flagSymbol: symbolName, "operation": editOperation},
 			RepoRoot: dir,
 			Ms:       time.Since(start).Milliseconds(),
 			Total:    1,
@@ -300,20 +300,20 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 	// Read batch operations from stdin
 	var requests []BatchEditRequest
 	if err := json.NewDecoder(os.Stdin).Decode(&requests); err != nil {
-		return w.WriteError("edit", &output.Error{
+		return w.WriteError(cmdNameEdit, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "parse batch input: " + err.Error(),
 		})
 	}
 
 	if len(requests) == 0 {
-		return w.WriteError("edit", &output.Error{
+		return w.WriteError(cmdNameEdit, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "no operations in batch",
 		})
 	}
 
-	s, dir, err := OpenStore(w, "edit")
+	s, dir, err := OpenStore(w, cmdNameEdit)
 	if err != nil {
 		return err
 	}
@@ -399,7 +399,7 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 		Ok:       true,
 		Results:  results,
 		Meta: output.Meta{
-			Command:  "edit",
+			Command:  cmdNameEdit,
 			Query:    map[string]string{"mode": "batch"},
 			RepoRoot: dir,
 			Degraded: uniqueStrings(degraded),

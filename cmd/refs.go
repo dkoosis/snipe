@@ -23,7 +23,7 @@ var (
 var refsCmd = &cobra.Command{
 	Use:     "refs [symbol]",
 	Short:   "Find all references to a symbol",
-	GroupID: "core",
+	GroupID: categoryCore,
 	Long: `Finds all references to a symbol by name or position.
 
 Scoped queries:
@@ -60,14 +60,14 @@ func runRefs(cmd *cobra.Command, args []string) error {
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && refsAt == "" {
-		return w.WriteError("refs", &output.Error{
+		return w.WriteError(cmdNameRefs, &output.Error{
 			Code:    output.ErrInternal,
-			Message: "provide a symbol name or --at position",
+			Message: errProvideSymbolOrAt,
 		})
 	}
 
 	// Find repo root and open store (auto-indexes if needed)
-	s, dir, err := OpenStore(w, "refs")
+	s, dir, err := OpenStore(w, cmdNameRefs)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(refsAt)
 		if err != nil {
-			return w.WriteError("refs", &output.Error{
+			return w.WriteError(cmdNameRefs, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -93,7 +93,7 @@ func runRefs(cmd *cobra.Command, args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError("refs", &output.Error{
+			return w.WriteError(cmdNameRefs, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -114,14 +114,14 @@ func runRefs(cmd *cobra.Command, args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError("refs", &output.Error{
+			return w.WriteError(cmdNameRefs, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError("refs", output.NewNotFoundError(name))
+			return w.WriteError(cmdNameRefs, output.NewNotFoundError(name))
 		}
 
 		if len(symbols) > 1 {
@@ -129,11 +129,11 @@ func runRefs(cmd *cobra.Command, args []string) error {
 			for i, s := range symbols {
 				candidates[i] = s.ToCandidate()
 			}
-			return w.WriteError("refs", output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameRefs, output.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
-		queryInfo = map[string]string{"symbol": name}
+		queryInfo = map[string]string{flagSymbol: name}
 	}
 
 findRefs:
@@ -142,7 +142,7 @@ findRefs:
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symbolName = sym.Name
 		// Record query in session for active work tracking
-		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, "refs")
+		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameRefs)
 	}
 	nameLen := len(symbolName)
 	if nameLen == 0 {
@@ -152,7 +152,7 @@ findRefs:
 	// Find all references
 	refs, err := query.FindRefs(s.DB(), symbolID, lim, off)
 	if err != nil {
-		return w.WriteError("refs", &output.Error{
+		return w.WriteError(cmdNameRefs, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -236,7 +236,7 @@ findRefs:
 			File:       filePath,
 			FileAbs:    ref.FilePath,
 			Range:      refRange,
-			Kind:       "ref",
+			Kind:       flagRef,
 			Name:       symbolName,
 			Match:      ref.Snippet,
 			EditTarget: output.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
@@ -301,7 +301,7 @@ findRefs:
 			Ok:       true,
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
-				Command:    "refs",
+				Command:    cmdNameRefs,
 				Query:      queryInfo,
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
@@ -329,7 +329,7 @@ findRefs:
 		Results:     results,
 		Suggestions: output.SuggestionsForRefs(symbolName, len(results)),
 		Meta: output.Meta{
-			Command:       "refs",
+			Command:       cmdNameRefs,
 			Query:         queryInfo,
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),

@@ -43,112 +43,112 @@ linters:
     - wrapcheck    # 41 issues - error wrapping
     - gocyclo      # cyclomatic complexity
 
+  settings:
+    dogsled:
+      max-blank-identifiers: 4
+
+    dupl:
+      threshold: 150
+
+    funlen:
+      lines: 100
+      statements: 50
+
+    gocognit:
+      min-complexity: 20
+
+    gocyclo:
+      min-complexity: 15
+
+    goconst:
+      min-len: 3
+      min-occurrences: 5
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+
+    godot:
+      scope: declarations
+      capital: false
+
+    nestif:
+      min-complexity: 4
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+    wrapcheck:
+      ignore-sigs:
+        - .Errorf(
+        - errors.New(
+        - errors.Unwrap(
+        - .Wrap(
+        - .Wrapf(
+        - .WithMessage(
+        - .WithMessagef(
+        - .WithStack(
+      ignore-package-globs:
+        - github.com/dkoosis/snipe/*
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+  exclusions:
+    rules:
+      # Test files can be longer
+      - path: _test\.go
+        linters:
+          - funlen
+          - dupl
+          - gocognit
+          - goconst
+          - gocritic
+
+      # Main can have longer functions
+      - path: main\.go
+        linters:
+          - funlen
+
+      # Allow fmt.Fprintf to stderr in commands
+      - path: cmd/
+        linters:
+          - forbidigo
+        text: "fmt.Fprintf"
+
 formatters:
   enable:
     - gofmt
     - goimports
   settings:
     goimports:
-      local-prefixes: github.com/dkoosis/snipe
-
-linters-settings:
-  dogsled:
-    max-blank-identifiers: 4
-
-  dupl:
-    threshold: 150
-
-  funlen:
-    lines: 100
-    statements: 50
-
-  gocognit:
-    min-complexity: 20
-
-  gocyclo:
-    min-complexity: 15
-
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-
-  godot:
-    scope: declarations
-    capital: false
-
-  nestif:
-    min-complexity: 4
-
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
-
-  wrapcheck:
-    ignoreSigs:
-      - .Errorf(
-      - errors.New(
-      - errors.Unwrap(
-      - .Wrap(
-      - .Wrapf(
-      - .WithMessage(
-      - .WithMessagef(
-      - .WithStack(
-    ignorePackageGlobs:
-      - github.com/dkoosis/snipe/*
-
-  exhaustive:
-    default-signifies-exhaustive: true
+      local-prefixes:
+        - github.com/dkoosis/snipe
 
 issues:
-  exclude-rules:
-    # Test files can be longer
-    - path: _test\.go
-      linters:
-        - funlen
-        - dupl
-        - gocognit
-
-    # Main can have longer functions
-    - path: main\.go
-      linters:
-        - funlen
-
-    # Allow fmt.Fprintf to stderr in commands
-    - path: cmd/
-      linters:
-        - forbidigo
-      text: "fmt.Fprintf"
-
   max-issues-per-linter: 0
   max-same-issues: 0

@@ -17,8 +17,8 @@ func DetectBuildInfo(repoRoot string, db *sql.DB) BuildInfo {
 	switch {
 	case fileExists(filepath.Join(repoRoot, "magefile.go")):
 		return BuildInfo{
-			System:     "mage",
-			Build:      "mage",
+			System:     toolMage,
+			Build:      toolMage,
 			Test:       "mage test",
 			Targets:    mageTargetsFromIndex(db, repoRoot),
 			CI:         ci,
