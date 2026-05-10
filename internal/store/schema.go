@@ -279,7 +279,10 @@ func (s *Store) initSchema() error {
 	}
 
 	// Get current migration version
-	currentVersion := s.getCurrentMigrationVersion()
+	currentVersion, err := s.getCurrentMigrationVersion()
+	if err != nil {
+		return fmt.Errorf("read current migration version: %w", err)
+	}
 
 	// Run pending migrations
 	for _, m := range migrations {
@@ -309,13 +312,14 @@ func (s *Store) initSchema() error {
 }
 
 // getCurrentMigrationVersion returns the highest applied migration version.
-func (s *Store) getCurrentMigrationVersion() int {
+// A query error must propagate — silently returning 0 would re-run every
+// migration against a possibly-non-empty DB.
+func (s *Store) getCurrentMigrationVersion() (int, error) {
 	var version int
-	err := s.db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM migrations`).Scan(&version)
-	if err != nil {
-		return 0
+	if err := s.db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM migrations`).Scan(&version); err != nil {
+		return 0, fmt.Errorf("query migrations: %w", err)
 	}
-	return version
+	return version, nil
 }
 
 // runMigration executes a single migration in a transaction.
