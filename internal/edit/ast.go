@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/pmezard/go-difflib/difflib"
+
+	"github.com/dkoosis/snipe/internal/util"
 )
 
 // ErrSymbolNotFound is returned when a symbol cannot be located in the file.
@@ -309,7 +311,9 @@ func ApplyAndWrite(req Request) (*Result, error) {
 		return nil, err
 	}
 
-	if err := os.WriteFile(req.File, result.formatted, 0600); err != nil { // #nosec G306 -- preserving original Go source file permissions
+	// Atomic write: a crash mid-write leaves the original file untouched.
+	// os.WriteFile truncates first, which can corrupt user source on disk-full / SIGKILL.
+	if err := util.WriteFileAtomic(req.File, result.formatted, 0600); err != nil { // #nosec G306 -- preserving original Go source file permissions
 		return nil, fmt.Errorf("write file: %w", err)
 	}
 

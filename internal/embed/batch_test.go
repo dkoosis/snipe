@@ -216,6 +216,27 @@ func TestBatchState_CreatingBreadcrumb(t *testing.T) {
 	}
 }
 
+// TestLoadState_DiscardsCorruptFile asserts that a truncated/garbled state file
+// is treated as "no batch" instead of wedging every subsequent command.
+func TestLoadState_DiscardsCorruptFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "batch_state.json")
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatalf("seed corrupt state: %v", err)
+	}
+
+	loaded, err := testBatchClient(dir).LoadState()
+	if err != nil {
+		t.Fatalf("LoadState should swallow corruption, got: %v", err)
+	}
+	if loaded != nil {
+		t.Fatalf("expected nil from corrupt file, got %#v", loaded)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("expected corrupt file to be removed, stat err: %v", err)
+	}
+}
+
 func TestLoadState_NoFile(t *testing.T) {
 	loaded, err := testBatchClient(t.TempDir()).LoadState()
 	if err != nil {

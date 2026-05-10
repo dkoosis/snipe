@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/util"
 )
 
 // BatchClient handles async batch embedding requests to Voyage AI.
@@ -367,10 +369,15 @@ func (c *BatchClient) SaveState(state *BatchState) error {
 		return fmt.Errorf("marshal state: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0600)
+	// Atomic write: a SIGKILL mid-write would otherwise leave a truncated
+	// batch_state.json that wedges every subsequent command on unmarshal error.
+	return util.WriteFileAtomic(path, data, 0600)
 }
 
 // LoadState loads the batch state from disk.
+// A truncated/unparseable state file (e.g. from a non-atomic-write era or FS
+// corruption) is treated as "no state" with a stderr warning, so the user can
+// recover by simply re-running instead of manually deleting .snipe/batch_state.json.
 func (c *BatchClient) LoadState() (*BatchState, error) {
 	if c.stateDir == "" {
 		return nil, nil
@@ -387,7 +394,9 @@ func (c *BatchClient) LoadState() (*BatchState, error) {
 
 	var state BatchState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, fmt.Errorf("unmarshal state: %w", err)
+		fmt.Fprintf(os.Stderr, "Warning: batch_state.json is corrupt (%v); discarding and starting fresh.\n", err)
+		_ = os.Remove(path)
+		return nil, nil
 	}
 
 	return &state, nil
