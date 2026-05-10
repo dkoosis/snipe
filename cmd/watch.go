@@ -116,6 +116,14 @@ func runWatch(cmd *cobra.Command, args []string) error {
 				return nil
 			}
 
+			// Pick up directories created after startup (fsnotify only watches
+			// dirs registered at Add() time on macOS/Linux).
+			if event.Op&fsnotify.Create != 0 {
+				if fi, statErr := os.Stat(event.Name); statErr == nil && fi.IsDir() {
+					_ = addWatchDirs(watcher, event.Name)
+				}
+			}
+
 			// Only watch .go files
 			if !strings.HasSuffix(event.Name, ".go") {
 				continue
@@ -173,13 +181,16 @@ func runWatch(cmd *cobra.Command, args []string) error {
 
 		case res := <-reindexDone:
 			indexing = false
-			if res.err != nil {
+			// Suppress error emit when parent ctx is cancelled — the child
+			// was killed by exec.CommandContext and the next iteration will
+			// emit "stopped". Don't double-report as a real failure.
+			if res.err != nil && GetContext().Err() == nil {
 				emitEvent(WatchEvent{
 					Event:     cmdKindError,
 					Error:     res.err.Error(),
 					Timestamp: time.Now().Format(time.RFC3339),
 				})
-			} else {
+			} else if res.err == nil {
 				emitEvent(WatchEvent{
 					Event:     "reindexed",
 					Files:     res.files,
