@@ -1,11 +1,13 @@
 package kg_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -88,11 +90,45 @@ esac
 				t.Setenv("PATH", t.TempDir())
 			}
 
-			got := kg.GetHints(tc.cfg)
+			got := kg.GetHints(context.Background(), tc.cfg)
 
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Fatalf("hints mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// TestGetHints_HonorsContextCancel asserts that a parent ctx cancel aborts
+// in-flight orca subprocesses within bounded time, instead of wedging snipe
+// for the duration of a hung child.
+func TestGetHints_HonorsContextCancel(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("hung-orca shim relies on POSIX sleep")
+	}
+
+	binDir := t.TempDir()
+	// orca shim that hangs forever — exercises the ctx-cancel path.
+	orcaPath := filepath.Join(binDir, "orca")
+	require.NoError(t, os.WriteFile(orcaPath, []byte("#!/bin/sh\nsleep 60\n"), 0o755))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	got := kg.GetHints(ctx, kg.Config{File: "x.go", Symbol: "Y", Package: "z"})
+	elapsed := time.Since(start)
+
+	if got != nil {
+		t.Errorf("expected nil hints from cancelled call, got %#v", got)
+	}
+	// Per-query timeout is 2s; 3 queries × 2s = 6s worst case without ctx wiring.
+	// Cancel must short-circuit well under that. Allow generous slack for CI.
+	if elapsed > 3*time.Second {
+		t.Errorf("GetHints did not honor ctx cancel; took %v", elapsed)
 	}
 }

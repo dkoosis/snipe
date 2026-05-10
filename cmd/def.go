@@ -269,7 +269,7 @@ lookup:
 		if !kg.IsAvailable() {
 			degraded = append(degraded, "kg_unavailable")
 		} else {
-			hints := kg.GetHints(kg.Config{
+			hints := kg.GetHints(cmd.Context(), kg.Config{
 				File:    sym.FilePathRel,
 				Symbol:  sym.Name,
 				Package: sym.PkgPath,

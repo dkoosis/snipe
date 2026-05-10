@@ -208,8 +208,13 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 			})
 		}
 
-		// Wait and poll again
-		time.Sleep(time.Duration(embedPollSecs) * time.Second)
+		// Wait and poll again — honor ctx so Ctrl+C returns promptly instead of
+		// wedging for the full poll interval.
+		select {
+		case <-cmd.Context().Done():
+			return cmd.Context().Err()
+		case <-time.After(time.Duration(embedPollSecs) * time.Second):
+		}
 	}
 }
 

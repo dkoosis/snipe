@@ -2,10 +2,16 @@
 package kg
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
+
+// orcaQueryTimeout is the per-call deadline for an `orca search_nugs` subprocess.
+// KG hints are best-effort decoration; never block the primary command on a hung child.
+const orcaQueryTimeout = 2 * time.Second
 
 // Config specifies what to query for hints.
 type Config struct {
@@ -32,7 +38,9 @@ func IsAvailable() bool {
 
 // GetHints queries the Orca KG for hints related to the given config.
 // Returns nil if Orca is not available or no hints found.
-func GetHints(cfg Config) []Hint {
+// ctx cancellation aborts in-flight orca subprocesses; each call also has a
+// per-query timeout so a hung orca never blocks snipe forever.
+func GetHints(ctx context.Context, cfg Config) []Hint {
 	orcaPath, err := exec.LookPath("orca")
 	if err != nil {
 		return nil
@@ -58,7 +66,10 @@ func GetHints(cfg Config) []Hint {
 	var hints []Hint
 	seen := make(map[string]struct{})
 	for _, q := range queries {
-		for _, h := range queryOrcaHints(orcaPath, env, q) {
+		if ctx.Err() != nil {
+			break
+		}
+		for _, h := range queryOrcaHints(ctx, orcaPath, env, q) {
 			if _, dup := seen[h.ID]; dup {
 				continue
 			}
@@ -69,8 +80,11 @@ func GetHints(cfg Config) []Hint {
 	return hints
 }
 
-func queryOrcaHints(orcaPath string, env []string, query string) []Hint {
-	cmd := exec.Command(orcaPath, "search_nugs", "--query", query, "--limit", "3", "--format", "oneline")
+func queryOrcaHints(ctx context.Context, orcaPath string, env []string, query string) []Hint {
+	callCtx, cancel := context.WithTimeout(ctx, orcaQueryTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(callCtx, orcaPath, "search_nugs", "--query", query, "--limit", "3", "--format", "oneline")
 	cmd.Env = env
 
 	output, err := cmd.Output()
