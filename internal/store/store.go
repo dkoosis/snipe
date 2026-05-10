@@ -161,36 +161,51 @@ func AcquireLock(dbPath string) error {
 	return f.Close()
 }
 
-// tryRemoveStaleLock checks whether the lock file is held by a dead process.
-// Returns true if the lock was stale and removed.
+// tryRemoveStaleLock checks whether the lock file is held by a dead process,
+// and removes it only if the file's contents still match what we verified as
+// stale. Without the re-read-and-match, two parallel snipe runs starting
+// against a stale lock could race: A reads the dead PID, C re-locks in the
+// gap, then A unlinks C's live lock. The match check shrinks that window
+// from "any past read" to a tight read→remove pair.
 func tryRemoveStaleLock(lockPath string) bool {
 	data, err := os.ReadFile(lockPath) // #nosec G304
 	if err != nil {
 		return false
 	}
-	pidStr := strings.TrimSpace(string(data))
-	if pidStr == "" {
-		// Empty file (old format or crash mid-write) — treat as stale
-		_ = os.Remove(lockPath) // G104: best-effort cleanup
-		return true
+	initial := strings.TrimSpace(string(data))
+	if initial == "" {
+		// Empty file (old format or crash mid-write) — treat as stale.
+		return removeLockIfContentsMatch(lockPath, "")
 	}
-	pid, err := strconv.Atoi(pidStr)
+	pid, err := strconv.Atoi(initial)
 	if err != nil {
-		// Unparseable — treat as stale
-		_ = os.Remove(lockPath) // G104: best-effort cleanup
-		return true
+		// Unparseable — treat as stale.
+		return removeLockIfContentsMatch(lockPath, initial)
 	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		_ = os.Remove(lockPath) // G104: best-effort cleanup
-		return true
+	// os.FindProcess on Unix never fails for any int; the actual liveness
+	// check is Signal(0), which returns ESRCH for dead PIDs.
+	proc, _ := os.FindProcess(pid)
+	if proc == nil {
+		return removeLockIfContentsMatch(lockPath, initial)
 	}
-	// Signal 0 checks existence without killing
 	if err := proc.Signal(syscall.Signal(0)); err != nil {
-		_ = os.Remove(lockPath) // G104: best-effort cleanup
-		return true
+		return removeLockIfContentsMatch(lockPath, initial)
 	}
 	return false
+}
+
+// removeLockIfContentsMatch unlinks lockPath only if its current contents (trimmed)
+// still equal expect. If another process re-locked between the staleness verdict
+// and now, the file's PID will have changed and we leave it alone.
+func removeLockIfContentsMatch(lockPath, expect string) bool {
+	cur, err := os.ReadFile(lockPath) // #nosec G304
+	if err != nil {
+		return false
+	}
+	if strings.TrimSpace(string(cur)) != expect {
+		return false
+	}
+	return os.Remove(lockPath) == nil
 }
 
 // ReleaseLock removes the lock file

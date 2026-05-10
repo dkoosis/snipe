@@ -311,6 +311,52 @@ func TestAcquireLockRecoversEmptyLockFile(t *testing.T) {
 	defer ReleaseLock(dbPath)
 }
 
+// TestRemoveLockIfContentsMatch_RefusesWhenContentsChanged simulates the TOCTOU
+// scenario where, between a staleness verdict on a dead PID and the unlink, a
+// fresh process re-locks. The match check must refuse to remove the live lock.
+func TestRemoveLockIfContentsMatch_RefusesWhenContentsChanged(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	lockPath := LockPath(dbPath)
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0750); err != nil {
+		t.Fatal(err)
+	}
+	// Initial: dead PID we'd flag stale.
+	if err := os.WriteFile(lockPath, []byte("9999999\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Race: another process re-locks before our remove.
+	if err := os.WriteFile(lockPath, []byte("1234\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if removeLockIfContentsMatch(lockPath, "9999999") {
+		t.Fatal("expected refusal to remove lock whose contents changed")
+	}
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Fatalf("lock should still exist after refusal, stat err: %v", err)
+	}
+}
+
+func TestRemoveLockIfContentsMatch_RemovesWhenContentsMatch(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	lockPath := LockPath(dbPath)
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lockPath, []byte("9999999\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if !removeLockIfContentsMatch(lockPath, "9999999") {
+		t.Fatal("expected removal when contents match")
+	}
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("lock should be gone, stat err: %v", err)
+	}
+}
+
 func TestOpenSetsPragmas(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "pragmas.db")
