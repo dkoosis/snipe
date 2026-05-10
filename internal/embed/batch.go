@@ -290,9 +290,13 @@ func (c *BatchClient) DownloadFile(ctx context.Context, fileID string) (io.ReadC
 
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 
-	// Use a client that follows redirects (default behavior)
+	// No Client.Timeout — it covers full body read, which would race with
+	// ParseBatchResults streaming large downloads. The ctx already governs
+	// overall lifetime; ResponseHeaderTimeout gives fast-fail on hung server.
 	downloadClient := &http.Client{
-		Timeout: 120 * time.Second,
+		Transport: &http.Transport{
+			ResponseHeaderTimeout: 30 * time.Second,
+		},
 	}
 
 	resp, err := downloadClient.Do(req)

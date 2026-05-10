@@ -189,12 +189,23 @@ func (c *Client) Embed(ctx context.Context, texts []string, inputType string) ([
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	// Sort by index to maintain input order
 	result := make([][]float32, len(texts))
 	for _, d := range embResp.Data {
 		if d.Index >= 0 && d.Index < len(result) {
 			result[d.Index] = d.Embedding
 		}
+	}
+
+	// Detect sparse responses — Voyage can return fewer items than requested
+	// with no top-level error, which would silently write nil embeddings.
+	missing := 0
+	for _, v := range result {
+		if v == nil {
+			missing++
+		}
+	}
+	if missing > 0 {
+		return nil, fmt.Errorf("embed: %d of %d responses missing from API", missing, len(texts))
 	}
 
 	return result, nil
