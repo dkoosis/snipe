@@ -423,13 +423,12 @@ func (c *BatchClient) WriteJSONL(symbols []SymbolText, outputDir string) (string
 	}
 
 	path := filepath.Join(outputDir, "embeddings.jsonl")
-	file, err := os.Create(path) // #nosec G304 -- path derived from outputDir (batch JSONL)
-	if err != nil {
-		return "", fmt.Errorf("create file: %w", err)
-	}
-	defer file.Close()
 
-	encoder := json.NewEncoder(file)
+	// Buffer in memory and write atomically: a disk-full or crash mid-encode
+	// must not leave a truncated JSONL behind, since the indexer would ship
+	// the partial file to Voyage and burn the 12h batch window.
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
 	for _, sym := range symbols {
 		req := BatchRequest{
 			CustomID: sym.ID,
@@ -440,6 +439,10 @@ func (c *BatchClient) WriteJSONL(symbols []SymbolText, outputDir string) (string
 		if err := encoder.Encode(req); err != nil {
 			return "", fmt.Errorf("encode request: %w", err)
 		}
+	}
+
+	if err := util.WriteFileAtomic(path, buf.Bytes(), 0o600); err != nil {
+		return "", fmt.Errorf("write jsonl: %w", err)
 	}
 
 	return path, nil
