@@ -87,6 +87,28 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	var pendingFiles []string
 	debounceDuration := time.Duration(watchDebounce) * time.Millisecond
 
+	type reindexResult struct {
+		files   []string
+		elapsed time.Duration
+		err     error
+	}
+	reindexDone := make(chan reindexResult, 1)
+	indexing := false
+
+	startReindex := func(files []string) {
+		indexing = true
+		emitEvent(WatchEvent{
+			Event:     "reindex_started",
+			Files:     files,
+			Timestamp: time.Now().Format(time.RFC3339),
+		})
+		go func() {
+			start := time.Now()
+			err := runReindex(dir)
+			reindexDone <- reindexResult{files: files, elapsed: time.Since(start), err: err}
+		}()
+	}
+
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -140,36 +162,40 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			}
 
 		case <-debounceTimer.C:
-			if len(pendingFiles) == 0 {
+			if len(pendingFiles) == 0 || indexing {
+				// If indexing, leave pendingFiles; reindexDone will re-arm.
 				continue
 			}
 
 			files := pendingFiles
 			pendingFiles = nil
+			startReindex(files)
 
-			emitEvent(WatchEvent{
-				Event:     "reindex_started",
-				Files:     files,
-				Timestamp: time.Now().Format(time.RFC3339),
-			})
-
-			start := time.Now()
-			err := runReindex(dir)
-			elapsed := time.Since(start)
-
-			if err != nil {
+		case res := <-reindexDone:
+			indexing = false
+			if res.err != nil {
 				emitEvent(WatchEvent{
 					Event:     cmdKindError,
-					Error:     err.Error(),
+					Error:     res.err.Error(),
 					Timestamp: time.Now().Format(time.RFC3339),
 				})
 			} else {
 				emitEvent(WatchEvent{
 					Event:     "reindexed",
-					Files:     files,
-					Ms:        elapsed.Milliseconds(),
+					Files:     res.files,
+					Ms:        res.elapsed.Milliseconds(),
 					Timestamp: time.Now().Format(time.RFC3339),
 				})
+			}
+			// Files arrived during reindex — re-arm debounce to coalesce.
+			if len(pendingFiles) > 0 {
+				if !debounceTimer.Stop() {
+					select {
+					case <-debounceTimer.C:
+					default:
+					}
+				}
+				debounceTimer.Reset(debounceDuration)
 			}
 
 		case err, ok := <-watcher.Errors:
