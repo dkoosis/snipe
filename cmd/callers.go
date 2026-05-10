@@ -94,7 +94,8 @@ func runCallers(cmd *cobra.Command, args []string) error {
 
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
-			for i, sym := range symbols {
+			for i := range symbols {
+				sym := &symbols[i]
 				candidates[i] = sym.ToCandidate()
 			}
 			return w.WriteError(cmdNameCallers, output.NewAmbiguousError(name, candidates))
@@ -131,7 +132,8 @@ findCallers:
 	var callerSymbols map[string]*query.SymbolRow
 	if withBody && len(calls) > 0 {
 		callerIDs := make([]string, len(calls))
-		for i, call := range calls {
+		for i := range calls {
+			call := &calls[i]
 			callerIDs[i] = call.CallerID
 		}
 		var batchErr error
@@ -142,7 +144,8 @@ findCallers:
 	}
 
 	seen := make(map[string]bool, len(calls))
-	for _, call := range calls {
+	for i := range calls {
+		call := &calls[i]
 		if seen[call.CallerID] {
 			continue
 		}

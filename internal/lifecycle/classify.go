@@ -58,7 +58,8 @@ type Ref struct {
 // FromRefRows projects []query.RefRow into []Ref.
 func FromRefRows(rows []query.RefRow) []Ref {
 	out := make([]Ref, 0, len(rows))
-	for _, r := range rows {
+	for i := range rows {
+		r := &rows[i]
 		encID := ""
 		if r.EnclosingID.Valid {
 			encID = r.EnclosingID.String

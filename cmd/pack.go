@@ -253,7 +253,8 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 			}
 			if len(symbols) > 1 {
 				candidates := make([]output.Candidate, len(symbols))
-				for i, sym := range symbols {
+				for i := range symbols {
+					sym := &symbols[i]
 					candidates[i] = sym.ToCandidate()
 				}
 				return "", nil, w.WriteError(cmdNamePack, output.NewAmbiguousError(name, candidates))
@@ -281,7 +282,8 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 
 	if len(symbols) > 1 {
 		candidates := make([]output.Candidate, len(symbols))
-		for i, sym := range symbols {
+		for i := range symbols {
+			sym := &symbols[i]
 			candidates[i] = sym.ToCandidate()
 		}
 		return "", nil, w.WriteError(cmdNamePack, output.NewAmbiguousError(name, candidates))
@@ -451,7 +453,8 @@ func buildRefResults(db *sql.DB, symbolID, symName string) ([]output.Result, []s
 	}
 
 	results := make([]output.Result, 0, len(refs))
-	for _, ref := range refs {
+	for i := range refs {
+		ref := &refs[i]
 		refRange := output.Range{
 			Start: output.Position{Line: ref.Line, Col: ref.Col},
 			End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},

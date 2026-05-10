@@ -135,7 +135,8 @@ func runExplain(cmd *cobra.Command, args []string) error {
 					goto explain
 				} else if len(symbols) > 1 {
 					candidates := make([]output.Candidate, len(symbols))
-					for i, sym := range symbols {
+					for i := range symbols {
+						sym := &symbols[i]
 						candidates[i] = sym.ToCandidate()
 					}
 					return w.WriteError(cmdNameExplain, output.NewAmbiguousError(name, candidates))
@@ -163,7 +164,8 @@ func runExplain(cmd *cobra.Command, args []string) error {
 
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
-			for i, sym := range symbols {
+			for i := range symbols {
+				sym := &symbols[i]
 				candidates[i] = sym.ToCandidate()
 			}
 			return w.WriteError(cmdNameExplain, output.NewAmbiguousError(name, candidates))

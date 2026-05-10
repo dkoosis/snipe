@@ -175,7 +175,8 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 
 	// Count unique files
 	files := make(map[string]struct{}, len(syms))
-	for _, sym := range syms {
+	for i := range syms {
+		sym := &syms[i]
 		files[sym.FilePath] = struct{}{}
 	}
 	baseline.Codebase.GoFiles = len(files)
@@ -242,7 +243,8 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	withDoc := 0
 	withSig := 0
 	funcCount := 0
-	for _, sym := range syms {
+	for i := range syms {
+		sym := &syms[i]
 		if sym.Doc != "" {
 			withDoc++
 		}

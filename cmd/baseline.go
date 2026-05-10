@@ -97,14 +97,14 @@ func runBaseline(cmd *cobra.Command, args []string) error {
 		historyFile := filepath.Join(historyDir, "metrics.jsonl")
 		jsonl, _ := baseline.ToJSONL()
 		if f, err := os.OpenFile(historyFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600); err == nil { // #nosec G304 -- path derived from cwd
-			_, _ = f.Write(jsonl)        // G104: best-effort append to history
-			_, _ = f.Write([]byte("\n")) // G104: best-effort append
-			_ = f.Close()                // G104: close in cleanup path
+			_, _ = f.Write(jsonl)      // G104: best-effort append to history
+			_, _ = f.WriteString("\n") // G104: best-effort append
+			_ = f.Close()              // G104: close in cleanup path
 		}
 	}
 
-	_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
-	_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
+	_, _ = os.Stdout.Write(jsonData)   // G104: stdout write for output
+	_, _ = os.Stdout.WriteString("\n") // G104: stdout write for output
 
 	return nil
 }

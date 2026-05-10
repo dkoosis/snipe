@@ -50,7 +50,8 @@ type HistoryEntry struct {
 func ToHistoryEntries(baselines []Baseline) []HistoryEntry {
 	entries := make([]HistoryEntry, len(baselines))
 
-	for i, b := range baselines {
+	for i := range baselines {
+		b := &baselines[i]
 		entries[i] = HistoryEntry{
 			Timestamp:   b.Timestamp,
 			GitCommit:   b.GitCommit,

@@ -140,7 +140,8 @@ func buildSymbolPosIndex(symbols []Symbol) *SymbolPosIndex {
 		exact:    make(map[string]string),
 		fallback: make(map[string]string),
 	}
-	for _, sym := range symbols {
+	for i := range symbols {
+		sym := &symbols[i]
 		// Exact key using identifier position
 		exactKey := posKey(sym.FilePath, sym.NameLine, sym.NameCol)
 		idx.exact[exactKey] = sym.ID

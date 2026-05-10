@@ -143,7 +143,8 @@ func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.File
 	depSet := make(map[string]struct{})
 	seen := make(map[string]struct{})
 
-	for _, callee := range callees {
+	for i := range callees {
+		callee := &callees[i]
 		if _, dup := seen[callee.CalleeName]; dup {
 			continue
 		}
@@ -337,7 +338,8 @@ func buildCallerContext(db *sql.DB, symbolID string, limit int) (*output.CallerC
 	}
 
 	// Extract caller names
-	for _, c := range callers {
+	for i := range callers {
+		c := &callers[i]
 		ctx.TopCallers = append(ctx.TopCallers, c.CallerName)
 	}
 
@@ -355,7 +357,8 @@ func detectCallerPattern(callers []CallRow) string {
 
 	// Check if all from same directory
 	dirs := make(map[string]int)
-	for _, c := range callers {
+	for i := range callers {
+		c := &callers[i]
 		dir := filepath.Dir(c.CallerFileRel)
 		dirs[dir]++
 	}
@@ -368,7 +371,8 @@ func detectCallerPattern(callers []CallRow) string {
 
 	// Check for naming patterns
 	prefixCounts := make(map[string]int)
-	for _, c := range callers {
+	for j := range callers {
+		c := &callers[j]
 		// Extract prefix (e.g., "run" from "runDef", "runRefs")
 		name := c.CallerName
 		if len(name) > 3 {

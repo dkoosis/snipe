@@ -434,16 +434,18 @@ func pickFlowEntry(entry string, syms []query.SymbolRow) (query.SymbolRow, error
 	inRepo := func(s query.SymbolRow) bool { return s.FilePathRel != "" }
 
 	// Tier 1: in-repo func/method.
-	for _, c := range syms {
-		if inRepo(c) && isFn(c.Kind) {
-			return c, nil
+	for i := range syms {
+		c := &syms[i]
+		if inRepo(*c) && isFn(c.Kind) {
+			return *c, nil
 		}
 	}
 	// Tier 2: any in-repo symbol (lets `flow TypeName` still resolve, even if
 	// downstream BFS produces no edges — error there is its own concern).
-	for _, c := range syms {
-		if inRepo(c) {
-			return c, nil
+	for i := range syms {
+		c := &syms[i]
+		if inRepo(*c) {
+			return *c, nil
 		}
 	}
 	// Nothing in-repo: refuse rather than diagram a stale cache hit.

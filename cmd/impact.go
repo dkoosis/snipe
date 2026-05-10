@@ -124,7 +124,8 @@ func runImpact(cmd *cobra.Command, args []string) error {
 		}
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
-			for i, sym := range symbols {
+			for i := range symbols {
+				sym := &symbols[i]
 				candidates[i] = sym.ToCandidate()
 			}
 			return w.WriteError(cmdNameImpact, output.NewAmbiguousError(name, candidates))
@@ -232,7 +233,8 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	// Phase 1 results
 	directCallerCount := 0
 	transitiveCallerCount := 0
-	for _, cr := range callerRows {
+	for i := range callerRows {
+		cr := &callerRows[i]
 		hint := output.HintDirectCaller
 		if cr.Hop == 2 {
 			hint = output.HintTransitiveCaller
@@ -244,20 +246,23 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	}
 
 	// Phase 1b: ref-site results (struct/type/interface only)
-	for _, rr := range refRows {
+	for i := range refRows {
+		rr := &refRows[i]
 		addOrMerge(rr.ID, rr.ToResult(), output.HintRefSite)
 	}
 
 	// Phase 2 results
 	implementerCount := 0
-	for _, ir := range implRows {
+	for i := range implRows {
+		ir := &implRows[i]
 		addOrMerge(ir.ID, ir.ToResult(), output.HintImplementer)
 		implementerCount++
 	}
 
 	// Phase 3 results
 	testCount := 0
-	for _, tr := range testRows {
+	for i := range testRows {
+		tr := &testRows[i]
 		hint := output.HintDirectTest
 		if tr.Hop == 2 {
 			hint = output.HintTransitiveTest
@@ -293,14 +298,16 @@ func runImpact(cmd *cobra.Command, args []string) error {
 	// Batch fetch bodies if requested
 	if withBody && len(results) > 0 {
 		ids := make([]string, len(results))
-		for i, r := range results {
+		for i := range results {
+			r := &results[i]
 			ids[i] = r.ID
 		}
 		bodySymbols, batchErr := query.BatchLookupByID(s.DB(), ids)
 		if batchErr != nil {
 			degraded = append(degraded, "batch_lookup_failed")
 		} else {
-			for i, r := range results {
+			for i := range results {
+				r := &results[i]
 				if sym, ok := bodySymbols[r.ID]; ok && sym != nil {
 					symResult := sym.ToResult()
 					if err := output.AddBody(&symResult); err != nil && !bodyFailed {
@@ -348,7 +355,8 @@ func runImpact(cmd *cobra.Command, args []string) error {
 
 	// Count packages for summary
 	pkgs := map[string]bool{}
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		if r.Package != "" {
 			pkgs[r.Package] = true
 		}

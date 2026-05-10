@@ -341,16 +341,18 @@ func SuggestionsForDef(result *Result) []Suggestion {
 
 	// If it's a function/method, suggest callers
 	if result.Kind == KindFunc || result.Kind == KindMethod {
-		suggestions = append(suggestions, Suggestion{
-			Command:     "snipe callers " + result.Name,
-			Description: "Find functions that call this",
-			Priority:    2,
-		})
-		suggestions = append(suggestions, Suggestion{
-			Command:     "snipe callees " + result.Name,
-			Description: "Find functions called by this",
-			Priority:    2,
-		})
+		suggestions = append(suggestions,
+			Suggestion{
+				Command:     "snipe callers " + result.Name,
+				Description: "Find functions that call this",
+				Priority:    2,
+			},
+			Suggestion{
+				Command:     "snipe callees " + result.Name,
+				Description: "Find functions called by this",
+				Priority:    2,
+			},
+		)
 	}
 
 	return suggestions

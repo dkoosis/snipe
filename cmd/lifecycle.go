@@ -161,7 +161,8 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 		}
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
-			for i, s := range symbols {
+			for i := range symbols {
+				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
 			return w.WriteError("lifecycle", output.NewAmbiguousError(typeName, candidates))
@@ -323,7 +324,8 @@ func rolesToStrings(roles []lifecycle.Role) []string {
 func reattachSignatureRefs(db *sql.DB, refs []query.RefRow) {
 	// Collect files with orphan refs.
 	wantFiles := map[string]bool{}
-	for _, r := range refs {
+	for i := range refs {
+		r := &refs[i]
 		if !r.EnclosingID.Valid {
 			wantFiles[r.FilePath] = true
 		}

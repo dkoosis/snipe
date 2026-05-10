@@ -126,7 +126,8 @@ func runRefs(cmd *cobra.Command, args []string) error {
 
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
-			for i, s := range symbols {
+			for i := range symbols {
+				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
 			return w.WriteError(cmdNameRefs, output.NewAmbiguousError(name, candidates))
@@ -161,9 +162,10 @@ findRefs:
 	// Filter by kind if specified
 	if refsKind != "" {
 		filtered := refs[:0]
-		for _, ref := range refs {
+		for i := range refs {
+			ref := &refs[i]
 			if ref.EnclosingKind == refsKind {
-				filtered = append(filtered, ref)
+				filtered = append(filtered, *ref)
 			}
 		}
 		refs = filtered
@@ -172,9 +174,10 @@ findRefs:
 	// Filter by file if specified
 	if refsFile != "" {
 		filtered := refs[:0]
-		for _, ref := range refs {
+		for i := range refs {
+			ref := &refs[i]
 			if strings.Contains(ref.FilePathRel, refsFile) || strings.Contains(ref.FilePath, refsFile) {
-				filtered = append(filtered, ref)
+				filtered = append(filtered, *ref)
 			}
 		}
 		refs = filtered
@@ -184,14 +187,15 @@ findRefs:
 	// Filter by package if specified
 	if refsPkg != "" {
 		filtered := refs[:0]
-		for _, ref := range refs {
+		for i := range refs {
+			ref := &refs[i]
 			// Match against directory components of the file path
 			refDir := filepath.Dir(ref.FilePathRel)
 			if refDir == "" {
 				refDir = filepath.Dir(ref.FilePath)
 			}
 			if strings.Contains(refDir, refsPkg) {
-				filtered = append(filtered, ref)
+				filtered = append(filtered, *ref)
 			}
 		}
 		refs = filtered
@@ -207,7 +211,8 @@ findRefs:
 	var enclosingSymbols map[string]*query.SymbolRow
 	if withBody && len(refs) > 0 {
 		enclosingIDs := make([]string, 0, len(refs))
-		for _, ref := range refs {
+		for i := range refs {
+			ref := &refs[i]
 			if ref.EnclosingID.Valid {
 				enclosingIDs = append(enclosingIDs, ref.EnclosingID.String)
 			}
@@ -221,7 +226,8 @@ findRefs:
 		}
 	}
 
-	for i, ref := range refs {
+	for i := range refs {
+		ref := &refs[i]
 		refRange := output.Range{
 			Start: output.Position{Line: ref.Line, Col: ref.Col},
 			End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},

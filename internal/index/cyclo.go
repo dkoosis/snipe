@@ -16,7 +16,8 @@ type CycloRollup struct {
 // no zero-cyclo entries from non-function symbols). Empty packages → no entry.
 func PackageCycloRollups(symbols []Symbol) map[string]CycloRollup {
 	byPkg := make(map[string][]int)
-	for _, s := range symbols {
+	for i := range symbols {
+		s := &symbols[i]
 		if s.Kind != KindFunc && s.Kind != KindMethod {
 			continue
 		}

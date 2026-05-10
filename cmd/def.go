@@ -145,7 +145,8 @@ func runDef(cmd *cobra.Command, args []string) error {
 					goto lookup
 				} else if len(symbols) > 1 {
 					candidates := make([]output.Candidate, len(symbols))
-					for i, s := range symbols {
+					for i := range symbols {
+						s := &symbols[i]
 						candidates[i] = s.ToCandidate()
 					}
 					return w.WriteError(cmdNameDef, output.NewAmbiguousError(name, candidates))
@@ -185,7 +186,8 @@ func runDef(cmd *cobra.Command, args []string) error {
 				goto lookup
 			}
 			candidates := make([]output.Candidate, len(symbols))
-			for i, s := range symbols {
+			for i := range symbols {
+				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
 			return w.WriteError(cmdNameDef, output.NewAmbiguousError(name, candidates))
@@ -355,7 +357,8 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 	if len(symbols) == 0 {
 		pkgSyms, _ := query.FindPackageSymbols(s.DB(), defPkg, 10, 0)
 		names := make([]string, len(pkgSyms))
-		for i, sym := range pkgSyms {
+		for i := range pkgSyms {
+			sym := &pkgSyms[i]
 			names[i] = sym.Name
 		}
 		return w.WriteError(cmdNameDef, output.NewNotFoundError(name+" in pkg "+defPkg, names...))
@@ -363,7 +366,8 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 
 	if len(symbols) > 1 {
 		candidates := make([]output.Candidate, len(symbols))
-		for i, sym := range symbols {
+		for i := range symbols {
+			sym := &symbols[i]
 			candidates[i] = sym.ToCandidate()
 		}
 		return w.WriteError(cmdNameDef, output.NewAmbiguousError(name, candidates))
@@ -461,7 +465,8 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 	// Convert to results
 	results := make([]output.Result, len(symbols))
 	var degraded []string
-	for i, sym := range symbols {
+	for i := range symbols {
+		sym := &symbols[i]
 		results[i] = sym.ToResult()
 		if withBody {
 			if err := output.AddBody(&results[i]); err != nil {

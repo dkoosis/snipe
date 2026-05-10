@@ -128,7 +128,8 @@ func runTypes(cmd *cobra.Command, args []string) error {
 					goto getTypes
 				} else if len(symbols) > 1 {
 					candidates := make([]output.Candidate, len(symbols))
-					for i, sym := range symbols {
+					for i := range symbols {
+						sym := &symbols[i]
 						candidates[i] = sym.ToCandidate()
 					}
 					return w.WriteError(cmdNameTypes, output.NewAmbiguousError(name, candidates))
@@ -156,9 +157,10 @@ func runTypes(cmd *cobra.Command, args []string) error {
 
 		// Filter to type-like symbols
 		var typeSymbols []query.SymbolRow
-		for _, sym := range symbols {
+		for i := range symbols {
+			sym := &symbols[i]
 			if isTypeKind(sym.Kind) {
-				typeSymbols = append(typeSymbols, sym)
+				typeSymbols = append(typeSymbols, *sym)
 			}
 		}
 
@@ -171,8 +173,8 @@ func runTypes(cmd *cobra.Command, args []string) error {
 
 		if len(typeSymbols) > 1 {
 			candidates := make([]output.Candidate, len(typeSymbols))
-			for i, sym := range typeSymbols {
-				candidates[i] = sym.ToCandidate()
+			for i := range typeSymbols {
+				candidates[i] = typeSymbols[i].ToCandidate()
 			}
 			return w.WriteError(cmdNameTypes, output.NewAmbiguousError(name, candidates))
 		}
@@ -281,9 +283,10 @@ func runTypesForPackage(w *output.Writer, s interface {
 	}
 
 	var typeSymbols []query.SymbolRow
-	for _, sym := range symbols {
+	for i := range symbols {
+		sym := &symbols[i]
 		if isTypeKind(sym.Kind) {
-			typeSymbols = append(typeSymbols, sym)
+			typeSymbols = append(typeSymbols, *sym)
 		}
 	}
 	if len(typeSymbols) == 0 {
@@ -291,7 +294,8 @@ func runTypesForPackage(w *output.Writer, s interface {
 	}
 
 	results := make([]output.TypesResult, 0, len(typeSymbols))
-	for _, sym := range typeSymbols {
+	for i := range typeSymbols {
+		sym := &typeSymbols[i]
 		info, err := query.GetTypeInfo(s.DB(), sym.ID)
 		if err != nil {
 			continue

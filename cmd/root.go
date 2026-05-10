@@ -350,14 +350,15 @@ func pickSelectedSymbol(symbols []query.SymbolRow, name string) (query.SymbolRow
 		return query.SymbolRow{}, false
 	}
 	results := make([]output.Result, len(symbols))
-	for i, s := range symbols {
-		results[i] = s.ToResult()
+	for i := range symbols {
+		results[i] = symbols[i].ToResult()
 	}
 	output.ScoreAndSort(results, name)
 	topID := results[0].ID
-	for _, s := range symbols {
+	for i := range symbols {
+		s := &symbols[i]
 		if s.ID == topID {
-			return s, true
+			return *s, true
 		}
 	}
 	return symbols[0], true

@@ -127,7 +127,8 @@ func runTests(cmd *cobra.Command, args []string) error {
 		}
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
-			for i, sym := range symbols {
+			for i := range symbols {
+				sym := &symbols[i]
 				candidates[i] = sym.ToCandidate()
 			}
 			return w.WriteError(cmdNameTests, output.NewAmbiguousError(name, candidates))
@@ -161,7 +162,8 @@ func runTests(cmd *cobra.Command, args []string) error {
 	var testSymbols map[string]*query.SymbolRow
 	if withBody && len(testRows) > 0 {
 		ids := make([]string, len(testRows))
-		for i, tr := range testRows {
+		for i := range testRows {
+			tr := &testRows[i]
 			ids[i] = tr.ID
 		}
 		var batchErr error
@@ -171,7 +173,8 @@ func runTests(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	for i, tr := range testRows {
+	for i := range testRows {
+		tr := &testRows[i]
 		result := tr.ToResult()
 
 		// Add hop hint

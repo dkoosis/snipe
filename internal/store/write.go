@@ -43,7 +43,8 @@ func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []ind
 
 	// Build set of valid symbol IDs for filtering refs and edges
 	symbolIDs := make(map[string]struct{}, len(symbols))
-	for _, sym := range symbols {
+	for i := range symbols {
+		sym := &symbols[i]
 		symbolIDs[sym.ID] = struct{}{}
 	}
 
@@ -224,7 +225,8 @@ func writeSymbols(tx *sql.Tx, symbols []index.Symbol, repoRoot string) error {
 	}
 	defer stmt.Close()
 
-	for _, sym := range symbols {
+	for i := range symbols {
+		sym := &symbols[i]
 		relPath := toRelPath(sym.FilePath, repoRoot)
 		_, err := stmt.Exec(
 			sym.ID,
@@ -791,7 +793,8 @@ func insertLiterals(tx *sql.Tx, refs []index.StringRef, repoRoot string) error {
 	}
 	defer stmt.Close()
 
-	for _, r := range refs {
+	for i := range refs {
+		r := &refs[i]
 		relPath := toRelPath(r.FilePath, repoRoot)
 		if _, err := stmt.Exec(
 			r.ID,

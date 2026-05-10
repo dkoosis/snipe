@@ -52,8 +52,9 @@ func EnrichTraceRefs(db *sql.DB, refs []LiteralRef) []TraceRef {
 	}
 
 	out := make([]TraceRef, 0, len(refs))
-	for _, r := range refs {
-		tr := TraceRef{LiteralRef: r}
+	for i := range refs {
+		r := &refs[i]
+		tr := TraceRef{LiteralRef: *r}
 		if info := resolve(r.EnclosingID); info != nil && info.sym != nil {
 			sym := info.sym
 			enc := &output.Enclosing{

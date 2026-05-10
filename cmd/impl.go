@@ -89,9 +89,10 @@ func runImpl(cmd *cobra.Command, args []string) error {
 
 		// Filter to interfaces only
 		var interfaces []query.SymbolRow
-		for _, sym := range symbols {
+		for i := range symbols {
+			sym := &symbols[i]
 			if sym.Kind == cmdKindInterface {
-				interfaces = append(interfaces, sym)
+				interfaces = append(interfaces, *sym)
 			}
 		}
 
@@ -108,7 +109,8 @@ func runImpl(cmd *cobra.Command, args []string) error {
 
 		if len(interfaces) > 1 {
 			candidates := make([]output.Candidate, len(interfaces))
-			for i, sym := range interfaces {
+			for i := range interfaces {
+				sym := &interfaces[i]
 				candidates[i] = sym.ToCandidate()
 			}
 			return w.WriteError(cmdNameImpl, output.NewAmbiguousError(name, candidates))
@@ -133,7 +135,8 @@ findImplementers:
 	tokenEstimate := 0
 	var degraded []string
 
-	for i, impl := range implementers {
+	for i := range implementers {
+		impl := &implementers[i]
 		result := impl.ToResult()
 
 		// Add body if requested

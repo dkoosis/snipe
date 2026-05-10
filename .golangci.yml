@@ -67,6 +67,9 @@ linters:
     gocritic:
       enabled-tags:
         - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam
 
     godot:
       scope: declarations

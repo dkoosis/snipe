@@ -55,7 +55,8 @@ func runLits(_ *cobra.Command, args []string) error {
 	}
 
 	results := make([]output.Result, 0, len(refs))
-	for _, r := range refs {
+	for i := range refs {
+		r := &refs[i]
 		displayPath := r.FilePathRel
 		if displayPath == "" {
 			displayPath = r.FilePath

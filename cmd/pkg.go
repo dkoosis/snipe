@@ -84,7 +84,8 @@ func runPkg(cmd *cobra.Command, args []string) error {
 	tokenEstimate := 0
 	var degraded []string
 
-	for i, sym := range symbols {
+	for i := range symbols {
+		sym := &symbols[i]
 		result := sym.ToResult()
 
 		if withBody {

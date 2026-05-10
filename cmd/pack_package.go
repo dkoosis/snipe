@@ -86,7 +86,8 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 	}
 
 	exports := make([]output.PackageExport, 0, len(symbols))
-	for _, sym := range symbols {
+	for i := range symbols {
+		sym := &symbols[i]
 		exports = append(exports, output.PackageExport{
 			ID:        sym.ID,
 			Name:      sym.Name,

@@ -71,8 +71,8 @@ func runHistory(cmd *cobra.Command, args []string) error {
 	entries := metrics.ToHistoryEntries(baselines)
 
 	jsonData, _ := json.MarshalIndent(entries, "", "  ")
-	_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
-	_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
+	_, _ = os.Stdout.Write(jsonData)   // G104: stdout write for output
+	_, _ = os.Stdout.WriteString("\n") // G104: stdout write for output
 
 	return nil
 }

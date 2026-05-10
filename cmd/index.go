@@ -337,7 +337,8 @@ func runIndex(cmd *cobra.Command, args []string) error {
 // types with signatures or docs) as SymbolText with combined text for the embedding model.
 func filterEmbeddableSymbols(symbols []index.Symbol) []embed.SymbolText {
 	var result []embed.SymbolText
-	for _, sym := range symbols {
+	for i := range symbols {
+		sym := &symbols[i]
 		switch sym.Kind {
 		case index.KindFunc, index.KindMethod, index.KindType, index.KindInterface, index.KindStruct:
 			if sym.Signature != "" || sym.Doc != "" {
@@ -619,9 +620,10 @@ func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadRes
 
 	// Filter symbols: only those from changed files
 	var changedSymbols []index.Symbol
-	for _, sym := range allSymbols {
+	for i := range allSymbols {
+		sym := &allSymbols[i]
 		if onlyFiles[sym.FilePath] {
-			changedSymbols = append(changedSymbols, sym)
+			changedSymbols = append(changedSymbols, *sym)
 		}
 	}
 

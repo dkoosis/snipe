@@ -223,8 +223,8 @@ func runEdit(cmd *cobra.Command, args []string) error {
 
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
-			for i, sym := range symbols {
-				candidates[i] = sym.ToCandidate()
+			for i := range symbols {
+				candidates[i] = symbols[i].ToCandidate()
 			}
 			return w.WriteError(cmdNameEdit, output.NewAmbiguousError(name, candidates))
 		}
@@ -334,11 +334,12 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 			continue
 		}
 
-		sym := symbols[0]
+		sym := &symbols[0]
 		if req.File != "" {
 			// Find matching file
 			found := false
-			for _, s := range symbols {
+			for i := range symbols {
+				s := &symbols[i]
 				if strings.Contains(s.FilePath, req.File) || strings.Contains(s.FilePathRel, req.File) {
 					sym = s
 					found = true

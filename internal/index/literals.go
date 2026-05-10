@@ -175,7 +175,8 @@ func literalID(r StringRef) string {
 // buildGlobalEnclosingMap returns map[filePath][line] -> enclosing symbol ID.
 func buildGlobalEnclosingMap(_ *LoadResult, symbols []Symbol) map[string]map[int]string {
 	m := make(map[string]map[int]string)
-	for _, sym := range symbols {
+	for i := range symbols {
+		sym := &symbols[i]
 		if sym.Kind != KindFunc && sym.Kind != KindMethod {
 			continue
 		}

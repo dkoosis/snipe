@@ -119,11 +119,12 @@ func (w *Writer) writeClaudeResults(b *strings.Builder, results []Result, meta M
 		return
 	}
 
-	for i, r := range results {
+	for i := range results {
+		r := &results[i]
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		writeResultHeader(b, &r)
+		writeResultHeader(b, r)
 
 		if r.Body != "" {
 			b.WriteString("```go\n")
@@ -321,7 +322,8 @@ func (w *Writer) writeClaudeSummary(b *strings.Builder, results []Summary, meta 
 }
 
 func (w *Writer) writeClaudePack(b *strings.Builder, results []PackResult, meta Meta) {
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		if r.Definition != nil {
 			writeResultHeader(b, r.Definition)
 			if r.Purpose != "" {
@@ -364,7 +366,8 @@ func (w *Writer) writeClaudePack(b *strings.Builder, results []PackResult, meta 
 }
 
 func (w *Writer) writeClaudePackPackage(b *strings.Builder, results []PackPackageResult, meta Meta) {
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		fmt.Fprintf(b, "# package %s\n", r.Package)
 		if r.Dir != "" {
 			fmt.Fprintf(b, "dir: %s\n", r.Dir)
@@ -417,7 +420,8 @@ func (w *Writer) writeClaudePackPackage(b *strings.Builder, results []PackPackag
 }
 
 func (w *Writer) writeClaudeExplain(b *strings.Builder, results []ExplainResult, meta Meta) {
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		fmt.Fprintf(b, "# %s\n", r.Symbol)
 		fmt.Fprintf(b, "%s | %s\n", r.File, r.Kind)
 		if r.Signature != "" {
@@ -450,7 +454,8 @@ func (w *Writer) writeClaudeExplain(b *strings.Builder, results []ExplainResult,
 }
 
 func (w *Writer) writeClaudeSym(b *strings.Builder, results []SymResult, meta Meta) {
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		if r.Definition != nil {
 			writeResultHeader(b, r.Definition)
 			if r.Definition.Body != "" {
@@ -463,7 +468,8 @@ func (w *Writer) writeClaudeSym(b *strings.Builder, results []SymResult, meta Me
 			fmt.Fprintf(b, "%d callers", r.CallerCount)
 			if len(r.Callers) > 0 {
 				b.WriteString(": ")
-				for j, c := range r.Callers {
+				for j := range r.Callers {
+					c := &r.Callers[j]
 					if j > 0 {
 						b.WriteString(", ")
 					}
@@ -484,7 +490,8 @@ func (w *Writer) writeClaudeSym(b *strings.Builder, results []SymResult, meta Me
 }
 
 func (w *Writer) writeClaudeDeps(b *strings.Builder, results []DepsResult, meta Meta) {
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		fmt.Fprintf(b, "# %s\n", r.Package)
 		if len(r.Dependencies) > 0 {
 			b.WriteString("imports:\n")
@@ -509,7 +516,8 @@ func (w *Writer) writeClaudeDeps(b *strings.Builder, results []DepsResult, meta 
 }
 
 func (w *Writer) writeClaudeTypes(b *strings.Builder, results []TypesResult, meta Meta) {
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		fmt.Fprintf(b, "# %s\n", r.Symbol)
 		fmt.Fprintf(b, "%s | %s", r.File, r.Kind)
 		if r.Signature != "" {
@@ -568,7 +576,8 @@ func (w *Writer) writeClaudeTypes(b *strings.Builder, results []TypesResult, met
 }
 
 func (w *Writer) writeClaudeLifecycle(b *strings.Builder, results []LifecycleResult, meta Meta) {
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		fmt.Fprintf(b, "# Lifecycle: %s", r.Type)
 		if r.TypeID != "" {
 			fmt.Fprintf(b, " [%s]", r.TypeID)
@@ -588,7 +597,7 @@ func (w *Writer) writeClaudeLifecycle(b *strings.Builder, results []LifecycleRes
 		b.WriteString("\n")
 
 		if r.Summary {
-			writeLifecycleSummary(b, r)
+			writeLifecycleSummary(b, *r)
 			continue
 		}
 
@@ -834,7 +843,8 @@ func (w *Writer) writeClaudeTrace(b *strings.Builder, results []TraceResult, met
 	}
 	b.WriteString("\n\n")
 
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		// file:line | kind
 		fmt.Fprintf(b, "%s:%d | %s\n", r.File, r.Line, r.Kind)
 
@@ -1162,7 +1172,8 @@ func BuildSummary(results []Result) Summary {
 	fileCounts := make(map[string]int)
 	kindCounts := make(map[string]int)
 
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		fileCounts[r.File]++
 		if r.Kind != "" {
 			kindCounts[r.Kind]++
@@ -1279,15 +1290,16 @@ func (w *Writer) WriteClaudePkgGrouped(results []Result, meta Meta) {
 	var methods []Result
 	var funcs []Result
 
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		switch r.Kind {
 		case KindStruct, KindInterface, KindType:
 			typesByName[r.Name] = len(types)
-			types = append(types, r)
+			types = append(types, *r)
 		case KindMethod:
-			methods = append(methods, r)
+			methods = append(methods, *r)
 		case KindFunc:
-			funcs = append(funcs, r)
+			funcs = append(funcs, *r)
 			// const, var: omit
 		}
 	}
@@ -1295,48 +1307,55 @@ func (w *Writer) WriteClaudePkgGrouped(results []Result, meta Meta) {
 	// Index methods by receiver base type (strip pointer/parens).
 	methodsByType := map[string][]Result{}
 	var orphanMethods []Result
-	for _, m := range methods {
+	for i := range methods {
+		m := &methods[i]
 		base := strings.TrimLeft(m.Receiver, "*()")
 		base = strings.TrimRight(base, "()")
 		if _, ok := typesByName[base]; ok {
-			methodsByType[base] = append(methodsByType[base], m)
+			methodsByType[base] = append(methodsByType[base], *m)
 		} else {
-			orphanMethods = append(orphanMethods, m)
+			orphanMethods = append(orphanMethods, *m)
 		}
 	}
 
 	// Partition funcs: constructors (NewXxx where Xxx is a known type) vs standalone.
 	constructorsByType := map[string][]Result{}
 	var standaloneFuncs []Result
-	for _, f := range funcs {
+	for i := range funcs {
+		f := &funcs[i]
 		if strings.HasPrefix(f.Name, "New") {
 			typeName := strings.TrimPrefix(f.Name, "New")
 			if _, ok := typesByName[typeName]; ok {
-				constructorsByType[typeName] = append(constructorsByType[typeName], f)
+				constructorsByType[typeName] = append(constructorsByType[typeName], *f)
 				continue
 			}
 		}
-		standaloneFuncs = append(standaloneFuncs, f)
+		standaloneFuncs = append(standaloneFuncs, *f)
 	}
 
 	// Emit types with their constructors and methods.
-	for i, t := range types {
-		if i > 0 {
+	for ti := range types {
+		t := &types[ti]
+		if ti > 0 {
 			b.WriteString("\n")
 		}
-		writeResultHeader(&b, &t)
-		for _, c := range constructorsByType[t.Name] {
+		writeResultHeader(&b, t)
+		ctors := constructorsByType[t.Name]
+		for ci := range ctors {
+			c := &ctors[ci]
 			b.WriteString("\n")
-			writeResultHeader(&b, &c)
+			writeResultHeader(&b, c)
 			if c.Match != "" {
 				b.WriteString("  ")
 				b.WriteString(c.Match)
 				b.WriteString("\n")
 			}
 		}
-		for _, m := range methodsByType[t.Name] {
+		ms := methodsByType[t.Name]
+		for mi := range ms {
+			m := &ms[mi]
 			b.WriteString("\n")
-			writeResultHeader(&b, &m)
+			writeResultHeader(&b, m)
 			if m.Match != "" {
 				b.WriteString("  ")
 				b.WriteString(m.Match)
@@ -1346,9 +1365,10 @@ func (w *Writer) WriteClaudePkgGrouped(results []Result, meta Meta) {
 	}
 
 	// Orphan methods (receiver type not exported from this package).
-	for _, m := range orphanMethods {
+	for mi := range orphanMethods {
+		m := &orphanMethods[mi]
 		b.WriteString("\n")
-		writeResultHeader(&b, &m)
+		writeResultHeader(&b, m)
 		if m.Match != "" {
 			b.WriteString("  ")
 			b.WriteString(m.Match)
@@ -1365,9 +1385,10 @@ func (w *Writer) WriteClaudePkgGrouped(results []Result, meta Meta) {
 		shown = standaloneFuncs[:standaloneLimit]
 		overflow = standaloneFuncs[standaloneLimit:]
 	}
-	for _, f := range shown {
+	for fi := range shown {
+		f := &shown[fi]
 		b.WriteString("\n")
-		writeResultHeader(&b, &f)
+		writeResultHeader(&b, f)
 		if f.Match != "" {
 			b.WriteString("  ")
 			b.WriteString(f.Match)
@@ -1377,8 +1398,8 @@ func (w *Writer) WriteClaudePkgGrouped(results []Result, meta Meta) {
 	if len(overflow) > 0 {
 		b.WriteString("\n")
 		names := make([]string, len(overflow))
-		for i, f := range overflow {
-			names[i] = f.Name
+		for i := range overflow {
+			names[i] = overflow[i].Name
 		}
 		fmt.Fprintf(&b, "...%d more: %s\n", len(overflow), strings.Join(names, ", "))
 	}

@@ -116,7 +116,8 @@ func runSym(cmd *cobra.Command, args []string) error {
 			}
 			if len(symbols) > 0 {
 				candidates := make([]output.Candidate, len(symbols))
-				for i, sym := range symbols {
+				for i := range symbols {
+					sym := &symbols[i]
 					candidates[i] = sym.ToCandidate()
 				}
 				return w.WriteError(cmdNameSym, &output.Error{
@@ -149,7 +150,8 @@ func runSym(cmd *cobra.Command, args []string) error {
 					goto lookup
 				} else if len(symbols) > 1 {
 					candidates := make([]output.Candidate, len(symbols))
-					for i, s := range symbols {
+					for i := range symbols {
+						s := &symbols[i]
 						candidates[i] = s.ToCandidate()
 					}
 					return w.WriteError(cmdNameSym, output.NewAmbiguousError(name, candidates))
@@ -177,7 +179,8 @@ func runSym(cmd *cobra.Command, args []string) error {
 
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
-			for i, s := range symbols {
+			for i := range symbols {
+				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
 			return w.WriteError(cmdNameSym, output.NewAmbiguousError(name, candidates))
@@ -252,7 +255,8 @@ lookup:
 		nameLen = 1
 	}
 
-	for _, ref := range refs {
+	for i := range refs {
+		ref := &refs[i]
 		refRange := output.Range{
 			Start: output.Position{Line: ref.Line, Col: ref.Col},
 			End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
@@ -298,7 +302,8 @@ lookup:
 	}
 
 	callerResults := make([]output.Result, 0, len(callerRows))
-	for _, call := range callerRows {
+	for i := range callerRows {
+		call := &callerRows[i]
 		callerResults = append(callerResults, call.ToCallerResult())
 	}
 
@@ -316,7 +321,8 @@ lookup:
 	}
 
 	calleeResults := make([]output.Result, 0, len(calleeRows))
-	for _, call := range calleeRows {
+	for i := range calleeRows {
+		call := &calleeRows[i]
 		calleeResults = append(calleeResults, call.ToCalleeResult())
 	}
 

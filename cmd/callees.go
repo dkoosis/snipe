@@ -94,8 +94,8 @@ func runCallees(cmd *cobra.Command, args []string) error {
 
 		if len(symbols) > 1 {
 			candidates := make([]output.Candidate, len(symbols))
-			for i, sym := range symbols {
-				candidates[i] = sym.ToCandidate()
+			for i := range symbols {
+				candidates[i] = symbols[i].ToCandidate()
 			}
 			return w.WriteError(cmdNameCallees, output.NewAmbiguousError(name, candidates))
 		}
@@ -131,8 +131,8 @@ findCallees:
 	var calleeSymbols map[string]*query.SymbolRow
 	if withBody && len(calls) > 0 {
 		calleeIDs := make([]string, len(calls))
-		for i, call := range calls {
-			calleeIDs[i] = call.CalleeID
+		for i := range calls {
+			calleeIDs[i] = calls[i].CalleeID
 		}
 		var batchErr error
 		calleeSymbols, batchErr = query.BatchLookupByID(s.DB(), calleeIDs)
@@ -142,7 +142,8 @@ findCallees:
 	}
 
 	seen := make(map[string]bool, len(calls))
-	for _, call := range calls {
+	for ci := range calls {
+		call := &calls[ci]
 		if seen[call.CalleeID] {
 			continue
 		}

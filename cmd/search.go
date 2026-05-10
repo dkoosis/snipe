@@ -223,7 +223,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			}
 		}
 		// Stemmed substring — covers "matcher"→"match", "staleness"→"stale".
-		if stem := query.StemQuery(pattern); stem != "" && stem != strings.ToLower(pattern) {
+		if stem := query.StemQuery(pattern); stem != "" && !strings.EqualFold(stem, pattern) {
 			if stemRows, stemErr := query.LookupByNameSubstring(s.DB(), stem, 15); stemErr == nil {
 				for i := range stemRows {
 					if appendUnique(stemRows[i]) {

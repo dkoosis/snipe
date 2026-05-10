@@ -41,7 +41,8 @@ func WalkCallers(db *sql.DB, symbolID string, maxDepth int) []CallerNode {
 		if err != nil {
 			continue
 		}
-		for _, r := range rows {
+		for i := range rows {
+			r := &rows[i]
 			if visited[r.CallerID] {
 				continue
 			}

@@ -85,8 +85,8 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	})
 
 	jsonData, _ := comparison.ToJSON()
-	_, _ = os.Stdout.Write(jsonData)     // G104: stdout write for output
-	_, _ = os.Stdout.Write([]byte("\n")) // G104: stdout write for output
+	_, _ = os.Stdout.Write(jsonData)   // G104: stdout write for output
+	_, _ = os.Stdout.WriteString("\n") // G104: stdout write for output
 
 	if checkFailOnReg && comparison.HasFailure {
 		os.Exit(1)
