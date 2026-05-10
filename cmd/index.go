@@ -466,6 +466,20 @@ func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.
 		return "", fmt.Errorf("load state: %w", err)
 	}
 
+	// "creating" breadcrumb means a previous run crashed between CreateBatch and SaveState.
+	// We can't auto-reconcile without a list-batches API, so warn loudly with the input_file_id
+	// so the user can verify in the Voyage dashboard before re-running and double-billing.
+	if state != nil && state.Status == batchStatusCreating {
+		fmt.Fprintf(os.Stderr, "WARNING: previous batch creation may have leaked an orphan job.\n")
+		fmt.Fprintf(os.Stderr, "  input_file_id: %s\n", state.InputFileID)
+		fmt.Fprintf(os.Stderr, "  Check https://dash.voyageai.com/ for a batch tied to this file before re-running.\n")
+		fmt.Fprintf(os.Stderr, "  Clearing breadcrumb and starting fresh...\n")
+		if clearErr := client.ClearState(); clearErr != nil {
+			return "", fmt.Errorf("clear creating-state breadcrumb: %w", clearErr)
+		}
+		state = nil
+	}
+
 	if state != nil && (state.Status == "validating" || state.Status == "in_progress") {
 		// Check if batch is stale (stuck for too long)
 		age := time.Since(state.UpdatedAt)
@@ -575,12 +589,34 @@ func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.
 	}
 	fmt.Fprintf(os.Stderr, "  Uploaded file_id: %s\n", fileResp.ID)
 
+	// Persist a "creating" breadcrumb BEFORE CreateBatch so a crash in the
+	// CreateBatch→SaveState window leaves the input_file_id on disk for recovery.
+	now := time.Now()
+	breadcrumb := &embed.BatchState{
+		InputFileID:      fileResp.ID,
+		Status:           batchStatusCreating,
+		Total:            len(toEmbed),
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		Model:            client.Model(),
+		IndexFingerprint: fingerprint,
+	}
+	if err := client.SaveState(breadcrumb); err != nil {
+		return "", fmt.Errorf("save creating-state breadcrumb: %w", err)
+	}
+
 	// Create batch
 	fmt.Fprintf(os.Stderr, "  Creating batch job...\n")
 	batchResp, err := client.CreateBatch(ctx, fileResp.ID)
 	if err != nil {
+		// CreateBatch failed: no server-side batch was created, so no billing risk.
+		// Drop the breadcrumb so the next run starts cleanly.
+		if clearErr := client.ClearState(); clearErr != nil {
+			fmt.Fprintf(os.Stderr, "  Warning: failed to clear creating-state breadcrumb: %v\n", clearErr)
+		}
 		return "", fmt.Errorf("create batch: %w", err)
 	}
+	// Log batch_id to stderr IMMEDIATELY so a SaveState crash still leaves a recovery trail.
 	fmt.Fprintf(os.Stderr, "  Created batch_id: %s (status: %s)\n", batchResp.ID, batchResp.Status)
 
 	// Save state for polling
@@ -591,7 +627,7 @@ func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.
 		Total:            len(toEmbed),
 		Completed:        0,
 		Failed:           0,
-		CreatedAt:        time.Now(),
+		CreatedAt:        now,
 		UpdatedAt:        time.Now(),
 		Model:            client.Model(),
 		IndexFingerprint: fingerprint,

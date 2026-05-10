@@ -180,6 +180,42 @@ func TestBatchState_PersistenceLifecycle(t *testing.T) {
 	}
 }
 
+// TestBatchState_CreatingBreadcrumb locks the contract for the orphan-batch breadcrumb:
+// before CreateBatch returns, snipe persists a state with empty BatchID + the input_file_id,
+// so a crash in the CreateBatch→SaveState window leaves a recovery trail.
+func TestBatchState_CreatingBreadcrumb(t *testing.T) {
+	dir := t.TempDir()
+	c := testBatchClient(dir)
+
+	breadcrumb := &BatchState{
+		InputFileID:      "file-abc",
+		Status:           "creating",
+		Total:            42,
+		Model:            "voyage-3",
+		IndexFingerprint: "fp-1",
+	}
+	if err := c.SaveState(breadcrumb); err != nil {
+		t.Fatalf("SaveState breadcrumb: %v", err)
+	}
+
+	loaded, err := c.LoadState()
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if loaded == nil {
+		t.Fatal("expected breadcrumb to load, got nil")
+	}
+	if loaded.Status != "creating" {
+		t.Errorf("Status = %q, want %q", loaded.Status, "creating")
+	}
+	if loaded.BatchID != "" {
+		t.Errorf("BatchID = %q, want empty", loaded.BatchID)
+	}
+	if loaded.InputFileID != "file-abc" {
+		t.Errorf("InputFileID = %q, want %q", loaded.InputFileID, "file-abc")
+	}
+}
+
 func TestLoadState_NoFile(t *testing.T) {
 	loaded, err := testBatchClient(t.TempDir()).LoadState()
 	if err != nil {

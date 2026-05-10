@@ -30,6 +30,10 @@ const (
 	batchStatusFailed    = "failed"
 	batchStatusCancelled = "cancelled"
 	batchStatusCompleted = "completed"
+	// batchStatusCreating is a local-only breadcrumb persisted before CreateBatch returns,
+	// so a crash in the CreateBatch→SaveState window leaves a recoverable trail (input_file_id)
+	// instead of an orphan batch billing silently.
+	batchStatusCreating = "creating"
 )
 
 var (
