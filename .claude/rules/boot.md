@@ -1,8 +1,7 @@
 # Boot
-updated: 2026-05-10
+updated: 2026-05-11
 
-→ next: `bd ready` — P3 queue (f9l, 277, s5p). Tree green.
+→ next: `bd ready` — P3 queue (snipe-277, snipe-s5p). Tree green, synced.
 
 ✓ done
-- snipe-b1b + 2lr: ctx-cancel error mask + new-dir watcher (watch.go)
-- snipe-7rv + 7xp: download body timeout + sparse embed error (embed/)
+- swept local state: committed boot/beads, reverted BASELINE_ORCA.json drift, pushed main + dolt
