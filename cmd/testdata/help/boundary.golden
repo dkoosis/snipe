@@ -18,6 +18,7 @@ Flags:
       --detailed           Include per-ref file:line for every crossing
       --direction string   both | a-to-b | b-to-a (default "both")
   -h, --help               help for boundary
+      --layers string      Path to a go-arch-lint manifest YAML: compute all K*(K-1)/2 layer crossings in one call
 
 Global Flags:
       --context int        Context lines around match (default 2)

@@ -2,19 +2,25 @@ package cmd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
+	"github.com/dkoosis/snipe/internal/store"
 )
 
 var (
 	boundaryDetailed bool
 	boundaryDir      string
+	boundaryLayers   string
 )
 
 var boundaryCmd = &cobra.Command{
@@ -33,7 +39,7 @@ Examples:
   snipe boundary 'internal/store/...' 'internal/query/...'
   snipe boundary --detailed internal/store internal/query
   snipe boundary --direction=a-to-b internal/store internal/query`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.MaximumNArgs(2),
 	RunE: runBoundary,
 }
 
@@ -42,6 +48,8 @@ func init() {
 		"Include per-ref file:line for every crossing")
 	boundaryCmd.Flags().StringVar(&boundaryDir, "direction", "both",
 		"both | a-to-b | b-to-a")
+	boundaryCmd.Flags().StringVar(&boundaryLayers, "layers", "",
+		"Path to a go-arch-lint manifest YAML: compute all K*(K-1)/2 layer crossings in one call")
 	rootCmd.AddCommand(boundaryCmd)
 }
 
@@ -56,6 +64,17 @@ func runBoundary(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer s.Close()
+
+	if boundaryLayers != "" {
+		return runBoundaryLayers(s, dir, start)
+	}
+
+	if len(args) != 2 {
+		return w.WriteError("boundary", &output.Error{
+			Code:    output.ErrInternal,
+			Message: "boundary requires <pkg-set-a> <pkg-set-b> unless --layers is set",
+		})
+	}
 
 	patternsA := []string{args[0]}
 	patternsB := []string{args[1]}
@@ -172,6 +191,167 @@ func countCrossings(r *query.BoundaryReport) int {
 	}
 	for _, b := range r.BToA {
 		n += b.RefCount
+	}
+	return n
+}
+
+// archManifest is a minimal subset of go-arch-lint's manifest schema — just
+// enough to extract layer definitions for snipe-0bh. We don't enforce or
+// interpret deps rules; we only need {layer-name -> []path-pattern}.
+type archManifest struct {
+	Components map[string]struct {
+		In interface{} `yaml:"in"` // string or []string
+	} `yaml:"components"`
+}
+
+// layerCrossingRow is one A→B (or B→A) layer pair with its boundary stats.
+type layerCrossingRow struct {
+	From         string `json:"from"`
+	To           string `json:"to"`
+	Crossings    int    `json:"crossings"`
+	Symbols      int    `json:"symbols"`
+	FromPackages int    `json:"from_packages"`
+	ToPackages   int    `json:"to_packages"`
+}
+
+func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
+	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+
+	data, err := os.ReadFile(boundaryLayers)
+	if err != nil {
+		return w.WriteError("boundary", &output.Error{
+			Code: output.ErrInternal, Message: "read layers manifest: " + err.Error(),
+		})
+	}
+	var man archManifest
+	if err := yaml.Unmarshal(data, &man); err != nil {
+		return w.WriteError("boundary", &output.Error{
+			Code: output.ErrInternal, Message: "parse layers manifest: " + err.Error(),
+		})
+	}
+
+	// Normalize go-arch-lint glob patterns to snipe's pattern dialect:
+	// '<path>/**' (recursive)         -> '<path>/...'
+	// '<path>/**/<rest>'              -> '<path>/...' (broaden; snipe lacks mid-glob)
+	// '<path>/*' (one level)          -> '<path>/...' (treat as recursive — snipe has no one-level form)
+	norm := func(in []string) []string {
+		out := make([]string, 0, len(in))
+		for _, p := range in {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			switch {
+			case strings.HasSuffix(p, "/**"):
+				p = strings.TrimSuffix(p, "/**") + "/..."
+			case strings.HasSuffix(p, "/*"):
+				p = strings.TrimSuffix(p, "/*") + "/..."
+			default:
+				if idx := strings.Index(p, "/**/"); idx > 0 {
+					p = p[:idx] + "/..."
+				}
+			}
+			out = append(out, p)
+		}
+		return out
+	}
+
+	type layer struct {
+		name     string
+		patterns []string
+		pkgs     []string
+	}
+	var layers []layer
+	for name, comp := range man.Components {
+		var patterns []string
+		switch v := comp.In.(type) {
+		case string:
+			patterns = []string{v}
+		case []interface{}:
+			for _, x := range v {
+				if str, ok := x.(string); ok {
+					patterns = append(patterns, str)
+				}
+			}
+		}
+		layers = append(layers, layer{name: name, patterns: norm(patterns)})
+	}
+	sort.Slice(layers, func(i, j int) bool { return layers[i].name < layers[j].name })
+
+	universe, err := allPkgPaths(s.DB())
+	if err != nil {
+		return w.WriteError("boundary", &output.Error{
+			Code: output.ErrInternal, Message: err.Error(),
+		})
+	}
+	for i := range layers {
+		layers[i].pkgs = query.MatchPackagePatterns(universe, layers[i].patterns)
+	}
+
+	// One FindBoundaryCrossings per ordered pair (i->j and j->i are both
+	// reported via the directional A→B/B→A split inside FindBoundaryCrossings).
+	rows := make([]layerCrossingRow, 0, len(layers)*(len(layers)-1))
+	for i := 0; i < len(layers); i++ {
+		for j := i + 1; j < len(layers); j++ {
+			if len(layers[i].pkgs) == 0 || len(layers[j].pkgs) == 0 {
+				continue
+			}
+			report, err := query.FindBoundaryCrossings(s.DB(), layers[i].pkgs, layers[j].pkgs)
+			if err != nil {
+				return w.WriteError("boundary", &output.Error{
+					Code: output.ErrInternal, Message: err.Error(),
+				})
+			}
+			rows = append(rows,
+				layerCrossingRow{
+					From: layers[i].name, To: layers[j].name,
+					Crossings: sumRefs(report.AToB), Symbols: len(report.AToB),
+					FromPackages: len(layers[i].pkgs), ToPackages: len(layers[j].pkgs),
+				},
+				layerCrossingRow{
+					From: layers[j].name, To: layers[i].name,
+					Crossings: sumRefs(report.BToA), Symbols: len(report.BToA),
+					FromPackages: len(layers[j].pkgs), ToPackages: len(layers[i].pkgs),
+				},
+			)
+		}
+	}
+
+	if GetOutputFormat() == output.OutputJSON {
+		resp := output.Response[layerCrossingRow]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  rows,
+			Meta: output.Meta{
+				Command:  "boundary",
+				Query:    map[string]string{"layers": boundaryLayers},
+				RepoRoot: dir,
+				Ms:       time.Since(start).Milliseconds(),
+				Total:    len(rows),
+			},
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(resp)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "layers · %d ordered pairs (%d layers)\n", len(rows), len(layers))
+	for _, r := range rows {
+		if r.Crossings == 0 && r.Symbols == 0 {
+			continue
+		}
+		fmt.Fprintf(&b, "  %s -> %s\tcrossings=%d  symbols=%d  (%d->%d pkgs)\n",
+			r.From, r.To, r.Crossings, r.Symbols, r.FromPackages, r.ToPackages)
+	}
+	_, err = os.Stdout.WriteString(b.String())
+	return err
+}
+
+func sumRefs(refs []query.BoundaryRef) int {
+	n := 0
+	for _, r := range refs {
+		n += r.RefCount
 	}
 	return n
 }
