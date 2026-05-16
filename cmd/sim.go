@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -9,10 +11,12 @@ import (
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
+	"github.com/dkoosis/snipe/internal/store"
+	"github.com/dkoosis/snipe/internal/vector"
 )
 
 var simCmd = &cobra.Command{
-	Use:     "sim <query>",
+	Use:     "sim [query]",
 	Short:   "Semantic similarity search",
 	GroupID: categoryAdvanced,
 	Long: `Finds symbols semantically similar to the query using embeddings.
@@ -22,25 +26,54 @@ Requires embeddings to be generated first with 'snipe index --embed'.
 Examples:
   snipe sim "handle HTTP request"
   snipe sim "database connection pool"
-  snipe sim --threshold 0.5 "error handling"`,
-	Args: cobra.ExactArgs(1),
+  snipe sim --threshold 0.5 "error handling"
+  snipe sim --within-pkg --pairs --threshold=0.9   # near-dup pairs inside each package
+  snipe sim --within-pkg --pairs --shared-callees  # also count shared callees`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runSim,
 }
 
 var (
-	simThreshold float64
+	simThreshold     float64
+	simWithinPkg     bool
+	simPairs         bool
+	simSharedCallees bool
 )
 
 func init() {
 	simCmd.Flags().Float64Var(&simThreshold, "threshold", 0.3, "Minimum similarity threshold (0-1)")
+	simCmd.Flags().BoolVar(&simWithinPkg, "within-pkg", false, "Restrict pair scan to symbols in the same package (with --pairs)")
+	simCmd.Flags().BoolVar(&simPairs, "pairs", false, "Emit near-duplicate symbol pairs (JSONL) instead of running a query")
+	simCmd.Flags().BoolVar(&simSharedCallees, "shared-callees", false, "Include shared-callee counts on each pair (with --pairs)")
 	rootCmd.AddCommand(simCmd)
 }
 
 func runSim(cmd *cobra.Command, args []string) error {
 	start := time.Now()
-	queryText := args[0]
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+
+	if simPairs {
+		s, dir, err := OpenStore(w, cmdNameSim)
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		return runSimPairs(s, dir, start)
+	}
+
+	if len(args) == 0 {
+		return w.WriteError(cmdNameSim, &output.Error{
+			Code:    output.ErrInternal,
+			Message: "sim requires a query argument unless --pairs is set",
+		})
+	}
+	return runSimQuery(cmd, args, start, compact, lim, off, contextLines, withBody)
+}
+
+func runSimQuery(cmd *cobra.Command, args []string, start time.Time, compact bool, lim, off, contextLines int, withBody bool) error {
+	queryText := args[0]
 	format := GetResponseFormat()
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
@@ -164,4 +197,121 @@ func runSim(cmd *cobra.Command, args []string) error {
 	}
 
 	return w.WriteResponse(resp)
+}
+
+// simPairRow is one near-duplicate symbol pair within a package (snipe-3jb).
+type simPairRow struct {
+	Pkg           string  `json:"pkg"`
+	SymA          string  `json:"sym_a"`
+	SymB          string  `json:"sym_b"`
+	IDA           string  `json:"id_a"`
+	IDB           string  `json:"id_b"`
+	Similarity    float32 `json:"similarity"`
+	SharedCallees int     `json:"shared_callees,omitempty"`
+	TotalCalleesA int     `json:"total_callees_a,omitempty"`
+	TotalCalleesB int     `json:"total_callees_b,omitempty"`
+}
+
+func runSimPairs(s *store.Store, dir string, startedAt time.Time) error {
+	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	if !simWithinPkg {
+		return w.WriteError(cmdNameSim, &output.Error{
+			Code:    output.ErrInternal,
+			Message: "--pairs currently requires --within-pkg",
+		})
+	}
+
+	rows, err := s.GetEmbeddingsByPackage()
+	if err != nil {
+		return w.WriteError(cmdNameSim, &output.Error{
+			Code: output.ErrInternal, Message: err.Error(),
+		})
+	}
+	if len(rows) == 0 {
+		return w.WriteError(cmdNameSim, &output.Error{
+			Code:    output.ErrInternal,
+			Message: "no embeddings — run 'snipe index --embed' first",
+		})
+	}
+
+	byPkg := make(map[string][]store.PkgEmbeddingRow)
+	for i := range rows {
+		r := &rows[i]
+		byPkg[r.Pkg] = append(byPkg[r.Pkg], *r)
+	}
+
+	threshold := float32(simThreshold)
+	var pairs []simPairRow
+	for pkg, syms := range byPkg {
+		for i := 0; i < len(syms); i++ {
+			for j := i + 1; j < len(syms); j++ {
+				sim := vector.CosineSimilarity(syms[i].Embedding, syms[j].Embedding)
+				if sim < threshold {
+					continue
+				}
+				a, b := syms[i], syms[j]
+				if a.Name > b.Name {
+					a, b = b, a
+				}
+				pairs = append(pairs, simPairRow{
+					Pkg:        pkg,
+					SymA:       a.Name,
+					SymB:       b.Name,
+					IDA:        a.SymbolID,
+					IDB:        b.SymbolID,
+					Similarity: sim,
+				})
+			}
+		}
+	}
+
+	if simSharedCallees && len(pairs) > 0 {
+		ids := make([]string, 0, len(pairs)*2)
+		seen := make(map[string]bool)
+		for _, p := range pairs {
+			for _, id := range []string{p.IDA, p.IDB} {
+				if !seen[id] {
+					seen[id] = true
+					ids = append(ids, id)
+				}
+			}
+		}
+		callees, err := s.GetCalleesForSymbols(ids)
+		if err == nil {
+			for i := range pairs {
+				p := &pairs[i]
+				a := callees[p.IDA]
+				b := callees[p.IDB]
+				shared := 0
+				for id := range a {
+					if _, ok := b[id]; ok {
+						shared++
+					}
+				}
+				p.SharedCallees = shared
+				p.TotalCalleesA = len(a)
+				p.TotalCalleesB = len(b)
+			}
+		}
+	}
+
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].Pkg != pairs[j].Pkg {
+			return pairs[i].Pkg < pairs[j].Pkg
+		}
+		if pairs[i].Similarity != pairs[j].Similarity {
+			return pairs[i].Similarity > pairs[j].Similarity
+		}
+		return pairs[i].SymA < pairs[j].SymA
+	})
+
+	enc := json.NewEncoder(os.Stdout)
+	for _, p := range pairs {
+		if err := enc.Encode(p); err != nil {
+			return err
+		}
+	}
+	_ = dir
+	_ = startedAt
+	return nil
 }

@@ -74,6 +74,89 @@ func (s *Store) GetAllEmbeddings() ([]EmbeddingRow, error) {
 	return results, nil
 }
 
+// PkgEmbeddingRow is one symbol embedding with package and signature, used by
+// pair-scan callers that need to group by pkg_path.
+type PkgEmbeddingRow struct {
+	SymbolID  string
+	Pkg       string
+	Name      string
+	Kind      string
+	FilePath  string
+	LineStart int
+	Signature string
+	Embedding []float32
+}
+
+// GetEmbeddingsByPackage returns embeddings restricted to function/method symbols
+// (the only kinds where same-pkg pair scans make sense) joined with pkg_path.
+func (s *Store) GetEmbeddingsByPackage() ([]PkgEmbeddingRow, error) {
+	rows, err := s.db.Query(`
+		SELECT e.symbol_id, s.pkg_path, s.name, s.kind, s.file_path, s.line_start,
+		       COALESCE(s.signature, ''), e.embedding
+		FROM embeddings e
+		JOIN symbols s ON e.symbol_id = s.id
+		WHERE s.kind IN ('func','method')
+		  AND s.file_path NOT LIKE '%_test.go'
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query embeddings by pkg: %w", err)
+	}
+	defer rows.Close()
+
+	var out []PkgEmbeddingRow
+	for rows.Next() {
+		var r PkgEmbeddingRow
+		var data []byte
+		if err := rows.Scan(&r.SymbolID, &r.Pkg, &r.Name, &r.Kind, &r.FilePath, &r.LineStart, &r.Signature, &data); err != nil {
+			return nil, fmt.Errorf("scan pkg embedding row: %w", err)
+		}
+		r.Embedding = vector.DeserializeEmbedding(data)
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pkg embeddings: %w", err)
+	}
+	return out, nil
+}
+
+// GetCalleesForSymbols returns a map from caller symbol_id to the set of its
+// distinct callee_ids. One query covers all requested IDs.
+func (s *Store) GetCalleesForSymbols(symbolIDs []string) (map[string]map[string]struct{}, error) {
+	if len(symbolIDs) == 0 {
+		return map[string]map[string]struct{}{}, nil
+	}
+	placeholders := make([]byte, 0, len(symbolIDs)*2)
+	args := make([]interface{}, 0, len(symbolIDs))
+	for i, id := range symbolIDs {
+		if i > 0 {
+			placeholders = append(placeholders, ',')
+		}
+		placeholders = append(placeholders, '?')
+		args = append(args, id)
+	}
+	q := `SELECT caller_id, callee_id FROM call_graph WHERE caller_id IN (` + string(placeholders) + `)`
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query callees: %w", err)
+	}
+	defer rows.Close()
+
+	out := make(map[string]map[string]struct{}, len(symbolIDs))
+	for rows.Next() {
+		var caller, callee string
+		if err := rows.Scan(&caller, &callee); err != nil {
+			return nil, fmt.Errorf("scan callees row: %w", err)
+		}
+		set, ok := out[caller]
+		if !ok {
+			set = make(map[string]struct{})
+			out[caller] = set
+		}
+		set[callee] = struct{}{}
+	}
+	return out, rows.Err()
+}
+
 // CountEmbeddings returns the number of stored embeddings.
 func (s *Store) CountEmbeddings() (int, error) {
 	var count int

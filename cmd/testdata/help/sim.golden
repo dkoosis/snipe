@@ -6,13 +6,18 @@ Examples:
   snipe sim "handle HTTP request"
   snipe sim "database connection pool"
   snipe sim --threshold 0.5 "error handling"
+  snipe sim --within-pkg --pairs --threshold=0.9   # near-dup pairs inside each package
+  snipe sim --within-pkg --pairs --shared-callees  # also count shared callees
 
 Usage:
-  snipe sim <query> [flags]
+  snipe sim [query] [flags]
 
 Flags:
   -h, --help              help for sim
+      --pairs             Emit near-duplicate symbol pairs (JSONL) instead of running a query
+      --shared-callees    Include shared-callee counts on each pair (with --pairs)
       --threshold float   Minimum similarity threshold (0-1) (default 0.3)
+      --within-pkg        Restrict pair scan to symbols in the same package (with --pairs)
 
 Global Flags:
       --context int        Context lines around match (default 2)
