@@ -37,6 +37,7 @@ Index Commands:
 Advanced Commands:
   boundary     Show symbols whose refs cross between two package sets
   context      Generate Claude-optimized project context
+  deadcode     Report exported symbols with zero non-test references
   deps         Show dependency topology for a package or the full project
   diagram      Render snipe graphs as D2 diagram source
   edit         AST-aware code editing

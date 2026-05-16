@@ -1,0 +1,32 @@
+List exported symbols whose ref count is zero across the workspace.
+
+By default excludes _test.go references from the count and skips symbols
+defined in test files. Use --include-tests to count test refs.
+
+Examples:
+  snipe deadcode                        # all unreferenced exports
+  snipe deadcode --pkg=internal/store   # filter to one package
+  snipe deadcode --format=json          # JSON output for tooling
+  snipe deadcode --include-tests        # count test refs too
+
+Usage:
+  snipe deadcode [flags]
+
+Flags:
+  -h, --help            help for deadcode
+      --include-tests   Count refs from _test.go files (default: ignored)
+      --pkg string      Filter to a single package (suffix/substring match on pkg_path)
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)
