@@ -48,6 +48,7 @@ Advanced Commands:
   imports      Show packages imported by a file
   lifecycle    Trace every function creating, mutating, reading, or deleting a type
   metrics      Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph
+  orient       Write a full orient bundle (context-full, deps-tree, all metrics, manifest) into a directory
   pkg          Show package overview with exported symbols
   sim          Semantic similarity search
   types        Show type relationships

@@ -1,0 +1,34 @@
+Produces the standard lintbrush prelude bundle in one index open:
+
+  context-full.json   — snipe context --full output
+  deps-tree.json      — snipe deps --tree output
+  metrics-<kind>.json — one file per row-level metric kind
+  manifest.json       — { snipe_version, git_commit, index_fingerprint,
+                          files: { path: sha256, ... }, generated_at }
+
+The manifest is content-addressed so harnesses can use it as a CI cache key
+at a given git SHA + index content.
+
+Example:
+  snipe orient --out .lintbrush/prelude
+
+Usage:
+  snipe orient [flags]
+
+Flags:
+  -h, --help         help for orient
+      --out string   Output directory (created if missing)
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise | detailed | summary | json | human (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Result selection: all, best, top3, top5 (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)
