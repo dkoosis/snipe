@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -10,7 +11,10 @@ import (
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
+	"github.com/dkoosis/snipe/internal/store"
 )
+
+var pkgDigest bool
 
 var pkgCmd = &cobra.Command{
 	Use:     "pkg <name>",
@@ -30,6 +34,7 @@ Examples:
 }
 
 func init() {
+	pkgCmd.Flags().BoolVar(&pkgDigest, "digest", false, "Emit one-shot metric digest (exports/ca/ce/instability/lcom4/cyclo_max) as JSON")
 	rootCmd.AddCommand(pkgCmd)
 }
 
@@ -57,6 +62,10 @@ func runPkg(cmd *cobra.Command, args []string) error {
 
 	repoRoot, _ := s.GetMeta("repo_root")
 	pkgPattern = query.ResolvePkgPattern(s.DB(), pkgPattern, dir, repoRoot)
+
+	if pkgDigest {
+		return runPkgDigest(s, dir, pkgPattern, start)
+	}
 
 	// Resolve full pkg path for doc lookup.
 	fullPkgPath := query.FindFullPkgPath(s.DB(), pkgPattern)
@@ -199,4 +208,81 @@ func runPkg(cmd *cobra.Command, args []string) error {
 		Meta:     meta,
 	}
 	return w.WriteResponse(resp)
+}
+
+// pkgDigestRow is the JSON shape for 'snipe pkg <p> --digest' — a one-shot
+// package-level metric digest (snipe-1o1). Designed so cohesion/arch linters
+// in lintbrush get every datapoint they need in a single invocation, replacing
+// the multi-command reconstruction they do today.
+type pkgDigestRow struct {
+	Pkg          string  `json:"pkg"`
+	ExportsCount int     `json:"exports_count"`
+	Ca           float64 `json:"ca"`
+	Ce           float64 `json:"ce"`
+	Instability  float64 `json:"instability"`
+	LCOM4        float64 `json:"lcom4"`
+	CycloMax     float64 `json:"cyclo_max"`
+}
+
+func runPkgDigest(s *store.Store, dir, pkgPattern string, startedAt time.Time) error {
+	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+
+	fullPkg := query.FindFullPkgPath(s.DB(), pkgPattern)
+	if fullPkg == "" {
+		fullPkg = pkgPattern
+	}
+
+	row := pkgDigestRow{Pkg: fullPkg}
+
+	// exports_count: number of exported symbols in the package. LIMIT 0 returns
+	// nothing in SQLite, so use a large sentinel — packages have far fewer.
+	exports, err := query.FindPackageSymbolsByUsage(s.DB(), pkgPattern, 100000, 0)
+	if err == nil {
+		row.ExportsCount = len(exports)
+	}
+
+	// graph_metrics is keyed by package import path; pull each row-level metric.
+	pull := func(metric string) float64 {
+		rows, err := s.ReadTopN(cmdNameImports, metric, 0)
+		if err != nil {
+			return 0
+		}
+		for _, r := range rows {
+			if r.NodeID == fullPkg {
+				return r.Value
+			}
+		}
+		return 0
+	}
+	row.Ca = pull("ca")
+	row.Ce = pull("ce")
+	row.Instability = pull("instability")
+	row.LCOM4 = pull(kindLCOM4)
+	row.CycloMax = pull("cyclo_max")
+
+	resp := output.Response[pkgDigestRow]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  []pkgDigestRow{row},
+		Meta: output.Meta{
+			Command:  cmdNamePkg,
+			Query:    map[string]string{flagPackage: pkgPattern, "digest": "1"},
+			RepoRoot: dir,
+			Ms:       time.Since(startedAt).Milliseconds(),
+			Total:    1,
+		},
+	}
+	// --digest always emits JSON; the output is structured by intent.
+	if GetOutputFormat() == output.OutputJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(resp)
+	}
+	// Default text rendering: short single-line digest for grep-friendly use.
+	_, _ = fmt.Fprintf(os.Stdout,
+		"pkg=%s exports=%d ca=%.0f ce=%.0f I=%.3f lcom4=%.0f cyclo_max=%.0f\n",
+		row.Pkg, row.ExportsCount, row.Ca, row.Ce, row.Instability, row.LCOM4, row.CycloMax,
+	)
+	_ = w
+	return nil
 }

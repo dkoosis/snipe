@@ -12,7 +12,8 @@ Usage:
   snipe pkg <name> [flags]
 
 Flags:
-  -h, --help   help for pkg
+      --digest   Emit one-shot metric digest (exports/ca/ce/instability/lcom4/cyclo_max) as JSON
+  -h, --help     help for pkg
 
 Global Flags:
       --context int        Context lines around match (default 2)
