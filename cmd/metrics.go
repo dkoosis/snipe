@@ -70,6 +70,18 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 	compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
+	// Multi-kind: comma-separated list collapses N sequential calls into one
+	// merged table keyed by node (snipe-0zg). Composite kinds (topo, cycles,
+	// coupling, distance, cyclo) are excluded — they have non-row outputs.
+	if strings.Contains(metricsKind, ",") {
+		s, dir, err := OpenStore(w, cmdNameMetrics)
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		return runMultiKindMetrics(s, dir, start)
+	}
+
 	// Validate --kind. Empty results from ReadTopN signal "not yet populated".
 	switch metricsKind {
 	case "pagerank", "betweenness", "hits", "hub", "authority",
@@ -542,4 +554,129 @@ func writeMetricsText(rows []store.MetricRow) error {
 	}
 	_, err := os.Stdout.WriteString(b.String())
 	return err
+}
+
+// multiKindRow is one node with its values across the requested kinds.
+type multiKindRow struct {
+	Node   string             `json:"node"`
+	Values map[string]float64 `json:"values"`
+}
+
+// runMultiKindMetrics handles the comma-separated --kind path: read each kind
+// row-set, merge by NodeID into a single wide table, optionally filter by
+// --pkg, sort by the first kind value desc, then truncate to --top.
+func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error {
+	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+
+	kinds := splitAndTrim(metricsKind)
+	if len(kinds) == 0 {
+		return w.WriteError(cmdNameMetrics, &output.Error{
+			Code: output.ErrInternal, Message: "empty --kind list",
+		})
+	}
+	for _, k := range kinds {
+		switch k {
+		case "pagerank", "betweenness", "hits", "hub", "authority",
+			"degree", "in_degree", "out_degree", "eigenvector",
+			"ca", "ce", "instability", "abstractness", kindLCOM4,
+			"cyclo_sum", "cyclo_p95", "cyclo_max":
+		default:
+			return w.WriteError(cmdNameMetrics, &output.Error{
+				Code: output.ErrInternal,
+				Message: fmt.Sprintf(
+					"--kind=%q not supported in multi-kind mode (composite kinds topo/cycles/coupling/distance/cyclo must run alone)",
+					k,
+				),
+			})
+		}
+	}
+
+	byNode := make(map[string]map[string]float64)
+	for _, k := range kinds {
+		rows, err := s.ReadTopN(metricsGraph, k, 0)
+		if err != nil {
+			return w.WriteError(cmdNameMetrics, &output.Error{
+				Code: output.ErrInternal, Message: err.Error(),
+			})
+		}
+		for _, r := range rows {
+			if metricsPkg != "" && r.NodeID != metricsPkg && !strings.HasSuffix(r.NodeID, "/"+metricsPkg) {
+				continue
+			}
+			vals, ok := byNode[r.NodeID]
+			if !ok {
+				vals = make(map[string]float64, len(kinds))
+				byNode[r.NodeID] = vals
+			}
+			vals[k] = r.Value
+		}
+	}
+
+	out := make([]multiKindRow, 0, len(byNode))
+	for node, vals := range byNode {
+		out = append(out, multiKindRow{Node: node, Values: vals})
+	}
+	first := kinds[0]
+	sort.Slice(out, func(i, j int) bool {
+		vi := out[i].Values[first]
+		vj := out[j].Values[first]
+		if vi != vj {
+			return vi > vj
+		}
+		return out[i].Node < out[j].Node
+	})
+	if metricsTopN > 0 && len(out) > metricsTopN {
+		out = out[:metricsTopN]
+	}
+
+	if GetOutputFormat() == output.OutputJSON {
+		resp := output.Response[multiKindRow]{
+			Protocol: output.ProtocolVersion,
+			Ok:       true,
+			Results:  out,
+			Meta: output.Meta{
+				Command: cmdNameMetrics,
+				Query: map[string]string{
+					cmdKindGraph: metricsGraph,
+					jsonKeyKind:  metricsKind,
+					"top":        fmt.Sprintf("%d", metricsTopN),
+				},
+				RepoRoot: dir,
+				Ms:       time.Since(startedAt).Milliseconds(),
+				Total:    len(out),
+			},
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(resp)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s graph · %s · %d rows\n", metricsGraph, strings.Join(kinds, ","), len(out))
+	b.WriteString("  node")
+	for _, k := range kinds {
+		fmt.Fprintf(&b, "\t%s", k)
+	}
+	b.WriteString("\n")
+	for _, r := range out {
+		fmt.Fprintf(&b, "  %s", r.Node)
+		for _, k := range kinds {
+			fmt.Fprintf(&b, "\t%g", r.Values[k])
+		}
+		b.WriteString("\n")
+	}
+	_, err := os.Stdout.WriteString(b.String())
+	return err
+}
+
+func splitAndTrim(csv string) []string {
+	parts := strings.Split(csv, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
