@@ -14,6 +14,7 @@ Usage:
 
 Flags:
       --at string     Position to look up (file:line:col)
+      --batch         Read symbol names from stdin (one per line), emit JSONL per symbol (shares one index open)
       --file string   Filter references to those in matching file
   -h, --help          help for refs
       --kind string   Filter by enclosing kind (func, method, etc.)

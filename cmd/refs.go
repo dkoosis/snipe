@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,10 +16,11 @@ import (
 )
 
 var (
-	refsAt   string
-	refsKind string
-	refsFile string
-	refsPkg  string
+	refsAt    string
+	refsKind  string
+	refsFile  string
+	refsPkg   string
+	refsBatch bool
 )
 
 var refsCmd = &cobra.Command{
@@ -43,6 +46,7 @@ func init() {
 	refsCmd.Flags().StringVar(&refsKind, "kind", "", "Filter by enclosing kind (func, method, etc.)")
 	refsCmd.Flags().StringVar(&refsFile, "file", "", "Filter references to those in matching file")
 	refsCmd.Flags().StringVar(&refsPkg, "pkg", "", "Filter references to those in matching package path")
+	refsCmd.Flags().BoolVar(&refsBatch, "batch", false, "Read symbol names from stdin (one per line), emit JSONL per symbol (shares one index open)")
 	rootCmd.AddCommand(refsCmd)
 }
 
@@ -57,6 +61,10 @@ func runRefs(cmd *cobra.Command, args []string) error {
 	summary := format == FormatSummary
 
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+
+	if refsBatch {
+		return runRefsBatch(w, start)
+	}
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && refsAt == "" {
@@ -351,4 +359,91 @@ findRefs:
 	}
 
 	return w.WriteResponse(resp)
+}
+
+// batchRefRow is the per-symbol output shape for `snipe refs --batch`. Emitted
+// as JSONL (one object per line) so streaming consumers can process as inputs
+// are read; matches the snipe-4va acceptance spec.
+type batchRefRow struct {
+	Symbol string         `json:"symbol"`
+	ID     string         `json:"id,omitempty"`
+	Count  int            `json:"count"`
+	Refs   []batchRefItem `json:"refs"`
+	Error  string         `json:"error,omitempty"`
+}
+
+type batchRefItem struct {
+	File          string `json:"file"`
+	Line          int    `json:"line"`
+	Col           int    `json:"col"`
+	EnclosingID   string `json:"enclosing_id,omitempty"`
+	EnclosingName string `json:"enclosing_name,omitempty"`
+	EnclosingKind string `json:"enclosing_kind,omitempty"`
+}
+
+func runRefsBatch(w *output.Writer, _ time.Time) error {
+	s, _, err := OpenStore(w, cmdNameRefs)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	_, lim, off, _, _, _ := GetOutputConfig()
+	enc := json.NewEncoder(os.Stdout)
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+
+	for scanner.Scan() {
+		name := strings.TrimSpace(scanner.Text())
+		if name == "" {
+			continue
+		}
+		row := batchRefRow{Symbol: name, Refs: []batchRefItem{}}
+
+		syms, err := query.LookupByName(s.DB(), name)
+		if err != nil {
+			row.Error = err.Error()
+			_ = enc.Encode(row)
+			continue
+		}
+		if len(syms) == 0 {
+			row.Error = "not_found"
+			_ = enc.Encode(row)
+			continue
+		}
+		if len(syms) > 1 {
+			row.Error = "ambiguous"
+			_ = enc.Encode(row)
+			continue
+		}
+		row.ID = syms[0].ID
+
+		refs, err := query.FindRefs(s.DB(), syms[0].ID, lim, off)
+		if err != nil {
+			row.Error = err.Error()
+			_ = enc.Encode(row)
+			continue
+		}
+		for i := range refs {
+			ref := &refs[i]
+			fp := ref.FilePathRel
+			if fp == "" {
+				fp = ref.FilePath
+			}
+			item := batchRefItem{
+				File: fp, Line: ref.Line, Col: ref.Col,
+			}
+			if ref.EnclosingID.Valid {
+				item.EnclosingID = ref.EnclosingID.String
+				item.EnclosingName = ref.EnclosingName
+				item.EnclosingKind = ref.EnclosingKind
+			}
+			row.Refs = append(row.Refs, item)
+		}
+		row.Count = len(row.Refs)
+		if err := enc.Encode(row); err != nil {
+			return err
+		}
+	}
+	return scanner.Err()
 }
