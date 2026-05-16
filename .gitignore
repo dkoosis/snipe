@@ -44,3 +44,4 @@ docs/eval/EVAL_RESULTS.json
 # Local tool output
 .claude/tmp/
 .fo/
+.claude/scheduled_tasks.lock
