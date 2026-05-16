@@ -24,14 +24,15 @@ type DepDAG struct {
 
 // BootContext is a minimal context for LLM orientation (~3-5k tokens).
 type BootContext struct {
-	Project     string      `json:"project" yaml:"project"`
-	Purpose     string      `json:"purpose,omitempty" yaml:"purpose,omitempty"`
-	Lang        string      `json:"lang" yaml:"lang"`
-	BuildInfo   *BuildInfo  `json:"build_info,omitempty" yaml:"build_info,omitempty"`
-	EntryPoints []string    `json:"entry_points" yaml:"entry_points"`
-	KeySymbols  []SymbolRef `json:"key_symbols" yaml:"key_symbols"`
-	ActiveWork  *ActiveWork `json:"active_work,omitempty" yaml:"active_work,omitempty"`
-	Commit      string      `json:"commit" yaml:"commit"`
+	SchemaVersion string      `json:"schema_version" yaml:"schema_version"`
+	Project       string      `json:"project" yaml:"project"`
+	Purpose       string      `json:"purpose,omitempty" yaml:"purpose,omitempty"`
+	Lang          string      `json:"lang" yaml:"lang"`
+	BuildInfo     *BuildInfo  `json:"build_info,omitempty" yaml:"build_info,omitempty"`
+	EntryPoints   []string    `json:"entry_points" yaml:"entry_points"`
+	KeySymbols    []SymbolRef `json:"key_symbols" yaml:"key_symbols"`
+	ActiveWork    *ActiveWork `json:"active_work,omitempty" yaml:"active_work,omitempty"`
+	Commit        string      `json:"commit" yaml:"commit"`
 
 	// Enhanced fields (Phase 2)
 	BootViews *BootViews   `json:"boot_views,omitempty" yaml:"boot_views,omitempty"`
@@ -250,6 +251,7 @@ type CIInfo struct {
 
 // Meta contains generation metadata.
 type Meta struct {
+	SchemaVersion    string `json:"schema_version" yaml:"schema_version"`
 	GeneratedAt      string `json:"generated_at" yaml:"generated_at"`
 	GitCommit        string `json:"git_commit,omitempty" yaml:"git_commit,omitempty"`
 	IndexFingerprint string `json:"index_fingerprint,omitempty" yaml:"index_fingerprint,omitempty"`

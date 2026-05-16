@@ -17,12 +17,13 @@ Usage:
   snipe context [path] [flags]
 
 Flags:
-      --conventions     Detect coding conventions
-      --format string   Structured output format: json or yaml (default: claudish text)
-      --full            Full architecture dump (all components, flows, boundaries)
-  -h, --help            help for context
-      --orient          Claude-optimized orientation (default)
-      --output-nug      Output as Orca nugget YAML (for save_nug)
+      --conventions      Detect coding conventions
+      --format string    Structured output format: json or yaml (default: claudish text)
+      --full             Full architecture dump (all components, flows, boundaries)
+  -h, --help             help for context
+      --orient           Claude-optimized orientation (default)
+      --output-nug       Output as Orca nugget YAML (for save_nug)
+      --schema-version   Print the context output schema version and exit
 
 Global Flags:
       --context int        Context lines around match (default 2)

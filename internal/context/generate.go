@@ -107,22 +107,23 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 	archWarnings := buildArchWarnings(cfg.DB)
 
 	return &BootContext{
-		Project:      proj.Name,
-		Purpose:      purpose,
-		Lang:         lang,
-		BuildInfo:    &buildInfo,
-		EntryPoints:  entryPoints,
-		KeySymbols:   keySymbols,
-		ActiveWork:   activeWork,
-		Commit:       meta.GitCommit,
-		BootViews:    bootViews,
-		Packages:     packages,
-		Conventions:  conventions,
-		DBSchemas:    DetectDBSchemas(cfg.RepoRoot),
-		DepDAG:       depDAG,
-		ArchWarnings: archWarnings,
-		TotalSymbols: totalSymbols,
-		TotalPkgs:    totalPkgs,
+		SchemaVersion: SchemaVersion,
+		Project:       proj.Name,
+		Purpose:       purpose,
+		Lang:          lang,
+		BuildInfo:     &buildInfo,
+		EntryPoints:   entryPoints,
+		KeySymbols:    keySymbols,
+		ActiveWork:    activeWork,
+		Commit:        meta.GitCommit,
+		BootViews:     bootViews,
+		Packages:      packages,
+		Conventions:   conventions,
+		DBSchemas:     DetectDBSchemas(cfg.RepoRoot),
+		DepDAG:        depDAG,
+		ArchWarnings:  archWarnings,
+		TotalSymbols:  totalSymbols,
+		TotalPkgs:     totalPkgs,
 	}, nil
 }
 
@@ -987,7 +988,8 @@ func getExtensionPoints(db *sql.DB, repoRoot string) []ExtensionPoint {
 
 func generateMeta(db *sql.DB) Meta {
 	meta := Meta{
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		SchemaVersion: SchemaVersion,
+		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
 	}
 
 	// Get git commit

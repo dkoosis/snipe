@@ -16,11 +16,12 @@ import (
 )
 
 var (
-	contextFormat      string
-	contextFull        bool
-	contextOrient      bool
-	contextOutputNug   bool
-	contextConventions bool
+	contextFormat        string
+	contextFull          bool
+	contextOrient        bool
+	contextOutputNug     bool
+	contextConventions   bool
+	contextSchemaVersion bool
 )
 
 var contextCmd = &cobra.Command{
@@ -51,10 +52,16 @@ func init() {
 	contextCmd.Flags().BoolVar(&contextOrient, "orient", false, "Claude-optimized orientation (default)")
 	contextCmd.Flags().BoolVar(&contextOutputNug, "output-nug", false, "Output as Orca nugget YAML (for save_nug)")
 	contextCmd.Flags().BoolVar(&contextConventions, "conventions", false, "Detect coding conventions")
+	contextCmd.Flags().BoolVar(&contextSchemaVersion, "schema-version", false, "Print the context output schema version and exit")
 	rootCmd.AddCommand(contextCmd)
 }
 
 func runContext(cmd *cobra.Command, args []string) error {
+	if contextSchemaVersion {
+		fmt.Println(context.SchemaVersion)
+		return nil
+	}
+
 	// Determine directory
 	dir := "."
 	if len(args) > 0 {

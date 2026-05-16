@@ -1,37 +1,37 @@
 {
-  "timestamp": "2026-05-06T23:58:14Z",
+  "timestamp": "2026-05-16T21:02:39Z",
   "git_commit": "972a433e",
-  "go_version": "go1.26.2",
+  "go_version": "go1.26.3",
   "codebase": {
     "name": "orca",
-    "path": "/Users/vcto/projects/orca",
+    "path": "/Users/vcto/Projects/orca",
     "go_files": 427,
     "symbols": 7690,
     "refs": 22369,
-    "call_edges": 7945,
-    "db_size_kb": 26872
+    "call_edges": 7720,
+    "db_size_kb": 26788
   },
   "index": {
-    "total_ms": 3099,
-    "load_ms": 2042,
-    "extract_ms": 620,
-    "persist_ms": 432,
-    "peak_mem_mb": 1108
+    "total_ms": 5601,
+    "load_ms": 3370,
+    "extract_ms": 1121,
+    "persist_ms": 1101,
+    "peak_mem_mb": 1105
   },
   "query": {
-    "def_by_name_ms": 0.020829999999999998,
-    "def_by_pos_ms": 0.00825,
-    "refs_by_id_ms": 0.056229999999999995
+    "def_by_name_ms": 0.03514,
+    "def_by_pos_ms": 0.01772,
+    "refs_by_id_ms": 0.13179
   },
   "search": {
-    "simple_pattern_ms": 5.3416999999999994,
-    "regex_pattern_ms": 8.72231
+    "simple_pattern_ms": 11.23564,
+    "regex_pattern_ms": 16.01528
   },
   "quality": {
     "symbols_with_doc": 4507,
     "symbols_with_sig": 7690,
     "doc_coverage_pct": 58.60858257477243,
     "refs_per_symbol": 2.9088426527958386,
-    "callgraph_coverage_pct": 125.60693641618496
+    "callgraph_coverage_pct": 126.35838150289018
   }
 }
