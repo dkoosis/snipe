@@ -45,3 +45,4 @@ docs/eval/EVAL_RESULTS.json
 .claude/tmp/
 .fo/
 .claude/scheduled_tasks.lock
+bin/
