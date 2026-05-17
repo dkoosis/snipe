@@ -20,10 +20,15 @@ var (
 )
 
 var explainCmd = &cobra.Command{
-	Use:     "explain [symbol]",
-	Short:   "Structured function explanation for LLMs",
-	GroupID: categoryAdvanced,
-	Long: `Generates a structured explanation of a function or method.
+	Use:     "explain SYMBOL",
+	Short:   "Structured function walkthrough — purpose, mechanism, callers, warnings",
+	GroupID: categoryRead,
+	Long: `When to use: you want a narrative walkthrough of one function for Claude
+to read and reason about. Includes purpose, observable mechanism, caller
+patterns, and static-analysis warnings. For raw def+refs use 'sym'. For
+symbol + package picture use 'pack'.
+
+Generates a structured explanation of a function or method.
 
 Output includes:
   - purpose: Best-effort summary with explicit source tracking

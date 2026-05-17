@@ -26,9 +26,13 @@ var (
 
 var contextCmd = &cobra.Command{
 	Use:     "context [path]",
-	Short:   "Generate Claude-optimized project context",
-	GroupID: categoryAdvanced,
-	Long: `Generate Claude-optimized project orientation context.
+	Short:   "Start here — Claude-optimized project orientation",
+	GroupID: categoryOrient,
+	Long: `When to use: first command in a new repo. Produces project orientation
+(entry points, packages, conventions, active work) so Claude knows where to look.
+For one symbol use 'pack'. For a function walkthrough use 'explain'.
+
+Generates Claude-optimized project orientation context.
 
 By default, outputs a lean orientation (~5k tokens) with project metadata,
 key symbols, packages, conventions, and active work context.

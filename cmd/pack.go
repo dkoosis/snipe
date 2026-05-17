@@ -25,10 +25,14 @@ var (
 )
 
 var packCmd = &cobra.Command{
-	Use:     "pack [symbol|package...]",
-	Short:   "Full symbol or package profile in a single query",
-	GroupID: categoryCore,
-	Long: `Returns everything an LLM needs about a symbol (or package) in one query.
+	Use:     "pack SYMBOL_OR_PKG...",
+	Short:   "Deep dive on one symbol or package (def+refs+callers+callees+role+purpose)",
+	GroupID: categoryRead,
+	Long: `When to use: you've identified a specific symbol or package and want
+the full picture in one query. For project orientation use 'context' first.
+For symbol-only without package context use 'sym'.
+
+Returns everything an LLM needs about a symbol (or package) in one query.
 
 Symbol mode combines definition, references, callers, callees, role, and purpose.
 Package mode returns exports, imports, dependent count, LOC, tests, and key types.

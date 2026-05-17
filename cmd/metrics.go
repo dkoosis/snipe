@@ -27,7 +27,7 @@ var (
 var metricsCmd = &cobra.Command{
 	Use:     cmdNameMetrics,
 	Short:   "Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph",
-	GroupID: categoryAdvanced,
+	GroupID: categoryGraph,
 	Long: `Print graph metrics computed during indexing.
 
 Defaults to the top-20 packages by import-graph PageRank.

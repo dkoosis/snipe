@@ -24,9 +24,9 @@ var (
 )
 
 var boundaryCmd = &cobra.Command{
-	Use:     "boundary <pkg-set-a> <pkg-set-b>",
+	Use:     "boundary PKGSET_A PKGSET_B",
 	Short:   "Show symbols whose refs cross between two package sets",
-	GroupID: categoryAdvanced,
+	GroupID: categoryGraph,
 	Long: `Find every symbol whose references cross the boundary between two
 package sets — the data needed to plan a module split.
 

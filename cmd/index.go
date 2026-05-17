@@ -21,7 +21,7 @@ import (
 var indexCmd = &cobra.Command{
 	Use:     "index [path]",
 	Short:   "Build or update the code index",
-	GroupID: cmdNameIndex,
+	GroupID: categoryIndex,
 	Long: `Builds a SQLite index of symbols, references, and call graph for fast navigation.
 
 By default, generates embeddings (auto mode) and LLM-based symbol purposes (enrich).

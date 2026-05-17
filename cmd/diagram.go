@@ -38,7 +38,7 @@ var (
 var diagramCmd = &cobra.Command{
 	Use:     "diagram",
 	Short:   "Render snipe graphs as D2 diagram source",
-	GroupID: categoryAdvanced,
+	GroupID: categoryGraph,
 	Long: `Emit D2 (https://d2lang.com) source from snipe's import, call, and lifecycle graphs.
 
 Three opinionated subcommands:

@@ -17,7 +17,7 @@ var depsTreeFlag bool
 var depsCmd = &cobra.Command{
 	Use:     "deps [package]",
 	Short:   "Show dependency topology for a package or the full project",
-	GroupID: categoryAdvanced,
+	GroupID: categoryGraph,
 	Long: `Shows what a package depends on and what depends on it.
 
 Without arguments, shows dependencies for the current directory's package.

@@ -23,10 +23,14 @@ var (
 )
 
 var symCmd = &cobra.Command{
-	Use:     "sym [symbol]",
-	Short:   "Combined symbol query (def + refs + callers + callees)",
-	GroupID: categoryCore,
-	Long: `Returns definition, references, callers, and callees in a single query.
+	Use:     "sym SYMBOL",
+	Short:   "Symbol-only — def+refs+callers+callees, no package context (lighter than pack)",
+	GroupID: categoryRead,
+	Long: `When to use: you want def + refs + callers + callees in one call without
+package-level metadata. For package context and role/purpose use 'pack'.
+For a structured function walkthrough use 'explain'.
+
+Returns definition, references, callers, and callees in a single query.
 Matches go_symbol's single-call pattern for LLM integration.
 
 Examples:

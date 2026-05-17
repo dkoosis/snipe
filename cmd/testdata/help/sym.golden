@@ -1,3 +1,7 @@
+When to use: you want def + refs + callers + callees in one call without
+package-level metadata. For package context and role/purpose use 'pack'.
+For a structured function walkthrough use 'explain'.
+
 Returns definition, references, callers, and callees in a single query.
 Matches go_symbol's single-call pattern for LLM integration.
 
@@ -8,7 +12,7 @@ Examples:
   snipe sym --no-body Handler         # Exclude body from output
 
 Usage:
-  snipe sym [symbol] [flags]
+  snipe sym SYMBOL [flags]
 
 Flags:
       --at string           Position to look up (file:line:col)
@@ -19,14 +23,14 @@ Flags:
 
 Global Flags:
       --context int        Context lines around match (default 2)
-      --format string      concise | detailed | summary | json | human (default "concise")
+      --format string      concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY) (default "concise")
       --kg-hints           Include Orca KG hints
-      --limit int          Cap results (default 10)
+      --limit int          Cap results returned (applied after --select) (default 10)
       --max-tokens int     Token budget (0 = unlimited)
       --no-body            Exclude function body
       --no-siblings        Exclude sibling declarations
       --offset int         Pagination offset
-      --select string      Result selection: all, best, top3, top5 (default "all")
+      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
       --signature-only     Return only signature (no body, no context)
       --suggestions        Include next-step suggestions in Claude output
       --timeout duration   Timeout for command (e.g., 30s, 5m)

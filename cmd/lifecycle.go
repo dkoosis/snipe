@@ -21,9 +21,9 @@ var lifecyclePkg string
 var lifecycleAt string
 
 var lifecycleCmd = &cobra.Command{
-	Use:     "lifecycle <Type>",
+	Use:     "lifecycle TYPE",
 	Short:   "Trace every function creating, mutating, reading, or deleting a type",
-	GroupID: categoryAdvanced,
+	GroupID: categoryGraph,
 	Long: `Traces all functions that create, mutate, read, or delete instances of a type,
 grouped by CRUD role.
 

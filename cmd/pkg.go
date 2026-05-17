@@ -19,7 +19,7 @@ var pkgDigest bool
 var pkgCmd = &cobra.Command{
 	Use:     "pkg <name>",
 	Short:   "Show package overview with exported symbols",
-	GroupID: categoryAdvanced,
+	GroupID: categoryRead,
 	Long: `Shows an overview of a package including its exported symbols.
 
 Displays all exported types, functions, constants, and variables in a package,

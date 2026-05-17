@@ -28,7 +28,7 @@ var (
 var orientCmd = &cobra.Command{
 	Use:     "orient",
 	Short:   "Write a full orient bundle (context-full, deps-tree, all metrics, manifest) into a directory",
-	GroupID: categoryAdvanced,
+	GroupID: categoryOrient,
 	Long: `Produces the standard lintbrush prelude bundle in one index open:
 
   context-full.json   — snipe context --full output

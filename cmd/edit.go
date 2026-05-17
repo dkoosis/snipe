@@ -48,9 +48,9 @@ type BatchEditRequest struct {
 }
 
 var editCmd = &cobra.Command{
-	Use:     "edit [symbol]",
-	Short:   "AST-aware code editing",
-	GroupID: categoryAdvanced,
+	Use:     "edit SYMBOL",
+	Short:   "AST-aware code editing — modifies files (dry-run unless --apply)",
+	GroupID: categoryEdit,
 	Long: `Performs AST-aware edits on Go source code.
 
 Operations:

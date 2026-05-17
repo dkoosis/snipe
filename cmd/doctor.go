@@ -44,7 +44,7 @@ const remediationReindex = "snipe index"
 var doctorCmd = &cobra.Command{
 	Use:     cmdNameDoctor,
 	Short:   "Check snipe installation and configuration",
-	GroupID: cmdNameIndex,
+	GroupID: categoryIndex,
 	Long: `Runs diagnostic checks to verify snipe is properly installed and configured.
 
 Checks include:

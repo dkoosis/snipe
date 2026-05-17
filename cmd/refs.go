@@ -24,9 +24,9 @@ var (
 )
 
 var refsCmd = &cobra.Command{
-	Use:     "refs [symbol]",
+	Use:     "refs SYMBOL",
 	Short:   "Find all references to a symbol",
-	GroupID: categoryCore,
+	GroupID: categoryNavigate,
 	Long: `Finds all references to a symbol by name or position.
 
 Scoped queries:

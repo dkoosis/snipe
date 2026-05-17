@@ -24,7 +24,7 @@ var (
 var deadcodeCmd = &cobra.Command{
 	Use:     "deadcode",
 	Short:   "Report exported symbols with zero non-test references",
-	GroupID: categoryAdvanced,
+	GroupID: categoryGraph,
 	Long: `List exported symbols whose ref count is zero across the workspace.
 
 By default excludes _test.go references from the count and skips symbols

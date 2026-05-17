@@ -55,8 +55,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "snipe [symbol]",
-	Short: "Code navigation CLI for LLMs",
-	Long: `snipe: Go code navigation for LLMs.
+	Short: "Go code navigation for Claude",
+	Long: `snipe: Go code navigation for Claude.
 
   snipe index              Build index (run first)
   snipe def ProcessOrder   Jump to definition
@@ -67,7 +67,18 @@ var rootCmd = &cobra.Command{
 
   snipe doctor             Check index health
   snipe context            Claude-optimized orientation
-  snipe context --full     Full architecture dump`,
+  snipe context --full     Full architecture dump
+
+Pick the right overview command:
+  context   start here — project orientation (read first)
+  pack      deep dive on one symbol or package
+  sym       symbol-only (def+refs+callers+callees), no package context
+  explain   structured function walkthrough (LLM consumption)
+
+Typical flow:  context → pack <symbol> → callers/callees → tests <symbol>
+IDs chain:     every result's 'id' field is valid input to the next command
+Index:         all commands except 'search' need a built index — run 'snipe index' first
+Writes:        only 'edit' modifies files; all other commands are read-only`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set up context with signal handling for graceful cancellation
 		ctx := context.Background()
@@ -188,25 +199,30 @@ func init() {
 	// Hide completion command from help
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 
-	// Add command groups for 3-tier visibility
+	// Command groups bucketed by task so agents can skim help by intent.
 	rootCmd.AddGroup(
-		&cobra.Group{ID: categoryCore, Title: "Core Commands:"},
-		&cobra.Group{ID: "index", Title: "Index Commands:"},
-		&cobra.Group{ID: categoryAdvanced, Title: "Advanced Commands:"},
+		&cobra.Group{ID: categoryOrient, Title: "Orient Project:"},
+		&cobra.Group{ID: categoryNavigate, Title: "Navigate Symbol:"},
+		&cobra.Group{ID: categoryRead, Title: "Read Symbol or Package:"},
+		&cobra.Group{ID: categoryFind, Title: "Find by Text:"},
+		&cobra.Group{ID: categoryGraph, Title: "Graph & Structure:"},
+		&cobra.Group{ID: categoryEmbed, Title: "Embeddings:"},
+		&cobra.Group{ID: categoryEdit, Title: "Edit (modifies files):"},
+		&cobra.Group{ID: categoryIndex, Title: "Index & Health:"},
 	)
 
-	rootCmd.PersistentFlags().IntVar(&limit, "limit", 10, "Cap results")
+	rootCmd.PersistentFlags().IntVar(&limit, "limit", 10, "Cap results returned (applied after --select)")
 	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Pagination offset")
 	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 2, "Context lines around match")
 	rootCmd.PersistentFlags().BoolVar(&noBody, "no-body", false, "Exclude function body")
 	rootCmd.PersistentFlags().BoolVar(&noSiblings, "no-siblings", false, "Exclude sibling declarations")
 	rootCmd.PersistentFlags().BoolVar(&signatureOnly, "signature-only", false, "Return only signature (no body, no context)")
 	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Token budget (0 = unlimited)")
-	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "concise", "concise | detailed | summary | json | human")
+	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "concise", "concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY)")
 	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
 	rootCmd.PersistentFlags().BoolVar(&showSuggestions, "suggestions", false, "Include next-step suggestions in Claude output")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for command (e.g., 30s, 5m)")
-	rootCmd.PersistentFlags().StringVar(&selectMode, "select", "all", "Result selection: all, best, top3, top5")
+	rootCmd.PersistentFlags().StringVar(&selectMode, "select", "all", "Pick top candidates by score: all, best, top3, top5 (applied before --limit)")
 	// Reserved for orca telemetry — hidden until persistToolCall is wired.
 	rootCmd.PersistentFlags().StringVar(&caller, "caller", "", "Caller identifier (e.g., 'orca')")
 	rootCmd.PersistentFlags().StringVar(&requestID, "request-id", "", "Request correlation ID")

@@ -1,4 +1,4 @@
-snipe: Go code navigation for LLMs.
+snipe: Go code navigation for Claude.
 
   snipe index              Build index (run first)
   snipe def ProcessOrder   Jump to definition
@@ -11,47 +11,68 @@ snipe: Go code navigation for LLMs.
   snipe context            Claude-optimized orientation
   snipe context --full     Full architecture dump
 
+Pick the right overview command:
+  context   start here — project orientation (read first)
+  pack      deep dive on one symbol or package
+  sym       symbol-only (def+refs+callers+callees), no package context
+  explain   structured function walkthrough (LLM consumption)
+
+Typical flow:  context → pack <symbol> → callers/callees → tests <symbol>
+IDs chain:     every result's 'id' field is valid input to the next command
+Index:         all commands except 'search' need a built index — run 'snipe index' first
+Writes:        only 'edit' modifies files; all other commands are read-only
+
 Usage:
   snipe [symbol] [flags]
   snipe [command]
 
-Core Commands:
+Orient Project:
+  context      Start here — Claude-optimized project orientation
+  orient       Write a full orient bundle (context-full, deps-tree, all metrics, manifest) into a directory
+
+Navigate Symbol:
   callees      Find functions that a symbol calls
   callers      Find functions that call a symbol
   def          Jump to symbol definition
   impact       Show blast radius for changing a symbol
-  lits         Find all locations of a string literal or env var name
-  pack         Full symbol or package profile in a single query
+  impl         Find types implementing an interface
   refs         Find all references to a symbol
-  search       Text search via ripgrep
-  show         Show symbol details by ID
-  sym          Combined symbol query (def + refs + callers + callees)
   tests        Find tests that exercise a symbol
+
+Read Symbol or Package:
+  explain      Structured function walkthrough — purpose, mechanism, callers, warnings
+  pack         Deep dive on one symbol or package (def+refs+callers+callees+role+purpose)
+  pkg          Show package overview with exported symbols
+  show         Show symbol details by ID
+  sym          Symbol-only — def+refs+callers+callees, no package context (lighter than pack)
+
+Find by Text:
+  lits         Find all locations of a string literal or env var name
+  search       Text search via ripgrep
   trace        Trace a string literal through its call context
 
-Index Commands:
-  doctor       Check snipe installation and configuration
-  index        Build or update the code index
-  status       Show index status and statistics
-
-Advanced Commands:
+Graph & Structure:
   boundary     Show symbols whose refs cross between two package sets
-  context      Generate Claude-optimized project context
   deadcode     Report exported symbols with zero non-test references
   deps         Show dependency topology for a package or the full project
   diagram      Render snipe graphs as D2 diagram source
-  edit         AST-aware code editing
-  embed-status Check status of batch embedding job
-  explain      Structured function explanation for LLMs
-  impl         Find types implementing an interface
   importers    Find files that import a package
   imports      Show packages imported by a file
   lifecycle    Trace every function creating, mutating, reading, or deleting a type
   metrics      Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph
-  orient       Write a full orient bundle (context-full, deps-tree, all metrics, manifest) into a directory
-  pkg          Show package overview with exported symbols
-  sim          Semantic similarity search
   types        Show type relationships
+
+Embeddings:
+  embed-status Check status of batch embedding job
+  sim          Semantic similarity search
+
+Edit (modifies files):
+  edit         AST-aware code editing — modifies files (dry-run unless --apply)
+
+Index & Health:
+  doctor       Check snipe installation and configuration
+  index        Build or update the code index
+  status       Show index status and statistics
 
 Additional Commands:
   help         Help about any command
@@ -59,15 +80,15 @@ Additional Commands:
 
 Flags:
       --context int        Context lines around match (default 2)
-      --format string      concise | detailed | summary | json | human (default "concise")
+      --format string      concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY) (default "concise")
   -h, --help               help for snipe
       --kg-hints           Include Orca KG hints
-      --limit int          Cap results (default 10)
+      --limit int          Cap results returned (applied after --select) (default 10)
       --max-tokens int     Token budget (0 = unlimited)
       --no-body            Exclude function body
       --no-siblings        Exclude sibling declarations
       --offset int         Pagination offset
-      --select string      Result selection: all, best, top3, top5 (default "all")
+      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
       --signature-only     Return only signature (no body, no context)
       --suggestions        Include next-step suggestions in Claude output
       --timeout duration   Timeout for command (e.g., 30s, 5m)

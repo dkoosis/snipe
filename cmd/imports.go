@@ -12,9 +12,9 @@ import (
 )
 
 var importsCmd = &cobra.Command{
-	Use:     "imports <file>",
+	Use:     "imports FILE",
 	Short:   "Show packages imported by a file",
-	GroupID: categoryAdvanced,
+	GroupID: categoryGraph,
 	Long: `Shows all packages imported by a given Go file.
 
 Examples:

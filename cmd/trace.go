@@ -13,7 +13,7 @@ import (
 var traceCmd = &cobra.Command{
 	Use:     "trace <value>",
 	Short:   "Trace a string literal through its call context",
-	GroupID: categoryCore,
+	GroupID: categoryFind,
 	Long: `Finds all occurrences of a string literal and shows the enclosing function
 and immediate callers — useful for env-var and config-key propagation.
 

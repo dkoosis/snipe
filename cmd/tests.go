@@ -16,7 +16,7 @@ import (
 var testsCmd = &cobra.Command{
 	Use:     "tests [symbol|id]",
 	Short:   "Find tests that exercise a symbol",
-	GroupID: categoryCore,
+	GroupID: categoryNavigate,
 	Long: `Finds test functions that call a given symbol (direct or via helpers).
 
 By default uses 2-hop transitive search: finds Test*/Benchmark*/Fuzz*/Example*

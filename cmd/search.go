@@ -24,7 +24,7 @@ var searchFile string
 var searchCmd = &cobra.Command{
 	Use:     "search <pattern>",
 	Short:   "Text search via ripgrep",
-	GroupID: categoryCore,
+	GroupID: categoryFind,
 	Long: `Searches for a pattern using ripgrep. Works without an index.
 
 If no text matches are found for an identifier-like query and an index exists,

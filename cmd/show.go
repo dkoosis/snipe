@@ -15,7 +15,7 @@ import (
 var showCmd = &cobra.Command{
 	Use:     "show <id>",
 	Short:   "Show symbol details by ID",
-	GroupID: categoryCore,
+	GroupID: categoryRead,
 	Long: `Shows full details for a symbol given its 16-char hex ID.
 
 Use this to expand IDs from other command outputs — part of the

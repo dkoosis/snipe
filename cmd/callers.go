@@ -14,7 +14,7 @@ import (
 var callersCmd = &cobra.Command{
 	Use:     "callers [symbol|id]",
 	Short:   "Find functions that call a symbol",
-	GroupID: categoryCore,
+	GroupID: categoryNavigate,
 	Long: `Finds all functions that call a given symbol.
 
 Accepts symbol name or 16-char hex ID (auto-detected).

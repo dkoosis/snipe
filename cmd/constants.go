@@ -3,9 +3,16 @@
 package cmd
 
 // Cobra command annotation category labels.
+// Buckets organize commands by task in --help output.
 const (
-	categoryCore     = "core"
-	categoryAdvanced = "advanced"
+	categoryNavigate = "navigate" // def refs callers callees impl tests impact
+	categoryRead     = "read"     // show pack sym explain pkg
+	categoryFind     = "find"     // search lits trace
+	categoryGraph    = "graph"    // deps importers imports types boundary metrics diagram lifecycle deadcode
+	categoryOrient   = "orient"   // context orient
+	categoryEmbed    = "embed"    // sim embed-status
+	categoryEdit     = "edit"     // edit
+	categoryIndex    = "index"    // index status doctor
 )
 
 // Common command names (used as annotations and in routing).

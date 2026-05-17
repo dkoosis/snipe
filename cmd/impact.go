@@ -16,7 +16,7 @@ import (
 var impactCmd = &cobra.Command{
 	Use:     "impact [symbol|id]",
 	Short:   "Show blast radius for changing a symbol",
-	GroupID: categoryCore,
+	GroupID: categoryNavigate,
 	Long: `Analyzes what breaks if a symbol changes: transitive callers,
 interface implementers, and test coverage in one call.
 
