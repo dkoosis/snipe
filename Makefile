@@ -38,7 +38,9 @@ REPORT_CMD = set +e; \
 	echo '--- tool:lint format:sarif ---'; \
 	golangci-lint run ./... 2>&1 | fo wrap diag --tool golangci-lint; echo; \
 	echo '--- tool:test format:testjson ---'; \
-	go test -json -cover -count=1 ./... 2>&1; echo
+	go test -json -cover -count=1 ./... 2>&1; echo; \
+	echo '--- tool:blackbox format:testjson ---'; \
+	go test -json -tags=blackbox -count=1 ./test/blackbox/... 2>&1; echo
 
 ## ---------------------------------------------------------------------
 ## Primary
@@ -60,10 +62,10 @@ deploy: install ## Build, install, and verify
 	@echo "=== deployed ($$(snipe version 2>/dev/null || echo unknown)) ==="
 
 report: ## Structured QA output for agents/tools (always exits 0)
-	@( $(REPORT_CMD) ) | fo --format llm || true
+	@( $(REPORT_CMD) ) | fo --format llm --state-file .fo/report.json || true
 
 report-human: ## Same as report, rendered for humans (always exits 0)
-	@( $(REPORT_CMD) ) | fo --format human || true
+	@( $(REPORT_CMD) ) | fo --format human --state-file .fo/report.json || true
 
 ## doctor target provided by .sandbox/lib/Makefile.doctor.mk
 ## cross / cross-amd64 / cross-arm64 targets provided by .sandbox/lib/Makefile.cross.mk
@@ -78,14 +80,14 @@ vet: ## Run go vet
 lint: ## Run golangci-lint (full)
 	golangci-lint run ./...
 
-test: ## Run tests with coverage
-	go test -count=1 -cover ./...
+test: ## Run tests with coverage (fo-rendered)
+	go test -json -count=1 -cover ./... | fo --stream=false --state-file .fo/test.json
 
-race: ## Run tests with race detector (slow)
-	go test -race -timeout=5m -count=1 ./...
+race: ## Run tests with race detector (slow, fo-rendered)
+	go test -json -race -timeout=5m -count=1 ./... | fo --stream=false --state-file .fo/race.json
 
-blackbox: ## Run blackbox integration tests
-	go test -tags=blackbox -v ./test/blackbox/...
+blackbox: ## Run blackbox integration tests (fo-rendered)
+	go test -json -tags=blackbox -count=1 ./test/blackbox/... | fo --stream=false --state-file .fo/blackbox.json
 
 vuln: ## Scan for known vulnerabilities
 	govulncheck ./...
