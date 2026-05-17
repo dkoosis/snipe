@@ -51,6 +51,7 @@ Examples:
   snipe metrics --kind=lcom4 --pkg=internal/store
   snipe metrics --kind=cyclo
   snipe metrics --kind=cyclo --pkg=internal/store
+  snipe metrics --kind=ca,ce,lcom4 --format=json   # comma-separated: one merged table
   snipe metrics --format=json`,
 	Args: cobra.NoArgs,
 	RunE: runMetrics,
@@ -58,7 +59,7 @@ Examples:
 
 func init() {
 	metricsCmd.Flags().IntVar(&metricsTopN, "top", 20, "Top-N rows to print")
-	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind: pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo")
+	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind (or comma-separated list for a merged table): pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo")
 	metricsCmd.Flags().StringVar(&metricsGraph, cmdKindGraph, cmdNameImports, "Graph kind ('imports' or 'calls')")
 	metricsCmd.Flags().StringVar(&metricsPkg, flagPkg, "", "Filter to a single package (suffix-matches package import path)")
 	rootCmd.AddCommand(metricsCmd)
