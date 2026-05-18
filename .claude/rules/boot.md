@@ -1,7 +1,11 @@
 # Boot
-updated: 2026-05-11
+updated: 2026-05-17
 
-→ next: `bd ready` — P3 queue (snipe-277, snipe-s5p). Tree green, synced.
+→ next: `bd ready` — P1 snipe-kuy (edit stdin DisallowUnknownFields) tops the queue.
 
 ✓ done
-- swept local state: committed boot/beads, reverted BASELINE_ORCA.json drift, pushed main + dolt
+- /review-all calibrated (7/27 worth-it); 7 carry-forward beads + 23 .md reports landed
+- 2 lintbrush gaps filed: cc-plugins-9vr (sidecars), cc-plugins-5ir (heading conventions)
+
+‡ traps
+- ✗ /assess-feedback on snipe until cc-plugins-5ir + 9vr ship — manual calibration only
