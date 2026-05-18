@@ -1,11 +1,11 @@
 # Boot
 updated: 2026-05-17
 
-→ next: `bd ready` — P1 snipe-kuy (edit stdin DisallowUnknownFields) tops the queue.
+→ next: `bd ready` — 2 remaining beads (ci0, 4dx) both labeled `human` (arch carves needing design+budget). New work otherwise.
 
 ✓ done
-- /review-all calibrated (7/27 worth-it); 7 carry-forward beads + 23 .md reports landed
-- 2 lintbrush gaps filed: cc-plugins-9vr (sidecars), cc-plugins-5ir (heading conventions)
+- shipped 5/7 carry-forwards: kuy, ssx, zx1, 3dg (json-shape) + 6oq (unexport zero-caller types)
+- surfaced ci0 + 4dx — substantial arch carves, ✗ drain without plan
 
 ‡ traps
-- ✗ /assess-feedback on snipe until cc-plugins-5ir + 9vr ship — manual calibration only
+- splitting two edits in same file across 2 commits → edit-revert-commit-redo dance (snipe-zx1+3dg in types.go)
