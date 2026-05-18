@@ -44,7 +44,7 @@ type Meta struct {
 	Offset        int               `json:"offset,omitempty"`
 	Limit         int               `json:"limit,omitempty"`
 	Truncated     bool              `json:"truncated"`
-	TokenEstimate int               `json:"token_estimate,omitempty"`
+	TokenEstimate int               `json:"token_estimate"`
 	DecisionPath  []string          `json:"decision_path,omitempty"` // Resolution strategy trace
 	StaleFiles    []string          `json:"stale_files,omitempty"`   // Files changed since last index
 	PkgDoc        string            `json:"pkg_doc,omitempty"`       // Package-level doc comment (set by `pkg`)

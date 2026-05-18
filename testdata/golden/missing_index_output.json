@@ -7,7 +7,8 @@
     "index_state": "missing",
     "ms": 1,
     "total": 0,
-    "truncated": false
+    "truncated": false,
+    "token_estimate": 0
   },
   "error": {
     "code": "MISSING_INDEX",

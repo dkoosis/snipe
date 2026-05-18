@@ -7,7 +7,8 @@
     "index_state": "fresh",
     "ms": 5,
     "total": 0,
-    "truncated": false
+    "truncated": false,
+    "token_estimate": 0
   },
   "error": {
     "code": "NOT_FOUND",

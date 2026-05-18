@@ -52,7 +52,8 @@
     "ms": 23,
     "total": 2,
     "limit": 50,
-    "truncated": false
+    "truncated": false,
+    "token_estimate": 0
   },
   "error": null
 }

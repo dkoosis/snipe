@@ -31,7 +31,8 @@
     "ms": 15,
     "total": 1,
     "limit": 50,
-    "truncated": false
+    "truncated": false,
+    "token_estimate": 0
   },
   "error": null
 }
