@@ -299,7 +299,9 @@ doEdit:
 func runBatchEdit(w *output.Writer, start time.Time) error {
 	// Read batch operations from stdin
 	var requests []BatchEditRequest
-	if err := json.NewDecoder(os.Stdin).Decode(&requests); err != nil {
+	dec := json.NewDecoder(os.Stdin)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&requests); err != nil {
 		return w.WriteError(cmdNameEdit, &output.Error{
 			Code:    output.ErrInternal,
 			Message: "parse batch input: " + err.Error(),
