@@ -119,7 +119,7 @@ type FuncAnalysis struct {
 	ResultCount  int    `json:"result_count"`            // Number of return values
 	ReceiverType string `json:"receiver_type,omitempty"` // Receiver type for methods (e.g., "*Server")
 	IsExported   bool   `json:"is_exported"`             // Whether the function is exported
-	IsVariadic   bool   `json:"is_variadic,omitempty"`   // Whether the function has variadic params
+	IsVariadic   bool   `json:"is_variadic"`             // Whether the function has variadic params
 }
 
 // CallerPreview represents a preview of a function caller
