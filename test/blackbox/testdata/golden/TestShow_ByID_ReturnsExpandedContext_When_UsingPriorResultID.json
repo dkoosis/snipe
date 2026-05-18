@@ -13,6 +13,7 @@
     {
       "analysis": {
         "is_exported": true,
+        "is_variadic": false,
         "line_count": 3,
         "param_count": 0,
         "result_count": 1
