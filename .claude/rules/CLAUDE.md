@@ -2,6 +2,8 @@
 
 Make it easier for Claude to work with Go repos. Static indexing, <50ms queries, output optimized for Claude.
 
+‡ Dogfood: Go symbol questions → `snipe` (def/refs/callers/pack/impact/tests) before rg/Grep. rg = non-symbol text only.
+
 ## verify
 
 `make` (vet+lint+test) or `make audit` (full: race, blackbox, govulncheck)

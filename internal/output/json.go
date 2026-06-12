@@ -890,6 +890,9 @@ func shortPkg(p string) string {
 
 // WriteError writes an error response
 func (w *Writer) WriteError(command string, err *Error) error {
+	if err.Next == nil {
+		err.Next = DefaultNextForCode(err.Code)
+	}
 	if w.format == OutputHuman {
 		var b strings.Builder
 		writeHumanError(&b, err)

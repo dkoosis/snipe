@@ -276,6 +276,45 @@ func NewNotFoundError(symbol string, suggestions ...string) *Error {
 	return &Error{
 		Code:    ErrNotFound,
 		Message: msg,
+		Next: &NextAction{
+			Command:     "snipe search \"" + symbol + "\"",
+			Description: "Fuzzy + semantic search; rg for non-symbol text",
+		},
+	}
+}
+
+// DefaultNextForCode returns a recovery action for errors that did not set
+// one explicitly. Every error must route forward (D2): a dead-end error
+// teaches the caller to abandon the tool for the rest of the session.
+func DefaultNextForCode(code string) *NextAction {
+	switch code {
+	case ErrNotFound:
+		return &NextAction{
+			Command:     "snipe search \"<term>\"",
+			Description: "Fuzzy + semantic search; rg for non-symbol text",
+		}
+	case ErrMissingIndex:
+		return &NextAction{
+			Command:     "snipe index",
+			Description: "Build the symbol index for this repository",
+		}
+	case ErrStaleIndex:
+		return &NextAction{
+			Command:     "snipe index",
+			Description: "Refresh the index (incremental, fast)",
+		}
+	case ErrIndexMismatch:
+		return &NextAction{
+			Command:     "snipe index --force",
+			Description: "Rebuild the index from scratch",
+		}
+	case ErrInternal:
+		return &NextAction{
+			Command:     "snipe doctor",
+			Description: "Diagnose index and environment problems",
+		}
+	default:
+		return nil
 	}
 }
 

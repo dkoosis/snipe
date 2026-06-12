@@ -780,3 +780,25 @@ func TestSuggestionJSONFormat(t *testing.T) {
 		t.Errorf("description = %v, want 'Find usages'", s["description"])
 	}
 }
+
+func TestDefaultNextForCode_AllRecoverableCodesRouteForward(t *testing.T) {
+	// D2: an error without a next command is a dead end that teaches the
+	// caller to abandon the tool. Every recoverable code must route forward.
+	recoverable := []string{ErrNotFound, ErrMissingIndex, ErrStaleIndex, ErrIndexMismatch, ErrInternal}
+	for _, code := range recoverable {
+		next := DefaultNextForCode(code)
+		if next == nil || next.Command == "" {
+			t.Errorf("DefaultNextForCode(%s) = %v, want a non-empty recovery command", code, next)
+		}
+	}
+}
+
+func TestNewNotFoundError_RoutesToSearch(t *testing.T) {
+	err := NewNotFoundError("FooBar")
+	if err.Next == nil {
+		t.Fatal("NewNotFoundError must set Next")
+	}
+	if want := `snipe search "FooBar"`; err.Next.Command != want {
+		t.Errorf("Next.Command = %q, want %q", err.Next.Command, want)
+	}
+}

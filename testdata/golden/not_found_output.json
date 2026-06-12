@@ -12,7 +12,11 @@
   },
   "error": {
     "code": "NOT_FOUND",
-    "message": "Symbol not found: Foo. Did you mean: FooBar, or FooHandler?"
+    "message": "Symbol not found: Foo. Did you mean: FooBar, or FooHandler?",
+    "next": {
+      "command": "snipe search \"Foo\"",
+      "description": "Fuzzy + semantic search; rg for non-symbol text"
+    }
   },
   "suggestions": [
     {

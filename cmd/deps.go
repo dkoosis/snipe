@@ -53,6 +53,10 @@ func runDeps(cmd *cobra.Command, args []string) error {
 		return w.WriteError("deps", &output.Error{
 			Code:    output.ErrInternal,
 			Message: "could not detect module path from index",
+			Next: &output.NextAction{
+				Command:     "snipe index --force",
+				Description: "Rebuild the index; module path is stored at index time",
+			},
 		})
 	}
 
