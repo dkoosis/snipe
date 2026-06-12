@@ -108,9 +108,16 @@ func runContext(cmd *cobra.Command, args []string) error {
 		Full:     contextFull,
 	}
 
+	// --full and --conventions have no claudish text formatter; they default
+	// to yaml so bare invocations work (the empty format used to be rejected).
+	structuredFormat := contextFormat
+	if !cmd.Flags().Changed("format") {
+		structuredFormat = "yaml"
+	}
+
 	if contextConventions {
 		conv := context.DetectConventions(s.DB(), projectRoot)
-		return outputContext(conv, contextFormat)
+		return outputContext(conv, structuredFormat)
 	}
 
 	if contextFull {
@@ -125,7 +132,7 @@ func runContext(cmd *cobra.Command, args []string) error {
 			return outputNuggets(nugs)
 		}
 
-		return outputContext(ctx, contextFormat)
+		return outputContext(ctx, structuredFormat)
 	}
 
 	// Default: Claude-optimized orientation (bare or --orient)

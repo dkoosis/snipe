@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/modfile"
 
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/graphmetrics"
@@ -111,6 +112,14 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	// relativized against the wrong base (or stored absolute), breaking output.
 	if err := s.SetMeta("repo_root", absDir); err != nil {
 		return fmt.Errorf("store repo root: %w", err)
+	}
+	// module_path makes DetectModulePath authoritative on repos with no root
+	// package (everything under internal/ or cmd/), where the pkg_path
+	// heuristic finds nothing.
+	if data, err := os.ReadFile(filepath.Join(absDir, "go.mod")); err == nil {
+		if mp := modfile.ModulePath(data); mp != "" {
+			_ = s.SetMeta("module_path", mp)
+		}
 	}
 
 	// Change detection fast-path: skip expensive work if nothing changed

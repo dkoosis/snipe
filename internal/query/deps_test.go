@@ -2,6 +2,8 @@ package query
 
 import (
 	"database/sql"
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 
@@ -44,6 +46,10 @@ func setupDepsTestDB(t *testing.T) *sql.DB {
 			col INT NOT NULL,
 			importer_pkg TEXT
 		);
+		CREATE TABLE meta (
+			key TEXT PRIMARY KEY,
+			value TEXT
+		);
 	`)
 	if err != nil {
 		t.Fatalf("create tables: %v", err)
@@ -75,6 +81,56 @@ func TestDetectModulePath(t *testing.T) {
 	got := DetectModulePath(db)
 	if got != testModulePath {
 		t.Errorf("DetectModulePath = %q, want %q", got, testModulePath)
+	}
+}
+
+func TestDetectModulePath_MetaWins(t *testing.T) {
+	db := setupDepsTestDB(t)
+	defer db.Close()
+
+	if _, err := db.Exec(`INSERT INTO meta (key, value) VALUES ('module_path', 'github.com/meta/wins')`); err != nil {
+		t.Fatalf("insert meta: %v", err)
+	}
+
+	if got := DetectModulePath(db); got != "github.com/meta/wins" {
+		t.Errorf("DetectModulePath = %q, want meta value", got)
+	}
+}
+
+func TestDetectModulePath_GoModFallback_NoRootPackage(t *testing.T) {
+	// Repro for the loto failure: every package under internal/ or cmd/,
+	// so the pkg_path heuristic finds nothing. go.mod at repo_root must win.
+	db := setupDepsTestDB(t)
+	defer db.Close()
+
+	if _, err := db.Exec(`UPDATE symbols SET pkg_path = ?`, testModulePath+"/internal/store"); err != nil {
+		t.Fatalf("update symbols: %v", err)
+	}
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module github.com/example/gomod\n\ngo 1.24\n"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO meta (key, value) VALUES ('repo_root', ?)`, root); err != nil {
+		t.Fatalf("insert meta: %v", err)
+	}
+
+	if got := DetectModulePath(db); got != "github.com/example/gomod" {
+		t.Errorf("DetectModulePath = %q, want go.mod module path", got)
+	}
+}
+
+func TestDetectModulePath_HeuristicFallback_NoMetaNoGoMod(t *testing.T) {
+	db := setupDepsTestDB(t)
+	defer db.Close()
+
+	// repo_root points somewhere with no go.mod; heuristic must still work.
+	if _, err := db.Exec(`INSERT INTO meta (key, value) VALUES ('repo_root', ?)`, t.TempDir()); err != nil {
+		t.Fatalf("insert meta: %v", err)
+	}
+
+	if got := DetectModulePath(db); got != testModulePath {
+		t.Errorf("DetectModulePath = %q, want heuristic value %q", got, testModulePath)
 	}
 }
 

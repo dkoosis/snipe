@@ -3,7 +3,11 @@ package query
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"golang.org/x/mod/modfile"
 
 	"github.com/dkoosis/snipe/internal/output"
 )
@@ -28,8 +32,25 @@ type DepGraph struct {
 	Cycles   [][]string
 }
 
-// DetectModulePath finds the Go module path from indexed symbols.
+// DetectModulePath finds the Go module path for the indexed repo.
+// Order: meta module_path → go.mod at repo_root → shortest pkg_path heuristic.
+// The heuristic alone fails on repos where every package lives under
+// internal/ or cmd/ (no root package), so go.mod is authoritative.
 func DetectModulePath(db *sql.DB) string {
+	var metaPath string
+	if err := db.QueryRow(`SELECT value FROM meta WHERE key = 'module_path'`).Scan(&metaPath); err == nil && metaPath != "" {
+		return metaPath
+	}
+
+	var repoRoot string
+	if err := db.QueryRow(`SELECT value FROM meta WHERE key = 'repo_root'`).Scan(&repoRoot); err == nil && repoRoot != "" {
+		if data, err := os.ReadFile(filepath.Join(repoRoot, "go.mod")); err == nil {
+			if mp := modfile.ModulePath(data); mp != "" {
+				return mp
+			}
+		}
+	}
+
 	var pkgPath string
 	err := db.QueryRow(`
 		SELECT pkg_path FROM symbols
