@@ -263,3 +263,23 @@ Canonical decision table now in CLAUDE.md (D1-D6). Below is history.
 | Enrichment: gut stub, keep schema + data functions | Stop fake work; infrastructure is sound for later | 2026-02-24 |
 | --caller/--request-id: hide, don't delete | Dead today, critical path for orca telemetry | 2026-02-24 |
 | Hidden commands (schema, watch): keep | Noted on #88, dependencies acceptable | 2026-02 |
+
+## First-Reach Excellence Pass (2026-06-12, epic snipe-g0d)
+
+Transcript mining (~1.3GB CC logs) rated snipe 7/10: heavy use when known
+(pack+impact = 47% of ~800 calls) but rg outnumbered it 4:1 — awareness gap,
+trust-killing failures, staleness tax. All 8 children shipped in one session:
+
+| Change | Bead | Notes |
+|--------|------|-------|
+| Module path: meta → go.mod → heuristic | g0d.2 | Fixed deps/--tree + context --full on repos with no root pkg (loto repro) |
+| context --full/--conventions default yaml | g0d.2 | Empty format was rejected outright |
+| Errors route forward (Next by code) | g0d.3 | WriteError choke point; NOT_FOUND → search "<sym>" |
+| Self-healing index | g0d.4 | ≤20 changed files reindex inline pre-query; SNIPE_NO_HEAL=1 opt-out |
+| Qualified names round-trip | g0d.5 | pkg.Type.Method, pkg.(*T).Method; display (*T).Method = query form |
+| Usage telemetry | g0d.7 | .snipe/usage.jsonl + metrics --kind=usage; ground truth for eval constraint |
+| cc-plugins/snipe hooks | g0d.1/.6 | SessionStart context inject; Grep symbol-nudge (once/session) |
+| Dogfood rules lines | g0d.8 | trixi/loto/fo/snipe + fixed stale --with-body in global tools.md |
+
+Measure: re-mine transcripts ~mid-July; compare snipe:rg ratio against
+4:1 baseline (2026-06-12) via `snipe metrics --kind=usage`.
