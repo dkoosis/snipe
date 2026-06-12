@@ -149,6 +149,7 @@ func loadPackagesFull(ctx context.Context, dir string, fset *token.FileSet, pkgP
 	if err != nil {
 		return nil, fmt.Errorf("load packages: %w", err)
 	}
+	pkgs = dropTestBinaryPackages(pkgs)
 
 	var errs []error
 	for _, pkg := range pkgs {
@@ -201,6 +202,7 @@ func loadPackagesChunked(ctx context.Context, dir string, fset *token.FileSet, p
 		if err != nil {
 			return nil, fmt.Errorf("load chunk %d-%d: %w", i, end, err)
 		}
+		pkgs = dropTestBinaryPackages(pkgs)
 
 		for _, pkg := range pkgs {
 			for _, e := range pkg.Errors {
@@ -220,6 +222,22 @@ func loadPackagesChunked(ctx context.Context, dir string, fset *token.FileSet, p
 		Fset:     fset,
 		Errors:   allErrs,
 	}, nil
+}
+
+// dropTestBinaryPackages removes test-binary packages (PkgPath ending in
+// ".test") that go/packages synthesizes when Tests is true. Their only file
+// is a generated _testmain.go in the go-build cache — indexing it pollutes
+// the store with paths outside the repo. The first-pass name filter cannot
+// catch these: the full load re-synthesizes them from the base package path.
+func dropTestBinaryPackages(pkgs []*packages.Package) []*packages.Package {
+	result := pkgs[:0]
+	for _, pkg := range pkgs {
+		if strings.HasSuffix(pkg.PkgPath, ".test") {
+			continue
+		}
+		result = append(result, pkg)
+	}
+	return result
 }
 
 // filterPackages removes packages matching exclude patterns

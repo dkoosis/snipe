@@ -1,6 +1,13 @@
 package index
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"golang.org/x/tools/go/packages"
+)
 
 func TestMatchesExclude(t *testing.T) {
 	tests := []struct {
@@ -192,5 +199,57 @@ func TestFilterPackagesIntegration(t *testing.T) {
 	}
 	if excluded != 2 {
 		t.Errorf("expected 2 excluded packages, got %d", excluded)
+	}
+}
+
+func TestDropTestBinaryPackages(t *testing.T) {
+	pkgs := []*packages.Package{
+		{PkgPath: "example.com/proj/store"},
+		{PkgPath: "example.com/proj/store.test"},
+		{PkgPath: "example.com/proj/store_test"},
+	}
+
+	got := dropTestBinaryPackages(pkgs)
+
+	if len(got) != 2 {
+		t.Fatalf("got %d packages, want 2", len(got))
+	}
+	for _, pkg := range got {
+		if strings.HasSuffix(pkg.PkgPath, ".test") {
+			t.Errorf("test-binary package %q survived filtering", pkg.PkgPath)
+		}
+	}
+}
+
+// TestLoad_ExcludesTestBinaryPackages loads a real module with Tests enabled
+// and asserts the synthesized .test binary package (whose only file is a
+// generated _testmain.go in the go-build cache) is not in the result.
+func TestLoad_ExcludesTestBinaryPackages(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"go.mod":        "module example.com/fence\n\ngo 1.22\n",
+		"fence.go":      "package fence\n\nfunc Fence() int { return 1 }\n",
+		"fence_test.go": "package fence\n\nimport \"testing\"\n\nfunc TestFence(t *testing.T) {\n\tif Fence() != 1 {\n\t\tt.Fatal(\"nope\")\n\t}\n}\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := Load(LoadConfig{Dir: dir, Tests: true})
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	for _, pkg := range result.Packages {
+		if strings.HasSuffix(pkg.PkgPath, ".test") {
+			t.Errorf("test-binary package %q in load result", pkg.PkgPath)
+		}
+		for _, f := range pkg.GoFiles {
+			if !strings.HasPrefix(f, dir) {
+				t.Errorf("package %q has file outside module root: %s", pkg.PkgPath, f)
+			}
+		}
 	}
 }
