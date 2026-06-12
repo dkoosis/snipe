@@ -150,9 +150,10 @@ func writeResultHeader(b *strings.Builder, r *Result) {
 	// # Name [hex-id]
 	b.WriteString("# ")
 	if r.Receiver != "" {
-		b.WriteString("(")
-		b.WriteString(r.Receiver)
-		b.WriteString(").")
+		// Stored receivers already carry parens ("(*T)"); render a form
+		// that pastes straight back into a query: (*T).Method.
+		b.WriteString(parenRecv(r.Receiver))
+		b.WriteString(".")
 	}
 	b.WriteString(r.Name)
 	if r.ID != "" {
@@ -260,9 +261,8 @@ func (w *Writer) writeClaudeError(b *strings.Builder, err *Error) {
 		for _, c := range err.Candidates {
 			b.WriteString("  ")
 			if c.Receiver != "" {
-				b.WriteString("(")
-				b.WriteString(c.Receiver)
-				b.WriteString(").")
+				b.WriteString(parenRecv(c.Receiver))
+				b.WriteString(".")
 			}
 			b.WriteString(c.Name)
 			b.WriteString(" [")
@@ -276,6 +276,15 @@ func (w *Writer) writeClaudeError(b *strings.Builder, err *Error) {
 	}
 
 	writeClaudeSuggestions(b, err.Suggestions)
+}
+
+// parenRecv returns a receiver in re-typeable form: stored receivers already
+// carry parens ("(*T)" or "(T)"); bare ones get wrapped.
+func parenRecv(recv string) string {
+	if strings.HasPrefix(recv, "(") {
+		return recv
+	}
+	return "(" + recv + ")"
 }
 
 func writeClaudeSuggestions(b *strings.Builder, suggestions []Suggestion) {

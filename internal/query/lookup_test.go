@@ -222,3 +222,61 @@ func writeTempGoFile(t *testing.T, content string) string {
 	f.Close()
 	return f.Name()
 }
+
+// The disambiguation round-trip must need zero hex IDs: forms snipe itself
+// prints (and the pkg-qualified forms a caller would naturally type) all
+// resolve back to the right symbol.
+func TestLookupByName_QualifiedMethodForms(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`
+		CREATE TABLE symbols (
+			id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT,
+			file_path TEXT, file_path_rel TEXT, pkg_path TEXT,
+			line_start INTEGER, col_start INTEGER, line_end INTEGER, col_end INTEGER,
+			signature TEXT, doc TEXT, receiver TEXT
+		);
+		CREATE TABLE files (path TEXT PRIMARY KEY, hash TEXT);
+	`)
+	if err != nil {
+		t.Fatalf("Failed to create tables: %v", err)
+	}
+	_, err = db.Exec(`
+		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path, line_start, col_start, line_end, col_end, receiver)
+		VALUES ('aaa', 'Get', 'method', '/src/store/s.go', 'store/s.go', 'github.com/x/proj/internal/store', 10, 1, 20, 1, '(*Store)');
+		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path, line_start, col_start, line_end, col_end, receiver)
+		VALUES ('bbb', 'Get', 'method', '/src/cache/c.go', 'cache/c.go', 'github.com/x/proj/internal/cache', 30, 1, 40, 1, '(*Cache)');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to insert symbols: %v", err)
+	}
+
+	cases := []struct {
+		query  string
+		wantID string
+	}{
+		{"Store.Get", "aaa"},          // T.Method
+		{"(*Store).Get", "aaa"},       // displayed form
+		{"((*Store)).Get", "aaa"},     // legacy double-paren display, pasted back
+		{"store.Store.Get", "aaa"},    // pkg.T.Method
+		{"cache.Cache.Get", "bbb"},    // pkg.T.Method, other package
+		{"store.(*Store).Get", "aaa"}, // pkg.(*T).Method
+	}
+	for _, tc := range cases {
+		results, err := LookupByName(db, tc.query)
+		if err != nil {
+			t.Fatalf("LookupByName(%q) error: %v", tc.query, err)
+		}
+		if len(results) != 1 {
+			t.Errorf("LookupByName(%q) = %d results, want 1", tc.query, len(results))
+			continue
+		}
+		if results[0].ID != tc.wantID {
+			t.Errorf("LookupByName(%q) = id %s, want %s", tc.query, results[0].ID, tc.wantID)
+		}
+	}
+}

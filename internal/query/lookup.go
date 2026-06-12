@@ -338,31 +338,52 @@ func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
 }
 
 func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error) {
-	// Parse method syntax: (*T).Method or (T).Method
-	var receiver, method string
+	// Parse method syntax: (*T).Method, (T).Method, T.Method, or
+	// pkg.T.Method / pkg.(*T).Method (pkg segment narrows the package).
+	var receiver, method, pkgHint string
 
 	if idx := strings.Index(name, ")."); idx >= 0 {
 		receiver = name[:idx+1]
 		method = name[idx+2:]
+		// pkg.(*T).Method — strip the package prefix off the receiver
+		if open := strings.Index(receiver, "("); open > 0 {
+			pkgHint = strings.TrimSuffix(receiver[:open], ".")
+			receiver = receiver[open:]
+		}
 	} else {
-		// Try T.Method format
-		parts := strings.SplitN(name, ".", 2)
-		if len(parts) == 2 {
+		parts := strings.Split(name, ".")
+		switch len(parts) {
+		case 2: // T.Method
 			receiver = "(" + parts[0] + ")"
 			method = parts[1]
-		} else {
+		case 3: // pkg.T.Method
+			pkgHint = parts[0]
+			receiver = "(" + parts[1] + ")"
+			method = parts[2]
+		default:
 			return nil, nil
 		}
 	}
+	// Pasting a displayed candidate like ((*T)).Method back in yields a
+	// receiver with doubled parens — normalize before matching.
+	for strings.HasPrefix(receiver, "((") && strings.HasSuffix(receiver, "))") {
+		receiver = receiver[1 : len(receiver)-1]
+	}
 
-	rows, err := db.Query(`
+	q := `
 		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 		       s.signature, s.doc, s.receiver, f.hash
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
-		WHERE s.name = ? AND (s.receiver = ? OR s.receiver = ?)
-		ORDER BY s.file_path, s.line_start
-	`, method, receiver, "(*"+strings.Trim(receiver, "()")+")")
+		WHERE s.name = ? AND (s.receiver = ? OR s.receiver = ?)`
+	args := []any{method, receiver, "(*" + strings.Trim(receiver, "(*)") + ")"}
+	if pkgHint != "" {
+		q += ` AND (s.pkg_path = ? OR s.pkg_path LIKE ?)`
+		args = append(args, pkgHint, "%/"+pkgHint)
+	}
+	q += ` ORDER BY s.file_path, s.line_start`
+
+	rows, err := db.Query(q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query method: %w", err)
 	}
