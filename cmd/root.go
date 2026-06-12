@@ -157,43 +157,25 @@ func Execute() {
 	}
 }
 
-// knownSubcommands lists all registered snipe subcommands.
-// Updated when new commands are added.
-var knownSubcommands = map[string]bool{
-	"help": true, "completion": true,
-	// Core commands
-	cmdNameIndex: true, cmdNameDef: true, cmdNameRefs: true, cmdNameCallers: true, cmdNameCallees: true,
-	cmdNameSearch: true, cmdNameShow: true, cmdNameSym: true, cmdNameStatus: true, cmdNameTests: true, cmdNameImpact: true,
-	// Analysis commands
-	cmdNameImpl: true, cmdNameTypes: true, cmdNameImports: true, cmdNameImporters: true, cmdNamePkg: true, "deps": true,
-	// Edit, explain, and pack
-	cmdNameEdit: true, cmdNameExplain: true, cmdNamePack: true,
-	// Maintenance commands
-	"baseline": true, "context": true, cmdNameEmbedStatus: true, "version": true,
-	cmdNameDoctor: true, "schema": true, "check": true, "history": true,
-	// Semantic search
-	cmdNameSim: true,
-	// Watch mode
-	"watch": true,
-	// Lifecycle tracing
-	"lifecycle": true,
-	// Module-split planning
-	"boundary": true,
-	// Graph metrics (PageRank, etc.)
-	cmdNameMetrics: true,
-	// D2 diagram emitter
-	"diagram": true,
-	// String literal / env-var lookup and call-chain trace
-	"lits": true, "trace": true,
-}
-
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
+// Subcommands are derived from the cobra command tree so new commands
+// never need manual registration — a missed registration would silently
+// route "snipe X" to the bare-symbol fallback.
 func isKnownSubcommandOrFlag(arg string) bool {
 	// Flags start with -
 	if len(arg) > 0 && arg[0] == '-' {
 		return true
 	}
-	return knownSubcommands[arg]
+	// Cobra adds help/completion lazily during Execute; materialize them
+	// so they are visible in Commands() before the fallback decision.
+	rootCmd.InitDefaultHelpCmd()
+	rootCmd.InitDefaultCompletionCmd()
+	for _, c := range rootCmd.Commands() {
+		if c.Name() == arg || c.HasAlias(arg) {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {

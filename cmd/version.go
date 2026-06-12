@@ -18,7 +18,7 @@ var (
 var versionJSON bool
 
 // Features lists all snipe subcommands available for LLM callers.
-// Derived from knownSubcommands but hardcoded for stability.
+// Hardcoded for stability.
 var Features = []string{
 	cmdNameDef, cmdNameRefs, cmdNameCallers, cmdNameCallees, cmdNameSearch,
 	"context", cmdNameExplain, cmdNameSym, cmdNameIndex, cmdNameShow,

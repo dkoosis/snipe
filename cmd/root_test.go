@@ -33,6 +33,26 @@ func TestRoot_IsKnownSubcommandOrFlag_ReturnsExpectedValue_When_InputVaries(t *t
 			arg:  "ProbablyASymbol",
 			want: false,
 		},
+		{
+			name: "late-registered subcommand is known without manual registration",
+			arg:  "deadcode",
+			want: true,
+		},
+		{
+			name: "orient is known without manual registration",
+			arg:  "orient",
+			want: true,
+		},
+		{
+			name: "cobra built-in help is known",
+			arg:  "help",
+			want: true,
+		},
+		{
+			name: "cobra built-in completion is known",
+			arg:  "completion",
+			want: true,
+		},
 	}
 
 	for _, tc := range tests {

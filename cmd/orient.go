@@ -50,7 +50,6 @@ Example:
 func init() {
 	orientCmd.Flags().StringVar(&orientOut, "out", "", "Output directory (created if missing)")
 	rootCmd.AddCommand(orientCmd)
-	knownSubcommands["orient"] = true
 }
 
 // orientMetricKinds is the row-level set that maps to one ReadTopN call each.

@@ -43,7 +43,6 @@ func init() {
 	deadcodeCmd.Flags().BoolVar(&deadIncludeTests, "include-tests", false, "Count refs from _test.go files (default: ignored)")
 	deadcodeCmd.Flags().StringVar(&deadPkg, "pkg", "", "Filter to a single package (suffix/substring match on pkg_path)")
 	rootCmd.AddCommand(deadcodeCmd)
-	knownSubcommands["deadcode"] = true
 }
 
 // deadcodeRow is the JSON shape per dead export.
