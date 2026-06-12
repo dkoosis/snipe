@@ -31,6 +31,14 @@ func maybeSelfHeal(s *store.Store, root string) bool {
 		return false
 	}
 
+	// Use the root the index was built with: a freshly-resolved root can
+	// differ in symlink canonicalization (macOS /var vs /private/var), which
+	// makes every stored file look added+deleted — phantom drift that would
+	// trigger a heal rewriting all paths and breaking path-based queries.
+	if storedRoot, err := s.GetMeta("repo_root"); err == nil && storedRoot != "" {
+		root = storedRoot
+	}
+
 	fp, err := index.ComputeFingerprint(root, Version)
 	if err != nil {
 		return false
