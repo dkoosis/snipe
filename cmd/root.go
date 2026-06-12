@@ -15,6 +15,7 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
+	"github.com/dkoosis/snipe/internal/telemetry"
 	"github.com/dkoosis/snipe/internal/util"
 )
 
@@ -396,6 +397,10 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 
 	// Resolve to git/go.mod root — index always lives at project root (D3)
 	root := util.FindProjectRoot(cwd)
+	if root != "" {
+		telemetry.SetRoot(root)
+		telemetry.SetCaller(caller)
+	}
 	if root == "" {
 		root = cwd // fallback: not in a git/go.mod repo, use CWD
 	}

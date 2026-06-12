@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/telemetry"
 	"github.com/dkoosis/snipe/internal/util"
 )
 
@@ -55,6 +56,9 @@ func NewWriter(out io.Writer, compact bool, format OutputFormat) *Writer {
 
 // WriteResponse writes a response in the configured format.
 func (w *Writer) WriteResponse(resp any) error {
+	if m, ok := resp.(interface{ TelemetryCommand() string }); ok {
+		telemetry.Emit(m.TelemetryCommand(), "ok", time.Since(w.start).Milliseconds())
+	}
 	switch w.format {
 	case OutputJSON:
 		return w.writeJSON(resp)
@@ -899,6 +903,7 @@ func shortPkg(p string) string {
 
 // WriteError writes an error response
 func (w *Writer) WriteError(command string, err *Error) error {
+	telemetry.Emit(command, err.Code, time.Since(w.start).Milliseconds())
 	if err.Next == nil {
 		err.Next = DefaultNextForCode(err.Code)
 	}

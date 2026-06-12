@@ -59,7 +59,7 @@ Examples:
 
 func init() {
 	metricsCmd.Flags().IntVar(&metricsTopN, "top", 20, "Top-N rows to print")
-	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind (or comma-separated list for a merged table): pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo")
+	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind (or comma-separated list for a merged table): pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|usage")
 	metricsCmd.Flags().StringVar(&metricsGraph, cmdKindGraph, cmdNameImports, "Graph kind ('imports' or 'calls')")
 	metricsCmd.Flags().StringVar(&metricsPkg, flagPkg, "", "Filter to a single package (suffix-matches package import path)")
 	rootCmd.AddCommand(metricsCmd)
@@ -81,6 +81,11 @@ func runMetrics(_ *cobra.Command, _ []string) error {
 		}
 		defer s.Close()
 		return runMultiKindMetrics(s, dir, start)
+	}
+
+	// Usage telemetry reads .snipe/usage.jsonl, not the index — handle first.
+	if metricsKind == kindUsage {
+		return runUsageMetrics()
 	}
 
 	// Validate --kind. Empty results from ReadTopN signal "not yet populated".

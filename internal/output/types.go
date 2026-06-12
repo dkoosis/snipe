@@ -22,6 +22,12 @@ type Response[T any] struct {
 	Suggestions []Suggestion `json:"suggestions,omitempty"`
 }
 
+// TelemetryCommand exposes the command name for the usage sink without
+// the Writer needing to know every Response[T] instantiation.
+func (r Response[T]) TelemetryCommand() string {
+	return r.Meta.Command
+}
+
 // Suggestion provides actionable next steps for LLM consumers
 type Suggestion struct {
 	Command     string `json:"command"`             // The suggested snipe command
