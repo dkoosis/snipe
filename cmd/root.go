@@ -444,6 +444,16 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		return nil, root, err
 	}
 
+	// Small drift heals inline so queries answer from current code; the
+	// subprocess takes its own lock, so reopen to see the new data.
+	if maybeSelfHeal(s, root) {
+		_ = s.Close()
+		s, err = store.Open(dbPath)
+		if err != nil {
+			return nil, root, err
+		}
+	}
+
 	return s, root, nil
 }
 
