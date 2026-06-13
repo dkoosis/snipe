@@ -1,8 +1,9 @@
 Traces all functions that create, mutate, read, or delete instances of a type,
 grouped by CRUD role.
 
-Classification is heuristic: evidence from the ref snippet (struct literal,
-new(), make(), store.Delete) outranks name-based heuristics (NewX, DeleteX).
+Classification combines AST facts recorded at index time (struct literal,
+new(), make(), delete-verbed calls) with name-based heuristics (NewX, DeleteX);
+AST evidence outranks names.
 Each function carries a Signal showing the matching rule, so misclassifications
 are debuggable at a glance.
 
