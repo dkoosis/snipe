@@ -434,7 +434,7 @@ func inferDataFlows(db *sql.DB, modulePath string) []DataFlow {
 		  AND pkg_path LIKE ? || '/%'
 		GROUP BY importer_pkg, pkg_path
 		HAVING weight >= 2
-		ORDER BY weight DESC
+		ORDER BY weight DESC, importer_pkg, pkg_path
 		LIMIT 20
 	`, modulePath, modulePath)
 	if err != nil {
@@ -561,7 +561,7 @@ func getExportedSymbols(db *sql.DB, pkgPath string, limit int) []string {
 		  AND s.name GLOB '[A-Z]*'
 		  AND s.kind IN ('func', 'type', 'interface', 'struct')
 		GROUP BY s.id
-		ORDER BY COUNT(r.id) DESC
+		ORDER BY COUNT(r.id) DESC, s.name, s.id
 		LIMIT ?
 	`, pkgPath, limit)
 	if err != nil {
@@ -911,7 +911,7 @@ func querySymbolRefsByKind(db *sql.DB, repoRoot, kindClause string, limit int) [
 		  AND s.file_path LIKE ? || '/%'
 		  AND s.name GLOB '[A-Z]*'
 		GROUP BY s.id
-		ORDER BY ref_count DESC
+		ORDER BY ref_count DESC, s.name, s.id
 		LIMIT ?
 	`, repoRoot, limit)
 	if err != nil {
@@ -960,7 +960,7 @@ func getExtensionPoints(db *sql.DB, repoRoot string) []ExtensionPoint {
 		  )
 		GROUP BY s.id
 		HAVING ref_count >= 3 OR s.kind = 'interface'
-		ORDER BY (ref_count + caller_count * 2) DESC
+		ORDER BY (ref_count + caller_count * 2) DESC, s.name, s.id
 		LIMIT 10
 	`, repoRoot)
 	if err != nil {
@@ -1037,7 +1037,7 @@ func inferProjectPurpose(db *sql.DB, repoRoot string, projectName string) string
 			SELECT doc FROM package_docs
 			WHERE (pkg_path LIKE '%/' || ? OR pkg_path = ?)
 			  AND doc != ''
-			ORDER BY LENGTH(pkg_path) ASC
+			ORDER BY LENGTH(pkg_path) ASC, pkg_path
 			LIMIT 1
 		`, projectName, projectName).Scan(&doc)
 		if err == nil && doc.Valid && doc.String != "" {

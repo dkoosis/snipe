@@ -465,7 +465,8 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 		ORDER BY
 		  CASE WHEN r.file_path = (SELECT file_path FROM symbols WHERE id = ?) THEN 0 ELSE 1 END,
 		  r.file_path,
-		  r.line
+		  r.line,
+		  r.col
 		LIMIT ? OFFSET ?
 	`, symbolID, symbolID, limit, offset)
 	if err != nil {
@@ -1280,7 +1281,7 @@ func FindPackageSymbols(db *sql.DB, pkgPattern string, limit, offset int) ([]Sym
 		    WHEN 'var'       THEN 7
 		    ELSE 8
 		  END,
-		  s.name
+		  s.name, s.file_path, s.line_start
 		LIMIT ? OFFSET ?`
 
 	// Try exact match first (index-friendly).
@@ -1398,7 +1399,7 @@ func FindSymbolAtPosition(db *sql.DB, filePathRel string, line int) *SymbolRow {
 		FROM symbols s
 		LEFT JOIN files f ON s.file_path = f.path
 		WHERE s.file_path_rel = ? AND s.line_start <= ? AND s.line_end >= ?
-		ORDER BY (s.line_end - s.line_start) ASC
+		ORDER BY (s.line_end - s.line_start) ASC, s.line_start, s.id
 		LIMIT 1
 	`, filePathRel, line, line).Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &relPath, &pkgPath,
 		&s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
@@ -1444,7 +1445,7 @@ func FindEnclosingSymbol(db *sql.DB, filePathRel string, line int) *SymbolRow {
 		LEFT JOIN files f ON s.file_path = f.path
 		WHERE s.file_path_rel = ? AND s.line_start <= ? AND s.line_end >= ?
 		      AND s.kind IN `+enclosingKinds+`
-		ORDER BY (s.line_end - s.line_start) ASC
+		ORDER BY (s.line_end - s.line_start) ASC, s.line_start, s.id
 		LIMIT 1
 	`, filePathRel, line, line)
 	if err := scan(&s, &fileHash, &relPath, &pkgPath, row); err == nil {

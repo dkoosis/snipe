@@ -127,7 +127,7 @@ func queryEntryPointSymbols(db *sql.DB, repoRoot string) ([]flowNode, error) {
 		    WHEN name = 'Execute' THEN 2
 		    ELSE 3
 		  END,
-		  name
+		  name, file_path
 	`, repoRoot)
 	if err != nil {
 		return nil, err
@@ -279,7 +279,7 @@ func GetChangeBoundaries(db *sql.DB, repoRoot string) (map[string][]string, erro
 				name,
 				concern,
 				ref_count,
-				ROW_NUMBER() OVER (PARTITION BY concern ORDER BY ref_count DESC) as rank
+				ROW_NUMBER() OVER (PARTITION BY concern ORDER BY ref_count DESC, name) as rank
 			FROM ConcernSymbols
 			WHERE concern IS NOT NULL
 		)
@@ -333,7 +333,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 		    WHEN s.name = 'Execute' THEN 2
 		    ELSE 3
 		  END,
-		  s.name
+		  s.name, s.file_path
 	`, repoRoot)
 	if err != nil {
 		return nil, err

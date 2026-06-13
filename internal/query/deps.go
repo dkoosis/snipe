@@ -56,7 +56,7 @@ func DetectModulePath(db *sql.DB) string {
 		SELECT pkg_path FROM symbols
 		WHERE pkg_path NOT LIKE '%/internal/%'
 		  AND pkg_path NOT LIKE '%/cmd/%'
-		ORDER BY LENGTH(pkg_path)
+		ORDER BY LENGTH(pkg_path), pkg_path
 		LIMIT 1
 	`).Scan(&pkgPath)
 	if err != nil {
@@ -93,7 +93,7 @@ func FindPackageDeps(db *sql.DB, pkgPath, modulePath string) (*PackageDeps, erro
 		FROM imports
 		WHERE importer_pkg = ? AND pkg_path LIKE ? || '/%'
 		GROUP BY pkg_path
-		ORDER BY file_count DESC
+		ORDER BY file_count DESC, pkg_path
 	`, modulePath, pkgPath, modulePath)
 	if err != nil {
 		return nil, fmt.Errorf("query dependencies for %s: %w", pkgPath, err)
@@ -105,7 +105,7 @@ func FindPackageDeps(db *sql.DB, pkgPath, modulePath string) (*PackageDeps, erro
 		FROM imports
 		WHERE pkg_path = ? AND importer_pkg LIKE ? || '/%'
 		GROUP BY importer_pkg
-		ORDER BY file_count DESC
+		ORDER BY file_count DESC, importer_pkg
 	`, modulePath, pkgPath, modulePath)
 	if err != nil {
 		return nil, fmt.Errorf("query dependents for %s: %w", pkgPath, err)
@@ -143,7 +143,7 @@ func FindDepGraph(db *sql.DB, modulePath string) (*DepGraph, error) {
 		WHERE importer_pkg LIKE ? || '%' AND pkg_path LIKE ? || '/%'
 		  AND importer_pkg != pkg_path
 		GROUP BY importer_pkg, pkg_path
-		ORDER BY file_count DESC
+		ORDER BY file_count DESC, importer_pkg, pkg_path
 	`, modulePath, modulePath)
 	if err != nil {
 		return nil, fmt.Errorf("query dep graph: %w", err)

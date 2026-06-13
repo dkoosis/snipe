@@ -111,7 +111,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	err = db.QueryRow(`
 		SELECT id FROM symbols
 		WHERE file_path = ? AND name_line = ?
-		ORDER BY ABS(name_col - ?)
+		ORDER BY ABS(name_col - ?), name_col, id
 		LIMIT 1
 	`, pos.File, pos.Line, pos.Col).Scan(&symbolID)
 
@@ -127,7 +127,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	err = db.QueryRow(`
 		SELECT symbol_id FROM refs
 		WHERE file_path = ? AND line = ?
-		ORDER BY ABS(col - ?)
+		ORDER BY ABS(col - ?), col, id
 		LIMIT 1
 	`, pos.File, pos.Line, pos.Col).Scan(&symbolID)
 

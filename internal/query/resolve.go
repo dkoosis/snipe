@@ -34,7 +34,7 @@ func resolveMain(db *sql.DB) string {
 	var pkgPath string
 	err := db.QueryRow(`
 		SELECT DISTINCT pkg_path FROM symbols
-		ORDER BY LENGTH(pkg_path)
+		ORDER BY LENGTH(pkg_path), pkg_path
 		LIMIT 1
 	`).Scan(&pkgPath)
 	if err != nil {
@@ -53,7 +53,7 @@ func resolveShortName(db *sql.DB, name string) string {
 	err := db.QueryRow(`
 		SELECT DISTINCT pkg_path FROM symbols
 		WHERE pkg_path LIKE '%/' || ?
-		ORDER BY LENGTH(pkg_path)
+		ORDER BY LENGTH(pkg_path), pkg_path
 		LIMIT 1
 	`, name).Scan(&pkgPath)
 	if err != nil {
