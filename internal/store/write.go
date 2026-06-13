@@ -255,8 +255,8 @@ func writeSymbols(tx *sql.Tx, symbols []index.Symbol, repoRoot string) error {
 
 func writeRefs(tx *sql.Tx, refs []index.Ref, repoRoot string) error {
 	stmt, err := tx.Prepare(`
-		INSERT OR IGNORE INTO refs (id, symbol_id, file_path, file_path_rel, line, col, enclosing_id, snippet)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT OR IGNORE INTO refs (id, symbol_id, file_path, file_path_rel, line, col, enclosing_id, snippet, ast_ctx)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("prepare refs insert: %w", err)
@@ -274,6 +274,7 @@ func writeRefs(tx *sql.Tx, refs []index.Ref, repoRoot string) error {
 			ref.Col,
 			nullString(ref.EnclosingID),
 			ref.Snippet,
+			nullString(ref.ASTCtx),
 		)
 		if err != nil {
 			return fmt.Errorf("insert ref: %w", err)

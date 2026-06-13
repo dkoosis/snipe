@@ -200,3 +200,79 @@ func MakeWidget(n int) *Widget {
 		t.Fatal("no ref found on MakeWidget's signature line")
 	}
 }
+
+// TestExtractRefs_ASTCtx verifies the syntactic contexts recorded per ref.
+func TestExtractRefs_ASTCtx(t *testing.T) {
+	dir := t.TempDir()
+	src := `package ctx
+
+type Nug struct{ ID string }
+
+type Box struct {
+	N Nug
+}
+
+func MakeNug() *Nug {
+	n := &Nug{ID: "x"}
+	p := new(Nug)
+	s := make([]Nug, 0)
+	_ = p
+	_ = s
+	return n
+}
+
+func Save(n *Nug) {}
+
+func use(n *Nug) {
+	Save(n)
+}
+`
+	files := map[string]string{
+		"go.mod": "module example.com/ctx\n\ngo 1.22\n",
+		"ctx.go": src,
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := Load(LoadConfig{Dir: dir})
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	symbols, err := ExtractSymbols(result)
+	if err != nil {
+		t.Fatalf("extract symbols: %v", err)
+	}
+	refs, err := ExtractRefs(result, symbols)
+	if err != nil {
+		t.Fatalf("extract refs: %v", err)
+	}
+
+	var nugID string
+	for _, s := range symbols {
+		if s.Name == "Nug" {
+			nugID = s.ID
+		}
+	}
+
+	wantByLine := map[int]string{
+		6:  CtxTypeDecl,     // field type in Box
+		9:  CtxSignature,    // return type of MakeNug
+		10: CtxCompositeLit, // &Nug{ID: "x"}
+		11: CtxNew,          // new(Nug)
+		12: CtxMake,         // make([]Nug, 0)
+	}
+	got := map[int]string{}
+	for _, r := range refs {
+		if r.SymbolID == nugID {
+			got[r.Line] = r.ASTCtx
+		}
+	}
+	for line, want := range wantByLine {
+		if got[line] != want {
+			t.Errorf("line %d: ast_ctx = %q, want %q", line, got[line], want)
+		}
+	}
+}

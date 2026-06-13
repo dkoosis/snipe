@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -53,6 +54,7 @@ type Ref struct {
 	FileRel            string
 	Line               int
 	Snippet            string
+	ASTCtx             string // syntactic context from the indexer (index.Ctx* values)
 }
 
 // FromRefRows projects []query.RefRow into []Ref.
@@ -71,6 +73,7 @@ func FromRefRows(rows []query.RefRow) []Ref {
 			FileRel:            r.FilePathRel,
 			Line:               r.Line,
 			Snippet:            r.Snippet,
+			ASTCtx:             r.ASTCtx,
 		})
 	}
 	return out
@@ -99,7 +102,7 @@ func Classify(typeName string, refs []Ref) []Classification {
 		if id == "" {
 			// File-scope refs: classify each ref alone.
 			for _, r := range group {
-				out = append(out, classifyFileScope(pats, r))
+				out = append(out, classifyFileScope(r))
 			}
 			continue
 		}
@@ -113,12 +116,8 @@ func Classify(typeName string, refs []Ref) []Classification {
 type patterns struct {
 	typeName string
 
-	// Snippet patterns.
-	createLit   *regexp.Regexp // `&?Nug\s*\{`
-	createNew   *regexp.Regexp // `\bnew\(Nug\)`
-	createMake  *regexp.Regexp // `\bmake\(\[\]\*?Nug[\s,)]`
-	deleteCall  *regexp.Regexp // high-confidence delete evidence
-	deleteMeth  *regexp.Regexp // `\.(Delete|Remove|Drop|Purge)\w*\(`
+	// Signature patterns (name-heuristic rules R3/R5 read declared signatures,
+	// which are not per-ref AST facts).
 	returnsType *regexp.Regexp // signature `) (\*?Nug[\s,)])` etc.
 	takesPtrT   *regexp.Regexp // signature takes `*Nug`
 
@@ -132,15 +131,14 @@ var nameVerbs = map[string][]string{
 	"mutate": {"Set", "Update", "Add", "Append", "Put", "Upsert", "Merge"},
 }
 
+// deleteCallVerbs match callee names that count as delete evidence when the
+// ref appears as a call argument (ast_ctx "call:<Name>").
+var deleteCallVerbs = regexp.MustCompile(`^(?:Delete|Remove|Drop|Purge)(?:[A-Z]|$)`)
+
 func compilePatterns(typeName string) *patterns {
 	q := regexp.QuoteMeta(typeName)
 	p := &patterns{
 		typeName:    typeName,
-		createLit:   regexp.MustCompile(`&?\b` + q + `\s*\{`),
-		createNew:   regexp.MustCompile(`\bnew\(\s*` + q + `\s*\)`),
-		createMake:  regexp.MustCompile(`\bmake\(\s*\[\]\*?` + q + `[\s,)]`),
-		deleteCall:  regexp.MustCompile(`(?i)\bdelete\s*\(|\bdb\.Exec\([^)]*DELETE\b|\.Delete\s*\(|\.Remove\s*\(|\.Drop\s*\(|\.Purge\s*\(`),
-		deleteMeth:  regexp.MustCompile(`\.(Delete|Remove|Drop|Purge)\w*\s*\(`),
 		returnsType: regexp.MustCompile(`\)\s*(?:\(\s*)?\*?\b` + q + `\b`),
 		takesPtrT:   regexp.MustCompile(`\*\s*\b` + q + `\b`),
 		namePrefix:  map[string]*regexp.Regexp{},
@@ -178,7 +176,7 @@ func classifyFunction(p *patterns, encID string, refs []Ref) Classification {
 			signal string
 		}{RoleDelete, sig})
 	}
-	if sig := r2SnippetCreate(p, refs); sig != "" {
+	if sig := r2ConstructionCtx(refs); sig != "" {
 		hits = append(hits, struct {
 			role   Role
 			signal string
@@ -227,13 +225,13 @@ func classifyFunction(p *patterns, encID string, refs []Ref) Classification {
 // classifyFileScope handles refs with no enclosing function (package-level
 // declarations). A snippet Create pattern promotes to Create (R6); otherwise
 // Unknown (R8).
-func classifyFileScope(p *patterns, r Ref) Classification {
+func classifyFileScope(r Ref) Classification {
 	c := Classification{
 		FileRel:    r.FileRel,
 		Line:       r.Line,
 		IsTestFile: isTestOrGeneratedFile(r.FileRel),
 	}
-	if sig := r2SnippetCreateOne(p, r.Snippet); sig != "" {
+	if sig := r2ConstructionCtxOne(r); sig != "" {
 		c.Role = RoleCreate
 		c.Signal = "[R6 file-scope] " + sig
 		return c
@@ -245,47 +243,46 @@ func classifyFileScope(p *patterns, r Ref) Classification {
 
 // --- individual rules --------------------------------------------------------
 
-// R1: snippet contains high-confidence delete evidence.
-func r1DeleteEvidence(p *patterns, refs []Ref) string {
+// R1: ref is an argument of a delete-verbed call (ast_ctx "call:DeleteX"),
+// the builtin delete(), or an Exec/Query call carrying DELETE SQL.
+func r1DeleteEvidence(_ *patterns, refs []Ref) string {
 	for _, r := range refs {
-		if isFuncDeclLine(r.Snippet) {
+		name, ok := strings.CutPrefix(r.ASTCtx, index.CtxCallPrefix)
+		if !ok {
 			continue
 		}
-		if loc := p.deleteMeth.FindString(r.Snippet); loc != "" {
+		if name == "delete" || deleteCallVerbs.MatchString(name) {
 			return "[R1 delete-call] " + trimSignal(r.Snippet)
 		}
-		if strings.Contains(strings.ToLower(r.Snippet), "delete") &&
-			p.deleteCall.MatchString(r.Snippet) {
+		// db.Exec("DELETE FROM ...", nug.ID) — call name carries no verb;
+		// the SQL string does.
+		if (name == "Exec" || name == "ExecContext") &&
+			strings.Contains(strings.ToUpper(r.Snippet), "DELETE") {
 			return "[R1 delete-call] " + trimSignal(r.Snippet)
 		}
 	}
 	return ""
 }
 
-// R2: snippet shows type construction — &T{, T{, new(T), make([]T).
-func r2SnippetCreate(p *patterns, refs []Ref) string {
+// R2: the indexer recorded the ref as type construction — the type position
+// of a composite literal, or an argument of new()/make().
+func r2ConstructionCtx(refs []Ref) string {
 	for _, r := range refs {
-		if sig := r2SnippetCreateOne(p, r.Snippet); sig != "" {
+		if sig := r2ConstructionCtxOne(r); sig != "" {
 			return sig
 		}
 	}
 	return ""
 }
 
-func r2SnippetCreateOne(p *patterns, snippet string) string {
-	// A function declaration line (`func F(...) *T {`) syntactically matches
-	// `T{` but the brace is the function body, not a struct literal. Skip.
-	if isFuncDeclLine(snippet) {
-		return ""
-	}
-	if m := p.createLit.FindString(snippet); m != "" {
-		return "[R2 snippet] " + trimSignal(snippet)
-	}
-	if m := p.createNew.FindString(snippet); m != "" {
-		return "[R2 new()] " + trimSignal(snippet)
-	}
-	if m := p.createMake.FindString(snippet); m != "" {
-		return "[R2 make()] " + trimSignal(snippet)
+func r2ConstructionCtxOne(r Ref) string {
+	switch r.ASTCtx {
+	case index.CtxCompositeLit:
+		return "[R2 lit] " + trimSignal(r.Snippet)
+	case index.CtxNew:
+		return "[R2 new()] " + trimSignal(r.Snippet)
+	case index.CtxMake:
+		return "[R2 make()] " + trimSignal(r.Snippet)
 	}
 	return ""
 }
@@ -328,14 +325,6 @@ func trimSignal(snippet string) string {
 		s = s[:77] + "..."
 	}
 	return s
-}
-
-// isFuncDeclLine reports whether the snippet is a function/method declaration
-// line rather than an expression. These lines end with `{` opening the body,
-// not a struct literal, so R2/R1 snippet rules must ignore them.
-func isFuncDeclLine(snippet string) bool {
-	s := strings.TrimSpace(snippet)
-	return strings.HasPrefix(s, "func ") || strings.HasPrefix(s, "func(")
 }
 
 // isTestOrGeneratedFile detects test files and code-generated files by path

@@ -94,6 +94,11 @@
       "references": [
         {
           "edit_target": "main.go:19:10-19:16@b3adc10874ee996d",
+          "enclosing": {
+            "kind": "method",
+            "name": "Do",
+            "signature": "func (w *Widget) Do() string"
+          },
           "file": "main.go",
           "kind": "ref",
           "match": "func (w *Widget) Do() string {",

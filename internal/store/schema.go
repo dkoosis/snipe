@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 17
+const schemaVersion = 18
 
 // migration represents a database migration.
 type migration struct {
@@ -261,6 +261,13 @@ var migrations = []migration{
 		name:    "files_header_comment",
 		up: `
 		ALTER TABLE files ADD COLUMN header TEXT;
+		`,
+	},
+	{
+		version: 18,
+		name:    "refs_ast_ctx",
+		up: `
+		ALTER TABLE refs ADD COLUMN ast_ctx TEXT;
 		`,
 	},
 }

@@ -19,7 +19,20 @@ type Ref struct {
 	Col         int
 	EnclosingID string // ID of the enclosing function/method
 	Snippet     string // The line of code
+	ASTCtx      string // Syntactic context of the ref (see CtxKind values)
 }
+
+// AST context kinds stored on each ref. These are syntactic facts recorded
+// at index time so downstream consumers (lifecycle classification) never
+// have to re-derive them from snippet text.
+const (
+	CtxCompositeLit = "lit"      // type position of a composite literal: T{...}, &T{...}
+	CtxNew          = "new"      // argument of new(T)
+	CtxMake         = "make"     // argument of make([]T, ...)
+	CtxSignature    = "sig"      // within a func declaration/literal signature
+	CtxTypeDecl     = "typedecl" // within a type declaration (struct field, interface method)
+	CtxCallPrefix   = "call:"    // argument of a call; suffix is the callee name
+)
 
 // ExtractRefs extracts all references from loaded packages.
 // For better performance during indexing, use ExtractRefsWithCache.
@@ -74,6 +87,9 @@ func ExtractRefsFiltered(result *LoadResult, symbols []Symbol, cache *util.FileC
 			// Build enclosing function map for this file
 			enclosingMap := buildEnclosingMap(file, filePath, result.Fset)
 
+			// Build syntactic context ranges for this file
+			ctxRanges := buildCtxRanges(file)
+
 			// Extract references from Uses map
 			for ident, obj := range pkg.TypesInfo.Uses {
 				if obj == nil {
@@ -117,6 +133,7 @@ func ExtractRefsFiltered(result *LoadResult, symbols []Symbol, cache *util.FileC
 					Col:         refPos.Column,
 					EnclosingID: enclosingID,
 					Snippet:     snippet,
+					ASTCtx:      findCtx(ident.Pos(), ctxRanges),
 				}
 				refs = append(refs, ref)
 			}
@@ -177,6 +194,74 @@ func (idx *SymbolPosIndex) Lookup(file string, line, col int) (string, bool) {
 
 func posKey(file string, line, col int) string {
 	return file + ":" + strconv.Itoa(line) + ":" + strconv.Itoa(col)
+}
+
+// ctxRange is a source range carrying the syntactic context of identifiers
+// inside it (composite literal type, call arguments, signature, type decl).
+type ctxRange struct {
+	start, end token.Pos
+	kind       string
+}
+
+// buildCtxRanges collects syntactic context ranges for a file in one pass.
+// Ranges nest (a literal inside a call); findCtx resolves to the innermost.
+func buildCtxRanges(file *ast.File) []ctxRange {
+	var ranges []ctxRange
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.CompositeLit:
+			// Only the type position: in T{F: x} a ref to T is creation
+			// evidence, a ref to x inside the braces is not.
+			if node.Type != nil {
+				ranges = append(ranges, ctxRange{node.Type.Pos(), node.Type.End(), CtxCompositeLit})
+			}
+		case *ast.CallExpr:
+			switch fun := node.Fun.(type) {
+			case *ast.Ident:
+				switch fun.Name {
+				case "new":
+					ranges = append(ranges, ctxRange{node.Lparen, node.Rparen, CtxNew})
+				case "make":
+					ranges = append(ranges, ctxRange{node.Lparen, node.Rparen, CtxMake})
+				default:
+					ranges = append(ranges, ctxRange{node.Lparen, node.Rparen, CtxCallPrefix + fun.Name})
+				}
+			case *ast.SelectorExpr:
+				ranges = append(ranges, ctxRange{node.Lparen, node.Rparen, CtxCallPrefix + fun.Sel.Name})
+			}
+		case *ast.FuncDecl:
+			start := node.Type.Pos()
+			if node.Recv != nil {
+				start = node.Recv.Pos()
+			}
+			ranges = append(ranges, ctxRange{start, node.Type.End(), CtxSignature})
+		case *ast.FuncLit:
+			ranges = append(ranges, ctxRange{node.Type.Pos(), node.Type.End(), CtxSignature})
+		case *ast.TypeSpec:
+			ranges = append(ranges, ctxRange{node.Pos(), node.End(), CtxTypeDecl})
+		}
+		return true
+	})
+
+	sort.Slice(ranges, func(i, j int) bool {
+		return ranges[i].start < ranges[j].start
+	})
+	return ranges
+}
+
+// findCtx returns the innermost context containing pos, or "". Because
+// nested ranges start later than their parents, the first containing range
+// found walking backward from the insertion point is the innermost.
+func findCtx(pos token.Pos, ranges []ctxRange) string {
+	idx := sort.Search(len(ranges), func(i int) bool {
+		return ranges[i].start > pos
+	})
+	for i := idx - 1; i >= 0; i-- {
+		if pos >= ranges[i].start && pos < ranges[i].end {
+			return ranges[i].kind
+		}
+	}
+	return ""
 }
 
 // enclosingFunc tracks function/method ranges for finding enclosing scope

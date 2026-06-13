@@ -23,19 +23,19 @@
               "file": "consumer/consumer.go",
               "line": 6,
               "name": "BuildWidget",
-              "signal": "[R2 snippet] return \u0026store.Widget{Name: \"x\"}"
+              "signal": "[R2 lit] return \u0026store.Widget{Name: \"x\"}"
             },
             {
               "file": "store/store.go",
               "line": 10,
               "name": "NewWidget",
-              "signal": "[R2 snippet] return \u0026Widget{Name: name}"
+              "signal": "[R2 lit] return \u0026Widget{Name: name}"
             },
             {
               "file": "store/store_test.go",
               "line": 8,
               "name": "TestWidgetRoundtrip",
-              "signal": "[R2 snippet] w := \u0026Widget{Name: \"t\"}"
+              "signal": "[R2 lit] w := \u0026Widget{Name: \"t\"}"
             }
           ],
           "role": "Create"

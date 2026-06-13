@@ -1312,7 +1312,7 @@ func TestImpact_Interface_FindsImplementers(t *testing.T) {
 					// All hints should be valid impact hint types
 					switch hint {
 					case "direct_caller", "transitive_caller", "implementer",
-						"direct_test", "transitive_test", "exported":
+						"direct_test", "transitive_test", "exported", "ref_site":
 						// valid
 					default:
 						t.Errorf("unexpected hint %q", hint)

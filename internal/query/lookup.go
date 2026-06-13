@@ -456,7 +456,7 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 	// Sort def-file refs first so high-fanout types (e.g. cobra.Command with
 	// 800+ refs) don't truncate away the definition file under default limit.
 	rows, err := db.Query(`
-		SELECT r.id, r.symbol_id, r.file_path, r.file_path_rel, r.line, r.col, r.enclosing_id, r.snippet,
+		SELECT r.id, r.symbol_id, r.file_path, r.file_path_rel, r.line, r.col, r.enclosing_id, r.snippet, r.ast_ctx,
 		       s.name, s.kind, s.signature, f.hash
 		FROM refs r
 		LEFT JOIN symbols s ON r.enclosing_id = s.id
@@ -477,13 +477,14 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 	var refs []RefRow
 	for rows.Next() {
 		var r RefRow
-		var encName, encKind, encSig, fileHash, filePathRel sql.NullString
-		err := rows.Scan(&r.ID, &r.SymbolID, &r.FilePath, &filePathRel, &r.Line, &r.Col, &r.EnclosingID, &r.Snippet,
+		var encName, encKind, encSig, fileHash, filePathRel, astCtx sql.NullString
+		err := rows.Scan(&r.ID, &r.SymbolID, &r.FilePath, &filePathRel, &r.Line, &r.Col, &r.EnclosingID, &r.Snippet, &astCtx,
 			&encName, &encKind, &encSig, &fileHash)
 		if err != nil {
 			return nil, fmt.Errorf("scan ref row: %w", err)
 		}
 		r.FilePathRel = filePathRel.String
+		r.ASTCtx = astCtx.String
 		r.EnclosingName = encName.String
 		r.EnclosingKind = encKind.String
 		r.EnclosingSignature = encSig.String
@@ -504,6 +505,7 @@ type RefRow struct {
 	Col                int
 	EnclosingID        sql.NullString
 	Snippet            string
+	ASTCtx             string // syntactic context recorded at index time (see index.Ctx* constants)
 	EnclosingName      string
 	EnclosingKind      string
 	EnclosingSignature string
