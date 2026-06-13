@@ -73,10 +73,9 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 
 - New `snipe metrics --kind=X` → register in switch in `cmd/metrics.go` + run `go test ./cmd -run TestHelpGolden -update`
 - Index metrics only run on `--force` or full reindex; incremental skips them
-- Indexer ∅ `enclosing_id` on signature-line refs (`func F() *T`). Recovered via `reattachSignatureRefs` in `cmd/lifecycle.go`
-- R2 snippet regex: `func F() *T {` matches `T{` — guard with `isFuncDeclLine` before firing create rules
+- Lifecycle R1/R2 classification reads `refs.ast_ctx` (schema v18); pre-v18 index → NULL ctx → no Create signals until reindex
 - `BASELINE_ORCA.json` timestamp drifts on every run; ✗ stage it
-- New cobra subcommand → register in `knownSubcommands` map (`cmd/root.go`) or `snipe X` routes to `sym` (bare-symbol fallback)
+- ORDER BY guard test (`internal/store/orderby_guard_test.go`) fails any embedded SQL whose final sort key isn't a plain column — append a stable tiebreaker
 - httptest blocking handlers: observe a stop chan, not just `r.Context().Done()` — `server.Close()` WaitGroups on the handler
 - Ranking SQL/sort with non-unique keys (e.g. same name across pkgs): always include `file_path` (or equivalent) as tiebreaker — golden tests will flake otherwise
 - Eval reads from `../cobra ../fzf ../orca ../chi ../bbolt`, NOT `.eval-repos/`. Reproduce results from those sibling dirs.

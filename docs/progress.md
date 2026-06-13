@@ -283,3 +283,20 @@ trust-killing failures, staleness tax. All 8 children shipped in one session:
 
 Measure: re-mine transcripts ~mid-July; compare snipe:rg ratio against
 4:1 baseline (2026-06-12) via `snipe metrics --kind=usage`.
+
+## Index-Time Invariants Pass (2026-06-12, beads cz0/x6q/4uj/u7o/rpw)
+
+Theme: stop patching at read time what the store should guarantee at write
+time. All five shipped in one session, `make audit` green:
+
+| Change | Bead | Notes |
+|--------|------|-------|
+| Drop .test binary packages post-load | cz0 | go/packages Tests:true re-synthesizes foo.test on the full load; generated _testmain.go polluted index with go-build cache paths (111 symbols on snipe itself; 0 after) |
+| Subcommand set derived from cobra tree | x6q | knownSubcommands map deleted; missed registration can no longer route `snipe X` to bare-symbol fallback. sync.Once (InitDefault*Cmd mutate rootCmd; race detector caught the first version) |
+| Deterministic ORDER BY everywhere | 4uj | 15 clauses got stable tiebreakers; guard test in internal/store scans embedded SQL and fails any ORDER BY whose final key isn't a plain column |
+| enclosing_id on signature refs at write | u7o | buildEnclosingMap range now starts at fn.Pos() not body Lbrace; reattachSignatureRefs shim deleted from cmd layer. Orphan refs 1019→355 (rest are real top-level decls) |
+| refs.ast_ctx column (schema v18) | rpw | Indexer records syntactic context per ref (lit/new/make/sig/typedecl/call:<name>); lifecycle R1/R2/R6 read stored facts, snippet-regex create rules + isFuncDeclLine guard deleted. R3/R4/R5 name heuristics unchanged |
+
+Eval note: not re-run this session — changes are correctness/determinism, but
+.test-package removal changes indexed-symbol counts on eval repos; reindex
+siblings before comparing scores against old baselines.
