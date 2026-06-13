@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -157,25 +158,41 @@ func Execute() {
 	}
 }
 
+var (
+	knownSubcommandsOnce sync.Once
+	knownSubcommandSet   map[string]bool
+)
+
+// knownSubcommands derives the recognized-subcommand set from the cobra
+// command tree so new commands never need manual registration — a missed
+// registration would silently route "snipe X" to the bare-symbol fallback.
+// Computed once: InitDefault*Cmd mutate rootCmd and Commands() is not safe
+// for concurrent mutation, so callers must not touch the tree directly.
+func knownSubcommands() map[string]bool {
+	knownSubcommandsOnce.Do(func() {
+		// Cobra adds help/completion lazily during Execute; materialize them
+		// so they are visible in Commands() before the fallback decision.
+		rootCmd.InitDefaultHelpCmd()
+		rootCmd.InitDefaultCompletionCmd()
+		set := make(map[string]bool)
+		for _, c := range rootCmd.Commands() {
+			set[c.Name()] = true
+			for _, a := range c.Aliases {
+				set[a] = true
+			}
+		}
+		knownSubcommandSet = set
+	})
+	return knownSubcommandSet
+}
+
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
-// Subcommands are derived from the cobra command tree so new commands
-// never need manual registration — a missed registration would silently
-// route "snipe X" to the bare-symbol fallback.
 func isKnownSubcommandOrFlag(arg string) bool {
 	// Flags start with -
 	if len(arg) > 0 && arg[0] == '-' {
 		return true
 	}
-	// Cobra adds help/completion lazily during Execute; materialize them
-	// so they are visible in Commands() before the fallback decision.
-	rootCmd.InitDefaultHelpCmd()
-	rootCmd.InitDefaultCompletionCmd()
-	for _, c := range rootCmd.Commands() {
-		if c.Name() == arg || c.HasAlias(arg) {
-			return true
-		}
-	}
-	return false
+	return knownSubcommands()[arg]
 }
 
 func init() {
