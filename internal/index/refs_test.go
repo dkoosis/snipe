@@ -1,6 +1,10 @@
 package index
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestPosKey(t *testing.T) {
 	tests := []struct {
@@ -132,5 +136,67 @@ func TestBuildSymbolPosIndex(t *testing.T) {
 			t.Errorf("Lookup(%s, %d, %d) = (%q, %v), want (%q, %v)",
 				tt.file, tt.line, tt.col, gotID, gotOK, tt.wantID, tt.wantOK)
 		}
+	}
+}
+
+// TestExtractRefs_SignatureRefsGetEnclosingID verifies refs in a function
+// signature (return type, params) are attributed to that function at index
+// time — previously they were orphaned (enclosing range started at the body
+// Lbrace) and recovered at the command layer.
+func TestExtractRefs_SignatureRefsGetEnclosingID(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"go.mod": "module example.com/sig\n\ngo 1.22\n",
+		"sig.go": `package sig
+
+type Widget struct{}
+
+func MakeWidget(n int) *Widget {
+	return &Widget{}
+}
+`,
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := Load(LoadConfig{Dir: dir})
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	symbols, err := ExtractSymbols(result)
+	if err != nil {
+		t.Fatalf("extract symbols: %v", err)
+	}
+	refs, err := ExtractRefs(result, symbols)
+	if err != nil {
+		t.Fatalf("extract refs: %v", err)
+	}
+
+	var makeWidgetID string
+	for _, s := range symbols {
+		if s.Name == "MakeWidget" {
+			makeWidgetID = s.ID
+		}
+	}
+	if makeWidgetID == "" {
+		t.Fatal("MakeWidget symbol not found")
+	}
+
+	// The Widget ref on line 5 is in MakeWidget's signature (return type).
+	var found bool
+	for _, r := range refs {
+		if r.Line == 5 {
+			found = true
+			if r.EnclosingID != makeWidgetID {
+				t.Errorf("signature ref on line %d has enclosing_id %q, want MakeWidget %q",
+					r.Line, r.EnclosingID, makeWidgetID)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no ref found on MakeWidget's signature line")
 	}
 }

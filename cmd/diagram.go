@@ -635,8 +635,6 @@ func runDiagramLifecycle(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("find refs: %w", err)
 	}
-	reattachSignatureRefs(s.DB(), refRows)
-
 	refs := lifecycle.FromRefRows(refRows)
 	classifications := lifecycle.Classify(typeName, refs)
 

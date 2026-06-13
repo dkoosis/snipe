@@ -197,9 +197,12 @@ func buildEnclosingMap(file *ast.File, filePath string, fset *token.FileSet) []e
 			if fn.Recv != nil {
 				kind = KindMethod
 			}
+			// Start at fn.Pos() (the func keyword), not the body Lbrace, so
+			// refs in the signature (params, return types) are attributed to
+			// the function rather than left with no enclosing symbol.
 			funcs = append(funcs, enclosingFunc{
 				id:    generateID(filePath, namePos.Line, namePos.Column, string(kind)),
-				start: fn.Body.Lbrace,
+				start: fn.Pos(),
 				end:   fn.Body.Rbrace,
 			})
 		}

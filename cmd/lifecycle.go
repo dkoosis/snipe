@@ -179,12 +179,6 @@ func runLifecycle(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// The indexer does not attach enclosing_id to refs on a function's
-	// signature line (e.g. the return-type ref of `func F() *T`). Recover
-	// these by reassigning any enclosing-less ref to the innermost function
-	// whose line range covers it in the same file.
-	reattachSignatureRefs(s.DB(), refRows)
-
 	refs := lifecycle.FromRefRows(refRows)
 	classifications := lifecycle.Classify(typeName, refs)
 
@@ -315,81 +309,6 @@ func rolesToStrings(roles []lifecycle.Role) []string {
 		out[i] = string(r)
 	}
 	return out
-}
-
-// reattachSignatureRefs fixes refs that point at the return type or parameter
-// of a function declaration but were not attributed to that function by the
-// indexer. For each file, fetch all func/method symbols once, then bind any
-// orphan ref to the narrowest enclosing function.
-func reattachSignatureRefs(db *sql.DB, refs []query.RefRow) {
-	// Collect files with orphan refs.
-	wantFiles := map[string]bool{}
-	for i := range refs {
-		r := &refs[i]
-		if !r.EnclosingID.Valid {
-			wantFiles[r.FilePath] = true
-		}
-	}
-	if len(wantFiles) == 0 {
-		return
-	}
-
-	type funcRange struct {
-		id        string
-		name      string
-		signature sql.NullString
-		kind      string
-		start     int
-		end       int
-	}
-	byFile := make(map[string][]funcRange)
-	for file := range wantFiles {
-		rows, err := db.Query(`
-			SELECT id, name, kind, signature, line_start, line_end
-			FROM symbols
-			WHERE file_path = ? AND kind IN ('func', 'method')
-		`, file)
-		if err != nil {
-			continue
-		}
-		for rows.Next() {
-			var fr funcRange
-			if err := rows.Scan(&fr.id, &fr.name, &fr.kind, &fr.signature, &fr.start, &fr.end); err != nil {
-				continue
-			}
-			byFile[file] = append(byFile[file], fr)
-		}
-		rows.Close()
-	}
-
-	for i := range refs {
-		if refs[i].EnclosingID.Valid {
-			continue
-		}
-		cands := byFile[refs[i].FilePath]
-		var best *funcRange
-		bestWidth := 1<<31 - 1
-		for j := range cands {
-			c := cands[j]
-			if refs[i].Line < c.start || refs[i].Line > c.end {
-				continue
-			}
-			w := c.end - c.start
-			if w < bestWidth {
-				best = &cands[j]
-				bestWidth = w
-			}
-		}
-		if best == nil {
-			continue
-		}
-		refs[i].EnclosingID = sql.NullString{String: best.id, Valid: true}
-		refs[i].EnclosingName = best.name
-		refs[i].EnclosingKind = best.kind
-		if best.signature.Valid {
-			refs[i].EnclosingSignature = best.signature.String
-		}
-	}
 }
 
 func buildCallerChain(db *sql.DB, symbolID string, depth int) []output.LifecycleCallerNode {
