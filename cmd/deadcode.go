@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 )
 
@@ -21,29 +19,6 @@ var (
 // deadcodeCmd reports exported symbols with zero non-test references.
 // One batch query replaces the per-symbol 'snipe refs' loop lintbrush's
 // api-surface linter currently runs (snipe-sbi).
-var deadcodeCmd = &cobra.Command{
-	Use:     "deadcode",
-	Short:   "Report exported symbols with zero non-test references",
-	GroupID: categoryGraph,
-	Long: `List exported symbols whose ref count is zero across the workspace.
-
-By default excludes _test.go references from the count and skips symbols
-defined in test files. Use --include-tests to count test refs.
-
-Examples:
-  snipe deadcode                        # all unreferenced exports
-  snipe deadcode --pkg=internal/store   # filter to one package
-  snipe deadcode --format=json          # JSON output for tooling
-  snipe deadcode --include-tests        # count test refs too`,
-	Args: cobra.NoArgs,
-	RunE: runDeadcode,
-}
-
-func init() {
-	deadcodeCmd.Flags().BoolVar(&deadIncludeTests, "include-tests", false, "Count refs from _test.go files (default: ignored)")
-	deadcodeCmd.Flags().StringVar(&deadPkg, "pkg", "", "Filter to a single package (suffix/substring match on pkg_path)")
-	rootCmd.AddCommand(deadcodeCmd)
-}
 
 // deadcodeRow is the JSON shape per dead export.
 type deadcodeRow struct {
@@ -56,7 +31,7 @@ type deadcodeRow struct {
 	RefsAll int    `json:"refs_all"` // count including tests
 }
 
-func runDeadcode(_ *cobra.Command, _ []string) error {
+func runDeadcode() error {
 	start := time.Now()
 	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
 

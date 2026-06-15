@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -41,23 +39,7 @@ const (
 // Common remediation commands.
 const remediationReindex = "snipe index"
 
-var doctorCmd = &cobra.Command{
-	Use:     cmdNameDoctor,
-	Short:   "Check snipe installation and configuration",
-	GroupID: categoryIndex,
-	Long: `Runs diagnostic checks to verify snipe is properly installed and configured.
-
-Checks include:
-- ripgrep (rg) availability and version
-- Index database existence and freshness`,
-	RunE: runDoctor,
-}
-
-func init() {
-	rootCmd.AddCommand(doctorCmd)
-}
-
-func runDoctor(cmd *cobra.Command, args []string) error {
+func runDoctor() error {
 	compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 

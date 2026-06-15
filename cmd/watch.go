@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -27,41 +26,7 @@ type WatchEvent struct {
 	Timestamp string   `json:"timestamp"`
 }
 
-var watchCmd = &cobra.Command{
-	Use:    "watch",
-	Short:  "Watch for file changes and reindex",
-	Hidden: true,
-	Long: `Watches the current directory for Go file changes and triggers reindexing.
-
-V1 Implementation:
-  - Uses fsnotify for file system events
-  - Debounces rapid changes (default 500ms)
-  - Triggers full 'snipe index' on changes
-  - Emits JSON events for agent consumption
-
-Events emitted:
-  {"event": "started", "timestamp": "..."}
-  {"event": "change_detected", "files": [...], "timestamp": "..."}
-  {"event": "reindex_started", "timestamp": "..."}
-  {"event": "reindexed", "files": [...], "ms": 123, "timestamp": "..."}
-  {"event": cmdKindError, cmdKindError: "...", "timestamp": "..."}
-
-Note: V2 will add incremental file-level reindexing.
-
-Examples:
-  snipe watch                    # Default 500ms debounce
-  snipe watch --debounce 1000    # 1 second debounce
-  snipe watch --verbose          # Include change details`,
-	RunE: runWatch,
-}
-
-func init() {
-	watchCmd.Flags().IntVar(&watchDebounce, "debounce", 500, "Debounce time in milliseconds")
-	watchCmd.Flags().BoolVar(&watchVerbose, "verbose", false, "Verbose output")
-	rootCmd.AddCommand(watchCmd)
-}
-
-func runWatch(cmd *cobra.Command, args []string) error {
+func runWatch() error {
 	dir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get working directory: %w", err)

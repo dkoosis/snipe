@@ -3,32 +3,11 @@ package cmd
 import (
 	"os"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/util"
 )
-
-var statusCmd = &cobra.Command{
-	Use:     cmdNameStatus,
-	Short:   "Show index status and statistics",
-	GroupID: categoryIndex,
-	Long: `Shows the current state of the snipe index including:
-- Whether the index is fresh, stale, or missing
-- Git commit at time of indexing
-- Symbol, reference, and call edge counts
-
-Examples:
-  snipe status           # Show index status
-  snipe status --json    # Output as JSON`,
-	RunE: runStatus,
-}
-
-func init() {
-	rootCmd.AddCommand(statusCmd)
-}
 
 // StatusResponse is the JSON response for status command.
 type StatusResponse struct {
@@ -41,7 +20,7 @@ type StatusResponse struct {
 	Fingerprint string            `json:"fingerprint,omitempty"`
 }
 
-func runStatus(cmd *cobra.Command, args []string) error {
+func runStatus() error {
 	compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 

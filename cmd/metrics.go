@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/store"
@@ -24,48 +22,7 @@ var (
 	metricsPkg   string
 )
 
-var metricsCmd = &cobra.Command{
-	Use:     cmdNameMetrics,
-	Short:   "Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph",
-	GroupID: categoryGraph,
-	Long: `Print graph metrics computed during indexing.
-
-Defaults to the top-20 packages by import-graph PageRank.
-Use --graph=calls to rank symbols by call-graph metrics instead.
-
-Examples:
-  snipe metrics
-  snipe metrics --top=10
-  snipe metrics --kind=pagerank
-  snipe metrics --graph=calls --kind=pagerank
-  snipe metrics --graph=calls --kind=cycles
-  snipe metrics --kind=coupling
-  snipe metrics --kind=coupling --pkg=internal/store
-  snipe metrics --kind=instability
-  snipe metrics --kind=instability --pkg=internal/store
-  snipe metrics --kind=abstractness
-  snipe metrics --kind=abstractness --pkg=internal/store
-  snipe metrics --kind=distance
-  snipe metrics --kind=distance --pkg=internal/store
-  snipe metrics --kind=lcom4
-  snipe metrics --kind=lcom4 --pkg=internal/store
-  snipe metrics --kind=cyclo
-  snipe metrics --kind=cyclo --pkg=internal/store
-  snipe metrics --kind=ca,ce,lcom4 --format=json   # comma-separated: one merged table
-  snipe metrics --format=json`,
-	Args: cobra.NoArgs,
-	RunE: runMetrics,
-}
-
-func init() {
-	metricsCmd.Flags().IntVar(&metricsTopN, "top", 20, "Top-N rows to print")
-	metricsCmd.Flags().StringVar(&metricsKind, "kind", "pagerank", "Metric kind (or comma-separated list for a merged table): pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|usage")
-	metricsCmd.Flags().StringVar(&metricsGraph, cmdKindGraph, cmdNameImports, "Graph kind ('imports' or 'calls')")
-	metricsCmd.Flags().StringVar(&metricsPkg, flagPkg, "", "Filter to a single package (suffix-matches package import path)")
-	rootCmd.AddCommand(metricsCmd)
-}
-
-func runMetrics(_ *cobra.Command, _ []string) error {
+func runMetrics() error {
 	start := time.Now()
 
 	compact, _, _, _, _, _ := GetOutputConfig()

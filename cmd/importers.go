@@ -6,31 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
-var importersCmd = &cobra.Command{
-	Use:     "importers <package>",
-	Short:   "Find files that import a package",
-	GroupID: categoryGraph,
-	Long: `Shows all files that import a given package.
-
-Examples:
-  snipe importers internal/handler    # Find importers of local package
-  snipe importers encoding/json       # Find importers of stdlib package
-  snipe importers github.com/foo/bar  # Find importers by full path`,
-	Args: cobra.ExactArgs(1),
-	RunE: runImporters,
-}
-
-func init() {
-	rootCmd.AddCommand(importersCmd)
-}
-
-func runImporters(cmd *cobra.Command, args []string) error {
+func runImporters(args []string) error {
 	start := time.Now()
 
 	compact, lim, offset, _, _, _ := GetOutputConfig()

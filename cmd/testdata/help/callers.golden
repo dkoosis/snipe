@@ -1,31 +1,25 @@
-Finds all functions that call a given symbol.
+Usage: snipe callers [<symbol>] [flags]
 
-Accepts symbol name or 16-char hex ID (auto-detected).
-Use --with-body to include caller function bodies.
+Find functions that call a symbol
 
-Examples:
-  snipe callers ProcessOrder      # Find callers by name
-  snipe callers a3f2c1de89ab0123  # Find callers by hex ID (auto-detected)
-  snipe callers --id abc123       # Explicit --id flag
-  snipe callers ProcessOrder --with-body  # Include caller bodies
-
-Usage:
-  snipe callers [symbol|id] [flags]
+Arguments:
+  [<symbol>]    Symbol name or id
 
 Flags:
-  -h, --help        help for callers
-      --id string   Symbol ID to look up
+  -h, --help                Show context-sensitive help.
+      --limit=10            Cap results returned (applied after --select)
+      --offset=0            Pagination offset
+      --context=2           Context lines around match
+      --no-body             Exclude function body
+      --no-siblings         Exclude sibling declarations
+      --signature-only      Return only signature (no body, no context)
+      --max-tokens=0        Token budget (0 = unlimited)
+      --format="concise"    concise (LLM default) | detailed | summary | json
+                            (stable, for tooling) | human (TTY)
+      --kg-hints            Include Orca KG hints
+      --suggestions         Include next-step suggestions in Claude output
+      --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
+      --select="all"        Pick top candidates by score: all, best, top3,
+                            top5 (applied before --limit)
 
-Global Flags:
-      --context int        Context lines around match (default 2)
-      --format string      concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY) (default "concise")
-      --kg-hints           Include Orca KG hints
-      --limit int          Cap results returned (applied after --select) (default 10)
-      --max-tokens int     Token budget (0 = unlimited)
-      --no-body            Exclude function body
-      --no-siblings        Exclude sibling declarations
-      --offset int         Pagination offset
-      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
-      --signature-only     Return only signature (no body, no context)
-      --suggestions        Include next-step suggestions in Claude output
-      --timeout duration   Timeout for command (e.g., 30s, 5m)
+      --id=STRING           Symbol ID to look up

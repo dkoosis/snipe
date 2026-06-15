@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 )
 
@@ -26,26 +24,17 @@ var Features = []string{
 	cmdNamePkg, cmdNameEdit, cmdNamePack,
 }
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print version information",
-	Run: func(cmd *cobra.Command, args []string) {
-		if versionJSON {
-			info := output.VersionInfo{
-				Version:  Version,
-				Protocol: output.ProtocolVersion,
-				Features: Features,
-				Commit:   GitCommit,
-			}
-			enc := json.NewEncoder(os.Stdout)
-			_ = enc.Encode(info)
-		} else {
-			fmt.Printf("snipe version %s (commit: %s)\n", Version, GitCommit)
+func runVersion() {
+	if versionJSON {
+		info := output.VersionInfo{
+			Version:  Version,
+			Protocol: output.ProtocolVersion,
+			Features: Features,
+			Commit:   GitCommit,
 		}
-	},
-}
-
-func init() {
-	versionCmd.Flags().BoolVar(&versionJSON, "json", false, "Output version info as JSON")
-	rootCmd.AddCommand(versionCmd)
+		enc := json.NewEncoder(os.Stdout)
+		_ = enc.Encode(info)
+	} else {
+		fmt.Printf("snipe version %s (commit: %s)\n", Version, GitCommit)
+	}
 }

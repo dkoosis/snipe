@@ -5,38 +5,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
-var callersCmd = &cobra.Command{
-	Use:     "callers [symbol|id]",
-	Short:   "Find functions that call a symbol",
-	GroupID: categoryNavigate,
-	Long: `Finds all functions that call a given symbol.
-
-Accepts symbol name or 16-char hex ID (auto-detected).
-Use --with-body to include caller function bodies.
-
-Examples:
-  snipe callers ProcessOrder      # Find callers by name
-  snipe callers a3f2c1de89ab0123  # Find callers by hex ID (auto-detected)
-  snipe callers --id abc123       # Explicit --id flag
-  snipe callers ProcessOrder --with-body  # Include caller bodies`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runCallers,
-}
-
 var callersID string
 
-func init() {
-	callersCmd.Flags().StringVar(&callersID, "id", "", "Symbol ID to look up")
-	rootCmd.AddCommand(callersCmd)
-}
-
-func runCallers(cmd *cobra.Command, args []string) error {
+func runCallers(args []string) error {
 	start := time.Now()
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()

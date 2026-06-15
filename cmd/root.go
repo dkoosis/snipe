@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
+	"strings"
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/alecthomas/kong"
 
 	"github.com/dkoosis/snipe/internal/config"
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
@@ -44,8 +44,7 @@ var (
 	selectMode string
 
 	// Caller passthrough for correlation
-	caller    string
-	requestID string
+	caller string
 
 	// Internal: auto-compact when piped
 	autoCompact bool
@@ -55,10 +54,8 @@ var (
 	cmdCancel context.CancelFunc
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "snipe [symbol]",
-	Short: "Go code navigation for Claude",
-	Long: `snipe: Go code navigation for Claude.
+// rootHelp is the long description shown in `snipe --help`.
+const rootHelp = `snipe: Go code navigation for Claude.
 
   snipe index              Build index (run first)
   snipe def ProcessOrder   Jump to definition
@@ -80,111 +77,127 @@ Pick the right overview command:
 Typical flow:  context → pack <symbol> → callers/callees → tests <symbol>
 IDs chain:     every result's 'id' field is valid input to the next command
 Index:         all commands except 'search' need a built index — run 'snipe index' first
-Writes:        only 'edit' modifies files; all other commands are read-only`,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Set up context with signal handling for graceful cancellation
-		ctx := context.Background()
-		var cancel context.CancelFunc
-		if timeout > 0 {
-			ctx, cancel = context.WithTimeout(ctx, timeout)
-		} else {
-			ctx, cancel = context.WithCancel(ctx)
-		}
-		cmdCancel = cancel
+Writes:        only 'edit' modifies files; all other commands are read-only`
 
-		// Handle Ctrl+C gracefully
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-		go func() {
-			select {
-			case <-sigCh:
-				fmt.Fprintln(os.Stderr, "\nInterrupted, cleaning up...")
-				cmdCancel()
-			case <-ctx.Done():
-			}
-			signal.Stop(sigCh)
-		}()
+// Globals holds the persistent flags shared by every command. It is embedded
+// into the root CLI struct so the flags parse in any position, and its
+// AfterApply hook copies the parsed values into the package-global flag vars
+// the run* functions read, then runs the former cobra PersistentPreRunE logic.
+type Globals struct {
+	Limit         int           `help:"Cap results returned (applied after --select)" default:"10"`
+	Offset        int           `help:"Pagination offset" default:"0"`
+	Context       int           `help:"Context lines around match" default:"2"`
+	NoBody        bool          `name:"no-body" help:"Exclude function body"`
+	NoSiblings    bool          `name:"no-siblings" help:"Exclude sibling declarations"`
+	SignatureOnly bool          `name:"signature-only" help:"Return only signature (no body, no context)"`
+	MaxTokens     int           `name:"max-tokens" help:"Token budget (0 = unlimited)" default:"0"`
+	Format        string        `help:"concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY)" default:"concise"`
+	KGHints       bool          `name:"kg-hints" help:"Include Orca KG hints"`
+	Suggestions   bool          `help:"Include next-step suggestions in Claude output"`
+	Timeout       time.Duration `help:"Timeout for command (e.g., 30s, 5m)"`
+	Select        string        `help:"Pick top candidates by score: all, best, top3, top5 (applied before --limit)" default:"all"`
+	// Reserved for orca telemetry — hidden until persistToolCall is wired.
+	Caller    string `help:"Caller identifier (e.g., 'orca')" hidden:""`
+	RequestID string `name:"request-id" help:"Request correlation ID" hidden:""`
+}
 
-		cmdCtx = ctx
+// AfterApply copies parsed globals into the package vars and runs the
+// per-invocation setup (context/signal handling, config defaults, output
+// wiring) that cobra's PersistentPreRunE used to perform.
+func (g *Globals) AfterApply() error {
+	limit = g.Limit
+	offset = g.Offset
+	contextLines = g.Context
+	noBody = g.NoBody
+	noSiblings = g.NoSiblings
+	signatureOnly = g.SignatureOnly
+	maxTokens = g.MaxTokens
+	responseFormat = g.Format
+	withKGHints = g.KGHints
+	showSuggestions = g.Suggestions
+	timeout = g.Timeout
+	selectMode = g.Select
+	caller = g.Caller
 
-		// Load config and apply defaults if flags weren't explicitly set
-		cwd, err := os.Getwd()
-		if err != nil {
-			cwd = ""
-		}
-		cfg, err := config.Load(cwd)
-		if err != nil {
-			return fmt.Errorf("load config: %w", err)
-		}
+	// Set up context with signal handling for graceful cancellation
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
+	cmdCancel = cancel
 
-		// Apply config defaults only if flags weren't explicitly set
-		if !cmd.Flags().Changed("limit") && cfg.Limit > 0 {
-			limit = cfg.Limit
-		}
-		if !cmd.Flags().Changed("context") && cfg.ContextLines > 0 {
-			contextLines = cfg.ContextLines
-		}
-
-		// Auto-compact when output is piped (not a TTY)
-		autoCompact = true
-
-		// Wire suggestion opt-in into output package
-		output.SetShowSuggestions(showSuggestions)
-
-		return nil
-	},
-	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		// Cancel context to release signal goroutine
-		if cmdCancel != nil {
+	// Handle Ctrl+C gracefully
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-sigCh:
+			fmt.Fprintln(os.Stderr, "\nInterrupted, cleaning up...")
 			cmdCancel()
+		case <-ctx.Done():
 		}
-	},
-	RunE: runStatus,
-}
+		signal.Stop(sigCh)
+	}()
 
-func Execute() {
-	// Check if first non-flag arg looks like a symbol (not a known subcommand)
-	// This allows "snipe Store" to work without "snipe sym Store"
-	args := os.Args[1:]
-	if len(args) > 0 && !isKnownSubcommandOrFlag(args[0]) {
-		// Rewrite args to use sym subcommand: "snipe Store" -> "snipe sym Store"
-		newArgs := append([]string{os.Args[0], cmdNameSym}, args...)
-		os.Args = newArgs
+	cmdCtx = ctx
+
+	// Load config and apply defaults if flags weren't explicitly set
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = ""
+	}
+	cfg, err := config.Load(cwd)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
 	}
 
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	// Apply config defaults only if flags weren't explicitly set
+	if !flagPassed("limit") && cfg.Limit > 0 {
+		limit = cfg.Limit
 	}
+	if !flagPassed("context") && cfg.ContextLines > 0 {
+		contextLines = cfg.ContextLines
+	}
+
+	// Auto-compact when output is piped (not a TTY)
+	autoCompact = true
+
+	// Wire suggestion opt-in into output package
+	output.SetShowSuggestions(showSuggestions)
+
+	return nil
 }
 
-var (
-	knownSubcommandsOnce sync.Once
-	knownSubcommandSet   map[string]bool
-)
+// AfterRun cancels the command context to release the signal goroutine. It is
+// the kong analogue of cobra's PersistentPostRun.
+func (g *Globals) AfterRun() error {
+	if cmdCancel != nil {
+		cmdCancel()
+	}
+	return nil
+}
 
-// knownSubcommands derives the recognized-subcommand set from the cobra
-// command tree so new commands never need manual registration — a missed
-// registration would silently route "snipe X" to the bare-symbol fallback.
-// Computed once: InitDefault*Cmd mutate rootCmd and Commands() is not safe
-// for concurrent mutation, so callers must not touch the tree directly.
-func knownSubcommands() map[string]bool {
-	knownSubcommandsOnce.Do(func() {
-		// Cobra adds help/completion lazily during Execute; materialize them
-		// so they are visible in Commands() before the fallback decision.
-		rootCmd.InitDefaultHelpCmd()
-		rootCmd.InitDefaultCompletionCmd()
-		set := make(map[string]bool)
-		for _, c := range rootCmd.Commands() {
-			set[c.Name()] = true
-			for _, a := range c.Aliases {
-				set[a] = true
-			}
+// flagPassed reports whether the user explicitly passed --name on the command
+// line (matching "--name" or "--name=value"). It replicates cobra's
+// Flags().Changed() for the handful of places that need "only override if the
+// user didn't set it" semantics.
+func flagPassed(name string) bool {
+	pfx := "--" + name
+	for _, a := range os.Args[1:] {
+		if a == pfx || strings.HasPrefix(a, pfx+"=") {
+			return true
 		}
-		knownSubcommandSet = set
-	})
-	return knownSubcommandSet
+	}
+	return false
 }
+
+// knownSubcommandNames is the set of recognized subcommand names, used by the
+// bare-symbol fallback to decide whether "snipe X" should be rewritten to
+// "snipe sym X". Derived from the kong grammar at Parse time.
+var knownSubcommandNames = map[string]bool{}
 
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
 func isKnownSubcommandOrFlag(arg string) bool {
@@ -192,46 +205,98 @@ func isKnownSubcommandOrFlag(arg string) bool {
 	if len(arg) > 0 && arg[0] == '-' {
 		return true
 	}
-	return knownSubcommands()[arg]
+	return knownSubcommandNames[arg]
 }
 
-func init() {
-	// Hide completion command from help
-	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+// globalValueFlags are the persistent flags that take a separate value
+// argument (the "--flag value" form), needed so indexOfHelpCommand can skip
+// the value when scanning for the first positional.
+var globalValueFlags = map[string]bool{
+	"--limit": true, "--offset": true, "--context": true, "--max-tokens": true,
+	"--format": true, "--timeout": true, "--select": true,
+	"--caller": true, "--request-id": true,
+}
 
-	// Command groups bucketed by task so agents can skim help by intent.
-	rootCmd.AddGroup(
-		&cobra.Group{ID: categoryOrient, Title: "Orient Project:"},
-		&cobra.Group{ID: categoryNavigate, Title: "Navigate Symbol:"},
-		&cobra.Group{ID: categoryRead, Title: "Read Symbol or Package:"},
-		&cobra.Group{ID: categoryFind, Title: "Find by Text:"},
-		&cobra.Group{ID: categoryGraph, Title: "Graph & Structure:"},
-		&cobra.Group{ID: categoryEmbed, Title: "Embeddings:"},
-		&cobra.Group{ID: categoryEdit, Title: "Edit (modifies files):"},
-		&cobra.Group{ID: categoryIndex, Title: "Index & Health:"},
+// indexOfHelpCommand returns the index of the first positional token that
+// equals "help" (skipping leading global flags and any values they consume),
+// or -1 if the first positional is not "help".
+func indexOfHelpCommand(args []string) int {
+	i := 0
+	for i < len(args) {
+		a := args[i]
+		if len(a) > 0 && a[0] == '-' {
+			// "--flag value" consumes the next token; "--flag=value" does not.
+			if globalValueFlags[a] {
+				i += 2
+			} else {
+				i++
+			}
+			continue
+		}
+		// First positional token.
+		if a == "help" {
+			return i
+		}
+		return -1
+	}
+	return -1
+}
+
+// Execute parses os.Args with kong and runs the selected command. A bare
+// symbol ("snipe Store") with no matching subcommand is rewritten to
+// "snipe sym Store" to preserve the cobra one-command-just-works behavior.
+func Execute() {
+	cli := &CLI{}
+	parser, err := kong.New(cli,
+		kong.Name("snipe"),
+		kong.Description(rootHelp),
+		kong.UsageOnError(),
+		kong.ConfigureHelp(kong.HelpOptions{Compact: false}),
 	)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
-	rootCmd.PersistentFlags().IntVar(&limit, "limit", 10, "Cap results returned (applied after --select)")
-	rootCmd.PersistentFlags().IntVar(&offset, "offset", 0, "Pagination offset")
-	rootCmd.PersistentFlags().IntVar(&contextLines, "context", 2, "Context lines around match")
-	rootCmd.PersistentFlags().BoolVar(&noBody, "no-body", false, "Exclude function body")
-	rootCmd.PersistentFlags().BoolVar(&noSiblings, "no-siblings", false, "Exclude sibling declarations")
-	rootCmd.PersistentFlags().BoolVar(&signatureOnly, "signature-only", false, "Return only signature (no body, no context)")
-	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 0, "Token budget (0 = unlimited)")
-	rootCmd.PersistentFlags().StringVar(&responseFormat, "format", "concise", "concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY)")
-	rootCmd.PersistentFlags().BoolVar(&withKGHints, "kg-hints", false, "Include Orca KG hints")
-	rootCmd.PersistentFlags().BoolVar(&showSuggestions, "suggestions", false, "Include next-step suggestions in Claude output")
-	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for command (e.g., 30s, 5m)")
-	rootCmd.PersistentFlags().StringVar(&selectMode, "select", "all", "Pick top candidates by score: all, best, top3, top5 (applied before --limit)")
-	// Reserved for orca telemetry — hidden until persistToolCall is wired.
-	rootCmd.PersistentFlags().StringVar(&caller, "caller", "", "Caller identifier (e.g., 'orca')")
-	rootCmd.PersistentFlags().StringVar(&requestID, "request-id", "", "Request correlation ID")
-	_ = rootCmd.PersistentFlags().MarkHidden("caller")
-	_ = rootCmd.PersistentFlags().MarkHidden("request-id")
+	// Build the known-subcommand set from the kong grammar so new commands
+	// never need manual registration — a missed registration would silently
+	// route "snipe X" to the bare-symbol fallback.
+	for _, n := range parser.Model.Children {
+		if n.Name != "" {
+			knownSubcommandNames[n.Name] = true
+		}
+	}
+	knownSubcommandNames["help"] = true
+
+	args := os.Args[1:]
+
+	// "snipe help [cmd...]" -> "snipe [cmd...] --help" (cobra had a help
+	// subcommand; kong uses the --help flag). The "help" token may follow
+	// leading global flags (e.g. orca prepends --format json).
+	if i := indexOfHelpCommand(args); i >= 0 {
+		rest := make([]string, 0, len(args))
+		rest = append(rest, args[:i]...)
+		rest = append(rest, args[i+1:]...)
+		rest = append(rest, "--help")
+		args = rest
+	}
+
+	// Bare-symbol fallback: "snipe Store" -> "snipe sym Store".
+	if len(args) > 0 && !isKnownSubcommandOrFlag(args[0]) {
+		args = append([]string{cmdNameSym}, args...)
+	}
+
+	ctx, err := parser.Parse(args)
+	if err != nil {
+		parser.FatalIfErrorf(err)
+	}
+
+	err = ctx.Run()
+	ctx.FatalIfErrorf(err)
 }
 
 // GetContext returns the command context (with timeout and signal handling).
-// Returns context.Background() if called before PersistentPreRunE.
+// Returns context.Background() if called before AfterApply.
 func GetContext() context.Context {
 	if cmdCtx == nil {
 		return context.Background()

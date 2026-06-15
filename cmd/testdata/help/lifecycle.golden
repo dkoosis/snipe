@@ -1,50 +1,29 @@
-Traces all functions that create, mutate, read, or delete instances of a type,
-grouped by CRUD role.
+Usage: snipe lifecycle [<type>] [flags]
 
-Classification combines AST facts recorded at index time (struct literal,
-new(), make(), delete-verbed calls) with name-based heuristics (NewX, DeleteX);
-AST evidence outranks names.
-Each function carries a Signal showing the matching rule, so misclassifications
-are debuggable at a glance.
+Trace every function creating, mutating, reading, or deleting a type
 
-Accepts a type name or 16-char hex symbol ID (chainable from prior
-disambiguation output).
-
-Bucket partition: each enclosing function appears in exactly one bucket.
-Functions in _test.go / _gen.go files go to the 'Tests' bucket (counted
-in (+ N in tests)); all others classify into Create/Mutate/Read/Delete
-or Unknown by the rule engine. Test/Benchmark names appearing in caller
-chains of a Read/Mutate entry are transitive callers of that
-production function — not separate Read entries.
-
-Examples:
-  snipe lifecycle Nug                            # Full lifecycle for type Nug
-  snipe lifecycle f2efb7b35d08313b               # By hex ID (resolves ambiguity)
-  snipe lifecycle Store --pkg internal/store     # Scope by package path
-  snipe lifecycle --at internal/store/store.go:18:6   # Scope by position
-  snipe lifecycle Store --format json            # Machine-readable output
-  snipe lifecycle Nug --include-tests            # Include test file refs in groups
-
-Usage:
-  snipe lifecycle TYPE [flags]
+Arguments:
+  [<type>]    Type name
 
 Flags:
-      --at string       Resolve the type at file:line:col instead of by name
-      --depth int       Caller-chain walk depth per classified function (0 = disabled) (default 3)
-  -h, --help            help for lifecycle
-      --include-tests   Include _test.go and generated files in CRUD groups (default: bucketed separately)
-      --pkg string      Restrict type lookup to this package path (substring match)
+  -h, --help                Show context-sensitive help.
+      --limit=10            Cap results returned (applied after --select)
+      --offset=0            Pagination offset
+      --context=2           Context lines around match
+      --no-body             Exclude function body
+      --no-siblings         Exclude sibling declarations
+      --signature-only      Return only signature (no body, no context)
+      --max-tokens=0        Token budget (0 = unlimited)
+      --format="concise"    concise (LLM default) | detailed | summary | json
+                            (stable, for tooling) | human (TTY)
+      --kg-hints            Include Orca KG hints
+      --suggestions         Include next-step suggestions in Claude output
+      --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
+      --select="all"        Pick top candidates by score: all, best, top3,
+                            top5 (applied before --limit)
 
-Global Flags:
-      --context int        Context lines around match (default 2)
-      --format string      concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY) (default "concise")
-      --kg-hints           Include Orca KG hints
-      --limit int          Cap results returned (applied after --select) (default 10)
-      --max-tokens int     Token budget (0 = unlimited)
-      --no-body            Exclude function body
-      --no-siblings        Exclude sibling declarations
-      --offset int         Pagination offset
-      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
-      --signature-only     Return only signature (no body, no context)
-      --suggestions        Include next-step suggestions in Claude output
-      --timeout duration   Timeout for command (e.g., 30s, 5m)
+      --include-tests       Fold _test.go refs into role buckets (default:
+                            separate)
+      --depth=3             Caller chain depth
+      --pkg=STRING          Restrict to a package
+      --at=STRING           Position to look up (file:line:col)

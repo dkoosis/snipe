@@ -7,32 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
-
-var impactCmd = &cobra.Command{
-	Use:     "impact [symbol|id]",
-	Short:   "Show blast radius for changing a symbol",
-	GroupID: categoryNavigate,
-	Long: `Analyzes what breaks if a symbol changes: transitive callers,
-interface implementers, and test coverage in one call.
-
-Returns a flat result list with hint-based classification:
-  direct_caller, transitive_caller, implementer, direct_test, transitive_test
-
-Accepts symbol name, 16-char hex ID (auto-detected), or --at position.
-
-Examples:
-  snipe impact ProcessOrder            # Full blast radius
-  snipe impact --direct ProcessOrder   # Direct callers + direct tests only
-  snipe impact --at order.go:42:1      # By position
-  snipe impact a3f2c1de89ab0123        # By hex ID`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runImpact,
-}
 
 var (
 	impactDirect bool
@@ -40,14 +17,7 @@ var (
 	impactID     string
 )
 
-func init() {
-	impactCmd.Flags().BoolVar(&impactDirect, "direct", false, "1-hop only (skip transitive callers and tests)")
-	impactCmd.Flags().StringVar(&impactAt, "at", "", "Position to look up (file:line:col)")
-	impactCmd.Flags().StringVar(&impactID, "id", "", "Symbol ID to look up")
-	rootCmd.AddCommand(impactCmd)
-}
-
-func runImpact(cmd *cobra.Command, args []string) error {
+func runImpact(args []string) error {
 	start := time.Now()
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()

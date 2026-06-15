@@ -1,36 +1,25 @@
-Displays type information including methods, embeds, and fields.
+Usage: snipe types [<type>] [flags]
 
-Output includes:
-  - methods: All methods with this type as receiver
-  - embeds: Embedded types (v1: best-effort detection)
-  - fields: Struct fields with types and tags
-  - implements: Interface satisfaction (v1: partial/future)
+Show type relationships
 
-Note: Full interface satisfaction detection requires type-checker
-analysis and is planned for v2.
-
-Examples:
-  snipe types Store                    # By name
-  snipe types --at internal/store.go:42  # By position
-  snipe types query.SymbolRow          # Qualified name
-
-Usage:
-  snipe types [type-name] [flags]
+Arguments:
+  [<type>]    Type name
 
 Flags:
-      --at string   Position to look up (file:line:col)
-  -h, --help        help for types
+  -h, --help                Show context-sensitive help.
+      --limit=10            Cap results returned (applied after --select)
+      --offset=0            Pagination offset
+      --context=2           Context lines around match
+      --no-body             Exclude function body
+      --no-siblings         Exclude sibling declarations
+      --signature-only      Return only signature (no body, no context)
+      --max-tokens=0        Token budget (0 = unlimited)
+      --format="concise"    concise (LLM default) | detailed | summary | json
+                            (stable, for tooling) | human (TTY)
+      --kg-hints            Include Orca KG hints
+      --suggestions         Include next-step suggestions in Claude output
+      --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
+      --select="all"        Pick top candidates by score: all, best, top3,
+                            top5 (applied before --limit)
 
-Global Flags:
-      --context int        Context lines around match (default 2)
-      --format string      concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY) (default "concise")
-      --kg-hints           Include Orca KG hints
-      --limit int          Cap results returned (applied after --select) (default 10)
-      --max-tokens int     Token budget (0 = unlimited)
-      --no-body            Exclude function body
-      --no-siblings        Exclude sibling declarations
-      --offset int         Pagination offset
-      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
-      --signature-only     Return only signature (no body, no context)
-      --suggestions        Include next-step suggestions in Claude output
-      --timeout duration   Timeout for command (e.g., 30s, 5m)
+      --at=STRING           Position to look up (file:line:col)

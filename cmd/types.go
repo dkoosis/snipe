@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
@@ -18,35 +16,7 @@ var (
 	typesAt string
 )
 
-var typesCmd = &cobra.Command{
-	Use:     "types [type-name]",
-	Short:   "Show type relationships",
-	GroupID: categoryGraph,
-	Long: `Displays type information including methods, embeds, and fields.
-
-Output includes:
-  - methods: All methods with this type as receiver
-  - embeds: Embedded types (v1: best-effort detection)
-  - fields: Struct fields with types and tags
-  - implements: Interface satisfaction (v1: partial/future)
-
-Note: Full interface satisfaction detection requires type-checker
-analysis and is planned for v2.
-
-Examples:
-  snipe types Store                    # By name
-  snipe types --at internal/store.go:42  # By position
-  snipe types query.SymbolRow          # Qualified name`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runTypes,
-}
-
-func init() {
-	typesCmd.Flags().StringVar(&typesAt, "at", "", "Position to look up (file:line:col)")
-	rootCmd.AddCommand(typesCmd)
-}
-
-func runTypes(cmd *cobra.Command, args []string) error {
+func runTypes(args []string) error {
 	start := time.Now()
 
 	compact, _, _, _, _, _ := GetOutputConfig()

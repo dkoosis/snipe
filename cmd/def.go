@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/kg"
 	"github.com/dkoosis/snipe/internal/output"
@@ -22,33 +20,7 @@ var (
 	defPkg  string
 )
 
-var defCmd = &cobra.Command{
-	Use:     "def SYMBOL",
-	Short:   "Jump to symbol definition",
-	GroupID: categoryNavigate,
-	Long: `Finds the definition of a symbol by name or position.
-
-Scoped queries:
-  snipe def --file store.go        # All symbols in file
-  snipe def --pkg query            # Exported symbols in package
-
-Examples:
-  snipe def ProcessOrder           # Find by name
-  snipe def --at main.go:42:12     # Find at position
-  snipe def pkg/handler.Handler    # Qualified name
-  snipe def "(*Server).Start"      # Method syntax`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runDef,
-}
-
-func init() {
-	defCmd.Flags().StringVar(&defAt, "at", "", "Position to look up (file:line:col)")
-	defCmd.Flags().StringVar(&defFile, flagFile, "", "List all symbols in file")
-	defCmd.Flags().StringVar(&defPkg, flagPkg, "", "List exported symbols in package")
-	rootCmd.AddCommand(defCmd)
-}
-
-func runDef(cmd *cobra.Command, args []string) error {
+func runDef(args []string) error {
 	start := time.Now()
 
 	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
@@ -269,7 +241,7 @@ lookup:
 		if !kg.IsAvailable() {
 			degraded = append(degraded, "kg_unavailable")
 		} else {
-			hints := kg.GetHints(cmd.Context(), kg.Config{
+			hints := kg.GetHints(GetContext(), kg.Config{
 				File:    sym.FilePathRel,
 				Symbol:  sym.Name,
 				Package: sym.PkgPath,

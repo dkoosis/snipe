@@ -1,35 +1,28 @@
-Find every symbol whose references cross the boundary between two
-package sets — the data needed to plan a module split.
+Usage: snipe boundary [<pkgset-a> [<pkgset-b>]] [flags]
 
-Patterns:
-  internal/store          exact: just that package
-  internal/store/...      recursive: that package and descendants
+Show symbols whose refs cross between two package sets
 
-Examples:
-  snipe boundary internal/store internal/query
-  snipe boundary 'internal/store/...' 'internal/query/...'
-  snipe boundary --detailed internal/store internal/query
-  snipe boundary --direction=a-to-b internal/store internal/query
-
-Usage:
-  snipe boundary PKGSET_A PKGSET_B [flags]
+Arguments:
+  [<pkgset-a>]    First package set
+  [<pkgset-b>]    Second package set
 
 Flags:
-      --detailed           Include per-ref file:line for every crossing
-      --direction string   both | a-to-b | b-to-a (default "both")
-  -h, --help               help for boundary
-      --layers string      Path to a go-arch-lint manifest YAML: compute all K*(K-1)/2 layer crossings in one call
+  -h, --help                Show context-sensitive help.
+      --limit=10            Cap results returned (applied after --select)
+      --offset=0            Pagination offset
+      --context=2           Context lines around match
+      --no-body             Exclude function body
+      --no-siblings         Exclude sibling declarations
+      --signature-only      Return only signature (no body, no context)
+      --max-tokens=0        Token budget (0 = unlimited)
+      --format="concise"    concise (LLM default) | detailed | summary | json
+                            (stable, for tooling) | human (TTY)
+      --kg-hints            Include Orca KG hints
+      --suggestions         Include next-step suggestions in Claude output
+      --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
+      --select="all"        Pick top candidates by score: all, best, top3,
+                            top5 (applied before --limit)
 
-Global Flags:
-      --context int        Context lines around match (default 2)
-      --format string      concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY) (default "concise")
-      --kg-hints           Include Orca KG hints
-      --limit int          Cap results returned (applied after --select) (default 10)
-      --max-tokens int     Token budget (0 = unlimited)
-      --no-body            Exclude function body
-      --no-siblings        Exclude sibling declarations
-      --offset int         Pagination offset
-      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
-      --signature-only     Return only signature (no body, no context)
-      --suggestions        Include next-step suggestions in Claude output
-      --timeout duration   Timeout for command (e.g., 30s, 5m)
+      --detailed            List the crossing symbols, not just counts
+      --direction="both"    Direction filter: a-to-b, b-to-a, both
+      --layers=STRING       Layer spec for layered-boundary analysis

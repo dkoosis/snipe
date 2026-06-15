@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -21,32 +19,7 @@ var identifierRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*$`)
 
 var searchFile string
 
-var searchCmd = &cobra.Command{
-	Use:     "search <pattern>",
-	Short:   "Text search via ripgrep",
-	GroupID: categoryFind,
-	Long: `Searches for a pattern using ripgrep. Works without an index.
-
-If no text matches are found for an identifier-like query and an index exists,
-falls back to symbol name lookup in the index. If still no results and embeddings
-are available, falls back to semantic similarity search.
-
-Use 'snipe sim' directly for more control over semantic search parameters.
-
-Examples:
-  snipe search "func.*Error"              # Search all files
-  snipe search "TODO" --file "*.go"       # Search only Go files
-  snipe search "Handler" --file store.go  # Search in specific file`,
-	Args: cobra.ExactArgs(1),
-	RunE: runSearch,
-}
-
-func init() {
-	searchCmd.Flags().StringVar(&searchFile, "file", "", "Glob pattern to filter files (e.g., \"*.go\", \"store.go\")")
-	rootCmd.AddCommand(searchCmd)
-}
-
-func runSearch(cmd *cobra.Command, args []string) error {
+func runSearch(args []string) error {
 	start := time.Now()
 	pattern := args[0]
 
@@ -134,7 +107,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		if clientErr != nil {
 			decisionPath = append(decisionPath, "rg:0_results", "sim:client_error")
 		} else {
-			simResults, simDur, simErr := embed.Search(cmd.Context(), pattern, s, client, lim, 0.3)
+			simResults, simDur, simErr := embed.Search(GetContext(), pattern, s, client, lim, 0.3)
 			if simErr == nil && len(simResults) > 0 {
 				results = simResults
 				decisionPath = []string{
@@ -242,7 +215,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		// Semantic augment if embeddings present.
 		if embed.HasCredentials() {
 			if client, clientErr := embed.NewClient(); clientErr == nil {
-				simResults, simDur, simErr := embed.Search(cmd.Context(), pattern, s, client, 5, 0.4)
+				simResults, simDur, simErr := embed.Search(GetContext(), pattern, s, client, 5, 0.4)
 				if simErr == nil && len(simResults) > 0 {
 					simAdded := 0
 					for i := range simResults {

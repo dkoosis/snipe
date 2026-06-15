@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"sort"
+	"strconv"
 	"time"
-
-	"github.com/spf13/cobra"
 
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
@@ -15,24 +14,6 @@ import (
 	"github.com/dkoosis/snipe/internal/vector"
 )
 
-var simCmd = &cobra.Command{
-	Use:     "sim [query]",
-	Short:   "Semantic similarity search",
-	GroupID: categoryEmbed,
-	Long: `Finds symbols semantically similar to the query using embeddings.
-
-Requires embeddings to be generated first with 'snipe index --embed'.
-
-Examples:
-  snipe sim "handle HTTP request"
-  snipe sim "database connection pool"
-  snipe sim --threshold 0.5 "error handling"
-  snipe sim --within-pkg --pairs --threshold=0.9   # near-dup pairs inside each package
-  snipe sim --within-pkg --pairs --shared-callees  # also count shared callees`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runSim,
-}
-
 var (
 	simThreshold     float64
 	simWithinPkg     bool
@@ -40,15 +21,7 @@ var (
 	simSharedCallees bool
 )
 
-func init() {
-	simCmd.Flags().Float64Var(&simThreshold, "threshold", 0.3, "Minimum similarity threshold (0-1)")
-	simCmd.Flags().BoolVar(&simWithinPkg, "within-pkg", false, "Restrict pair scan to symbols in the same package (with --pairs)")
-	simCmd.Flags().BoolVar(&simPairs, "pairs", false, "Emit near-duplicate symbol pairs (JSONL) instead of running a query")
-	simCmd.Flags().BoolVar(&simSharedCallees, "shared-callees", false, "Include shared-callee counts on each pair (with --pairs)")
-	rootCmd.AddCommand(simCmd)
-}
-
-func runSim(cmd *cobra.Command, args []string) error {
+func runSim(args []string) error {
 	start := time.Now()
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
@@ -69,10 +42,10 @@ func runSim(cmd *cobra.Command, args []string) error {
 			Message: "sim requires a query argument unless --pairs is set",
 		})
 	}
-	return runSimQuery(cmd, args, start, compact, lim, off, contextLines, withBody)
+	return runSimQuery(args, start, compact, lim, off, contextLines, withBody)
 }
 
-func runSimQuery(cmd *cobra.Command, args []string, start time.Time, compact bool, lim, off, contextLines int, withBody bool) error {
+func runSimQuery(args []string, start time.Time, compact bool, lim, off, contextLines int, withBody bool) error {
 	queryText := args[0]
 	format := GetResponseFormat()
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
@@ -97,7 +70,7 @@ func runSimQuery(cmd *cobra.Command, args []string, start time.Time, compact boo
 	// Run semantic search (fetch off+lim to support offset)
 	threshold := float32(simThreshold)
 	searchLimit := off + lim
-	results, _, simErr := embed.Search(cmd.Context(), queryText, s, client, searchLimit, threshold)
+	results, _, simErr := embed.Search(GetContext(), queryText, s, client, searchLimit, threshold)
 	if simErr != nil {
 		return w.WriteError(cmdNameSim, &output.Error{
 			Code:    output.ErrInternal,
@@ -155,7 +128,7 @@ func runSimQuery(cmd *cobra.Command, args []string, start time.Time, compact boo
 			Results:  []output.Summary{summaryData},
 			Meta: output.Meta{
 				Command:    cmdNameSim,
-				Query:      map[string]string{"query": queryText, "threshold": cmd.Flag("threshold").Value.String()},
+				Query:      map[string]string{"query": queryText, "threshold": strconv.FormatFloat(simThreshold, 'f', -1, 64)},
 				RepoRoot:   dir,
 				IndexState: query.CheckIndexState(s.DB(), dir, Version),
 				Degraded:   degraded,
@@ -182,7 +155,7 @@ func runSimQuery(cmd *cobra.Command, args []string, start time.Time, compact boo
 		Results:  results,
 		Meta: output.Meta{
 			Command:       cmdNameSim,
-			Query:         map[string]string{"query": queryText, "threshold": cmd.Flag("threshold").Value.String()},
+			Query:         map[string]string{"query": queryText, "threshold": strconv.FormatFloat(simThreshold, 'f', -1, 64)},
 			RepoRoot:      dir,
 			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
 			Degraded:      degraded,

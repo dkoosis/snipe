@@ -5,30 +5,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
-var importsCmd = &cobra.Command{
-	Use:     "imports FILE",
-	Short:   "Show packages imported by a file",
-	GroupID: categoryGraph,
-	Long: `Shows all packages imported by a given Go file.
-
-Examples:
-  snipe imports main.go
-  snipe imports internal/handler/server.go`,
-	Args: cobra.ExactArgs(1),
-	RunE: runImports,
-}
-
-func init() {
-	rootCmd.AddCommand(importsCmd)
-}
-
-func runImports(cmd *cobra.Command, args []string) error {
+func runImports(args []string) error {
 	start := time.Now()
 
 	compact, lim, offset, _, _, _ := GetOutputConfig()

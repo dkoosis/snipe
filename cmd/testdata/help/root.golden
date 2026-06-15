@@ -1,97 +1,165 @@
+Usage: snipe <command> [flags]
+
 snipe: Go code navigation for Claude.
 
-  snipe index              Build index (run first)
-  snipe def ProcessOrder   Jump to definition
-  snipe refs ProcessOrder  Find all references
-  snipe callers Handler    Who calls this?
-  snipe pack ProcessOrder  Everything about a symbol
-  snipe search "TODO"      Text search (no index needed)
+    snipe index              Build index (run first)
+    snipe def ProcessOrder   Jump to definition
+    snipe refs ProcessOrder  Find all references
+    snipe callers Handler    Who calls this?
+    snipe pack ProcessOrder  Everything about a symbol
+    snipe search "TODO"      Text search (no index needed)
 
-  snipe doctor             Check index health
-  snipe context            Claude-optimized orientation
-  snipe context --full     Full architecture dump
+    snipe doctor             Check index health
+    snipe context            Claude-optimized orientation
+    snipe context --full     Full architecture dump
 
 Pick the right overview command:
-  context   start here — project orientation (read first)
-  pack      deep dive on one symbol or package
-  sym       symbol-only (def+refs+callers+callees), no package context
-  explain   structured function walkthrough (LLM consumption)
 
-Typical flow:  context → pack <symbol> → callers/callees → tests <symbol>
-IDs chain:     every result's 'id' field is valid input to the next command
-Index:         all commands except 'search' need a built index — run 'snipe index' first
-Writes:        only 'edit' modifies files; all other commands are read-only
+    context   start here — project orientation (read first)
+    pack      deep dive on one symbol or package
+    sym       symbol-only (def+refs+callers+callees), no package context
+    explain   structured function walkthrough (LLM consumption)
 
-Usage:
-  snipe [symbol] [flags]
-  snipe [command]
-
-Orient Project:
-  context      Start here — Claude-optimized project orientation
-  orient       Write a full orient bundle (context-full, deps-tree, all metrics, manifest) into a directory
-
-Navigate Symbol:
-  callees      Find functions that a symbol calls
-  callers      Find functions that call a symbol
-  def          Jump to symbol definition
-  impact       Show blast radius for changing a symbol
-  impl         Find types implementing an interface
-  refs         Find all references to a symbol
-  tests        Find tests that exercise a symbol
-
-Read Symbol or Package:
-  explain      Structured function walkthrough — purpose, mechanism, callers, warnings
-  pack         Deep dive on one symbol or package (def+refs+callers+callees+role+purpose)
-  pkg          Show package overview with exported symbols
-  show         Show symbol details by ID
-  sym          Symbol-only — def+refs+callers+callees, no package context (lighter than pack)
-
-Find by Text:
-  lits         Find all locations of a string literal or env var name
-  search       Text search via ripgrep
-  trace        Trace a string literal through its call context
-
-Graph & Structure:
-  boundary     Show symbols whose refs cross between two package sets
-  deadcode     Report exported symbols with zero non-test references
-  deps         Show dependency topology for a package or the full project
-  diagram      Render snipe graphs as D2 diagram source
-  guard        Assert architecture boundary rules; exit non-zero on violation
-  importers    Find files that import a package
-  imports      Show packages imported by a file
-  lifecycle    Trace every function creating, mutating, reading, or deleting a type
-  metrics      Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph
-  types        Show type relationships
-
-Embeddings:
-  embed-status Check status of batch embedding job
-  sim          Semantic similarity search
-
-Edit (modifies files):
-  edit         AST-aware code editing — modifies files (dry-run unless --apply)
-
-Index & Health:
-  doctor       Check snipe installation and configuration
-  index        Build or update the code index
-  status       Show index status and statistics
-
-Additional Commands:
-  help         Help about any command
-  version      Print version information
+Typical flow: context → pack <symbol> → callers/callees → tests <symbol> IDs
+chain: every result's 'id' field is valid input to the next command Index: all
+commands except 'search' need a built index — run 'snipe index' first Writes:
+only 'edit' modifies files; all other commands are read-only
 
 Flags:
-      --context int        Context lines around match (default 2)
-      --format string      concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY) (default "concise")
-  -h, --help               help for snipe
-      --kg-hints           Include Orca KG hints
-      --limit int          Cap results returned (applied after --select) (default 10)
-      --max-tokens int     Token budget (0 = unlimited)
-      --no-body            Exclude function body
-      --no-siblings        Exclude sibling declarations
-      --offset int         Pagination offset
-      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
-      --signature-only     Return only signature (no body, no context)
-      --suggestions        Include next-step suggestions in Claude output
-      --timeout duration   Timeout for command (e.g., 30s, 5m)
+  -h, --help                Show context-sensitive help.
+      --limit=10            Cap results returned (applied after --select)
+      --offset=0            Pagination offset
+      --context=2           Context lines around match
+      --no-body             Exclude function body
+      --no-siblings         Exclude sibling declarations
+      --signature-only      Return only signature (no body, no context)
+      --max-tokens=0        Token budget (0 = unlimited)
+      --format="concise"    concise (LLM default) | detailed | summary | json
+                            (stable, for tooling) | human (TTY)
+      --kg-hints            Include Orca KG hints
+      --suggestions         Include next-step suggestions in Claude output
+      --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
+      --select="all"        Pick top candidates by score: all, best, top3,
+                            top5 (applied before --limit)
 
-Use "snipe [command] --help" for more information about a command.
+Commands:
+  version [flags]
+    Print version information
+
+Orient Project:
+  context [<path>] [flags]
+    Start here — Claude-optimized project orientation
+
+  orient [flags]
+    Write a full orient bundle (context-full, deps-tree, all metrics, manifest)
+    into a directory
+
+Navigate Symbol:
+  def [<symbol>] [flags]
+    Jump to symbol definition
+
+  refs [<symbol>] [flags]
+    Find all references to a symbol
+
+  callers [<symbol>] [flags]
+    Find functions that call a symbol
+
+  callees [<symbol>] [flags]
+    Find functions that a symbol calls
+
+  impl [<interface>] [flags]
+    Find types implementing an interface
+
+  tests [<symbol>] [flags]
+    Find tests that exercise a symbol
+
+  impact [<symbol>] [flags]
+    Show blast radius for changing a symbol
+
+Read Symbol or Package:
+  show <id> [flags]
+    Show symbol details by ID
+
+  pack [<symbols> ...] [flags]
+    Deep dive on one symbol or package (def+refs+callers+callees+role+purpose)
+
+  sym [<symbol>] [flags]
+    Symbol-only — def+refs+callers+callees, no package context (lighter than
+    pack)
+
+  explain [<symbol>] [flags]
+    Structured function walkthrough — purpose, mechanism, callers, warnings
+
+  pkg <name> [flags]
+    Show package overview with exported symbols
+
+Find by Text:
+  search <pattern> [flags]
+    Text search via ripgrep
+
+  lits <value> [flags]
+    Find all locations of a string literal or env var name
+
+  trace <value> [flags]
+    Trace a string literal through its call context
+
+Graph & Structure:
+  deps [<package>] [flags]
+    Show dependency topology for a package or the full project
+
+  importers <package> [flags]
+    Find files that import a package
+
+  imports <file> [flags]
+    Show packages imported by a file
+
+  types [<type>] [flags]
+    Show type relationships
+
+  boundary [<pkgset-a> [<pkgset-b>]] [flags]
+    Show symbols whose refs cross between two package sets
+
+  metrics [flags]
+    Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call
+    graph
+
+  diagram arch [flags]
+    Package import graph trimmed to the top-N by PageRank, grouped by layer
+
+  diagram flow <entry> [flags]
+    Depth-limited call graph from an entry symbol
+
+  diagram lifecycle <type>
+    Render lifecycle CRUD groups for a type as D2
+
+  lifecycle [<type>] [flags]
+    Trace every function creating, mutating, reading, or deleting a type
+
+  deadcode [flags]
+    Report exported symbols with zero non-test references
+
+  guard [<spec>] [flags]
+    Assert architecture boundary rules; exit non-zero on violation
+
+Embeddings:
+  sim [<query>] [flags]
+    Semantic similarity search
+
+  embed-status [flags]
+    Check status of batch embedding job
+
+Edit (modifies files):
+  edit [<symbol>] [flags]
+    AST-aware code editing — modifies files (dry-run unless --apply)
+
+Index & Health:
+  index [<path>] [flags]
+    Build or update the code index
+
+  status [flags]
+    Show index status and statistics
+
+  doctor [flags]
+    Check snipe installation and configuration
+
+Run "snipe <command> --help" for more information on a command.

@@ -5,37 +5,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
-var implCmd = &cobra.Command{
-	Use:     "impl INTERFACE",
-	Short:   "Find types implementing an interface",
-	GroupID: categoryNavigate,
-	Long: `Finds types that potentially implement a given interface.
-
-Since Go uses structural typing, this command finds types that reference
-the interface in the same file, which often indicates implementation.
-
-Examples:
-  snipe impl Reader              # Find types implementing Reader
-  snipe impl --id abc123         # Find implementers by interface ID
-  snipe impl io.Writer           # Qualified interface name`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runImpl,
-}
-
 var implID string
 
-func init() {
-	implCmd.Flags().StringVar(&implID, "id", "", "Interface ID to look up")
-	rootCmd.AddCommand(implCmd)
-}
-
-func runImpl(cmd *cobra.Command, args []string) error {
+func runImpl(args []string) error {
 	start := time.Now()
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()

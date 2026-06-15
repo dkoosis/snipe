@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/mod/modfile"
 
 	"github.com/dkoosis/snipe/internal/embed"
@@ -18,24 +17,6 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/util"
 )
-
-var indexCmd = &cobra.Command{
-	Use:     "index [path]",
-	Short:   "Build or update the code index",
-	GroupID: categoryIndex,
-	Long: `Builds a SQLite index of symbols, references, and call graph for fast navigation.
-
-By default, generates embeddings (auto mode) and LLM-based symbol purposes (enrich).
-Use --embed-mode=off and --enrich=false to disable.
-
-Embedding modes:
-  auto     - Use batch API for initial indexing (async), realtime for incremental
-  batch    - Force batch API (async, up to 12h completion)
-  realtime - Force realtime API (sync, may timeout on large codebases)
-  off      - Skip embedding generation`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runIndex,
-}
 
 // Embedding mode constants.
 const (
@@ -48,23 +29,11 @@ const (
 var (
 	withEmbed   bool   // Legacy flag, kept for compatibility
 	embedMode   string // New flag: auto, batch, realtime, off
-	withEnrich  bool   // Generate LLM-based symbol purposes (placeholder, not yet wired)
 	forceIndex  bool   // Force full re-index even if no changes detected
 	skipMetrics bool   // Skip graph metrics computation (PageRank, etc.)
 )
 
-func init() {
-	// Legacy flag - kept for backwards compatibility
-	defaultEmbed := embed.HasCredentials()
-	indexCmd.Flags().BoolVar(&withEmbed, "embed", defaultEmbed, "Generate embeddings (deprecated: use --embed-mode)")
-	indexCmd.Flags().StringVar(&embedMode, "embed-mode", "auto", "Embedding mode: auto, batch, realtime, off")
-	indexCmd.Flags().BoolVar(&withEnrich, "enrich", false, "Generate LLM-based symbol purposes (placeholder, not yet wired)")
-	indexCmd.Flags().BoolVar(&forceIndex, "force", false, "Force full re-index even if no changes detected")
-	indexCmd.Flags().BoolVar(&skipMetrics, "skip-metrics", false, "Skip graph metrics (PageRank) computation")
-	rootCmd.AddCommand(indexCmd)
-}
-
-func runIndex(cmd *cobra.Command, args []string) error {
+func runIndex(args []string) error {
 	start := time.Now()
 
 	// Determine directory to index
@@ -196,7 +165,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 
 	// Branch: incremental vs full
 	if detection.result == skipResultProceedIncremental {
-		return runIncrementalIndex(cmd, s, result, symbols, pkgDocs, detection.changes, absDir, start, w)
+		return runIncrementalIndex(s, result, symbols, pkgDocs, detection.changes, absDir, start, w)
 	}
 
 	// Full reindex path
@@ -315,7 +284,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	case embedModeOff:
 		embedStatus = "disabled"
 	case embedModeBatch:
-		status, err := startBatchEmbeddings(cmd.Context(), absDir, symbols, fp.Combined)
+		status, err := startBatchEmbeddings(GetContext(), absDir, symbols, fp.Combined)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: batch embedding failed: %v\n", err)
 			embedStatus = batchStatusFailed
@@ -323,7 +292,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 			embedStatus = status
 		}
 	case embedModeRealtime:
-		ec, err := generateEmbeddings(cmd.Context(), s, symbols)
+		ec, err := generateEmbeddings(GetContext(), s, symbols)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: embedding generation failed: %v\n", err)
 			embedStatus = batchStatusFailed
@@ -652,7 +621,7 @@ func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.
 }
 
 // runIncrementalIndex performs an incremental index update for changed files only.
-func runIncrementalIndex(_ *cobra.Command, s *store.Store, result *index.LoadResult, allSymbols []index.Symbol, pkgDocs []index.PackageDoc, changes *index.ChangeResult, absDir string, start time.Time, w *output.Writer) error {
+func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []index.Symbol, pkgDocs []index.PackageDoc, changes *index.ChangeResult, absDir string, start time.Time, w *output.Writer) error {
 	// Build file filter set (modified + added files only)
 	changedFiles := make([]string, 0, len(changes.Modified)+len(changes.Added))
 	changedFiles = append(changedFiles, changes.Modified...)

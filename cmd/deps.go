@@ -6,37 +6,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
 var depsTreeFlag bool
 
-var depsCmd = &cobra.Command{
-	Use:     "deps [package]",
-	Short:   "Show dependency topology for a package or the full project",
-	GroupID: categoryGraph,
-	Long: `Shows what a package depends on and what depends on it.
-
-Without arguments, shows dependencies for the current directory's package.
-With --tree, shows the full internal dependency graph with cycle detection.
-
-Examples:
-  snipe deps internal/store    # Bidirectional deps for store
-  snipe deps store             # Short name resolution
-  snipe deps --tree            # Full project dependency graph`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runDeps,
-}
-
-func init() {
-	depsCmd.Flags().BoolVar(&depsTreeFlag, "tree", false, "Show full dependency graph")
-	rootCmd.AddCommand(depsCmd)
-}
-
-func runDeps(cmd *cobra.Command, args []string) error {
+func runDeps(args []string) error {
 	start := time.Now()
 
 	compact, _, _, _, _, _ := GetOutputConfig()

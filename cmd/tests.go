@@ -7,31 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
-
-var testsCmd = &cobra.Command{
-	Use:     "tests [symbol|id]",
-	Short:   "Find tests that exercise a symbol",
-	GroupID: categoryNavigate,
-	Long: `Finds test functions that call a given symbol (direct or via helpers).
-
-By default uses 2-hop transitive search: finds Test*/Benchmark*/Fuzz*/Example*
-functions that call the symbol directly or through one intermediary.
-
-Accepts symbol name, 16-char hex ID (auto-detected), or --at position.
-
-Examples:
-  snipe tests ProcessOrder            # Find tests (2-hop transitive)
-  snipe tests --direct ProcessOrder   # Direct callers only
-  snipe tests --at order.go:42:1      # By position
-  snipe tests a3f2c1de89ab0123        # By hex ID`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runTests,
-}
 
 var (
 	testsDirect bool
@@ -39,14 +17,7 @@ var (
 	testsID     string
 )
 
-func init() {
-	testsCmd.Flags().BoolVar(&testsDirect, "direct", false, "Only show tests that directly call the symbol (1-hop)")
-	testsCmd.Flags().StringVar(&testsAt, "at", "", "Position to look up (file:line:col)")
-	testsCmd.Flags().StringVar(&testsID, "id", "", "Symbol ID to look up")
-	rootCmd.AddCommand(testsCmd)
-}
-
-func runTests(cmd *cobra.Command, args []string) error {
+func runTests(args []string) error {
 	start := time.Now()
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()

@@ -5,38 +5,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
-var calleesCmd = &cobra.Command{
-	Use:     "callees [symbol|id]",
-	Short:   "Find functions that a symbol calls",
-	GroupID: categoryNavigate,
-	Long: `Finds all functions called by a given symbol.
-
-Accepts symbol name or 16-char hex ID (auto-detected).
-Use --with-body to include callee function bodies.
-
-Examples:
-  snipe callees ProcessOrder      # Find callees by name
-  snipe callees a3f2c1de89ab0123  # Find callees by hex ID (auto-detected)
-  snipe callees --id abc123       # Explicit --id flag
-  snipe callees ProcessOrder --with-body  # Include callee bodies`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runCallees,
-}
-
 var calleesID string
 
-func init() {
-	calleesCmd.Flags().StringVar(&calleesID, "id", "", "Symbol ID to look up")
-	rootCmd.AddCommand(calleesCmd)
-}
-
-func runCallees(cmd *cobra.Command, args []string) error {
+func runCallees(args []string) error {
 	start := time.Now()
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()

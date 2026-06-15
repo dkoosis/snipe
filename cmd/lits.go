@@ -5,31 +5,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
-var litsCmd = &cobra.Command{
-	Use:     "lits <value>",
-	Short:   "Find all locations of a string literal or env var name",
-	GroupID: categoryFind,
-	Long: `Finds all call sites where a string literal appears in source — env var lookups
-(os.Getenv, os.LookupEnv) and named string constants.
-
-Examples:
-  snipe lits SNIPE_VOYAGE_API_KEY   # Find all os.Getenv("SNIPE_VOYAGE_API_KEY") calls
-  snipe lits "my constant value"    # Find string constant with this value`,
-	Args: cobra.ExactArgs(1),
-	RunE: runLits,
-}
-
-func init() {
-	rootCmd.AddCommand(litsCmd)
-}
-
-func runLits(_ *cobra.Command, args []string) error {
+func runLits(args []string) error {
 	start := time.Now()
 	value := args[0]
 

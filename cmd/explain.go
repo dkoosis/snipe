@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
@@ -19,51 +17,7 @@ var (
 	explainAt       string
 )
 
-var explainCmd = &cobra.Command{
-	Use:     "explain SYMBOL",
-	Short:   "Structured function walkthrough — purpose, mechanism, callers, warnings",
-	GroupID: categoryRead,
-	Long: `When to use: you want a narrative walkthrough of one function for Claude
-to read and reason about. Includes purpose, observable mechanism, caller
-patterns, and static-analysis warnings. For raw def+refs use 'sym'. For
-symbol + package picture use 'pack'.
-
-Generates a structured explanation of a function or method.
-
-Output includes:
-  - purpose: Best-effort summary with explicit source tracking
-  - mechanism: Observable execution steps (callees with action verbs)
-  - caller_context: Who calls this and patterns detected
-  - warnings: High-precision static analysis findings
-  - doc_status: Documentation freshness assessment
-
-Modes:
-  brief   - Minimal analysis, fastest (<20ms)
-  normal  - Standard analysis (default, <50ms)
-  deep    - Full analysis including all callers
-
-Warning levels:
-  none    - Skip warning analysis
-  fast    - Quick AST-only checks (default)
-  full    - Comprehensive analysis
-
-Examples:
-  snipe explain OpenStore              # Explain by name
-  snipe explain --at cmd/root.go:185   # Explain at position
-  snipe explain OpenStore --mode=deep  # Full analysis
-  snipe explain OpenStore --warnings=none  # Skip warnings`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runExplain,
-}
-
-func init() {
-	explainCmd.Flags().StringVar(&explainMode, "mode", "normal", "Analysis depth: brief, normal, deep")
-	explainCmd.Flags().StringVar(&explainWarnings, "warnings", "fast", "Warning level: none, fast, full")
-	explainCmd.Flags().StringVar(&explainAt, "at", "", "Position to explain (file:line:col)")
-	rootCmd.AddCommand(explainCmd)
-}
-
-func runExplain(cmd *cobra.Command, args []string) error {
+func runExplain(args []string) error {
 	start := time.Now()
 
 	compact, _, _, _, _, _ := GetOutputConfig()

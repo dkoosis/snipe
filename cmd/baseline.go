@@ -4,43 +4,16 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/metrics"
 	"github.com/dkoosis/snipe/internal/output"
 )
-
-var baselineCmd = &cobra.Command{
-	Use:    "baseline",
-	Short:  "Capture performance baseline for a codebase",
-	Hidden: true,
-	Long: `Captures performance and quality metrics as a baseline.
-
-The baseline includes:
-- Index time, size, symbol/ref counts
-- Query latencies (def by name, def by position, refs)
-- Search latencies (simple and regex patterns)
-- Quality metrics (doc coverage, call graph coverage)
-
-Examples:
-  snipe baseline                      # Capture baseline for current directory
-  snipe baseline --output base.json   # Save to specific file
-  snipe baseline --name myproject     # Name the baseline`,
-	RunE: runBaseline,
-}
 
 var (
 	baselineOutput string
 	baselineName   string
 )
 
-func init() {
-	baselineCmd.Flags().StringVarP(&baselineOutput, "output", "o", "", "Output file (default: BASELINE.json)")
-	baselineCmd.Flags().StringVar(&baselineName, "name", "", "Codebase name for the baseline")
-	rootCmd.AddCommand(baselineCmd)
-}
-
-func runBaseline(cmd *cobra.Command, args []string) error {
+func runBaseline() error {
 	compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 

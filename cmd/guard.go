@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
 	"github.com/dkoosis/snipe/internal/output"
@@ -24,50 +23,6 @@ var errGuardFailed = errors.New("guard: spec or index error")
 
 // defaultGuardSpec is the spec read when no path arg is given.
 const defaultGuardSpec = ".snipe/boundaries.yml"
-
-var guardCmd = &cobra.Command{
-	Use:     "guard [spec]",
-	Short:   "Assert architecture boundary rules; exit non-zero on violation",
-	GroupID: categoryGraph,
-	Long: `Enforce declared architecture boundaries against the indexed reference graph.
-
-guard reads a spec of deny rules and fails (exit 1) if any reference crosses a
-forbidden boundary. Unlike import-only linters it works on the REFERENCE graph,
-so a rule can forbid calls while allowing type imports (kinds: [func, method]).
-It is package-grained (suffix match), so rules survive a module->package collapse.
-
-Spec (.snipe/boundaries.yml by default):
-
-  version: 1
-  rules:
-    - name: shell-not-store
-      from: "agent/shell/..."      # recursive: pkg + descendants
-      to:   "persistence/store/..."
-      desc: "shell must not depend on store"
-    - name: agent-core-not-store
-      from: "agent/..."
-      to:   "persistence/store/..."
-      kinds: [func, method]        # call-level only (imports of types still allowed)
-      allow:                       # ratchet: exempt existing sites by file suffix
-        - "agent/cost_budget.go"
-
-An unmatched from/to pattern is a hard error (no silent no-op), exit 1.
-
-Examples:
-  snipe guard
-  snipe guard .snipe/boundaries.yml
-  snipe guard --format json`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runGuard,
-	// As a CI gate, guard writes its own structured output and signals failure
-	// via exit code; suppress cobra's duplicate error + usage dump.
-	SilenceErrors: true,
-	SilenceUsage:  true,
-}
-
-func init() {
-	rootCmd.AddCommand(guardCmd)
-}
 
 // guardFail writes a structured operator error and returns the sentinel so the
 // process exits non-zero (a gate must fail closed on spec/index problems).
@@ -107,7 +62,7 @@ type guardViolation struct {
 	Line    int    `json:"line"`
 }
 
-func runGuard(cmd *cobra.Command, args []string) error {
+func runGuard(args []string) error {
 	start := time.Now()
 	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
 

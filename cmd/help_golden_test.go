@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/kong"
 	"github.com/google/go-cmp/cmp"
-	"github.com/spf13/cobra"
 )
 
 var update = flag.Bool("update", false, "update golden files")
@@ -21,18 +21,12 @@ type helpCase struct {
 }
 
 func TestHelpGolden(t *testing.T) {
-	cases := collectHelpCases(newRootCommandForTest(t), nil)
+	cases := collectHelpCases()
 
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			stdout, stderr, err := executeCommand(newRootCommandForTest(t), append(tc.args, "--help")...)
-			if err != nil {
-				t.Fatalf("execute %q --help: %v", strings.Join(tc.args, " "), err)
-			}
-			if strings.TrimSpace(stderr) != "" {
-				t.Fatalf("unexpected stderr for %q --help: %q", strings.Join(tc.args, " "), stderr)
-			}
+			stdout := captureHelp(t, tc.args)
 
 			got := normalizeHelp(stdout)
 			goldenPath := filepath.Join("testdata", "help", goldenFileName(tc.args))
@@ -49,46 +43,58 @@ func TestHelpGolden(t *testing.T) {
 	}
 }
 
-func newRootCommandForTest(t *testing.T) *cobra.Command {
+// captureHelp runs `snipe <args> --help` through kong and returns the help
+// text. Help output is written to a buffer; Exit is a no-op so the help dump
+// (which kong terminates with os.Exit) does not kill the test process.
+func captureHelp(t *testing.T, args []string) string {
 	t.Helper()
-	return cloneCommandTree(rootCmd)
-}
 
-func cloneCommandTree(cmd *cobra.Command) *cobra.Command {
-	cloned := *cmd
-	cloned.ResetCommands()
-	for _, child := range cmd.Commands() {
-		cloned.AddCommand(cloneCommandTree(child))
-	}
-	return &cloned
-}
-
-func executeCommand(root *cobra.Command, args ...string) (stdout, stderr string, err error) {
-	var outBuf bytes.Buffer
-	var errBuf bytes.Buffer
-
-	root.SetOut(&outBuf)
-	root.SetErr(&errBuf)
-	root.SetArgs(args)
-	_, err = root.ExecuteC()
-
-	return outBuf.String(), errBuf.String(), err
-}
-
-func collectHelpCases(cmd *cobra.Command, path []string) []helpCase {
-	name := strings.Join(path, " ")
-	if len(path) == 0 {
-		name = "root"
+	var buf bytes.Buffer
+	cli := &CLI{}
+	parser, err := kong.New(cli,
+		kong.Name("snipe"),
+		kong.Description(rootHelp),
+		kong.Writers(&buf, &buf),
+		kong.Exit(func(int) {}),
+	)
+	if err != nil {
+		t.Fatalf("build kong parser: %v", err)
 	}
 
-	cases := []helpCase{{name: name, args: append([]string(nil), path...)}}
-	for _, child := range cmd.Commands() {
-		if child.Hidden {
-			continue
+	full := append(append([]string(nil), args...), "--help")
+	// kong's --help handler writes help then calls Exit. With a no-op Exit the
+	// parser keeps going and may report a downstream error (e.g. a missing
+	// required positional); the help text is already in buf, so a non-empty
+	// buffer means help was produced and any trailing parse error is benign.
+	if _, err := parser.Parse(full); err != nil && buf.Len() == 0 {
+		t.Fatalf("parse %q --help: %v", strings.Join(args, " "), err)
+	}
+	return buf.String()
+}
+
+// collectHelpCases enumerates the root plus every non-hidden command path from
+// the kong grammar.
+func collectHelpCases() []helpCase {
+	cli := &CLI{}
+	parser, err := kong.New(cli, kong.Name("snipe"))
+	if err != nil {
+		panic(err)
+	}
+
+	cases := []helpCase{{name: "root", args: nil}}
+	var walk func(nodes []*kong.Node, path []string)
+	walk = func(nodes []*kong.Node, path []string) {
+		for _, n := range nodes {
+			if n.Hidden || n.Name == "" {
+				continue
+			}
+			childPath := append(append([]string(nil), path...), n.Name)
+			name := strings.Join(childPath, " ")
+			cases = append(cases, helpCase{name: name, args: childPath})
+			walk(n.Children, childPath)
 		}
-		childPath := append(append([]string(nil), path...), child.Name())
-		cases = append(cases, collectHelpCases(child, childPath)...)
 	}
+	walk(parser.Model.Children, nil)
 	return cases
 }
 

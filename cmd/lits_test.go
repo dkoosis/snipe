@@ -2,20 +2,17 @@ package cmd
 
 import (
 	"database/sql"
-	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/spf13/cobra"
 
 	"github.com/dkoosis/snipe/internal/store"
 )
 
 func TestLitsCmd_Registered(t *testing.T) {
-	for _, cmd := range rootCmd.Commands() {
-		if cmd.Use == "lits <value>" {
+	parser := newTestParser(t)
+	for _, n := range parser.Model.Children {
+		if n.Name == "lits" {
 			return
 		}
 	}
@@ -23,22 +20,20 @@ func TestLitsCmd_Registered(t *testing.T) {
 }
 
 func TestLitsCommand_RequiresExactlyOneArgument(t *testing.T) {
-	stdout, stderr, err := executeCommand(newRootCommandForTest(t), "lits")
+	_, _, err := runCLI(t, "lits")
 	if err == nil {
 		t.Fatal("expected error when lits is called without required argument")
 	}
-	if !strings.Contains(stdout, "Usage:") {
-		t.Fatalf("stdout = %q, want usage output", stdout)
-	}
-	if !strings.Contains(stderr, "accepts 1 arg(s)") {
-		t.Fatalf("stderr = %q, want it to mention required arg count", stderr)
+	// kong reports a missing required positional as: expected "<value>"
+	if !strings.Contains(err.Error(), "value") {
+		t.Fatalf("err = %q, want it to mention the missing value argument", err.Error())
 	}
 }
 
 func TestLitsCommand_ReturnsMissingIndexError_WhenIndexDoesNotExist(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	stdout, stderr, err := executeCommandWithStdIO(t, newRootCommandForTest(t), "lits", "MY_KEY")
+	stdout, stderr, err := runCLI(t, "lits", "MY_KEY")
 	if err == nil {
 		t.Fatal("expected error when index is missing")
 	}
@@ -66,7 +61,7 @@ func TestLitsCommand_ReturnsNotFoundResponse_WhenLiteralIsAbsent(t *testing.T) {
 		snippet:     `os.Getenv("EXISTING_KEY")`,
 	}})
 
-	stdout, stderr, err := executeCommandWithStdIO(t, newRootCommandForTest(t), "lits", "MISSING_KEY")
+	stdout, stderr, err := runCLI(t, "lits", "MISSING_KEY")
 	if err != nil {
 		t.Fatalf("expected nil error for not found response envelope, got %v", err)
 	}
@@ -118,7 +113,7 @@ func TestLitsCommand_AppliesValueMatchingAndPagination(t *testing.T) {
 		},
 	})
 
-	stdout, stderr, err := executeCommandWithStdIO(t, newRootCommandForTest(t), "--offset", "1", "--limit", "1", "lits", "TARGET")
+	stdout, stderr, err := runCLI(t, "--offset", "1", "--limit", "1", "lits", "TARGET")
 	if err != nil {
 		t.Fatalf("lits TARGET returned error: %v", err)
 	}
@@ -175,45 +170,4 @@ func nullableString(s string) any {
 		return sql.NullString{}
 	}
 	return s
-}
-
-func executeCommandWithStdIO(t *testing.T, root *cobra.Command, args ...string) (stdout, stderr string, err error) {
-	t.Helper()
-
-	origStdout := os.Stdout
-	origStderr := os.Stderr
-	stdoutR, stdoutW, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("create stdout pipe: %v", err)
-	}
-	stderrR, stderrW, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("create stderr pipe: %v", err)
-	}
-
-	os.Stdout = stdoutW
-	os.Stderr = stderrW
-	defer func() {
-		os.Stdout = origStdout
-		os.Stderr = origStderr
-	}()
-
-	root.SetArgs(args)
-	_, err = root.ExecuteC()
-
-	_ = stdoutW.Close()
-	_ = stderrW.Close()
-
-	stdoutBytes, readErr := io.ReadAll(stdoutR)
-	if readErr != nil {
-		t.Fatalf("read stdout: %v", readErr)
-	}
-	stderrBytes, readErr := io.ReadAll(stderrR)
-	if readErr != nil {
-		t.Fatalf("read stderr: %v", readErr)
-	}
-	_ = stdoutR.Close()
-	_ = stderrR.Close()
-
-	return string(stdoutBytes), string(stderrBytes), err
 }

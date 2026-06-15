@@ -7,23 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/store"
 )
-
-var embedCmd = &cobra.Command{
-	Use:     cmdNameEmbedStatus,
-	Short:   "Check status of batch embedding job",
-	GroupID: categoryEmbed,
-	Long: `Check the status of an async batch embedding job.
-
-If the batch is complete, downloads results and saves embeddings to the index.
-Use --wait to poll until completion.`,
-	RunE: runEmbedStatus,
-}
 
 // Batch status constants.
 const (
@@ -41,12 +28,6 @@ var (
 	embedPollSecs int
 )
 
-func init() {
-	embedCmd.Flags().BoolVar(&embedWait, "wait", false, "Wait for batch to complete")
-	embedCmd.Flags().IntVar(&embedPollSecs, "poll", 30, "Poll interval in seconds (with --wait)")
-	rootCmd.AddCommand(embedCmd)
-}
-
 // EmbedStatusResult is the output for embed-status command.
 type EmbedStatusResult struct {
 	BatchID    string    `json:"batch_id,omitempty"`
@@ -62,7 +43,7 @@ type EmbedStatusResult struct {
 	Message    string    `json:"message,omitempty"`
 }
 
-func runEmbedStatus(cmd *cobra.Command, args []string) error {
+func runEmbedStatus() error {
 	// Determine directory
 	dir := "."
 	absDir, err := filepath.Abs(dir)
@@ -105,7 +86,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 	// Poll loop (or single check)
 	for {
 		// Get current status from Voyage
-		batchStatus, err := client.GetBatchStatus(cmd.Context(), state.BatchID)
+		batchStatus, err := client.GetBatchStatus(GetContext(), state.BatchID)
 		if err != nil {
 			return fmt.Errorf("get batch status: %w", err)
 		}
@@ -127,7 +108,7 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 
 		// Handle completion
 		if state.Status == batchStatusCompleted {
-			embedCount, err := downloadAndSaveEmbeddings(cmd.Context(), client, state, dbPath)
+			embedCount, err := downloadAndSaveEmbeddings(GetContext(), client, state, dbPath)
 			if err != nil {
 				return fmt.Errorf("download embeddings: %w", err)
 			}
@@ -211,8 +192,8 @@ func runEmbedStatus(cmd *cobra.Command, args []string) error {
 		// Wait and poll again — honor ctx so Ctrl+C returns promptly instead of
 		// wedging for the full poll interval.
 		select {
-		case <-cmd.Context().Done():
-			return cmd.Context().Err()
+		case <-GetContext().Done():
+			return GetContext().Err()
 		case <-time.After(time.Duration(embedPollSecs) * time.Second):
 		}
 	}

@@ -1,43 +1,30 @@
-When to use: first command in a new repo. Produces project orientation
-(entry points, packages, conventions, active work) so Claude knows where to look.
-For one symbol use 'pack'. For a function walkthrough use 'explain'.
+Usage: snipe context [<path>] [flags]
 
-Generates Claude-optimized project orientation context.
+Start here — Claude-optimized project orientation
 
-By default, outputs a lean orientation (~5k tokens) with project metadata,
-key symbols, packages, conventions, and active work context.
-
-Use --full for the complete architecture dump with all components, data flows,
-boundaries, and files organized by concern.
-
-Examples:
-  snipe context                    # Claude-optimized orientation (default)
-  snipe context --orient           # Same — explicit orientation mode
-  snipe context --full             # Full architecture dump
-  snipe context --format=yaml      # Output as YAML
-  snipe context --conventions      # Coding conventions only
-
-Usage:
-  snipe context [path] [flags]
+Arguments:
+  [<path>]    Project path (default: current dir)
 
 Flags:
-      --conventions      Detect coding conventions
-      --format string    Structured output format: json or yaml (default: claudish text)
-      --full             Full architecture dump (all components, flows, boundaries)
-  -h, --help             help for context
-      --orient           Claude-optimized orientation (default)
-      --output-nug       Output as Orca nugget YAML (for save_nug)
-      --schema-version   Print the context output schema version and exit
+  -h, --help                Show context-sensitive help.
+      --limit=10            Cap results returned (applied after --select)
+      --offset=0            Pagination offset
+      --context=2           Context lines around match
+      --no-body             Exclude function body
+      --no-siblings         Exclude sibling declarations
+      --signature-only      Return only signature (no body, no context)
+      --max-tokens=0        Token budget (0 = unlimited)
+      --format="concise"    concise (LLM default) | detailed | summary | json
+                            (stable, for tooling) | human (TTY)
+      --kg-hints            Include Orca KG hints
+      --suggestions         Include next-step suggestions in Claude output
+      --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
+      --select="all"        Pick top candidates by score: all, best, top3,
+                            top5 (applied before --limit)
 
-Global Flags:
-      --context int        Context lines around match (default 2)
-      --kg-hints           Include Orca KG hints
-      --limit int          Cap results returned (applied after --select) (default 10)
-      --max-tokens int     Token budget (0 = unlimited)
-      --no-body            Exclude function body
-      --no-siblings        Exclude sibling declarations
-      --offset int         Pagination offset
-      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
-      --signature-only     Return only signature (no body, no context)
-      --suggestions        Include next-step suggestions in Claude output
-      --timeout duration   Timeout for command (e.g., 30s, 5m)
+      --full                Full architecture dump (all components, flows,
+                            boundaries)
+      --orient              Claude-optimized orientation (default)
+      --output-nug          Output as Orca nugget YAML (for save_nug)
+      --conventions         Detect coding conventions
+      --schema-version      Print the context output schema version and exit

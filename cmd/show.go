@@ -5,34 +5,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
-var showCmd = &cobra.Command{
-	Use:     "show <id>",
-	Short:   "Show symbol details by ID",
-	GroupID: categoryRead,
-	Long: `Shows full details for a symbol given its 16-char hex ID.
-
-Use this to expand IDs from other command outputs — part of the
-hex-ID chaining workflow (def -> callers -> show).
-
-Examples:
-  snipe show a3f2c1de89ab0123              # Expand a result by ID
-  snipe show a3f2c1de89ab0123 --with-body  # Include function body`,
-	Args: cobra.ExactArgs(1),
-	RunE: runShow,
-}
-
-func init() {
-	rootCmd.AddCommand(showCmd)
-}
-
-func runShow(cmd *cobra.Command, args []string) error {
+func runShow(args []string) error {
 	start := time.Now()
 
 	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()

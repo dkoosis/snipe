@@ -8,8 +8,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/lifecycle"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -20,53 +18,7 @@ var lifecycleCallerDepth int
 var lifecyclePkg string
 var lifecycleAt string
 
-var lifecycleCmd = &cobra.Command{
-	Use:     "lifecycle TYPE",
-	Short:   "Trace every function creating, mutating, reading, or deleting a type",
-	GroupID: categoryGraph,
-	Long: `Traces all functions that create, mutate, read, or delete instances of a type,
-grouped by CRUD role.
-
-Classification combines AST facts recorded at index time (struct literal,
-new(), make(), delete-verbed calls) with name-based heuristics (NewX, DeleteX);
-AST evidence outranks names.
-Each function carries a Signal showing the matching rule, so misclassifications
-are debuggable at a glance.
-
-Accepts a type name or 16-char hex symbol ID (chainable from prior
-disambiguation output).
-
-Bucket partition: each enclosing function appears in exactly one bucket.
-Functions in _test.go / _gen.go files go to the 'Tests' bucket (counted
-in (+ N in tests)); all others classify into Create/Mutate/Read/Delete
-or Unknown by the rule engine. Test/Benchmark names appearing in caller
-chains of a Read/Mutate entry are transitive callers of that
-production function — not separate Read entries.
-
-Examples:
-  snipe lifecycle Nug                            # Full lifecycle for type Nug
-  snipe lifecycle f2efb7b35d08313b               # By hex ID (resolves ambiguity)
-  snipe lifecycle Store --pkg internal/store     # Scope by package path
-  snipe lifecycle --at internal/store/store.go:18:6   # Scope by position
-  snipe lifecycle Store --format json            # Machine-readable output
-  snipe lifecycle Nug --include-tests            # Include test file refs in groups`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runLifecycle,
-}
-
-func init() {
-	lifecycleCmd.Flags().BoolVar(&lifecycleIncludeTests, "include-tests", false,
-		"Include _test.go and generated files in CRUD groups (default: bucketed separately)")
-	lifecycleCmd.Flags().IntVar(&lifecycleCallerDepth, "depth", 3,
-		"Caller-chain walk depth per classified function (0 = disabled)")
-	lifecycleCmd.Flags().StringVar(&lifecyclePkg, "pkg", "",
-		"Restrict type lookup to this package path (substring match)")
-	lifecycleCmd.Flags().StringVar(&lifecycleAt, "at", "",
-		"Resolve the type at file:line:col instead of by name")
-	rootCmd.AddCommand(lifecycleCmd)
-}
-
-func runLifecycle(cmd *cobra.Command, args []string) error {
+func runLifecycle(args []string) error {
 	start := time.Now()
 
 	_, lim, off, _, _, _ := GetOutputConfig()

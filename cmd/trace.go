@@ -4,33 +4,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
-var traceCmd = &cobra.Command{
-	Use:     "trace <value>",
-	Short:   "Trace a string literal through its call context",
-	GroupID: categoryFind,
-	Long: `Finds all occurrences of a string literal and shows the enclosing function
-and immediate callers — useful for env-var and config-key propagation.
-
-Falls back to substring match when exact match returns no results.
-
-Examples:
-  snipe trace SNIPE_VOYAGE_API_KEY   # Trace env var through call chain
-  snipe trace "my-config-key"        # Trace a config key`,
-	Args: cobra.ExactArgs(1),
-	RunE: runTrace,
-}
-
-func init() {
-	rootCmd.AddCommand(traceCmd)
-}
-
-func runTrace(_ *cobra.Command, args []string) error {
+func runTrace(args []string) error {
 	start := time.Now()
 	value := args[0]
 

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
 	"github.com/dkoosis/snipe/internal/output"
@@ -23,37 +22,7 @@ var (
 	boundaryLayers   string
 )
 
-var boundaryCmd = &cobra.Command{
-	Use:     "boundary PKGSET_A PKGSET_B",
-	Short:   "Show symbols whose refs cross between two package sets",
-	GroupID: categoryGraph,
-	Long: `Find every symbol whose references cross the boundary between two
-package sets — the data needed to plan a module split.
-
-Patterns:
-  internal/store          exact: just that package
-  internal/store/...      recursive: that package and descendants
-
-Examples:
-  snipe boundary internal/store internal/query
-  snipe boundary 'internal/store/...' 'internal/query/...'
-  snipe boundary --detailed internal/store internal/query
-  snipe boundary --direction=a-to-b internal/store internal/query`,
-	Args: cobra.MaximumNArgs(2),
-	RunE: runBoundary,
-}
-
-func init() {
-	boundaryCmd.Flags().BoolVar(&boundaryDetailed, "detailed", false,
-		"Include per-ref file:line for every crossing")
-	boundaryCmd.Flags().StringVar(&boundaryDir, "direction", "both",
-		"both | a-to-b | b-to-a")
-	boundaryCmd.Flags().StringVar(&boundaryLayers, "layers", "",
-		"Path to a go-arch-lint manifest YAML: compute all K*(K-1)/2 layer crossings in one call")
-	rootCmd.AddCommand(boundaryCmd)
-}
-
-func runBoundary(cmd *cobra.Command, args []string) error {
+func runBoundary(args []string) error {
 	start := time.Now()
 
 	compact, _, _, _, _, _ := GetOutputConfig()

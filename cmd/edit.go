@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/edit"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -47,41 +45,7 @@ type BatchEditRequest struct {
 	File      string `json:"file,omitempty"`
 }
 
-var editCmd = &cobra.Command{
-	Use:     "edit SYMBOL",
-	Short:   "AST-aware code editing — modifies files (dry-run unless --apply)",
-	GroupID: categoryEdit,
-	Long: `Performs AST-aware edits on Go source code.
-
-Operations:
-  replace_body   Replace function/method body (keeps signature)
-  replace_full   Replace entire symbol declaration
-  insert_after   Add code after symbol
-  insert_before  Add code before symbol
-
-Examples:
-  snipe edit ProcessOrder --operation replace_body --new-code "return nil"
-  snipe edit Handler --operation replace_full --new-code-file handler.go.new
-  snipe edit Config --operation insert_after --new-code "func NewConfig() Config { return Config{} }"
-
-By default, shows a preview without modifying files. The response includes
-a unified diff (original vs. rewritten) in results[0].diff so callers can
-review the exact change before committing. Use --apply to write changes.`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runEdit,
-}
-
-func init() {
-	editCmd.Flags().StringVar(&editOperation, "operation", "", "Edit operation: replace_body, replace_full, insert_after, insert_before")
-	editCmd.Flags().StringVar(&editNewCode, "new-code", "", "New code to insert/replace")
-	editCmd.Flags().StringVar(&editNewCodeFile, "new-code-file", "", "File containing new code")
-	editCmd.Flags().BoolVar(&editApply, "apply", false, "Apply changes (default: preview only)")
-	editCmd.Flags().BoolVar(&editBatch, "batch", false, "Read batch operations from stdin")
-	editCmd.Flags().StringVar(&editAt, "at", "", "Position to edit (file:line:col)")
-	rootCmd.AddCommand(editCmd)
-}
-
-func runEdit(cmd *cobra.Command, args []string) error {
+func runEdit(args []string) error {
 	start := time.Now()
 
 	compact, _, _, _, _, _ := GetOutputConfig()

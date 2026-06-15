@@ -1,42 +1,31 @@
-Performs AST-aware edits on Go source code.
+Usage: snipe edit [<symbol>] [flags]
 
-Operations:
-  replace_body   Replace function/method body (keeps signature)
-  replace_full   Replace entire symbol declaration
-  insert_after   Add code after symbol
-  insert_before  Add code before symbol
+AST-aware code editing — modifies files (dry-run unless --apply)
 
-Examples:
-  snipe edit ProcessOrder --operation replace_body --new-code "return nil"
-  snipe edit Handler --operation replace_full --new-code-file handler.go.new
-  snipe edit Config --operation insert_after --new-code "func NewConfig() Config { return Config{} }"
-
-By default, shows a preview without modifying files. The response includes
-a unified diff (original vs. rewritten) in results[0].diff so callers can
-review the exact change before committing. Use --apply to write changes.
-
-Usage:
-  snipe edit SYMBOL [flags]
+Arguments:
+  [<symbol>]    Symbol name
 
 Flags:
-      --apply                  Apply changes (default: preview only)
-      --at string              Position to edit (file:line:col)
-      --batch                  Read batch operations from stdin
-  -h, --help                   help for edit
-      --new-code string        New code to insert/replace
-      --new-code-file string   File containing new code
-      --operation string       Edit operation: replace_body, replace_full, insert_after, insert_before
+  -h, --help                    Show context-sensitive help.
+      --limit=10                Cap results returned (applied after --select)
+      --offset=0                Pagination offset
+      --context=2               Context lines around match
+      --no-body                 Exclude function body
+      --no-siblings             Exclude sibling declarations
+      --signature-only          Return only signature (no body, no context)
+      --max-tokens=0            Token budget (0 = unlimited)
+      --format="concise"        concise (LLM default) | detailed | summary |
+                                json (stable, for tooling) | human (TTY)
+      --kg-hints                Include Orca KG hints
+      --suggestions             Include next-step suggestions in Claude output
+      --timeout=DURATION        Timeout for command (e.g., 30s, 5m)
+      --select="all"            Pick top candidates by score: all, best, top3,
+                                top5 (applied before --limit)
 
-Global Flags:
-      --context int        Context lines around match (default 2)
-      --format string      concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY) (default "concise")
-      --kg-hints           Include Orca KG hints
-      --limit int          Cap results returned (applied after --select) (default 10)
-      --max-tokens int     Token budget (0 = unlimited)
-      --no-body            Exclude function body
-      --no-siblings        Exclude sibling declarations
-      --offset int         Pagination offset
-      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
-      --signature-only     Return only signature (no body, no context)
-      --suggestions        Include next-step suggestions in Claude output
-      --timeout duration   Timeout for command (e.g., 30s, 5m)
+      --operation=STRING        Edit operation: replace_body, replace_full,
+                                insert_after, insert_before
+      --new-code=STRING         New code to insert/replace
+      --new-code-file=STRING    File containing new code
+      --apply                   Apply changes (default: preview only)
+      --batch                   Read batch operations from stdin
+      --at=STRING               Position to edit (file:line:col)

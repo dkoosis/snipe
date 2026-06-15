@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
@@ -23,34 +21,7 @@ var (
 	refsBatch bool
 )
 
-var refsCmd = &cobra.Command{
-	Use:     "refs SYMBOL",
-	Short:   "Find all references to a symbol",
-	GroupID: categoryNavigate,
-	Long: `Finds all references to a symbol by name or position.
-
-Scoped queries:
-  snipe refs Open --file store.go     # Refs in matching file
-  snipe refs Open --pkg internal/query # Refs in matching package
-
-Examples:
-  snipe refs ProcessOrder          # Find by name
-  snipe refs --at main.go:42:12    # Find at position
-  snipe refs Workspace --kind=method  # Only method references`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runRefs,
-}
-
-func init() {
-	refsCmd.Flags().StringVar(&refsAt, "at", "", "Position to look up (file:line:col)")
-	refsCmd.Flags().StringVar(&refsKind, "kind", "", "Filter by enclosing kind (func, method, etc.)")
-	refsCmd.Flags().StringVar(&refsFile, "file", "", "Filter references to those in matching file")
-	refsCmd.Flags().StringVar(&refsPkg, "pkg", "", "Filter references to those in matching package path")
-	refsCmd.Flags().BoolVar(&refsBatch, "batch", false, "Read symbol names from stdin (one per line), emit JSONL per symbol (shares one index open)")
-	rootCmd.AddCommand(refsCmd)
-}
-
-func runRefs(cmd *cobra.Command, args []string) error {
+func runRefs(args []string) error {
 	start := time.Now()
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()

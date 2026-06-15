@@ -2,16 +2,96 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/alecthomas/kong"
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/dkoosis/snipe/internal/output"
 )
 
+// newTestParser builds a kong parser over a fresh CLI for tests. Help/error
+// output is discarded; Exit is a no-op so parse errors surface as returned
+// errors instead of os.Exit.
+func newTestParser(t *testing.T) *kong.Kong {
+	t.Helper()
+	cli := &CLI{}
+	parser, err := kong.New(cli,
+		kong.Name("snipe"),
+		kong.Description(rootHelp),
+		kong.Writers(io.Discard, io.Discard),
+		kong.Exit(func(int) {}),
+	)
+	if err != nil {
+		t.Fatalf("build kong parser: %v", err)
+	}
+	return parser
+}
+
+// runCLI parses args with kong and runs the selected command, capturing
+// stdout/stderr. Mirrors the bare-symbol fallback in Execute so tests exercise
+// the same routing.
+func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+
+	parser := newTestParser(t)
+	for _, n := range parser.Model.Children {
+		if n.Name != "" {
+			knownSubcommandNames[n.Name] = true
+		}
+	}
+	knownSubcommandNames["help"] = true
+
+	if len(args) > 0 && !isKnownSubcommandOrFlag(args[0]) {
+		args = append([]string{cmdNameSym}, args...)
+	}
+
+	origStdout := os.Stdout
+	origStderr := os.Stderr
+	stdoutR, stdoutW, _ := os.Pipe()
+	stderrR, stderrW, _ := os.Pipe()
+	os.Stdout = stdoutW
+	os.Stderr = stderrW
+	defer func() {
+		os.Stdout = origStdout
+		os.Stderr = origStderr
+	}()
+
+	kctx, parseErr := parser.Parse(args)
+	if parseErr == nil {
+		err = kctx.Run()
+		// Mirror Execute/FatalIfErrorf: a non-nil run error is reported on
+		// stderr (minus the os.Exit).
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	} else {
+		err = parseErr
+	}
+
+	_ = stdoutW.Close()
+	_ = stderrW.Close()
+	outBytes, _ := io.ReadAll(stdoutR)
+	errBytes, _ := io.ReadAll(stderrR)
+	_ = stdoutR.Close()
+	_ = stderrR.Close()
+
+	return string(outBytes), string(errBytes), err
+}
+
 func TestRoot_IsKnownSubcommandOrFlag_ReturnsExpectedValue_When_InputVaries(t *testing.T) {
-	t.Parallel()
+	// Populate the known-subcommand set from the kong grammar.
+	parser := newTestParser(t)
+	for _, n := range parser.Model.Children {
+		if n.Name != "" {
+			knownSubcommandNames[n.Name] = true
+		}
+	}
+	knownSubcommandNames["help"] = true
 
 	tests := []struct {
 		name string
@@ -44,13 +124,8 @@ func TestRoot_IsKnownSubcommandOrFlag_ReturnsExpectedValue_When_InputVaries(t *t
 			want: true,
 		},
 		{
-			name: "cobra built-in help is known",
+			name: "help is known",
 			arg:  "help",
-			want: true,
-		},
-		{
-			name: "cobra built-in completion is known",
-			arg:  "completion",
 			want: true,
 		},
 	}
@@ -58,8 +133,6 @@ func TestRoot_IsKnownSubcommandOrFlag_ReturnsExpectedValue_When_InputVaries(t *t
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			got := isKnownSubcommandOrFlag(tc.arg)
 			if got != tc.want {
 				t.Fatalf("isKnownSubcommandOrFlag(%q) = %v, want %v", tc.arg, got, tc.want)

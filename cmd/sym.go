@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -22,35 +20,7 @@ var (
 	symCalleesLimit int
 )
 
-var symCmd = &cobra.Command{
-	Use:     "sym SYMBOL",
-	Short:   "Symbol-only — def+refs+callers+callees, no package context (lighter than pack)",
-	GroupID: categoryRead,
-	Long: `When to use: you want def + refs + callers + callees in one call without
-package-level metadata. For package context and role/purpose use 'pack'.
-For a structured function walkthrough use 'explain'.
-
-Returns definition, references, callers, and callees in a single query.
-Matches go_symbol's single-call pattern for LLM integration.
-
-Examples:
-  snipe sym ProcessOrder              # Full symbol info by name
-  snipe sym --at main.go:42:12        # Full symbol info at position
-  snipe sym Handler --refs-limit 5    # Limit references returned
-  snipe sym --no-body Handler         # Exclude body from output`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runSym,
-}
-
-func init() {
-	symCmd.Flags().StringVar(&symAt, "at", "", "Position to look up (file:line:col)")
-	symCmd.Flags().IntVar(&symRefsLimit, "refs-limit", 20, "Maximum references to return")
-	symCmd.Flags().IntVar(&symCallersLimit, "callers-limit", 10, "Maximum callers to return")
-	symCmd.Flags().IntVar(&symCalleesLimit, "callees-limit", 10, "Maximum callees to return")
-	rootCmd.AddCommand(symCmd)
-}
-
-func runSym(cmd *cobra.Command, args []string) error {
+func runSym(args []string) error {
 	start := time.Now()
 
 	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()

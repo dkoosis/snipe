@@ -9,8 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/diagram"
 	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/lifecycle"
@@ -19,14 +17,8 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 )
 
-// Default curation knobs. Each subcommand exposes flags to override.
-const (
-	defaultDiagramArchTopN   = 20
-	defaultDiagramFlowDepth  = 3
-	defaultDiagramFlowFanout = 6
-	defaultDiagramFlowTopN   = 0 // 0 = no PageRank trim
-)
-
+// Default curation knobs live as kong tag defaults on the diagram subcommands
+// in commands.go (arch --top=20, flow --depth=3 --fanout=6 --top-n=0).
 var (
 	diagramFormat     string // "d2" (default) or "svg"
 	diagramArchTopN   int
@@ -34,60 +26,6 @@ var (
 	diagramFlowFanout int
 	diagramFlowTopN   int
 )
-
-var diagramCmd = &cobra.Command{
-	Use:     "diagram",
-	Short:   "Render snipe graphs as D2 diagram source",
-	GroupID: categoryGraph,
-	Long: `Emit D2 (https://d2lang.com) source from snipe's import, call, and lifecycle graphs.
-
-Three opinionated subcommands:
-  snipe diagram arch                Package layering with role annotations
-  snipe diagram flow <entry>        Depth-limited call graph from one symbol
-  snipe diagram lifecycle <Type>    CRUD lifecycle data as D2
-
-Default output is a Claude-readable summary followed by the D2 source.
-Use --format=svg to shell out to the d2 CLI (must be installed).`,
-}
-
-var diagramArchCmd = &cobra.Command{
-	Use:   "arch",
-	Short: "Package import graph trimmed to the top-N by PageRank, grouped by layer",
-	Args:  cobra.NoArgs,
-	RunE:  runDiagramArch,
-}
-
-var diagramFlowCmd = &cobra.Command{
-	Use:   "flow <entry>",
-	Short: "Depth-limited call graph from an entry symbol",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runDiagramFlow,
-}
-
-var diagramLifecycleCmd = &cobra.Command{
-	Use:   "lifecycle <Type>",
-	Short: "Render lifecycle CRUD groups for a type as D2",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runDiagramLifecycle,
-}
-
-func init() {
-	diagramCmd.PersistentFlags().StringVar(&diagramFormat, "format", "d2",
-		"Output format: 'd2' (default, source) or 'svg' (shells out to d2 CLI)")
-
-	diagramArchCmd.Flags().IntVar(&diagramArchTopN, "top", defaultDiagramArchTopN,
-		"Trim graph to top-N packages by import-graph PageRank (0 = no trim)")
-
-	diagramFlowCmd.Flags().IntVar(&diagramFlowDepth, "depth", defaultDiagramFlowDepth,
-		"Maximum BFS depth from entry (1..10)")
-	diagramFlowCmd.Flags().IntVar(&diagramFlowFanout, "fanout", defaultDiagramFlowFanout,
-		"Cap callees expanded per node (prevents hairballs)")
-	diagramFlowCmd.Flags().IntVar(&diagramFlowTopN, "top-n", defaultDiagramFlowTopN,
-		"After BFS, keep top-N reachable nodes by call-graph PageRank (rank within frontier; 0 = no trim; ignored if metrics not populated)")
-
-	diagramCmd.AddCommand(diagramArchCmd, diagramFlowCmd, diagramLifecycleCmd)
-	rootCmd.AddCommand(diagramCmd)
-}
 
 // emit prints the Claude summary and D2 source, or shells out to `d2` for svg.
 // summary is plain text describing the diagram (D1: this is what Claude reads).
@@ -132,7 +70,7 @@ func renderSVG(d2src string) error {
 
 // ---------- arch ----------------------------------------------------------
 
-func runDiagramArch(_ *cobra.Command, _ []string) error {
+func runDiagramArch() error {
 	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
 	s, _, err := OpenStore(w, "diagram arch")
 	if err != nil {
@@ -312,7 +250,7 @@ func stripLastSeg(p string) string { return p }
 
 // ---------- flow ----------------------------------------------------------
 
-func runDiagramFlow(_ *cobra.Command, args []string) error {
+func runDiagramFlow(args []string) error {
 	if diagramFlowDepth < 1 {
 		diagramFlowDepth = 1
 	}
@@ -610,7 +548,7 @@ func walk(roots []string, edges [][2]string, depth, maxDepth int, syMap map[stri
 
 // ---------- lifecycle ----------------------------------------------------
 
-func runDiagramLifecycle(_ *cobra.Command, args []string) error {
+func runDiagramLifecycle(args []string) error {
 	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
 	s, _, err := OpenStore(w, "diagram lifecycle")
 	if err != nil {

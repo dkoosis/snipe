@@ -10,8 +10,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -25,32 +23,6 @@ var (
 // context-full + deps-tree + every row-level metric + a content-addressed
 // manifest (snipe-725). Replaces the 9-call bash loop in lintbrush's
 // review.md prelude with one atomic snapshot.
-var orientCmd = &cobra.Command{
-	Use:     "orient",
-	Short:   "Write a full orient bundle (context-full, deps-tree, all metrics, manifest) into a directory",
-	GroupID: categoryOrient,
-	Long: `Produces the standard lintbrush prelude bundle in one index open:
-
-  context-full.json   — snipe context --full output
-  deps-tree.json      — snipe deps --tree output
-  metrics-<kind>.json — one file per row-level metric kind
-  manifest.json       — { snipe_version, git_commit, index_fingerprint,
-                          files: { path: sha256, ... }, generated_at }
-
-The manifest is content-addressed so harnesses can use it as a CI cache key
-at a given git SHA + index content.
-
-Example:
-  snipe orient --out .lintbrush/prelude
-`,
-	Args: cobra.NoArgs,
-	RunE: runOrient,
-}
-
-func init() {
-	orientCmd.Flags().StringVar(&orientOut, "out", "", "Output directory (created if missing)")
-	rootCmd.AddCommand(orientCmd)
-}
 
 // orientMetricKinds is the row-level set that maps to one ReadTopN call each.
 // Composite kinds (topo, cycles, coupling, distance, cyclo) are emitted via
@@ -69,7 +41,7 @@ type orientManifest struct {
 	BundleSHA256     string            `json:"bundle_sha256"`
 }
 
-func runOrient(_ *cobra.Command, _ []string) error {
+func runOrient() error {
 	start := time.Now()
 	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
 

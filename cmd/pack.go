@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -24,40 +22,7 @@ var (
 	packCalleesLimit int
 )
 
-var packCmd = &cobra.Command{
-	Use:     "pack SYMBOL_OR_PKG...",
-	Short:   "Deep dive on one symbol or package (def+refs+callers+callees+role+purpose)",
-	GroupID: categoryRead,
-	Long: `When to use: you've identified a specific symbol or package and want
-the full picture in one query. For project orientation use 'context' first.
-For symbol-only without package context use 'sym'.
-
-Returns everything an LLM needs about a symbol (or package) in one query.
-
-Symbol mode combines definition, references, callers, callees, role, and purpose.
-Package mode returns exports, imports, dependent count, LOC, tests, and key types.
-
-Multi-ID mode bundles multiple symbols in one response:
-  snipe pack abc123def456 789012345678  # Multiple hex IDs
-
-Examples:
-  snipe pack ProcessOrder              # Symbol profile by name
-  snipe pack --at main.go:42:12        # Symbol profile at position
-  snipe pack Handler --refs-limit 5    # Limit references returned
-  snipe pack internal/mcp              # Package profile
-  snipe pack ./internal/store          # Package profile (relative path)`,
-	RunE: runPack,
-}
-
-func init() {
-	packCmd.Flags().StringVar(&packAt, "at", "", "Position to look up (file:line:col)")
-	packCmd.Flags().IntVar(&packRefsLimit, "refs-limit", 5, "Maximum references to return")
-	packCmd.Flags().IntVar(&packCallersLimit, "callers-limit", 5, "Maximum callers to return")
-	packCmd.Flags().IntVar(&packCalleesLimit, "callees-limit", 5, "Maximum callees to return")
-	rootCmd.AddCommand(packCmd)
-}
-
-func runPack(cmd *cobra.Command, args []string) error {
+func runPack(args []string) error {
 	start := time.Now()
 
 	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()

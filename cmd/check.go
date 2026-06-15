@@ -4,29 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/metrics"
 	"github.com/dkoosis/snipe/internal/output"
 )
-
-var checkCmd = &cobra.Command{
-	Use:    "check",
-	Short:  "Check performance against baseline",
-	Hidden: true,
-	Long: `Compares current performance against a saved baseline.
-
-Reports:
-  ✅ PASS - Metric within acceptable range
-  ⚠️  WARN - Metric changed but within threshold
-  ❌ FAIL - Metric regressed beyond threshold
-
-Examples:
-  snipe check                             # Compare against BASELINE.json
-  snipe check --baseline baselines/v1.json
-  snipe check --fail-on-regression        # Exit 1 if any failures`,
-	RunE: runCheck,
-}
 
 var (
 	checkBaseline  string
@@ -34,14 +14,7 @@ var (
 	checkFailOnReg bool
 )
 
-func init() {
-	checkCmd.Flags().StringVar(&checkBaseline, "baseline", "", "Reference baseline file (default: BASELINE.json)")
-	checkCmd.Flags().Float64Var(&checkThreshold, "threshold", 15.0, "Regression threshold percentage")
-	checkCmd.Flags().BoolVar(&checkFailOnReg, "fail-on-regression", false, "Exit with error code if regression detected")
-	rootCmd.AddCommand(checkCmd)
-}
-
-func runCheck(cmd *cobra.Command, args []string) error {
+func runCheck() error {
 	compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 

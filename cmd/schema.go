@@ -6,33 +6,9 @@ import (
 	"os"
 
 	"github.com/invopop/jsonschema"
-	"github.com/spf13/cobra"
 
 	"github.com/dkoosis/snipe/internal/output"
 )
-
-var schemaCmd = &cobra.Command{
-	Use:    "schema [type]",
-	Short:  "Output JSON Schema for snipe types",
-	Hidden: true,
-	Long: `Outputs JSON Schema for snipe response types.
-
-Types:
-  response  - Full response schema with results (default)
-  result    - Individual result schema
-  meta      - Response metadata schema
-  error     - Error response schema
-
-Examples:
-  snipe schema           # Output response schema
-  snipe schema result    # Output result schema`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runSchema,
-}
-
-func init() {
-	rootCmd.AddCommand(schemaCmd)
-}
 
 // schemaResponse is the concrete type for schema generation
 // (since Response[T] is generic, we need a concrete instantiation)
@@ -42,7 +18,7 @@ type schemaResponse struct {
 	Error   *output.Error   `json:"error"`
 }
 
-func runSchema(cmd *cobra.Command, args []string) error {
+func runSchema(args []string) error {
 	typeName := "response"
 	if len(args) > 0 {
 		typeName = args[0]

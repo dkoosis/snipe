@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
@@ -16,36 +14,14 @@ import (
 
 var pkgDigest bool
 
-var pkgCmd = &cobra.Command{
-	Use:     "pkg <name>",
-	Short:   "Show package overview with exported symbols",
-	GroupID: categoryRead,
-	Long: `Shows an overview of a package including its exported symbols.
-
-Displays all exported types, functions, constants, and variables in a package,
-ranked by usage (most-referenced symbols first) so the important ones surface first.
-
-Examples:
-  snipe pkg store              # Show exported symbols in store package
-  snipe pkg internal/query     # Show exported symbols in internal/query
-  snipe pkg output             # Show exported symbols matching 'output'`,
-	Args: cobra.ExactArgs(1),
-	RunE: runPkg,
-}
-
-func init() {
-	pkgCmd.Flags().BoolVar(&pkgDigest, "digest", false, "Emit one-shot metric digest (exports/ca/ce/instability/lcom4/cyclo_max) as JSON")
-	rootCmd.AddCommand(pkgCmd)
-}
-
-func runPkg(cmd *cobra.Command, args []string) error {
+func runPkg(args []string) error {
 	start := time.Now()
 
 	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
 	format := GetResponseFormat()
 
 	// pkg is an orientation command — show full surface by default
-	if !cmd.Flags().Changed("limit") {
+	if !flagPassed("limit") {
 		lim = 200
 	}
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)

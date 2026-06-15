@@ -5,37 +5,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dkoosis/snipe/internal/metrics"
 	"github.com/dkoosis/snipe/internal/output"
 )
-
-var historyCmd = &cobra.Command{
-	Use:    "history",
-	Short:  "Show performance history over time",
-	Hidden: true,
-	Long: `Shows performance trends from baseline history.
-
-Reads from .snipe/metrics.jsonl to show how metrics have
-changed across commits.
-
-Examples:
-  snipe history           # Show recent history
-  snipe history --limit 5 # Show last 5 entries`,
-	RunE: runHistory,
-}
 
 var (
 	historyLimit int
 )
 
-func init() {
-	historyCmd.Flags().IntVarP(&historyLimit, "limit", "n", 10, "Number of entries to show")
-	rootCmd.AddCommand(historyCmd)
-}
-
-func runHistory(cmd *cobra.Command, args []string) error {
+func runHistory() error {
 	compact, _, _, _, _, _ := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
 
