@@ -120,7 +120,12 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 				End:   output.Position{Line: data.LineNumber, Col: sub.End + 1},
 			}
 			// Compute relative path for output
-			filePathRel, _ := filepath.Rel(dir, data.Path.Text)
+			filePathRel, relErr := filepath.Rel(dir, data.Path.Text)
+			// Containment guard: never surface a hit outside the search root
+			// (e.g. the go-build cache reached via a stray symlink or path arg).
+			if !withinRoot(filePathRel, relErr) {
+				continue
+			}
 			if filePathRel == "" {
 				filePathRel = data.Path.Text
 			}
@@ -178,6 +183,14 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 	}
 
 	return results, nil
+}
+
+// withinRoot reports whether a path (relative to the search root, as produced
+// by filepath.Rel) stays inside that root. A failed Rel, or a non-local path
+// (".." escape, absolute) means the file lives outside the root and must never
+// leak into results.
+func withinRoot(rel string, relErr error) bool {
+	return relErr == nil && filepath.IsLocal(rel)
 }
 
 func generateSearchID(line, col int) string {

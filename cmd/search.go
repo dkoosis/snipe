@@ -91,7 +91,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		// Identifier-like queries: restrict to Go source to avoid docs/changelogs
 		globs = append(globs, "*.go")
 	}
-	results, err := search.Search(dir, pattern, lim, ctx, globs...)
+	// Search from the resolved repo root (D3), never arbitrary cwd — keeps rg
+	// from walking outside the repo when invoked from a subdir or above the root.
+	results, err := search.Search(root, pattern, lim, ctx, globs...)
 	if err != nil {
 		code := output.ErrInternal
 		if strings.Contains(err.Error(), "not found") {

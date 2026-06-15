@@ -1,6 +1,7 @@
 package search
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -127,5 +128,31 @@ func TestSearch_Limit(t *testing.T) {
 
 	if len(results) > 5 {
 		t.Errorf("Expected at most 5 results, got %d", len(results))
+	}
+}
+
+func TestWithinRoot(t *testing.T) {
+	sep := string(filepath.Separator)
+	cases := []struct {
+		name string
+		rel  string
+		err  error
+		want bool
+	}{
+		{"inside", "cmd" + sep + "search.go", nil, true},
+		{"same dir file", "search.go", nil, true},
+		{"root itself", ".", nil, true},
+		{"parent", "..", nil, false},
+		{"escapes to cache", ".." + sep + ".." + sep + "Library" + sep + "Caches" + sep + "go-build" + sep + "x", nil, false},
+		{"rel error", "anything", errors.New("Rel failed"), false},
+		// A dir named "..foo" must NOT be treated as an escape.
+		{"dotdot prefix not separator", "..foo" + sep + "x.go", nil, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := withinRoot(tc.rel, tc.err); got != tc.want {
+				t.Errorf("withinRoot(%q, %v) = %v, want %v", tc.rel, tc.err, got, tc.want)
+			}
+		})
 	}
 }
