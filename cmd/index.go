@@ -393,6 +393,10 @@ func generateEmbeddings(ctx context.Context, s *store.Store, symbols []index.Sym
 	return total, nil
 }
 
+// defaultWithEmbed reports the legacy --embed default: embeddings are on when
+// API credentials are available. Mirrors the cobra-era dynamic flag default.
+func defaultWithEmbed() bool { return embed.HasCredentials() }
+
 // resolveEmbedMode determines the effective embedding mode.
 func resolveEmbedMode(mode string, legacyEmbed bool, s *store.Store) string {
 	// Handle legacy --embed=false

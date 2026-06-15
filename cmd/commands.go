@@ -197,8 +197,8 @@ func (c *SymCmd) Run() error {
 type ExplainCmd struct {
 	Symbol string `arg:"" optional:"" help:"Symbol name"`
 
-	Mode     string `default:"normal" help:"Analysis depth: brief, normal, deep"`
-	Warnings string `default:"fast" help:"Warning level: none, fast, full"`
+	Mode     string `default:"normal" enum:"brief,normal,deep" help:"Analysis depth: brief, normal, deep"`
+	Warnings string `default:"fast" enum:"none,fast,full" help:"Warning level: none, fast, full"`
 	At       string `help:"Position to explain (file:line:col)"`
 }
 
@@ -294,7 +294,7 @@ type BoundaryCmd struct {
 	B string `arg:"" optional:"" name:"pkgset-b" help:"Second package set"`
 
 	Detailed  bool   `help:"List the crossing symbols, not just counts"`
-	Direction string `default:"both" help:"Direction filter: a-to-b, b-to-a, both"`
+	Direction string `default:"both" enum:"a-to-b,b-to-a,both" help:"Direction filter: a-to-b, b-to-a, both"`
 	Layers    string `help:"Layer spec for layered-boundary analysis"`
 }
 
@@ -473,14 +473,23 @@ type IndexCmd struct {
 	Path string `arg:"" optional:"" help:"Project path (default: current dir)"`
 
 	Embed       bool   `help:"Generate embeddings (deprecated: use --embed-mode)"`
-	EmbedMode   string `name:"embed-mode" default:"auto" help:"Embedding mode: auto, batch, realtime, off"`
+	EmbedMode   string `name:"embed-mode" default:"auto" enum:"auto,batch,realtime,off" help:"Embedding mode: auto, batch, realtime, off"`
 	Enrich      bool   `help:"Generate LLM-based symbol purposes (placeholder, not yet wired)"`
 	Force       bool   `help:"Force full re-index even if no changes detected"`
 	SkipMetrics bool   `name:"skip-metrics" help:"Skip graph metrics (PageRank) computation"`
 }
 
 func (c *IndexCmd) Run() error {
-	withEmbed = c.Embed
+	// Legacy --embed defaults to "embeddings on iff credentials are present"
+	// (cobra computed this default dynamically). Kong can't express a dynamic
+	// default in a struct tag, so honor an explicit --embed but otherwise fall
+	// back to credential detection — without this, resolveEmbedMode silently
+	// forces embedModeOff and the index ships with zero embeddings.
+	if flagPassed("embed") {
+		withEmbed = c.Embed
+	} else {
+		withEmbed = defaultWithEmbed()
+	}
 	embedMode = c.EmbedMode
 	forceIndex = c.Force
 	skipMetrics = c.SkipMetrics

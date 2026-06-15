@@ -95,7 +95,7 @@ type Globals struct {
 	KGHints       bool          `name:"kg-hints" help:"Include Orca KG hints"`
 	Suggestions   bool          `help:"Include next-step suggestions in Claude output"`
 	Timeout       time.Duration `help:"Timeout for command (e.g., 30s, 5m)"`
-	Select        string        `help:"Pick top candidates by score: all, best, top3, top5 (applied before --limit)" default:"all"`
+	Select        string        `help:"Pick top candidates by score: all, best, top3, top5 (applied before --limit)" default:"all" enum:"all,best,top3,top5"`
 	// Reserved for orca telemetry — hidden until persistToolCall is wired.
 	Caller    string `help:"Caller identifier (e.g., 'orca')" hidden:""`
 	RequestID string `name:"request-id" help:"Request correlation ID" hidden:""`
