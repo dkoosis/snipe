@@ -127,10 +127,20 @@ func LockPath(dbPath string) string {
 	return dbPath + ".lock"
 }
 
-// IsIndexing checks if indexing is in progress (lock file exists)
+// IsIndexing reports whether indexing is in progress. A lock file alone is not
+// enough: an interrupted `snipe index` leaves a stale lock that would otherwise
+// gate every read command forever. If the lock holder is dead, we opportunistically
+// remove the stale lock (same dead-PID logic as AcquireLock) and report not-indexing.
 func IsIndexing(dbPath string) bool {
-	_, err := os.Stat(LockPath(dbPath))
-	return err == nil
+	lockPath := LockPath(dbPath)
+	if _, err := os.Stat(lockPath); err != nil {
+		return false
+	}
+	// Lock exists — only "in progress" if the holder is still alive.
+	if tryRemoveStaleLock(lockPath) {
+		return false
+	}
+	return true
 }
 
 // AcquireLock creates a lock file for indexing.

@@ -311,6 +311,54 @@ func TestAcquireLockRecoversEmptyLockFile(t *testing.T) {
 	defer ReleaseLock(dbPath)
 }
 
+// TestIsIndexingFalseWhenNoLock confirms a missing lock file reports not-indexing.
+func TestIsIndexingFalseWhenNoLock(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	if IsIndexing(dbPath) {
+		t.Fatal("IsIndexing should be false when no lock file exists")
+	}
+}
+
+// TestIsIndexingTrueWhenLockAlive confirms a live lock holder reports in-progress.
+func TestIsIndexingTrueWhenLockAlive(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	if err := AcquireLock(dbPath); err != nil {
+		t.Fatalf("AcquireLock failed: %v", err)
+	}
+	defer ReleaseLock(dbPath)
+	if !IsIndexing(dbPath) {
+		t.Fatal("IsIndexing should be true while this process holds the lock")
+	}
+}
+
+// TestIsIndexingFalseWhenLockStale is the regression test for the bug where an
+// interrupted index left a lock with a dead PID, gating every read command
+// (diagram, etc.) even though the index was fresh. IsIndexing must detect the
+// dead holder, remove the stale lock, and report not-indexing.
+func TestIsIndexingFalseWhenLockStale(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	lockPath := LockPath(dbPath)
+
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0750); err != nil {
+		t.Fatal(err)
+	}
+	// Dead PID: a very high value that almost certainly isn't running.
+	if err := os.WriteFile(lockPath, []byte("9999999\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if IsIndexing(dbPath) {
+		t.Fatal("IsIndexing should be false when lock holder is dead")
+	}
+	// And the stale lock should have been cleaned up.
+	if Exists(lockPath) {
+		t.Fatal("IsIndexing should have removed the stale lock file")
+	}
+}
+
 // TestRemoveLockIfContentsMatch_RefusesWhenContentsChanged simulates the TOCTOU
 // scenario where, between a staleness verdict on a dead PID and the unlink, a
 // fresh process re-locks. The match check must refuse to remove the live lock.
