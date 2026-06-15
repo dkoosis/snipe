@@ -238,10 +238,14 @@ func kindSet(kinds []string) map[string]bool {
 	return m
 }
 
-// allowed reports whether file matches any allow-list suffix.
+// allowed reports whether file matches any allow-list suffix. The suffix must
+// align on a path boundary, so "db.go" matches "pkg/db.go" but not "validb.go".
 func allowed(allow []string, file string) bool {
 	for _, a := range allow {
-		if a != "" && strings.HasSuffix(file, a) {
+		if a == "" {
+			continue
+		}
+		if file == a || strings.HasSuffix(file, "/"+a) {
 			return true
 		}
 	}

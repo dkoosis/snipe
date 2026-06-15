@@ -12,8 +12,11 @@ func TestGuardAllowed(t *testing.T) {
 		"modules/agent/cost_budget.go":       true,
 		"modules/agent/supervisor/reload.go": true,
 		"modules/agent/agent.go":             false,
+		"agent/cost_budget.go":               true,  // whole-path match, no leading segment
+		"modules/agent/validb.go":            false, // must not match a "db.go" suffix mid-name
 		"":                                   false,
 	}
+	allow = append(allow, "db.go")
 	for file, want := range cases {
 		if got := allowed(allow, file); got != want {
 			t.Errorf("allowed(%q) = %v, want %v", file, got, want)
