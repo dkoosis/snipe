@@ -1,0 +1,6 @@
+# deadcode — exported symbols with zero non-test references.
+# Proves: Orphan (exported, unused) is reported under the deadcode header.
+cd $FIXTURE
+exec snipe deadcode
+stdout 'deadcode · \d+ unreferenced exports'
+stdout 'example.com/fixture.Orphan'

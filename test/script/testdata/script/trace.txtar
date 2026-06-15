@@ -1,0 +1,6 @@
+# trace — trace a string literal through its call context.
+# Proves: the named const Banner is found by its literal value.
+cd $FIXTURE
+exec snipe trace banner-token-literal
+stdout '# banner-token-literal — 1 ref'
+stdout 'const Banner = "banner-token-literal"'

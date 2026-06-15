@@ -1,0 +1,10 @@
+# embed-status — batch-embedding status. The batch client is constructed
+# eagerly, so a key must resolve (env or creds file) even though reporting the
+# no-batch state makes NO network call. A dummy key satisfies the constructor;
+# with --embed-mode=off there is no saved batch state, so LoadState returns nil
+# and the command short-circuits to no_batch without ever calling Voyage.
+env SNIPE_VOYAGE_API_KEY=test-dummy-no-network
+cd $FIXTURE
+exec snipe embed-status
+stdout 'no_batch'
+stdout 'No batch embedding job found'

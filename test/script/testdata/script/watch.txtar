@@ -1,0 +1,7 @@
+# watch (hidden) — long-running file-watch + reindex loop.
+# A full run never returns (it blocks watching for changes), so per the bead
+# exemption we assert only the --help fast-exit path: it prints usage and the
+# command's purpose, then exits 0.
+exec snipe watch --help
+stdout 'Usage: snipe watch'
+stdout 'Watch for file changes and reindex'

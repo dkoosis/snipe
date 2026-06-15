@@ -1,0 +1,9 @@
+# metrics — default (pagerank over the import graph) AND --kind=cycles.
+# Proves: the default kind ranks packages, and the cycles kind reports SCC count.
+cd $FIXTURE
+exec snipe metrics
+stdout 'imports graph · pagerank · top \d+'
+stdout 'example.com/fixture/alpha'
+
+exec snipe metrics --kind=cycles
+stdout 'imports graph · cycles · \d+ nontrivial SCCs'

@@ -1,0 +1,6 @@
+# boundary — cross-package ref report between two package sets.
+# Proves: bare package names resolve and B→A refs are counted (beta calls alpha.Greet).
+cd $FIXTURE
+exec snipe boundary alpha beta
+stdout '# boundary: \{example.com/fixture/alpha\}'
+stdout 'B→A: 1 refs to 1 symbols'

@@ -1,0 +1,8 @@
+# check (hidden) — check current performance against baseline.
+# `check` compares against a BASELINE.json, so capture one first.
+# Proves: full run against the indexed fixture emits a comparison record
+# carrying the freshly measured "current" snapshot.
+cd $FIXTURE
+exec snipe baseline
+exec snipe check
+stdout '"current":'

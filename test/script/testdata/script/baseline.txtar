@@ -1,0 +1,6 @@
+# baseline (hidden) — capture a performance baseline for the codebase.
+# Proves: full run against the indexed fixture emits a baseline record.
+cd $FIXTURE
+exec snipe baseline
+stdout '"go_version":'
+stdout '"codebase":'

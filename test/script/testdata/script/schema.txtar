@@ -1,0 +1,5 @@
+# schema — emit the JSON Schema for the response envelope. No index needed.
+# Proves: valid JSON Schema document with the snipe $id is printed.
+exec snipe schema
+stdout '"\$schema": "https://json-schema.org/draft/2020-12/schema"'
+stdout 'cmd/schema-response'

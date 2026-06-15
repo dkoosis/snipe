@@ -1,0 +1,8 @@
+# history (hidden) — show performance history over time.
+# History reads .snipe/metrics.jsonl, which `baseline` appends to — so
+# capture a baseline first to give history a row to report.
+# Proves: full run against the indexed fixture emits a history record array.
+cd $FIXTURE
+exec snipe baseline
+exec snipe history
+stdout '"timestamp":'

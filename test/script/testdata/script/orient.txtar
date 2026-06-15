@@ -1,0 +1,6 @@
+# orient — write a full orient bundle (context-full, deps, metrics, manifest).
+# Proves: the bundle is written and reports the file count + bundle id.
+cd $FIXTURE
+exec snipe orient --out $WORK/obundle
+stdout 'orient bundle · \d+ files'
+exists $WORK/obundle
