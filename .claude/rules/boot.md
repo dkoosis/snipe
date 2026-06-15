@@ -1,9 +1,10 @@
 # Boot
-updated: 2026-06-12 (e89192a)
+updated: 2026-06-15 (76d9975)
 
 → next: `bd ready` — testscript suite (snipe-p61) still `human`-flagged; wait for dk. Watch `snipe metrics --kind=usage` accumulate; re-mine transcripts ~mid-July against the 4:1 rg baseline. ‡ eval siblings need reindex before score comparisons (.test pkg removal changed symbol counts).
 
 ✓ done
+- `snipe guard` shipped (#162, snipe-guard): reference-graph boundary gate, kind filter, ratchet allow-list, fail-closed exits. Live-caught 6 agent→store violations in trixi. Post-review fix: allow-list suffix now path-aligned (`db.go` ≠ `validb.go`).
 - index-time invariants pass (5 beads, one session): "fix at write, not read"
   - .test binary pkgs dropped post-load — go-build cache pollution gone (111→0 symbols)
   - subcommand set derived from cobra tree (sync.Once); knownSubcommands map deleted
