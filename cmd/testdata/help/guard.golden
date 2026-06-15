@@ -1,0 +1,48 @@
+Enforce declared architecture boundaries against the indexed reference graph.
+
+guard reads a spec of deny rules and fails (exit 1) if any reference crosses a
+forbidden boundary. Unlike import-only linters it works on the REFERENCE graph,
+so a rule can forbid calls while allowing type imports (kinds: [func, method]).
+It is package-grained (suffix match), so rules survive a module->package collapse.
+
+Spec (.snipe/boundaries.yml by default):
+
+  version: 1
+  rules:
+    - name: shell-not-store
+      from: "agent/shell/..."      # recursive: pkg + descendants
+      to:   "persistence/store/..."
+      desc: "shell must not depend on store"
+    - name: agent-core-not-store
+      from: "agent/..."
+      to:   "persistence/store/..."
+      kinds: [func, method]        # call-level only (imports of types still allowed)
+      allow:                       # ratchet: exempt existing sites by file suffix
+        - "agent/cost_budget.go"
+
+An unmatched from/to pattern is a hard error (no silent no-op), exit 1.
+
+Examples:
+  snipe guard
+  snipe guard .snipe/boundaries.yml
+  snipe guard --format json
+
+Usage:
+  snipe guard [spec] [flags]
+
+Flags:
+  -h, --help   help for guard
+
+Global Flags:
+      --context int        Context lines around match (default 2)
+      --format string      concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY) (default "concise")
+      --kg-hints           Include Orca KG hints
+      --limit int          Cap results returned (applied after --select) (default 10)
+      --max-tokens int     Token budget (0 = unlimited)
+      --no-body            Exclude function body
+      --no-siblings        Exclude sibling declarations
+      --offset int         Pagination offset
+      --select string      Pick top candidates by score: all, best, top3, top5 (applied before --limit) (default "all")
+      --signature-only     Return only signature (no body, no context)
+      --suggestions        Include next-step suggestions in Claude output
+      --timeout duration   Timeout for command (e.g., 30s, 5m)
