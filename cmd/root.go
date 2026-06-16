@@ -523,6 +523,12 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		}
 	}
 
+	// Stamp the index-global self-assessment marker once: every query command
+	// routes through OpenStore, so this covers all of them uniformly (snipe-ffj).
+	if w != nil {
+		w.SetEmbedMissing(query.EmbedMissing(s.DB()))
+	}
+
 	return s, root, nil
 }
 

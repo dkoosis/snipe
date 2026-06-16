@@ -41,7 +41,15 @@ type Writer struct {
 	compact bool
 	format  OutputFormat
 	start   time.Time
+	// embedMissing, when set, appends `! noembed` to the meta line of Claude
+	// output — an index-global self-assessment marker stamped once at store
+	// open (see OpenStore) so every query command emits it uniformly.
+	embedMissing bool
 }
+
+// SetEmbedMissing records that the open index holds no embeddings, so the
+// `noembed` degraded marker should be emitted on this writer's responses.
+func (w *Writer) SetEmbedMissing(missing bool) { w.embedMissing = missing }
 
 // NewWriter creates a new output writer.
 // format controls rendering: "" (default) = Claude-optimized text, "json" = full JSON envelope.
@@ -241,6 +249,9 @@ func (w *Writer) writeClaudeMeta(b *strings.Builder, meta Meta) {
 	}
 	if len(meta.Degraded) > 0 {
 		parts = append(parts, meta.Degraded...)
+	}
+	if w.embedMissing {
+		parts = append(parts, DegradedNoEmbed)
 	}
 	for _, p := range parts {
 		b.WriteString("! ")

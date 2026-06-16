@@ -56,6 +56,12 @@ type Meta struct {
 	PkgDoc        string            `json:"pkg_doc,omitempty"`       // Package-level doc comment (set by `pkg`)
 }
 
+// DegradedNoEmbed is the stable degraded-marker token emitted (as `! noembed`
+// on default output) when a response was served from an index with no
+// embeddings, so semantic resolution was unavailable. Parsed by ferret and the
+// eval to separate genuine misses from semantic-unavailable repos — see snipe-ffj.
+const DegradedNoEmbed = "noembed"
+
 // IndexState represents the state of the index
 type IndexState string
 

@@ -13,6 +13,34 @@ import (
 
 const testMainGo = "main.go"
 
+// TestEmbedMissing: empty index reports missing; one embedding flips it.
+func TestEmbedMissing(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.Open(filepath.Join(dir, ".snipe", "index.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	if !EmbedMissing(s.DB()) {
+		t.Fatal("fresh index: want EmbedMissing=true, got false")
+	}
+
+	// SaveEmbedding has a FK to symbols — seed one.
+	if _, err := s.DB().Exec(`INSERT INTO symbols (id, name, kind, file_path, line_start, col_start, line_end, col_end)
+		VALUES ('sym1', 'Sym', 'func', 'main.go', 1, 1, 1, 1)`); err != nil {
+		t.Fatalf("seed symbol: %v", err)
+	}
+
+	if err := s.SaveEmbedding("sym1", []float32{0.1, 0.2, 0.3}, "test-model"); err != nil {
+		t.Fatalf("SaveEmbedding: %v", err)
+	}
+
+	if EmbedMissing(s.DB()) {
+		t.Fatal("after SaveEmbedding: want EmbedMissing=false, got true")
+	}
+}
+
 func TestCheckFileStaleness_FreshFiles(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, ".snipe", "index.db")

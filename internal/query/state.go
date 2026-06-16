@@ -12,6 +12,17 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 )
 
+// EmbedMissing reports whether the index holds zero embeddings, i.e. semantic
+// resolution is unavailable for this repo. Existence check (LIMIT 1), not a
+// COUNT, so it stays O(1) on the query hot path. A true result is the signal
+// that lets transcript mining (ferret) and the eval distinguish "snipe missed"
+// from "snipe couldn't run semantic here" — see snipe-ffj.
+func EmbedMissing(db *sql.DB) bool {
+	var one int
+	err := db.QueryRow(`SELECT 1 FROM embeddings LIMIT 1`).Scan(&one)
+	return errors.Is(err, sql.ErrNoRows)
+}
+
 // CheckIndexState computes current fingerprint and compares with stored
 func CheckIndexState(db *sql.DB, repoRoot, version string) output.IndexState {
 	// Compute current fingerprint
