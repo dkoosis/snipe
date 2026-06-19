@@ -59,6 +59,7 @@ func runDef(args []string) error {
 	var symbolID string
 	var queryInfo map[string]string
 	var decisionPath []string
+	var matchTier query.MatchTier
 
 	if defAt != "" {
 		// Resolve position
@@ -153,6 +154,7 @@ func runDef(args []string) error {
 			// Satisfies D2: "one command should just work".
 			if picked, ok := pickSelectedSymbol(symbols, name); ok {
 				symbolID = picked.ID
+				matchTier = picked.MatchTier
 				queryInfo = map[string]string{flagSymbol: name}
 				decisionPath = append(decisionPath, "lookup:name_select")
 				goto lookup
@@ -166,6 +168,7 @@ func runDef(args []string) error {
 		}
 
 		symbolID = symbols[0].ID
+		matchTier = symbols[0].MatchTier
 		queryInfo = map[string]string{flagSymbol: name}
 		decisionPath = append(decisionPath, "lookup:name")
 	}
@@ -189,6 +192,18 @@ lookup:
 
 	result := sym.ToResultWithHints(s.DB())
 	var degraded []string
+
+	// Self-assessment: if the name resolved via a degraded fallback rung rather
+	// than an exact match, emit the tier marker so ferret can tell a served
+	// query from a substituted one (snipe-ffj). Silence = served.
+	switch matchTier {
+	case query.MatchExact:
+		// Served: the literal query matched. Silence — no marker (D4).
+	case query.MatchCaseInsens:
+		degraded = append(degraded, output.DegradedCIMatch)
+	case query.MatchMethodByName:
+		degraded = append(degraded, output.DegradedMethodMatch)
+	}
 
 	// Record query in session for active work tracking
 	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameDef)

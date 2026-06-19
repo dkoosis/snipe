@@ -12,6 +12,22 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 )
 
+// MatchTier records which rung of the lookup ladder produced a row, but only
+// when that rung is a degraded fallback. Empty (MatchExact) means the literal
+// query was answered — the served case, which emits no marker (D4: the common
+// path pays zero tokens). It is transient state set during lookup, never read
+// from the DB.
+type MatchTier string
+
+const (
+	// MatchExact is the served case: name matched exactly. No marker.
+	MatchExact MatchTier = ""
+	// MatchCaseInsens means only a case-insensitive fallback matched.
+	MatchCaseInsens MatchTier = "ci"
+	// MatchMethodByName means a bare name fell back to method-by-receiver.
+	MatchMethodByName MatchTier = "method"
+)
+
 // SymbolRow represents a row from the symbols table
 type SymbolRow struct {
 	ID          string
@@ -28,6 +44,10 @@ type SymbolRow struct {
 	Doc         sql.NullString
 	Receiver    sql.NullString
 	FileHash    string // Content hash for change detection
+
+	// MatchTier is transient self-assessment: which ladder rung matched this
+	// row, set only on degraded fallbacks. Not a DB column.
+	MatchTier MatchTier
 }
 
 // LookupByID looks up a symbol by its ID.
@@ -294,6 +314,8 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 		return nil, err
 	}
 	if len(results) > 0 {
+		// Degraded: the literal name missed; only a case-fold match landed.
+		stampTier(results, MatchCaseInsens)
 		return results, nil
 	}
 
@@ -301,10 +323,23 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 	// Only triggers when the name looks like an exported identifier (no dots, parens, slashes).
 	if len(name) > 0 && name[0] >= 'A' && name[0] <= 'Z' &&
 		!strings.Contains(name, ".") && !strings.Contains(name, "(") {
-		return lookupMethodByName(db, name)
+		results, err := lookupMethodByName(db, name)
+		if err != nil {
+			return nil, err
+		}
+		// Degraded: a bare name was answered by a method-by-receiver match.
+		stampTier(results, MatchMethodByName)
+		return results, nil
 	}
 
 	return nil, nil
+}
+
+// stampTier records the degraded match rung on every row in place.
+func stampTier(rows []SymbolRow, tier MatchTier) {
+	for i := range rows {
+		rows[i].MatchTier = tier
+	}
 }
 
 func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
