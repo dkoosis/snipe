@@ -253,6 +253,15 @@ func runSearch(args []string) error {
 		searchDegraded = []string{"rg_only"}
 	}
 
+	// Self-assessment: a pure semantic fallback (rg returned nothing, snipe
+	// substituted the nearest embeddings) is a graded substitution whose cosine
+	// score is otherwise dropped from default output. Emit `! semantic:0.62`
+	// attributed to the top hit so the substitution — and its strength — is
+	// visible to ferret and the agent (snipe-ffj).
+	if usedFallback && len(results) > 0 {
+		searchDegraded = append(searchDegraded, output.SemanticMarker(results[0].Score))
+	}
+
 	// If summary mode, return condensed output
 	if summary {
 		summaryData := output.BuildSummary(results)

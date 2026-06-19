@@ -70,6 +70,20 @@ const DegradedNoEmbed = "noembed"
 // snipe-ffj.
 const DegradedCIMatch = "ci-match"
 
+// DegradedSemantic is the marker kind for a semantic-fallback substitution.
+const DegradedSemantic = "semantic"
+
+// SemanticMarker formats the kind+magnitude self-assessment token emitted (as
+// `! semantic:0.62` on default output) when a search resolved purely via
+// semantic fallback — ripgrep returned nothing and snipe substituted the
+// nearest embeddings. Unlike the boolean ci-match marker, this carries the top
+// hit's cosine similarity so ferret (and the agent) can weigh how strong the
+// substitution was; the score is otherwise dropped from default output. The
+// literal-match path stays silent (D4). See snipe-ffj.
+func SemanticMarker(topScore float64) string {
+	return fmt.Sprintf("%s:%.2f", DegradedSemantic, topScore)
+}
+
 // IndexState represents the state of the index
 type IndexState string
 

@@ -76,6 +76,40 @@ func TestSearch_ThresholdFiltersAndSortsByScore(t *testing.T) {
 	}
 }
 
+// TestSearch_TopResultCarriesCosineScore runtime-confirms the input to the
+// `! semantic:N` marker (snipe-ffj): a fallback hit carries its cosine
+// similarity on Result.Score, top result first. This score is dropped from
+// default Claude output, which is why the marker re-surfaces it.
+func TestSearch_TopResultCarriesCosineScore(t *testing.T) {
+	s := openSearchTestStore(t)
+	writeSymbols(t, s, []index.Symbol{
+		{ID: "sym1", Name: "Exact", Kind: index.KindFunc, FilePath: "/t.go", LineStart: 1, ColStart: 1, LineEnd: 5, ColEnd: 1, Signature: "func Exact()"},
+		{ID: "sym2", Name: "Near", Kind: index.KindFunc, FilePath: "/t.go", LineStart: 10, ColStart: 1, LineEnd: 15, ColEnd: 1, Signature: "func Near()"},
+	})
+	// sym1 == query → sim 1.0; sym2 at 45° → sim ~0.707.
+	if err := s.SaveEmbedding("sym1", []float32{1, 0, 0}, "test"); err != nil {
+		t.Fatalf("SaveEmbedding sym1: %v", err)
+	}
+	if err := s.SaveEmbedding("sym2", []float32{1, 1, 0}, "test"); err != nil {
+		t.Fatalf("SaveEmbedding sym2: %v", err)
+	}
+
+	results, _, err := Search(context.Background(), "query", s, &mockEmbedder{vec: []float32{1, 0, 0}}, 10, 0.3)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	// Top hit first, score populated and in descending order.
+	if results[0].Score < results[1].Score {
+		t.Errorf("results not sorted by score desc: %v < %v", results[0].Score, results[1].Score)
+	}
+	if results[0].Score < 0.99 {
+		t.Errorf("top hit: want cosine ~1.0, got %v", results[0].Score)
+	}
+}
+
 func TestSearch_RespectsLimit(t *testing.T) {
 	s := openSearchTestStore(t)
 	writeSymbols(t, s, []index.Symbol{
