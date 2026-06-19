@@ -16,6 +16,7 @@ How to work on snipe. Stable — only update when the workflow itself changes.
 - One task per session. Finish it or document why it's blocked.
 - Commit after each logical unit that passes `make`.
 - For removals: batch by file/package, `make audit` after each batch.
+- ‡ **Batch small fixes → one PR.** Several small/independent fixes in flight → ONE branch, ONE PR, one commit per fix. `make audit`/CI fires once at the PR (+ once on merge to main), NOT once per fix — a PR-per-one-liner serializes the queue behind build time. Each fix stays its own commit (traceable); PR body lists them. Bundle by session/theme; ✗ mix a risky change in with trivial ones (it drags the whole PR's review bar up). **Default: auto-batch** — ≥2 small fixes queued → roll them onto one PR without asking.
 
 ### Verification evidence
 
