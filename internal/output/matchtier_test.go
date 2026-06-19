@@ -31,10 +31,7 @@ func TestClaudeMatchTierMarker(t *testing.T) {
 	if got := render(DegradedCIMatch); !strings.Contains(got, "! "+DegradedCIMatch) {
 		t.Errorf("ci-match: want %q in output, got:\n%s", "! "+DegradedCIMatch, got)
 	}
-	if got := render(DegradedMethodMatch); !strings.Contains(got, "! "+DegradedMethodMatch) {
-		t.Errorf("method-match: want %q in output, got:\n%s", "! "+DegradedMethodMatch, got)
-	}
-	if got := render(); strings.Contains(got, "! ci-match") || strings.Contains(got, "! method-match") {
+	if got := render(); strings.Contains(got, "! ci-match") {
 		t.Errorf("served: want no tier marker, got:\n%s", got)
 	}
 }

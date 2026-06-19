@@ -201,8 +201,6 @@ lookup:
 		// Served: the literal query matched. Silence — no marker (D4).
 	case query.MatchCaseInsens:
 		degraded = append(degraded, output.DegradedCIMatch)
-	case query.MatchMethodByName:
-		degraded = append(degraded, output.DegradedMethodMatch)
 	}
 
 	// Record query in session for active work tracking

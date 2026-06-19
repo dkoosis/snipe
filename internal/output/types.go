@@ -62,16 +62,13 @@ type Meta struct {
 // eval to separate genuine misses from semantic-unavailable repos — see snipe-ffj.
 const DegradedNoEmbed = "noembed"
 
-// DegradedCIMatch and DegradedMethodMatch are stable degraded-marker tokens
-// emitted (as `! ci-match` / `! method-match` on default output) when a bare
-// name resolved via a fallback rung rather than an exact match: case-insensitive
-// or method-by-receiver. Silence still means the literal query was served. These
-// let ferret tell "snipe answered as asked" from "snipe substituted a guess"
-// without the marker being visible to the user as an error — see snipe-ffj.
-const (
-	DegradedCIMatch     = "ci-match"
-	DegradedMethodMatch = "method-match"
-)
+// DegradedCIMatch is the stable degraded-marker token emitted (as `! ci-match`
+// on default output) when a bare name resolved only via the case-insensitive
+// fallback rung rather than an exact match. Silence still means the literal
+// query was served. Lets ferret tell "snipe answered as asked" from "snipe
+// substituted a guess" without the marker being a user-visible error — see
+// snipe-ffj.
+const DegradedCIMatch = "ci-match"
 
 // IndexState represents the state of the index
 type IndexState string

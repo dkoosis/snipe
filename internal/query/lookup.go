@@ -24,8 +24,6 @@ const (
 	MatchExact MatchTier = ""
 	// MatchCaseInsens means only a case-insensitive fallback matched.
 	MatchCaseInsens MatchTier = "ci"
-	// MatchMethodByName means a bare name fell back to method-by-receiver.
-	MatchMethodByName MatchTier = "method"
 )
 
 // SymbolRow represents a row from the symbols table
@@ -319,19 +317,10 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 		return results, nil
 	}
 
-	// Method name fallback: "ListFiles" matches methods with any receiver.
-	// Only triggers when the name looks like an exported identifier (no dots, parens, slashes).
-	if len(name) > 0 && name[0] >= 'A' && name[0] <= 'Z' &&
-		!strings.Contains(name, ".") && !strings.Contains(name, "(") {
-		results, err := lookupMethodByName(db, name)
-		if err != nil {
-			return nil, err
-		}
-		// Degraded: a bare name was answered by a method-by-receiver match.
-		stampTier(results, MatchMethodByName)
-		return results, nil
-	}
-
+	// No method-by-name fallback is needed: methods are stored bare-named and
+	// the exact query above has no kind filter, so a bare method name (e.g.
+	// "ListFiles") already resolves at the exact rung. A dedicated rung here
+	// would share the same `name = ?` predicate and never add rows.
 	return nil, nil
 }
 
@@ -421,25 +410,6 @@ func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error) {
 	rows, err := db.Query(q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query method: %w", err)
-	}
-	defer rows.Close()
-
-	return scanSymbolRows(rows)
-}
-
-// lookupMethodByName finds methods matching a bare name across all receivers.
-// e.g. "ListFiles" finds (*DiskSpacePrimitives).ListFiles, (*MemoryStore).ListFiles, etc.
-func lookupMethodByName(db *sql.DB, name string) ([]SymbolRow, error) {
-	rows, err := db.Query(`
-		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
-		       s.signature, s.doc, s.receiver, f.hash
-		FROM symbols s
-		LEFT JOIN files f ON s.file_path = f.path
-		WHERE s.name = ? AND s.receiver IS NOT NULL AND s.receiver != ''
-		ORDER BY s.kind, s.file_path, s.line_start
-	`, name)
-	if err != nil {
-		return nil, fmt.Errorf("query method by bare name: %w", err)
 	}
 	defer rows.Close()
 
