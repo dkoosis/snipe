@@ -670,9 +670,15 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 	}
 	fmt.Fprintf(os.Stderr, "Found %d imports\n", len(imports))
 
-	// Write incremental update
+	// Extract string literals for changed files only — written atomically
+	// inside WriteIndexIncremental's tx so symbols + literal-refs for a
+	// changed file commit in the same generation (snipe-er5).
+	literals := index.ExtractLiteralsFiltered(result, allSymbols, onlyFiles)
+	fmt.Fprintf(os.Stderr, "Found %d string literals in changed files\n", len(literals))
+
+	// Write incremental update (symbols, refs, edges, imports, literals)
 	fmt.Fprintf(os.Stderr, "Writing incremental index...\n")
-	incResult, err := s.WriteIndexIncremental(changedSymbols, refs, edges, imports, changedFiles, changes.Deleted)
+	incResult, err := s.WriteIndexIncremental(changedSymbols, refs, edges, imports, literals, changedFiles, changes.Deleted)
 	if err != nil {
 		return fmt.Errorf("write incremental index: %w", err)
 	}
@@ -680,13 +686,6 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 	// Write package docs (full replace — cheap and ensures consistency)
 	if err := s.WritePackageDocs(pkgDocs); err != nil {
 		return fmt.Errorf("write package docs: %w", err)
-	}
-
-	// Extract and write string literals for changed files only
-	literals := index.ExtractLiteralsFiltered(result, allSymbols, onlyFiles)
-	fmt.Fprintf(os.Stderr, "Found %d string literals in changed files\n", len(literals))
-	if err := s.WriteLiteralsForFiles(literals, changedFiles, changes.Deleted, absDir); err != nil {
-		return fmt.Errorf("write literals incremental: %w", err)
 	}
 
 	// Update file hashes for ALL files (cheap stat calls)
@@ -721,16 +720,12 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 	nDel := len(changes.Deleted)
 	fmt.Fprintf(os.Stderr, "Delete-only: removing %d files (skipping package load)\n", nDel)
 
-	// Remove symbols, refs, edges, imports, embeddings, purposes, and file entries
-	// for deleted files (all within a single transaction in WriteIndexIncremental)
-	incResult, err := s.WriteIndexIncremental(nil, nil, nil, nil, nil, changes.Deleted)
+	// Remove symbols, refs, edges, imports, string_refs, embeddings, purposes,
+	// and file entries for deleted files — all within a single transaction in
+	// WriteIndexIncremental (nil literals + deleted files prunes string_refs).
+	incResult, err := s.WriteIndexIncremental(nil, nil, nil, nil, nil, nil, changes.Deleted)
 	if err != nil {
 		return fmt.Errorf("delete-only incremental: %w", err)
-	}
-
-	// Remove string_refs for deleted files
-	if err := s.WriteLiteralsForFiles(nil, nil, changes.Deleted, ""); err != nil {
-		return fmt.Errorf("delete literals: %w", err)
 	}
 
 	// Update metadata
