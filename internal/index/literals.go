@@ -149,7 +149,7 @@ func extractConstLiterals(decl *ast.GenDecl, filePath string, fset *token.FileSe
 // literalID generates a stable 16-char hex ID for a string ref.
 func literalID(r StringRef) string {
 	h := sha256.Sum256(fmt.Appendf(nil, "%s:%d:%d:%s", r.FilePath, r.Line, r.Col, r.Value))
-	return hex.EncodeToString(h[:])[:16]
+	return hex.EncodeToString(h[:8])
 }
 
 // buildGlobalEnclosingMap returns map[filePath][line] -> enclosing symbol ID.
