@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -64,9 +65,28 @@ func maybeSelfHeal(s *store.Store, root string) bool {
 	if err != nil {
 		return false
 	}
-	cmd := exec.Command(exe, "index", "--embed-mode=off", "--enrich=false", root)
+
+	// Honor the command context (--timeout / SIGINT) so a heal can never block a
+	// query past its caller's wall-clock budget. CommandContext also kills the
+	// child when ctx fires; runHealCmd's select adds the 15s backstop.
+	ctx := GetContext()
+	cmd := exec.CommandContext(ctx, exe, "index", "--embed-mode=off", "--enrich=false", root)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
+	if !runHealCmd(ctx, cmd) {
+		return false
+	}
+
+	fmt.Fprintf(os.Stderr, "healed index: %d changed files reindexed\n", changes.TotalChanged())
+	return true
+}
+
+// runHealCmd starts cmd and waits for it under three exit conditions: clean
+// finish (true), ctx cancellation (kill + drain, false), or the healTimeout
+// backstop (kill + drain, false). It is the testable seam for the ctx-honoring
+// behavior — maybeSelfHeal's store/fingerprint preamble makes it hard to drive
+// end to end, so the subprocess lifecycle lives here on its own.
+func runHealCmd(ctx context.Context, cmd *exec.Cmd) bool {
 	if err := cmd.Start(); err != nil {
 		return false
 	}
@@ -75,17 +95,16 @@ func maybeSelfHeal(s *store.Store, root string) bool {
 	go func() { done <- cmd.Wait() }()
 	select {
 	case err := <-done:
-		if err != nil {
-			return false
-		}
+		return err == nil
+	case <-ctx.Done():
+		_ = cmd.Process.Kill()
+		<-done
+		return false
 	case <-time.After(healTimeout):
 		_ = cmd.Process.Kill()
 		<-done
 		return false
 	}
-
-	fmt.Fprintf(os.Stderr, "healed index: %d changed files reindexed\n", changes.TotalChanged())
-	return true
 }
 
 // shouldHeal is the inline-heal decision: small drift heals, large drift warns.
