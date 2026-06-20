@@ -436,14 +436,21 @@ type IncrementalResult struct {
 }
 
 // WriteIndexIncremental updates the index for changed/deleted files only.
-// Symbols for changed files are replaced; refs, call edges, and imports from
-// changed files are deleted and re-inserted. Unchanged files are left in place.
-// FK constraints are disabled during the write; orphaned refs are counted afterward.
+// Symbols for changed files are replaced; refs, call edges, imports, and
+// string literals from changed files are deleted and re-inserted. Unchanged
+// files are left in place. FK constraints are disabled during the write;
+// orphaned refs are counted afterward.
+//
+// Literal refs (string_refs) are folded into this same transaction so a
+// changed file's symbols and its literal-refs commit atomically — a crash can
+// never leave string_refs describing a prior generation while symbols reflect
+// the new one (snipe-er5).
 func (s *Store) WriteIndexIncremental(
 	changedSymbols []index.Symbol,
 	newRefs []index.Ref,
 	newEdges []index.CallEdge,
 	newImports []index.Import,
+	literals []index.StringRef,
 	changedFiles []string,
 	deletedFiles []string,
 ) (res *IncrementalResult, err error) {
@@ -468,7 +475,14 @@ func (s *Store) WriteIndexIncremental(
 		return nil, fmt.Errorf("disable FK: %w", err)
 	}
 	defer func() {
-		_, _ = conn.ExecContext(context.Background(), "PRAGMA foreign_keys=ON")
+		// Re-enable FK on the pooled connection. SetMaxOpenConns(1) means
+		// conn.Close() returns this physical connection to the idle pool, so a
+		// silently-failed restore would leave FK enforcement off for every
+		// later write/read in the process. Surface the error into the named
+		// return (only when no earlier error already won) so it can't be lost.
+		if _, ferr := conn.ExecContext(context.Background(), "PRAGMA foreign_keys=ON"); ferr != nil && err == nil {
+			err = fmt.Errorf("re-enable FK: %w", ferr)
+		}
 	}()
 
 	tx, err := conn.BeginTx(context.Background(), nil)
@@ -539,6 +553,19 @@ func (s *Store) WriteIndexIncremental(
 	// Insert new imports
 	if err := writeImports(tx, newImports); err != nil {
 		return nil, fmt.Errorf("write imports: %w", err)
+	}
+
+	// Replace string literals for affected files in the SAME transaction.
+	// Folding this here (vs a separate WriteLiteralsForFiles tx) keeps a
+	// changed file's symbols and its literal-refs in the same generation —
+	// a crash can't leave lits/trace pointing at pre-edit lines (snipe-er5).
+	for _, f := range allAffected {
+		if _, err := tx.Exec(`DELETE FROM string_refs WHERE file_path = ?`, f); err != nil {
+			return nil, fmt.Errorf("delete string_refs for %s: %w", f, err)
+		}
+	}
+	if err := insertLiterals(tx, literals, repoRoot); err != nil {
+		return nil, fmt.Errorf("write string literals: %w", err)
 	}
 
 	// Sweep orphaned refs: refs from unchanged files may still point at

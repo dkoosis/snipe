@@ -3,6 +3,7 @@ package search
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,7 +44,15 @@ type rgSubmatch struct {
 
 // Search runs ripgrep and returns formatted results.
 // Optional globs are passed as --glob flags to rg (e.g., "*.go", "store.go").
-func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]output.Result, error) {
+//
+// ctx bounds the rg subprocess: cancelling it (timeout or SIGINT) kills rg and
+// makes Search return promptly, instead of blocking until a pathological pattern
+// finishes. A nil ctx is treated as context.Background().
+func Search(ctx context.Context, dir, pattern string, limit, contextLines int, globs ...string) ([]output.Result, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if _, err := exec.LookPath("rg"); err != nil {
 		return nil, fmt.Errorf("ripgrep (rg) not found: install from https://github.com/BurntSushi/ripgrep")
 	}
@@ -79,7 +88,7 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 
 	args = append(args, pattern, dir)
 
-	cmd := exec.Command("rg", args...) // #nosec G204 -- args constructed internally, rg is trusted CLI tool
+	cmd := exec.CommandContext(ctx, "rg", args...) // #nosec G204 -- args constructed internally, rg is trusted CLI tool
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("create pipe: %w", err)
@@ -163,6 +172,14 @@ func Search(dir, pattern string, limit, contextLines int, globs ...string) ([]ou
 	// Exit code -1 means rg was killed by a signal (e.g. SIGPIPE from our
 	// early pipe close) — safe to ignore when we already have results.
 	if err := cmd.Wait(); err != nil {
+		// A context cancellation (timeout or SIGINT) kills rg with a signal,
+		// surfacing as ExitCode() == -1 — the same code as the deliberate
+		// pipe-close we do at the result limit. Disambiguate via ctx: if it
+		// fired, any results are a truncated search, so report cancellation
+		// instead of passing partial results off as a clean early stop.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return results, ctxErr
+		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			switch code := exitErr.ExitCode(); {

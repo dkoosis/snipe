@@ -284,7 +284,7 @@ func runIndex(args []string) error {
 	case embedModeOff:
 		embedStatus = "disabled"
 	case embedModeBatch:
-		status, err := startBatchEmbeddings(GetContext(), absDir, symbols, fp.Combined)
+		status, err := startBatchEmbeddings(GetContext(), s, absDir, symbols, fp.Combined)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: batch embedding failed: %v\n", err)
 			embedStatus = batchStatusFailed
@@ -433,9 +433,52 @@ func resolveEmbedMode(mode string, legacyEmbed bool, s *store.Store) string {
 // batchStaleThreshold is how long a batch can be in validating/in_progress before considered stale.
 const batchStaleThreshold = 12 * time.Hour
 
+// recoverCompletedBatch downloads and saves the results of an already-completed
+// batch, reusing the caller's open store handle so the write goes through ONE
+// connection pool rather than contending on the SQLite WAL lock (snipe-apz).
+//
+// Returns:
+//   - (false, nil): the batch is for a different index generation; state has
+//     been cleared and the caller should start a fresh batch.
+//   - (true, nil):  results were saved and batch state cleared.
+//   - (true, err):  the save failed; batch_state.json is PRESERVED so the paid
+//     batch stays recoverable. The caller must NOT start a new batch (that would
+//     re-bill and orphan the completed one) — surface the error instead.
+func recoverCompletedBatch(ctx context.Context, client *embed.BatchClient, state *embed.BatchState, s *store.Store, fingerprint string) (bool, error) {
+	if !state.MatchesFingerprint(fingerprint) {
+		fmt.Fprintf(os.Stderr, "  Batch was created for a different index version, discarding stale results...\n")
+		if clearErr := client.ClearState(); clearErr != nil {
+			return false, fmt.Errorf("clear stale batch state: %w", clearErr)
+		}
+		return false, nil
+	}
+
+	// Batch completed but results never processed — auto-recover.
+	fmt.Fprintf(os.Stderr, "  Batch completed, recovering results...\n")
+	count, dlErr := downloadAndSaveEmbeddings(ctx, client, state, s)
+	if dlErr != nil {
+		// A save error (locked rows) or a download/parse error (expired output,
+		// API error) leaves batch_state.json in place so the paid batch stays
+		// recoverable next run. Do NOT ClearState, do NOT start a fresh batch.
+		fmt.Fprintf(os.Stderr, "  Recovery failed: %v\n", dlErr)
+		fmt.Fprintf(os.Stderr, "  Keeping batch state for recovery; not starting a new batch.\n")
+		return true, fmt.Errorf("recover batch embeddings (%d saved): %w", count, dlErr)
+	}
+
+	// Genuine full save — safe to clear batch state.
+	fmt.Fprintf(os.Stderr, "  Recovered %d embeddings from completed batch\n", count)
+	if clearErr := client.ClearState(); clearErr != nil {
+		fmt.Fprintf(os.Stderr, "  Warning: failed to clear state: %v\n", clearErr)
+	}
+	return true, nil
+}
+
 // startBatchEmbeddings initiates async batch embedding via Voyage API.
 // fingerprint identifies the index generation that these embeddings belong to.
-func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.Symbol, fingerprint string) (string, error) {
+// s is the caller's already-open store; the recovery branch reuses it so a
+// recovered batch writes through ONE connection pool instead of opening a
+// second handle that contends on the SQLite WAL lock (snipe-apz).
+func startBatchEmbeddings(ctx context.Context, s *store.Store, repoRoot string, symbols []index.Symbol, fingerprint string) (string, error) {
 	snipeDir := filepath.Join(repoRoot, ".snipe")
 	client, err := embed.NewBatchClient(snipeDir)
 	if err != nil {
@@ -459,6 +502,25 @@ func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.
 		if clearErr := client.ClearState(); clearErr != nil {
 			return "", fmt.Errorf("clear creating-state breadcrumb: %w", clearErr)
 		}
+		state = nil
+	}
+
+	// A persisted "completed" status means a prior `snipe embed-status` (or index
+	// recovery) fetched a finished batch but failed to download/save its results
+	// and preserved the state for recovery (snipe-apz). Re-attempt the save here
+	// instead of falling through to start a fresh, double-billed batch that would
+	// also orphan the paid completed one. (The validating/in_progress branch below
+	// only discovers a completed batch via the API; a state file already marked
+	// completed would otherwise slip past it unrecovered.)
+	if state != nil && state.Status == batchStatusCompleted {
+		handled, rErr := recoverCompletedBatch(ctx, client, state, s, fingerprint)
+		if rErr != nil {
+			return "", rErr
+		}
+		if handled {
+			return "batch_recovered", nil
+		}
+		// Fingerprint mismatch: state cleared, fall through to start a new batch.
 		state = nil
 	}
 
@@ -490,43 +552,22 @@ func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.
 					}
 					// Fall through to start new batch
 				case batchStatusCompleted:
-					// Check if batch was created for a different index generation
-					if !state.MatchesFingerprint(fingerprint) {
-						fmt.Fprintf(os.Stderr, "  Batch was created for a different index version, discarding stale results...\n")
-						if clearErr := client.ClearState(); clearErr != nil {
-							return "", fmt.Errorf("clear stale batch state: %w", clearErr)
-						}
-						// Fall through to start new batch
-					} else {
-						// Batch completed but results never processed — auto-recover
-						fmt.Fprintf(os.Stderr, "  Batch completed, recovering results...\n")
+					// Update state with output file info from API, then recover.
+					state.Status = batchStatusCompleted
+					state.OutputFileID = actualStatus.OutputFileID
+					state.ErrorFileID = actualStatus.ErrorFileID
+					state.Completed = actualStatus.RequestCounts.Completed
+					state.Failed = actualStatus.RequestCounts.Failed
+					state.UpdatedAt = time.Now()
 
-						// Update state with output file info from API
-						state.Status = batchStatusCompleted
-						state.OutputFileID = actualStatus.OutputFileID
-						state.ErrorFileID = actualStatus.ErrorFileID
-						state.Completed = actualStatus.RequestCounts.Completed
-						state.Failed = actualStatus.RequestCounts.Failed
-						state.UpdatedAt = time.Now()
-
-						dbPath := store.DefaultIndexPath(repoRoot)
-						count, dlErr := downloadAndSaveEmbeddings(ctx, client, state, dbPath)
-						if dlErr != nil {
-							// Download failed (expired output, API error) — clear and restart
-							fmt.Fprintf(os.Stderr, "  Recovery failed: %v\n", dlErr)
-							fmt.Fprintf(os.Stderr, "  Clearing state and starting fresh...\n")
-							if clearErr := client.ClearState(); clearErr != nil {
-								return "", fmt.Errorf("clear failed batch state: %w", clearErr)
-							}
-							// Fall through to start new batch
-						} else {
-							fmt.Fprintf(os.Stderr, "  Recovered %d embeddings from completed batch\n", count)
-							if clearErr := client.ClearState(); clearErr != nil {
-								fmt.Fprintf(os.Stderr, "  Warning: failed to clear state: %v\n", clearErr)
-							}
-							return "batch_recovered", nil
-						}
+					handled, rErr := recoverCompletedBatch(ctx, client, state, s, fingerprint)
+					if rErr != nil {
+						return "", rErr
 					}
+					if handled {
+						return "batch_recovered", nil
+					}
+					// Fingerprint mismatch: state cleared, fall through to new batch.
 				default:
 					// Batch is still running according to API, but very old
 					fmt.Fprintf(os.Stderr, "  Batch is still %q according to Voyage AI.\n", actualStatus.Status)
@@ -670,9 +711,15 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 	}
 	fmt.Fprintf(os.Stderr, "Found %d imports\n", len(imports))
 
-	// Write incremental update
+	// Extract string literals for changed files only — written atomically
+	// inside WriteIndexIncremental's tx so symbols + literal-refs for a
+	// changed file commit in the same generation (snipe-er5).
+	literals := index.ExtractLiteralsFiltered(result, allSymbols, onlyFiles)
+	fmt.Fprintf(os.Stderr, "Found %d string literals in changed files\n", len(literals))
+
+	// Write incremental update (symbols, refs, edges, imports, literals)
 	fmt.Fprintf(os.Stderr, "Writing incremental index...\n")
-	incResult, err := s.WriteIndexIncremental(changedSymbols, refs, edges, imports, changedFiles, changes.Deleted)
+	incResult, err := s.WriteIndexIncremental(changedSymbols, refs, edges, imports, literals, changedFiles, changes.Deleted)
 	if err != nil {
 		return fmt.Errorf("write incremental index: %w", err)
 	}
@@ -680,13 +727,6 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 	// Write package docs (full replace — cheap and ensures consistency)
 	if err := s.WritePackageDocs(pkgDocs); err != nil {
 		return fmt.Errorf("write package docs: %w", err)
-	}
-
-	// Extract and write string literals for changed files only
-	literals := index.ExtractLiteralsFiltered(result, allSymbols, onlyFiles)
-	fmt.Fprintf(os.Stderr, "Found %d string literals in changed files\n", len(literals))
-	if err := s.WriteLiteralsForFiles(literals, changedFiles, changes.Deleted, absDir); err != nil {
-		return fmt.Errorf("write literals incremental: %w", err)
 	}
 
 	// Update file hashes for ALL files (cheap stat calls)
@@ -721,16 +761,12 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 	nDel := len(changes.Deleted)
 	fmt.Fprintf(os.Stderr, "Delete-only: removing %d files (skipping package load)\n", nDel)
 
-	// Remove symbols, refs, edges, imports, embeddings, purposes, and file entries
-	// for deleted files (all within a single transaction in WriteIndexIncremental)
-	incResult, err := s.WriteIndexIncremental(nil, nil, nil, nil, nil, changes.Deleted)
+	// Remove symbols, refs, edges, imports, string_refs, embeddings, purposes,
+	// and file entries for deleted files — all within a single transaction in
+	// WriteIndexIncremental (nil literals + deleted files prunes string_refs).
+	incResult, err := s.WriteIndexIncremental(nil, nil, nil, nil, nil, nil, changes.Deleted)
 	if err != nil {
 		return fmt.Errorf("delete-only incremental: %w", err)
-	}
-
-	// Remove string_refs for deleted files
-	if err := s.WriteLiteralsForFiles(nil, nil, changes.Deleted, ""); err != nil {
-		return fmt.Errorf("delete literals: %w", err)
 	}
 
 	// Update metadata

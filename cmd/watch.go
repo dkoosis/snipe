@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 )
+
+// watchDrainTimeout bounds the best-effort final reindex performed when the
+// watch loop is cancelled, so shutdown can't hang.
+const watchDrainTimeout = 5 * time.Second
 
 var (
 	watchDebounce int
@@ -52,12 +57,7 @@ func runWatch() error {
 	var pendingFiles []string
 	debounceDuration := time.Duration(watchDebounce) * time.Millisecond
 
-	type reindexResult struct {
-		files   []string
-		elapsed time.Duration
-		err     error
-	}
-	reindexDone := make(chan reindexResult, 1)
+	reindexDone := make(chan reindexResultT, 1)
 	indexing := false
 
 	startReindex := func(files []string) {
@@ -69,8 +69,8 @@ func runWatch() error {
 		})
 		go func() {
 			start := time.Now()
-			err := runReindex(dir)
-			reindexDone <- reindexResult{files: files, elapsed: time.Since(start), err: err}
+			err := runReindex(GetContext(), dir)
+			reindexDone <- reindexResultT{files: files, elapsed: time.Since(start), err: err}
 		}()
 	}
 
@@ -185,6 +185,11 @@ func runWatch() error {
 			})
 
 		case <-GetContext().Done():
+			// Best-effort final drain: a reindex finishing concurrently with
+			// cancel (or files queued during one) would otherwise be dropped,
+			// losing the last edit before Ctrl+C. The parent ctx is already
+			// cancelled, so use a fresh bounded context for the drain.
+			drainOnCancel(dir, indexing, pendingFiles, reindexDone)
 			emitEvent(WatchEvent{
 				Event:     "stopped",
 				Timestamp: time.Now().Format(time.RFC3339),
@@ -192,6 +197,84 @@ func runWatch() error {
 			return GetContext().Err()
 		}
 	}
+}
+
+// drainOnCancel performs a best-effort final reindex when the watch loop is
+// cancelled, so files edited just before shutdown aren't silently dropped.
+//
+// If a reindex is already in flight (indexing), it waits briefly (bounded) for
+// it to finish, folding any files it carried plus newly-pending files into the
+// drain set, rather than starting an overlapping reindex. It then runs ONE last
+// synchronous reindex with a short bounded context if anything remains pending.
+//
+// reindexFn is injectable for testing; nil falls back to the real runReindex.
+func drainOnCancel(dir string, indexing bool, pending []string, reindexDone <-chan reindexResultT) {
+	drainOnCancelWith(dir, indexing, pending, reindexDone, nil)
+}
+
+// reindexResultT carries a reindex goroutine's outcome on reindexDone. It is a
+// package-level type (not loop-local) so the drainOnCancel seam can be
+// unit-tested without reconstructing the watch loop.
+type reindexResultT struct {
+	files   []string
+	elapsed time.Duration
+	err     error
+}
+
+func drainOnCancelWith(
+	dir string,
+	indexing bool,
+	pending []string,
+	reindexDone <-chan reindexResultT,
+	reindexFn func(context.Context, string) error,
+) {
+	if reindexFn == nil {
+		reindexFn = runReindex
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), watchDrainTimeout)
+	defer cancel()
+
+	// An in-flight reindex's subprocess was killed by the cancelled parent ctx,
+	// but its goroutine still sends on reindexDone. Wait (bounded) for it so we
+	// don't start an overlapping reindex; its files are already pending again.
+	if indexing {
+		select {
+		case res := <-reindexDone:
+			// The killed reindex didn't durably cover its files — fold them
+			// back in so the final drain re-runs them.
+			if res.err != nil {
+				pending = append(pending, res.files...)
+			}
+		case <-ctx.Done():
+			// Timed out waiting; fall through and attempt a drain anyway.
+		}
+	}
+
+	if len(pending) == 0 {
+		return
+	}
+
+	emitEvent(WatchEvent{
+		Event:     "reindex_started",
+		Files:     pending,
+		Timestamp: time.Now().Format(time.RFC3339),
+	})
+	if err := reindexFn(ctx, dir); err != nil {
+		if ctx.Err() == nil {
+			emitEvent(WatchEvent{
+				Event:     cmdKindError,
+				Error:     err.Error(),
+				Timestamp: time.Now().Format(time.RFC3339),
+			})
+		}
+		return
+	}
+	emitEvent(WatchEvent{
+		Event:     "reindexed",
+		Files:     pending,
+		Timestamp: time.Now().Format(time.RFC3339),
+	})
 }
 
 // addWatchDirs recursively adds directories to the watcher.
@@ -223,16 +306,16 @@ func addWatchDirs(watcher *fsnotify.Watcher, root string) error {
 	})
 }
 
-// runReindex runs 'snipe index' as a subprocess.
+// runReindex runs 'snipe index' as a subprocess, bound to ctx.
 // V1: Full reindex. V2 will add incremental support.
-func runReindex(dir string) error {
+func runReindex(ctx context.Context, dir string) error {
 	// Find the snipe binary
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("find executable: %w", err)
 	}
 
-	cmd := exec.CommandContext(GetContext(), exe, "index") // #nosec G204 -- exe from os.Executable(), trusted self-invocation
+	cmd := exec.CommandContext(ctx, exe, "index") // #nosec G204 -- exe from os.Executable(), trusted self-invocation
 	cmd.Dir = dir
 	cmd.Stdout = os.Stderr // Redirect index output to stderr
 	cmd.Stderr = os.Stderr

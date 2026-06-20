@@ -353,7 +353,7 @@ func TestWriteIndexIncremental(t *testing.T) {
 		{CallerID: "sym2v2", CalleeID: "sym1", FilePath: "/repo/b.go", Line: 6, Col: 1},
 	}
 
-	result, err := s.WriteIndexIncremental(changedSymbols, newRefs, newEdges, nil,
+	result, err := s.WriteIndexIncremental(changedSymbols, newRefs, newEdges, nil, nil,
 		[]string{"/repo/b.go"}, nil)
 	if err != nil {
 		t.Fatalf("WriteIndexIncremental failed: %v", err)
@@ -376,6 +376,181 @@ func TestWriteIndexIncremental(t *testing.T) {
 	if result.IncrementalCount != 1 {
 		t.Errorf("IncrementalCount = %d, want 1", result.IncrementalCount)
 	}
+}
+
+// TestWriteIndexIncremental_RestoresForeignKeys verifies the snipe-1vi fix:
+// WriteIndexIncremental flips foreign_keys OFF for the write and must restore
+// it to ON before returning. The store pins a single pooled connection
+// (SetMaxOpenConns(1)), so conn.Close() returns that same physical connection
+// to the idle pool — if the restore were swallowed, every later write/read in
+// the process would run with FK enforcement silently disabled. Asserting
+// PRAGMA foreign_keys == 1 on s.DB() (the same pooled connection) after the
+// call proves the restore happened.
+func TestWriteIndexIncremental_RestoresForeignKeys(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	_ = s.SetMeta("repo_root", "/repo")
+
+	symbols := []index.Symbol{
+		{ID: "sym1", Name: "Func1", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+	}
+	if err := s.WriteIndex(symbols, nil, nil); err != nil {
+		t.Fatalf("WriteIndex failed: %v", err)
+	}
+
+	changedSymbols := []index.Symbol{
+		{ID: "sym1v2", Name: "Func1", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 2, ColStart: 1, LineEnd: 12, ColEnd: 1},
+	}
+	if _, err := s.WriteIndexIncremental(changedSymbols, nil, nil, nil, nil, []string{"/repo/a.go"}, nil); err != nil {
+		t.Fatalf("WriteIndexIncremental failed: %v", err)
+	}
+
+	// FK enforcement must be back ON on the pooled connection after the call.
+	var fk int
+	if err := s.DB().QueryRow("PRAGMA foreign_keys").Scan(&fk); err != nil {
+		t.Fatalf("query PRAGMA foreign_keys: %v", err)
+	}
+	if fk != 1 {
+		t.Errorf("PRAGMA foreign_keys = %d after WriteIndexIncremental, want 1 (restore was swallowed)", fk)
+	}
+}
+
+// TestWriteIndexIncremental_LiteralsAtomic verifies the snipe-er5 fix: a
+// changed file's symbols and its string_refs (literals) commit in the SAME
+// transaction, so a crash can never leave them in mismatched generations.
+//
+// Two halves:
+//   - happy path — after a successful incremental write, the changed file's
+//     symbol and its literal both reflect the NEW generation (gen-2 values),
+//     with the old generation's rows gone.
+//   - forced tx error — when the literal insert fails (string_refs table
+//     dropped mid-flight), the WHOLE tx rolls back: neither the new symbol nor
+//     any literal lands, proving symbols + literals share one atomic commit.
+func TestWriteIndexIncremental_LiteralsAtomic(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	_ = s.SetMeta("repo_root", "/repo")
+
+	// Initial full index: gen-1 symbol + gen-1 literal, both in /repo/a.go.
+	gen1Syms := []index.Symbol{
+		{ID: "symG1", Name: "Func", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+	}
+	if err := s.WriteIndex(gen1Syms, nil, nil); err != nil {
+		t.Fatalf("WriteIndex failed: %v", err)
+	}
+	gen1Lits := []index.StringRef{
+		{ID: "litG1aaaaaaaaaaaa", Value: "GEN1_KEY", Kind: "env", FilePath: "/repo/a.go", Line: 3, Col: 1},
+	}
+	if err := s.WriteLiterals(gen1Lits, "/repo"); err != nil {
+		t.Fatalf("WriteLiterals failed: %v", err)
+	}
+
+	// --- Happy path: incremental write moves a.go to gen-2. ---
+	gen2Syms := []index.Symbol{
+		{ID: "symG2", Name: "Func", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 5, ColStart: 1, LineEnd: 15, ColEnd: 1},
+	}
+	gen2Lits := []index.StringRef{
+		{ID: "litG2bbbbbbbbbbbb", Value: "GEN2_KEY", Kind: "env", FilePath: "/repo/a.go", Line: 7, Col: 1},
+	}
+	if _, err := s.WriteIndexIncremental(gen2Syms, nil, nil, nil, gen2Lits, []string{"/repo/a.go"}, nil); err != nil {
+		t.Fatalf("WriteIndexIncremental failed: %v", err)
+	}
+
+	// Symbol and literal must BOTH reflect gen-2; gen-1 rows of both must be gone.
+	if got := symValuesForFile(t, s, "/repo/a.go"); !equalStrSet(got, []string{"symG2"}) {
+		t.Errorf("symbols after incremental = %v, want [symG2] (gen-2 only)", got)
+	}
+	if got := litValuesForFile(t, s, "/repo/a.go"); !equalStrSet(got, []string{"GEN2_KEY"}) {
+		t.Errorf("string_refs after incremental = %v, want [GEN2_KEY] (gen-2 only)", got)
+	}
+
+	// --- Forced tx error: literal insert fails, whole tx must roll back. ---
+	// Drop string_refs so the folded literal writes error inside the tx.
+	if _, err := s.DB().Exec(`DROP TABLE string_refs`); err != nil {
+		t.Fatalf("drop string_refs: %v", err)
+	}
+	gen3Syms := []index.Symbol{
+		{ID: "symG3", Name: "Func", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 9, ColStart: 1, LineEnd: 19, ColEnd: 1},
+	}
+	gen3Lits := []index.StringRef{
+		{ID: "litG3cccccccccccc", Value: "GEN3_KEY", Kind: "env", FilePath: "/repo/a.go", Line: 11, Col: 1},
+	}
+	if _, err := s.WriteIndexIncremental(gen3Syms, nil, nil, nil, gen3Lits, []string{"/repo/a.go"}, nil); err == nil {
+		t.Fatal("WriteIndexIncremental: want error from missing string_refs table, got nil")
+	}
+
+	// Symbols must STILL be gen-2 — the failed literal write rolled back the
+	// symbol delete+insert too. Symbols and literals share one atomic commit.
+	if got := symValuesForFile(t, s, "/repo/a.go"); !equalStrSet(got, []string{"symG2"}) {
+		t.Errorf("symbols after rolled-back incremental = %v, want [symG2] (unchanged)", got)
+	}
+}
+
+// symValuesForFile returns symbol IDs recorded for a file path.
+func symValuesForFile(t *testing.T, s *Store, file string) []string {
+	t.Helper()
+	rows, err := s.DB().Query(`SELECT id FROM symbols WHERE file_path = ?`, file)
+	if err != nil {
+		t.Fatalf("query symbols: %v", err)
+	}
+	defer rows.Close()
+	return scanStrings(t, rows)
+}
+
+// litValuesForFile returns string_ref values recorded for a file path.
+func litValuesForFile(t *testing.T, s *Store, file string) []string {
+	t.Helper()
+	rows, err := s.DB().Query(`SELECT value FROM string_refs WHERE file_path = ?`, file)
+	if err != nil {
+		t.Fatalf("query string_refs: %v", err)
+	}
+	defer rows.Close()
+	return scanStrings(t, rows)
+}
+
+func scanStrings(t *testing.T, rows *sql.Rows) []string {
+	t.Helper()
+	var out []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows err: %v", err)
+	}
+	return out
+}
+
+func equalStrSet(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	seen := make(map[string]int, len(want))
+	for _, w := range want {
+		seen[w]++
+	}
+	for _, g := range got {
+		seen[g]--
+	}
+	for _, n := range seen {
+		if n != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func TestWriteIndexIncremental_DeletedFiles(t *testing.T) {
@@ -405,7 +580,7 @@ func TestWriteIndexIncremental_DeletedFiles(t *testing.T) {
 	}
 
 	// Delete b.go
-	_, err = s.WriteIndexIncremental(nil, nil, nil, nil, nil, []string{"/repo/b.go"})
+	_, err = s.WriteIndexIncremental(nil, nil, nil, nil, nil, nil, []string{"/repo/b.go"})
 	if err != nil {
 		t.Fatalf("WriteIndexIncremental (delete) failed: %v", err)
 	}
@@ -446,7 +621,7 @@ func TestWriteIndexIncremental_OrphanedRefs(t *testing.T) {
 		{ID: "sym1v2", Name: "Func1", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 5, ColStart: 1, LineEnd: 15, ColEnd: 1},
 	}
 
-	result, err := s.WriteIndexIncremental(changedSymbols, nil, nil, nil,
+	result, err := s.WriteIndexIncremental(changedSymbols, nil, nil, nil, nil,
 		[]string{"/repo/a.go"}, nil)
 	if err != nil {
 		t.Fatalf("WriteIndexIncremental failed: %v", err)

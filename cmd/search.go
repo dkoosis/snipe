@@ -66,7 +66,7 @@ func runSearch(args []string) error {
 	}
 	// Search from the resolved repo root (D3), never arbitrary cwd — keeps rg
 	// from walking outside the repo when invoked from a subdir or above the root.
-	results, err := search.Search(root, pattern, lim, ctx, globs...)
+	results, err := search.Search(GetContext(), root, pattern, lim, ctx, globs...)
 	if err != nil {
 		code := output.ErrInternal
 		if strings.Contains(err.Error(), "not found") {

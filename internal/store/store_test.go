@@ -405,6 +405,50 @@ func TestRemoveLockIfContentsMatch_RemovesWhenContentsMatch(t *testing.T) {
 	}
 }
 
+// TestReleaseLockLeavesForeignLock is the regression test for snipe-dv3: after a
+// stale-reap race, process A's deferred ReleaseLock must NOT unlink a lock that
+// now holds process B's (foreign) PID. Release is ownership-checked just like
+// acquire — it only removes a lock whose contents are THIS process's PID.
+func TestReleaseLockLeavesForeignLock(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	lockPath := LockPath(dbPath)
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0750); err != nil {
+		t.Fatal(err)
+	}
+	// A live foreign holder. Use a PID that is definitely not us; the value
+	// need not be a running process — ReleaseLock keys on contents, not liveness.
+	foreign := os.Getpid() + 1
+	if err := os.WriteFile(lockPath, []byte(fmt.Sprintf("%d\n", foreign)), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ReleaseLock(dbPath); err != nil {
+		t.Fatalf("ReleaseLock should not error when refusing a foreign lock, got: %v", err)
+	}
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Fatalf("foreign lock must survive ReleaseLock, stat err: %v", err)
+	}
+}
+
+// TestReleaseLockRemovesOwnLock confirms the happy path: a lock holding THIS
+// process's PID is removed and ReleaseLock reports no error.
+func TestReleaseLockRemovesOwnLock(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	lockPath := LockPath(dbPath)
+
+	if err := AcquireLock(dbPath); err != nil {
+		t.Fatalf("AcquireLock failed: %v", err)
+	}
+	if err := ReleaseLock(dbPath); err != nil {
+		t.Fatalf("ReleaseLock failed for own lock: %v", err)
+	}
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("own lock should be gone after ReleaseLock, stat err: %v", err)
+	}
+}
+
 func TestOpenSetsPragmas(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "pragmas.db")

@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -122,7 +123,7 @@ func BenchmarkSearch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = search.Search(dir, "func", 50, 0)
+		_, _ = search.Search(context.Background(), dir, "func", 50, 0)
 	}
 }
 
@@ -134,7 +135,7 @@ func BenchmarkSearchRegex(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = search.Search(dir, "func.*Error", 50, 0)
+		_, _ = search.Search(context.Background(), dir, "func.*Error", 50, 0)
 	}
 }
 
