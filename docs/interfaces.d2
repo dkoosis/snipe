@@ -1,0 +1,182 @@
+# Snipe System Interfaces — UML class diagram
+# D2: https://d2lang.com  ·  render: d2 docs/interfaces.d2 docs/interfaces.svg
+#
+# Companion to architecture.d2 (which shows runtime dataflow). This view maps
+# the *interface surface*: the central type each internal package exposes, the
+# two real Go interfaces (Embedder, embeddingSaver) and their implementors, and
+# the use/dependency edges between packages. Hand-authored — snipe's own
+# `diagram` command emits import/call/lifecycle graphs, not class diagrams.
+
+direction: right
+
+title: {
+  label: "Snipe: interface surface (key types per package)"
+  near: top-center
+  shape: text
+  style.font-size: 22
+  style.bold: true
+}
+
+# ---------- store: the persistence hub ----------------------------------
+store: internal/store {
+  style.fill: "#e3f2fd"
+  style.stroke: "#1565c0"
+
+  Store: Store {
+    shape: class
+    db: "*sql.DB"
+    path: string
+    "+Open(path) *Store": ""
+    "+DB() *sql.DB": ""
+    "+ReadTopN(graph,kind,n)": "[]MetricRow"
+    "+CountEmbeddings() int": ""
+  }
+}
+
+# ---------- query: read-side symbol lookups -----------------------------
+query: internal/query {
+  style.fill: "#ede7f6"
+  style.stroke: "#5e35b1"
+
+  SymbolRow: SymbolRow {
+    shape: class
+    ID: string
+    Name: string
+    Kind: string
+    PkgPath: string
+    "Signature/Doc/Receiver": sql.NullString
+    MatchTier: MatchTier
+  }
+  fns: "lookup / refs / callers / deps / boundary" {
+    shape: class
+    "+LookupByName(db,name)": "[]SymbolRow"
+    "+BatchLookupByID(db,ids)": "map"
+    "+FindRefs(db,id)": "[]RefRow"
+    "+BuildDepGraph(db)": "*DepGraph"
+  }
+}
+
+# ---------- index: write-side static analysis ---------------------------
+index: internal/index {
+  style.fill: "#fff3e0"
+  style.stroke: "#ef6c00"
+
+  loader: "loader / callgraph / cyclo" {
+    shape: class
+    "+Load(cfg) *LoadResult": ""
+    CallEdge: "{caller,callee}"
+    "Saver (iface)": "SaveSymbols/SaveRefs"
+  }
+}
+
+# ---------- embed: optional semantic layer ------------------------------
+embed: internal/embed {
+  style.fill: "#fce4ec"
+  style.stroke: "#c2185b"
+
+  Embedder: Embedder {
+    shape: class
+    "<<interface>>": ""
+    "EmbedOne(ctx,text,type)": "[]float32"
+  }
+  Client: Client {
+    shape: class
+    apiKey: string
+    "+EmbedOne(...)": "[]float32"
+    "+Embed(...) [][]float32": ""
+  }
+  BatchClient: BatchClient {
+    shape: class
+    "+SubmitBatch(...)": ""
+    "+ParseBatchResults(r,fn)": ""
+  }
+}
+
+# ---------- consumers / output ------------------------------------------
+context: internal/context {
+  style.fill: "#e0f2f1"
+  style.stroke: "#00897b"
+  BootContext: "ProjectContext / BootContext" {
+    shape: class
+    EntryPoints: "[]SymbolRole"
+    Flows: "[]Flow"
+    Boundaries: "[]Boundary"
+  }
+}
+
+lifecycle: internal/lifecycle {
+  style.fill: "#f3e5f5"
+  style.stroke: "#8e24aa"
+  Classification: "Classification / Role" {
+    shape: class
+    Role: "Create|Mutate|Read|Delete"
+    "+Classify(type,refs)": "[]Classification"
+  }
+}
+
+graphmetrics: internal/graphmetrics {
+  style.fill: "#eceff1"
+  style.stroke: "#546e7a"
+  Graph: Graph {
+    shape: class
+    "+LoadImportsGraph(s)": "*Graph"
+    "+TopNByPageRank(...)": ""
+    "+OutEdges(id) []string": ""
+  }
+}
+
+output: internal/output {
+  style.fill: "#fff8e1"
+  style.stroke: "#f9a825"
+  Writer: Writer {
+    shape: class
+    "+WriteResponse(resp)": "error"
+    Result: "id,name,kind,body"
+    Meta: "decision_path,token_estimate"
+  }
+}
+
+diagram: internal/diagram {
+  style.fill: "#e8f5e9"
+  style.stroke: "#2e7d32"
+  Builder: Builder {
+    shape: class
+    "+AddContainer/AddNode/AddEdge": ""
+    "+Render() string": "D2"
+  }
+}
+
+# ---------- relationships -----------------------------------------------
+# realization: Client/BatchClient satisfy Embedder
+embed.Client -> embed.Embedder: "implements" {
+  style.stroke-dash: 3
+  target-arrowhead.shape: triangle
+}
+embed.BatchClient -> embed.Embedder: "ParseBatchResults\nfeeds embeddingSaver" {
+  style.stroke-dash: 3
+}
+
+# dependency / use edges (who reads/writes the store)
+index.loader -> store.Store: "writes symbols/refs"
+query.fns -> store.Store: "reads"
+query.SymbolRow -> query.fns: "returned by" {
+  style.stroke-dash: 3
+}
+embed.Embedder -> store.Store: "Search reads embeddings"
+graphmetrics.Graph -> store.Store: "loads imports/calls"
+context.BootContext -> query.fns: "composes"
+context.BootContext -> store.Store: "reads schema"
+lifecycle.Classification -> query.fns: "FindRefs"
+diagram.Builder -> graphmetrics.Graph: "renders"
+diagram.Builder -> lifecycle.Classification: "renders"
+output.Writer -> query.SymbolRow: "serializes"
+
+# Legend
+legend: {
+  near: bottom-right
+  style.fill: "#fafafa"
+  solid: "solid → uses / depends on"
+  dashed: "dashed → implements / returns" {
+    style.stroke-dash: 3
+  }
+}
