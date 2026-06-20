@@ -1,6 +1,9 @@
 package index
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // CycloRollup is the per-package cyclomatic complexity summary.
 // Sum/Max are integers; P95 may fall between samples (linear interpolation).
@@ -64,9 +67,5 @@ func percentile(sorted []int, p float64) float64 {
 }
 
 func isTestFile(path string) bool {
-	const suf = "_test.go"
-	if len(path) < len(suf) {
-		return false
-	}
-	return path[len(path)-len(suf):] == suf
+	return strings.HasSuffix(path, "_test.go")
 }
