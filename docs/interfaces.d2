@@ -3,8 +3,8 @@
 #
 # Companion to architecture.d2 (which shows runtime dataflow). This view maps
 # the *interface surface*: the central type each internal package exposes, the
-# two real Go interfaces (Embedder, embeddingSaver) and their implementors, and
-# the use/dependency edges between packages. Hand-authored — snipe's own
+# one real Go interface (Embedder) and its implementor, and the use/dependency
+# edges between packages. Hand-authored — snipe's own
 # `diagram` command emits import/call/lifecycle graphs, not class diagrams.
 
 direction: right
@@ -147,12 +147,12 @@ diagram: internal/diagram {
 }
 
 # ---------- relationships -----------------------------------------------
-# realization: Client/BatchClient satisfy Embedder
+# realization: Client satisfies Embedder (BatchClient does not — no EmbedOne)
 embed.Client -> embed.Embedder: "implements" {
   style.stroke-dash: 3
   target-arrowhead.shape: triangle
 }
-embed.BatchClient -> embed.Embedder: "ParseBatchResults\nfeeds embeddingSaver" {
+embed.BatchClient -> store.Store: "ParseBatchResults\n→ save callback" {
   style.stroke-dash: 3
 }
 
@@ -162,7 +162,7 @@ query.fns -> store.Store: "reads"
 query.SymbolRow -> query.fns: "returned by" {
   style.stroke-dash: 3
 }
-embed.Embedder -> store.Store: "Search reads embeddings"
+embed -> store.Store: "Search(store, Embedder)\nreads embeddings"
 graphmetrics.Graph -> store.Store: "loads imports/calls"
 context.BootContext -> query.fns: "composes"
 context.BootContext -> store.Store: "reads schema"
