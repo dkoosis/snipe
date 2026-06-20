@@ -26,27 +26,7 @@ type StringRef struct {
 
 // ExtractLiterals extracts string literals from all packages in the result.
 func ExtractLiterals(result *LoadResult, symbols []Symbol) []StringRef {
-	encMap := buildGlobalEnclosingMap(result, symbols)
-	var out []StringRef
-	for _, pkg := range result.Packages {
-		for i, file := range pkg.Syntax {
-			if i >= len(pkg.GoFiles) {
-				continue
-			}
-			filePath := pkg.GoFiles[i]
-			lines, err := util.LoadFileLines(filePath)
-			refs := extractFileLiterals(file, filePath, result.Fset)
-			for j := range refs {
-				refs[j].ID = literalID(refs[j])
-				if err == nil && refs[j].Line > 0 && refs[j].Line <= len(lines) {
-					refs[j].Snippet = lines[refs[j].Line-1]
-				}
-				refs[j].EnclosingID = encMap[filePath][refs[j].Line]
-			}
-			out = append(out, refs...)
-		}
-	}
-	return out
+	return ExtractLiteralsFiltered(result, symbols, nil)
 }
 
 // ExtractLiteralsFiltered extracts only from files in the onlyFiles set.
@@ -168,7 +148,7 @@ func extractConstLiterals(decl *ast.GenDecl, filePath string, fset *token.FileSe
 
 // literalID generates a stable 16-char hex ID for a string ref.
 func literalID(r StringRef) string {
-	h := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%s", r.FilePath, r.Line, r.Col, r.Value)))
+	h := sha256.Sum256(fmt.Appendf(nil, "%s:%d:%d:%s", r.FilePath, r.Line, r.Col, r.Value))
 	return hex.EncodeToString(h[:])[:16]
 }
 
