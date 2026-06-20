@@ -284,7 +284,7 @@ func runIndex(args []string) error {
 	case embedModeOff:
 		embedStatus = "disabled"
 	case embedModeBatch:
-		status, err := startBatchEmbeddings(GetContext(), absDir, symbols, fp.Combined)
+		status, err := startBatchEmbeddings(GetContext(), s, absDir, symbols, fp.Combined)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: batch embedding failed: %v\n", err)
 			embedStatus = batchStatusFailed
@@ -435,7 +435,10 @@ const batchStaleThreshold = 12 * time.Hour
 
 // startBatchEmbeddings initiates async batch embedding via Voyage API.
 // fingerprint identifies the index generation that these embeddings belong to.
-func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.Symbol, fingerprint string) (string, error) {
+// s is the caller's already-open store; the recovery branch reuses it so a
+// recovered batch writes through ONE connection pool instead of opening a
+// second handle that contends on the SQLite WAL lock (snipe-apz).
+func startBatchEmbeddings(ctx context.Context, s *store.Store, repoRoot string, symbols []index.Symbol, fingerprint string) (string, error) {
 	snipeDir := filepath.Join(repoRoot, ".snipe")
 	client, err := embed.NewBatchClient(snipeDir)
 	if err != nil {
@@ -509,23 +512,29 @@ func startBatchEmbeddings(ctx context.Context, repoRoot string, symbols []index.
 						state.Failed = actualStatus.RequestCounts.Failed
 						state.UpdatedAt = time.Now()
 
-						dbPath := store.DefaultIndexPath(repoRoot)
-						count, dlErr := downloadAndSaveEmbeddings(ctx, client, state, dbPath)
+						// Reuse the parent's open store — a second handle on the
+						// same SQLite file would contend on the WAL lock and could
+						// drop paid embeddings under "database is locked" (snipe-apz).
+						count, dlErr := downloadAndSaveEmbeddings(ctx, client, state, s)
 						if dlErr != nil {
-							// Download failed (expired output, API error) — clear and restart
+							// A save error (locked rows) leaves batch_state.json in
+							// place: keep it so the paid batch stays recoverable next
+							// run. Do NOT ClearState here, and do NOT start a fresh
+							// batch (which would re-bill). Surface the error instead.
+							//
+							// A pure download/parse error (expired output, API error)
+							// also keeps state — re-running can re-attempt the same
+							// completed batch rather than paying for a new one.
 							fmt.Fprintf(os.Stderr, "  Recovery failed: %v\n", dlErr)
-							fmt.Fprintf(os.Stderr, "  Clearing state and starting fresh...\n")
-							if clearErr := client.ClearState(); clearErr != nil {
-								return "", fmt.Errorf("clear failed batch state: %w", clearErr)
-							}
-							// Fall through to start new batch
-						} else {
-							fmt.Fprintf(os.Stderr, "  Recovered %d embeddings from completed batch\n", count)
-							if clearErr := client.ClearState(); clearErr != nil {
-								fmt.Fprintf(os.Stderr, "  Warning: failed to clear state: %v\n", clearErr)
-							}
-							return "batch_recovered", nil
+							fmt.Fprintf(os.Stderr, "  Keeping batch state for recovery; not starting a new batch.\n")
+							return "", fmt.Errorf("recover batch embeddings (%d saved): %w", count, dlErr)
 						}
+						// Genuine full save — safe to clear batch state.
+						fmt.Fprintf(os.Stderr, "  Recovered %d embeddings from completed batch\n", count)
+						if clearErr := client.ClearState(); clearErr != nil {
+							fmt.Fprintf(os.Stderr, "  Warning: failed to clear state: %v\n", clearErr)
+						}
+						return "batch_recovered", nil
 					}
 				default:
 					// Batch is still running according to API, but very old

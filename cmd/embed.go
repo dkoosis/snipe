@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -108,12 +109,24 @@ func runEmbedStatus() error {
 
 		// Handle completion
 		if state.Status == batchStatusCompleted {
-			embedCount, err := downloadAndSaveEmbeddings(GetContext(), client, state, dbPath)
+			// embed-status is a standalone command with no parent store handle,
+			// so opening here is safe (no concurrent writer on the same file).
+			s, openErr := store.Open(dbPath)
+			if openErr != nil {
+				return fmt.Errorf("open store: %w", openErr)
+			}
+			embedCount, err := downloadAndSaveEmbeddings(GetContext(), client, state, s)
+			closeErr := s.Close()
 			if err != nil {
+				// Save failed (locked rows, parse error) — keep batch_state.json
+				// so the paid batch stays recoverable. Do NOT ClearState.
 				return fmt.Errorf("download embeddings: %w", err)
 			}
+			if closeErr != nil {
+				return fmt.Errorf("close store: %w", closeErr)
+			}
 
-			// Clear batch state
+			// Genuine full save — safe to clear batch state.
 			if err := client.ClearState(); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to clear state: %v\n", err)
 			}
@@ -199,9 +212,30 @@ func runEmbedStatus() error {
 	}
 }
 
+// embeddingSaver is the persistence seam downloadAndSaveEmbeddings writes
+// through. *store.Store satisfies it; tests inject a failing implementation.
+// Threading the parent's already-open *store.Store (rather than opening a
+// second handle on the same SQLite file) keeps a SINGLE single-conn pool, so
+// writes serialize correctly instead of contending on busy_timeout and
+// returning "database is locked".
+type embeddingSaver interface {
+	SaveEmbedding(symbolID string, embedding []float32, model string) error
+}
+
+// embeddingStreamParser matches *embed.BatchClient.ParseBatchResults: it reads
+// JSONL from r and invokes fn for each parsed embedding. Factoring it out as a
+// function value lets persistEmbeddings be unit-tested without a real
+// BatchClient or network round-trip.
+type embeddingStreamParser func(r io.Reader, fn func(symbolID string, embedding []float32) error) error
+
 // downloadAndSaveEmbeddings streams batch results directly to the store.
 // Downloads and parses line-by-line to avoid buffering the entire payload in RAM.
-func downloadAndSaveEmbeddings(ctx context.Context, client *embed.BatchClient, state *embed.BatchState, dbPath string) (int, error) {
+//
+// Per-row save failures are accumulated, NOT swallowed: if any row fails to
+// persist, the function returns a non-nil error so the caller keeps
+// batch_state.json and the paid batch stays recoverable. Returns the number of
+// rows actually saved alongside that error.
+func downloadAndSaveEmbeddings(ctx context.Context, client *embed.BatchClient, state *embed.BatchState, saver embeddingSaver) (int, error) {
 	if state.OutputFileID == "" {
 		return 0, fmt.Errorf("no output file available")
 	}
@@ -214,18 +248,28 @@ func downloadAndSaveEmbeddings(ctx context.Context, client *embed.BatchClient, s
 	}
 	defer body.Close()
 
-	// Open store before streaming so we can persist each embedding immediately.
-	s, err := store.Open(dbPath)
-	if err != nil {
-		return 0, fmt.Errorf("open store: %w", err)
-	}
-	defer s.Close()
+	return persistEmbeddings(body, client.ParseBatchResults, saver, state.Model)
+}
 
+// persistEmbeddings streams parsed embeddings into saver, accumulating per-row
+// save failures instead of swallowing them. A "database is locked" on any row
+// means a paid embedding never landed; the resulting non-nil error tells the
+// caller to PRESERVE batch_state.json so the batch stays recoverable rather
+// than clearing it and silently dropping the paid rows (snipe-apz).
+func persistEmbeddings(body io.Reader, parse embeddingStreamParser, saver embeddingSaver, model string) (int, error) {
 	count := 0
-	if err := client.ParseBatchResults(body, func(symbolID string, embedding []float32) error {
-		if err := s.SaveEmbedding(symbolID, embedding, state.Model); err != nil {
+	failed := 0
+	var firstSaveErr error
+	if err := parse(body, func(symbolID string, embedding []float32) error {
+		if err := saver.SaveEmbedding(symbolID, embedding, model); err != nil {
+			// Do NOT swallow: record the failure and keep streaming so we save
+			// what we can, then surface a non-nil error after the stream.
 			fmt.Fprintf(os.Stderr, "Warning: failed to save embedding for %s: %v\n", symbolID, err)
-			return nil // continue on save errors
+			failed++
+			if firstSaveErr == nil {
+				firstSaveErr = err
+			}
+			return nil // keep going; the accumulated error is returned after the stream
 		}
 		count++
 		return nil
@@ -234,6 +278,10 @@ func downloadAndSaveEmbeddings(ctx context.Context, client *embed.BatchClient, s
 	}
 
 	fmt.Fprintf(os.Stderr, "Saved %d embeddings to index\n", count)
+
+	if failed > 0 {
+		return count, fmt.Errorf("failed to save %d of %d embeddings (first error: %w); keeping batch state for recovery", failed, failed+count, firstSaveErr)
+	}
 
 	return count, nil
 }
