@@ -164,11 +164,15 @@ func TestSearch_ContextCancelled(t *testing.T) {
 
 	select {
 	case <-done:
-		// Returned promptly. With a cancelled context rg is killed before it
-		// produces output, so we expect an error (process killed / no results),
-		// not a hang. The exact error is platform-dependent; assert non-hang.
-		if searchErr == nil {
-			t.Log("Search returned nil error on cancelled context (rg finished before signal); acceptable as long as it returned promptly")
+		// Returned promptly. A cancelled context kills rg with a signal
+		// (ExitCode -1) — the same code as our deliberate pipe-close at the
+		// result limit. The error must reflect cancellation, NOT pass partial
+		// results off as a clean early stop. In the rare race where rg finishes
+		// before the signal lands, a nil error is acceptable; but any surfaced
+		// error must be context.Canceled, never a generic "rg failed" (snipe-apz
+		// follow-up: distinguish ctx kills from SIGPIPE).
+		if searchErr != nil && !errors.Is(searchErr, context.Canceled) {
+			t.Fatalf("cancelled context should surface context.Canceled, got: %v", searchErr)
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("Search did not return promptly after context cancellation — rg was not killed (snipe-4gz regression)")

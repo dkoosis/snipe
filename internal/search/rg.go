@@ -172,6 +172,14 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 	// Exit code -1 means rg was killed by a signal (e.g. SIGPIPE from our
 	// early pipe close) — safe to ignore when we already have results.
 	if err := cmd.Wait(); err != nil {
+		// A context cancellation (timeout or SIGINT) kills rg with a signal,
+		// surfacing as ExitCode() == -1 — the same code as the deliberate
+		// pipe-close we do at the result limit. Disambiguate via ctx: if it
+		// fired, any results are a truncated search, so report cancellation
+		// instead of passing partial results off as a clean early stop.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return results, ctxErr
+		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			switch code := exitErr.ExitCode(); {
