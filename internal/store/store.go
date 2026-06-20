@@ -218,9 +218,17 @@ func removeLockIfContentsMatch(lockPath, expect string) bool {
 	return os.Remove(lockPath) == nil
 }
 
-// ReleaseLock removes the lock file
+// ReleaseLock removes the lock file, but only if it still holds THIS process's
+// PID. Release is ownership-checked for the same reason acquire is: after a
+// stale-reap race, the lock we wrote may have been unlinked and re-created by
+// another live writer. An unconditional os.Remove here would delete that
+// foreign live lock, letting a third writer in and violating the single-writer
+// invariant. Reusing removeLockIfContentsMatch keeps release symmetric with the
+// ownership-aware acquire/stale-reap path. A no-op (foreign PID or already-gone
+// lock) returns nil — releasing a lock we don't own is not an error.
 func ReleaseLock(dbPath string) error {
-	return os.Remove(LockPath(dbPath))
+	removeLockIfContentsMatch(LockPath(dbPath), strconv.Itoa(os.Getpid()))
+	return nil
 }
 
 func verifyPragmaString(db *sql.DB, pragma, want string) error {
