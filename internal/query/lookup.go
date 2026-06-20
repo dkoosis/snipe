@@ -313,7 +313,9 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 	}
 	if len(results) > 0 {
 		// Degraded: the literal name missed; only a case-fold match landed.
-		stampTier(results, MatchCaseInsens)
+		for i := range results {
+			results[i].MatchTier = MatchCaseInsens
+		}
 		return results, nil
 	}
 
@@ -322,13 +324,6 @@ func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error) {
 	// "ListFiles") already resolves at the exact rung. A dedicated rung here
 	// would share the same `name = ?` predicate and never add rows.
 	return nil, nil
-}
-
-// stampTier records the degraded match rung on every row in place.
-func stampTier(rows []SymbolRow, tier MatchTier) {
-	for i := range rows {
-		rows[i].MatchTier = tier
-	}
 }
 
 func lookupQualified(db *sql.DB, pkgPath, name string) ([]SymbolRow, error) {
