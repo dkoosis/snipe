@@ -217,6 +217,34 @@ func TestApplyAndWrite_PersistsFormattedChanges_When_RequestIsValid(t *testing.T
 	assert.Contains(t, result.Diff, "return a - b")
 }
 
+func TestApplyAndWrite_PreservesSourceFilePermissions_When_WritingEditedFile(t *testing.T) {
+	t.Parallel()
+
+	// Write a fixture with explicit 0644 perms (Git's default for checked-in source),
+	// then read back the actual mode the OS gave it. umask may strip bits, so the
+	// invariant under test is "mode unchanged after the edit", not a fixed constant.
+	path := filepath.Join(t.TempDir(), "perm.go")
+	require.NoError(t, os.WriteFile(path, []byte(sampleSource), 0o644))
+
+	before, err := os.Stat(path)
+	require.NoError(t, err)
+	wantPerm := before.Mode().Perm()
+
+	result, err := edit.ApplyAndWrite(edit.Request{
+		File:      path,
+		Symbol:    "Add",
+		Operation: edit.OpReplaceBody,
+		NewCode:   "return a - b",
+	})
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+
+	after, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, wantPerm, after.Mode().Perm(),
+		"ApplyAndWrite must preserve the source file's original permissions")
+}
+
 func TestSymbolInfo_HandlesOutOfRangePositions_When_SourceOffsetsAreInvalid(t *testing.T) {
 	t.Parallel()
 

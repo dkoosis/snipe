@@ -311,9 +311,17 @@ func ApplyAndWrite(req Request) (*Result, error) {
 		return nil, err
 	}
 
+	// Preserve the source file's original permissions: WriteFileAtomic chmods the
+	// temp file to perm before rename, so a hardcoded mode would silently rewrite a
+	// 0644 checked-in file as that mode. Default to 0644 for a new file.
+	perm := os.FileMode(0644)
+	if info, statErr := os.Stat(req.File); statErr == nil {
+		perm = info.Mode().Perm()
+	}
+
 	// Atomic write: a crash mid-write leaves the original file untouched.
 	// os.WriteFile truncates first, which can corrupt user source on disk-full / SIGKILL.
-	if err := util.WriteFileAtomic(req.File, result.formatted, 0600); err != nil { // #nosec G306 -- preserving original Go source file permissions
+	if err := util.WriteFileAtomic(req.File, result.formatted, perm); err != nil { // #nosec G306 -- perm is the source file's original mode (os.Stat above)
 		return nil, fmt.Errorf("write file: %w", err)
 	}
 
