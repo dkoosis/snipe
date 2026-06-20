@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -229,13 +230,13 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	// Search metrics
 	start = time.Now()
 	for i := 0; i < runs; i++ {
-		_, _ = search.Search(cfg.Dir, "func", 50, 0)
+		_, _ = search.Search(context.Background(), cfg.Dir, "func", 50, 0)
 	}
 	baseline.Search.SimplePatternMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
 
 	start = time.Now()
 	for i := 0; i < runs; i++ {
-		_, _ = search.Search(cfg.Dir, "func.*Error", 50, 0)
+		_, _ = search.Search(context.Background(), cfg.Dir, "func.*Error", 50, 0)
 	}
 	baseline.Search.RegexPatternMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
 
