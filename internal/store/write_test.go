@@ -378,6 +378,48 @@ func TestWriteIndexIncremental(t *testing.T) {
 	}
 }
 
+// TestWriteIndexIncremental_RestoresForeignKeys verifies the snipe-1vi fix:
+// WriteIndexIncremental flips foreign_keys OFF for the write and must restore
+// it to ON before returning. The store pins a single pooled connection
+// (SetMaxOpenConns(1)), so conn.Close() returns that same physical connection
+// to the idle pool — if the restore were swallowed, every later write/read in
+// the process would run with FK enforcement silently disabled. Asserting
+// PRAGMA foreign_keys == 1 on s.DB() (the same pooled connection) after the
+// call proves the restore happened.
+func TestWriteIndexIncremental_RestoresForeignKeys(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	_ = s.SetMeta("repo_root", "/repo")
+
+	symbols := []index.Symbol{
+		{ID: "sym1", Name: "Func1", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+	}
+	if err := s.WriteIndex(symbols, nil, nil); err != nil {
+		t.Fatalf("WriteIndex failed: %v", err)
+	}
+
+	changedSymbols := []index.Symbol{
+		{ID: "sym1v2", Name: "Func1", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 2, ColStart: 1, LineEnd: 12, ColEnd: 1},
+	}
+	if _, err := s.WriteIndexIncremental(changedSymbols, nil, nil, nil, nil, []string{"/repo/a.go"}, nil); err != nil {
+		t.Fatalf("WriteIndexIncremental failed: %v", err)
+	}
+
+	// FK enforcement must be back ON on the pooled connection after the call.
+	var fk int
+	if err := s.DB().QueryRow("PRAGMA foreign_keys").Scan(&fk); err != nil {
+		t.Fatalf("query PRAGMA foreign_keys: %v", err)
+	}
+	if fk != 1 {
+		t.Errorf("PRAGMA foreign_keys = %d after WriteIndexIncremental, want 1 (restore was swallowed)", fk)
+	}
+}
+
 // TestWriteIndexIncremental_LiteralsAtomic verifies the snipe-er5 fix: a
 // changed file's symbols and its string_refs (literals) commit in the SAME
 // transaction, so a crash can never leave them in mismatched generations.

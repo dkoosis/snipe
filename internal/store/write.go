@@ -475,7 +475,14 @@ func (s *Store) WriteIndexIncremental(
 		return nil, fmt.Errorf("disable FK: %w", err)
 	}
 	defer func() {
-		_, _ = conn.ExecContext(context.Background(), "PRAGMA foreign_keys=ON")
+		// Re-enable FK on the pooled connection. SetMaxOpenConns(1) means
+		// conn.Close() returns this physical connection to the idle pool, so a
+		// silently-failed restore would leave FK enforcement off for every
+		// later write/read in the process. Surface the error into the named
+		// return (only when no earlier error already won) so it can't be lost.
+		if _, ferr := conn.ExecContext(context.Background(), "PRAGMA foreign_keys=ON"); ferr != nil && err == nil {
+			err = fmt.Errorf("re-enable FK: %w", ferr)
+		}
 	}()
 
 	tx, err := conn.BeginTx(context.Background(), nil)
