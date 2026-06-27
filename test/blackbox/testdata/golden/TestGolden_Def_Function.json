@@ -5,6 +5,8 @@
     "decision_path": [
       "lookup:name"
     ],
+    "limit": 0,
+    "offset": 0,
     "query": {
       "symbol": "Callee"
     },

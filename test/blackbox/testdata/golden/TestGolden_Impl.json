@@ -3,6 +3,7 @@
   "meta": {
     "command": "impl",
     "limit": 50,
+    "offset": 0,
     "query": {
       "interface": "Greeter"
     },

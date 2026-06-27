@@ -3,6 +3,7 @@
   "meta": {
     "command": "pkg",
     "limit": 200,
+    "offset": 0,
     "query": {
       "package": "example.com/fixture"
     },
