@@ -1,11 +1,18 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/dkoosis/snipe/internal/vector"
 )
+
+// ErrCorruptEmbedding signals that a stored embedding BLOB could not be
+// deserialized — its length is not a multiple of 4 bytes. Callers must treat
+// this distinctly from an absent embedding (sql.ErrNoRows) or a valid result,
+// rather than silently scoring a corrupt vector as 0.
+var ErrCorruptEmbedding = errors.New("corrupt embedding blob")
 
 // SaveEmbedding stores an embedding for a symbol.
 func (s *Store) SaveEmbedding(symbolID string, embedding []float32, model string) error {
@@ -31,7 +38,14 @@ func (s *Store) GetEmbedding(symbolID string) ([]float32, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("get embedding for symbol %s: %w", symbolID, err)
 	}
-	return vector.DeserializeEmbedding(data), model, nil
+	emb := vector.DeserializeEmbedding(data)
+	if emb == nil && len(data) > 0 {
+		// Non-empty BLOB that failed to deserialize (odd/malformed length):
+		// surface corruption instead of returning (nil, model, nil), which a
+		// caller would otherwise mistake for a valid empty vector.
+		return nil, "", fmt.Errorf("get embedding for symbol %s: %w", symbolID, ErrCorruptEmbedding)
+	}
+	return emb, model, nil
 }
 
 // EmbeddingRow represents a row from the embeddings table with symbol info.
