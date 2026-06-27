@@ -214,6 +214,18 @@ func TestNewAmbiguousError(t *testing.T) {
 	if len(err.Candidates) != 2 {
 		t.Errorf("Candidates count = %d, want 2", len(err.Candidates))
 	}
+	// The error must carry disambiguation hints (snipe show <id>), not just the
+	// candidate list -- production renders err.Suggestions, so an unpopulated
+	// field means Claude gets no way to pick (D2). Guards against regression to
+	// the prior "Candidates only" constructor.
+	if len(err.Suggestions) != 2 {
+		t.Fatalf("Suggestions count = %d, want 2 (one per candidate)", len(err.Suggestions))
+	}
+	for i, s := range err.Suggestions {
+		if !strings.Contains(s.Command, "snipe show ") {
+			t.Errorf("Suggestions[%d].Command = %q, want a 'snipe show <id>' hint", i, s.Command)
+		}
+	}
 }
 
 // TestAmbiguousSymbolJSONFormat verifies the JSON output matches SPEC.md format

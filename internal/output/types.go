@@ -365,12 +365,15 @@ func joinSuggestions(suggestions []string) string {
 		", or " + suggestions[len(suggestions)-1] + "?"
 }
 
-// NewAmbiguousError creates an AMBIGUOUS_SYMBOL error
+// NewAmbiguousError creates an AMBIGUOUS_SYMBOL error. Suggestions carry the
+// "snipe show <id>" disambiguation hints so the rendered error tells Claude how
+// to pick a candidate (D2), not just that the symbol was ambiguous.
 func NewAmbiguousError(symbol string, candidates []Candidate) *Error {
 	return &Error{
-		Code:       ErrAmbiguousSymbol,
-		Message:    "Multiple definitions found for '" + symbol + "'",
-		Candidates: candidates,
+		Code:        ErrAmbiguousSymbol,
+		Message:     "Multiple definitions found for '" + symbol + "'",
+		Candidates:  candidates,
+		Suggestions: SuggestionsForAmbiguous(candidates),
 	}
 }
 

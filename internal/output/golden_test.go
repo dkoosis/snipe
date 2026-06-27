@@ -196,6 +196,11 @@ func TestGoldenAmbiguousOutput(t *testing.T) {
 		{ID: "abc123def45601", Name: "Config", File: "config/config.go", Kind: "type"},
 		{ID: "abc123def45602", Name: "Config", File: "server/config.go", Kind: "type"},
 	}
+	// Mirror the production WriteError path: suggestions flow from the error
+	// itself (err.Suggestions), not a separate re-call of the helper. This makes
+	// the golden assert the real shipped output -- if NewAmbiguousError stopped
+	// populating Suggestions, the hints would vanish and this test would fail.
+	err := NewAmbiguousError("Config", candidates)
 	resp := Response[any]{
 		Protocol: ProtocolVersion,
 		Ok:       false,
@@ -205,8 +210,8 @@ func TestGoldenAmbiguousOutput(t *testing.T) {
 			IndexState: IndexFresh,
 			Ms:         8,
 		},
-		Error:       NewAmbiguousError("Config", candidates),
-		Suggestions: SuggestionsForAmbiguous(candidates),
+		Error:       err,
+		Suggestions: err.Suggestions,
 	}
 
 	testGolden(t, goldenAmbiguousOutput, resp)
