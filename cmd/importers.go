@@ -13,8 +13,8 @@ import (
 func runImporters(args []string) error {
 	start := time.Now()
 
-	compact, lim, offset, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	_, lim, offset, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	pkgPath := args[0]
 

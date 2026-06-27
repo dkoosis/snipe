@@ -46,7 +46,7 @@ func TestLifecycleCallerChain(t *testing.T) {
 }
 
 func TestWriteClaudeLifecycle_CallersRendered(t *testing.T) {
-	w := NewWriter(&strings.Builder{}, false, OutputClaude)
+	w := NewWriter(&strings.Builder{}, OutputClaude)
 	var b strings.Builder
 	results := []LifecycleResult{
 		{
@@ -106,7 +106,7 @@ func TestWriteClaudeLifecycle_CallersRendered(t *testing.T) {
 }
 
 func TestWriteClaudeLifecycle_SummaryFormat(t *testing.T) {
-	w := NewWriter(&strings.Builder{}, false, OutputClaude)
+	w := NewWriter(&strings.Builder{}, OutputClaude)
 	var b strings.Builder
 	funcs := make([]LifecycleFunction, 0, 15)
 	for i := 0; i < 15; i++ {
@@ -240,7 +240,7 @@ func TestTruncateLifecycleToTokenBudget(t *testing.T) {
 
 func TestWriteClaudeLifecycle_JSONEnvelope(t *testing.T) {
 	var buf strings.Builder
-	w := NewWriter(&buf, false, OutputJSON)
+	w := NewWriter(&buf, OutputJSON)
 	results := []LifecycleResult{
 		{
 			Type:         "Store",

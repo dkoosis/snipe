@@ -23,13 +23,13 @@ var (
 func runDef(args []string) error {
 	start := time.Now()
 
-	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
+	_, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
 	format := GetResponseFormat()
 
 	// Apply format overrides; def always shows body unless --no-body is explicit.
 	_, withSiblings, contextLines = ApplyFormatOverrides(format, withBody, withSiblings, contextLines)
 
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	// Handle --file and --pkg scoped queries.
 	// --pkg + symbol name: look up the named symbol within the package.

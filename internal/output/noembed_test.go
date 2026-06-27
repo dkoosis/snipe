@@ -28,7 +28,7 @@ func noEmbedResp() Response[Result] {
 func renderClaude(t *testing.T, embedMissing bool) string {
 	t.Helper()
 	var buf bytes.Buffer
-	w := NewWriter(&buf, false, OutputClaude)
+	w := NewWriter(&buf, OutputClaude)
 	w.SetEmbedMissing(embedMissing)
 	if err := w.WriteResponse(noEmbedResp()); err != nil {
 		t.Fatalf("WriteResponse: %v", err)

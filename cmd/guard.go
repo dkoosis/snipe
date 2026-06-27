@@ -64,7 +64,7 @@ type guardViolation struct {
 
 func runGuard(args []string) error {
 	start := time.Now()
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	specPath := defaultGuardSpec
 	if len(args) == 1 {

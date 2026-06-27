@@ -59,8 +59,7 @@ type BatchEditRequest struct {
 func runEdit(args []string) error {
 	start := time.Now()
 
-	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	// Handle batch mode
 	if editBatch {

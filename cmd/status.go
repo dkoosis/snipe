@@ -21,8 +21,7 @@ type StatusResponse struct {
 }
 
 func runStatus() error {
-	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	// Find repo root
 	cwd, err := os.Getwd()

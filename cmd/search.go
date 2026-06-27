@@ -41,14 +41,14 @@ func runSearch(args []string) error {
 	start := time.Now()
 	pattern := args[0]
 
-	compact, lim, _, ctx, _, _ := GetOutputConfig()
+	_, lim, _, ctx, _, _ := GetOutputConfig()
 	format := GetResponseFormat()
 
 	// Apply format overrides
 	_, _, ctx = ApplyFormatOverrides(format, false, false, ctx)
 	summary := format == FormatSummary
 
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	// Get current directory
 	dir, err := os.Getwd()

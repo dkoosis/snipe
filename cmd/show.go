@@ -13,8 +13,8 @@ import (
 func runShow(args []string) error {
 	start := time.Now()
 
-	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	_, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	symbolID := args[0]
 

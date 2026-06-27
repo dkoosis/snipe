@@ -37,10 +37,9 @@ func SetShowSuggestions(v bool) { showSuggestionsEnabled = v }
 
 // Writer handles output formatting for LLM consumers.
 type Writer struct {
-	out     io.Writer
-	compact bool
-	format  OutputFormat
-	start   time.Time
+	out    io.Writer
+	format OutputFormat
+	start  time.Time
 	// embedMissing, when set, appends `! noembed` to the meta line of Claude
 	// output — an index-global self-assessment marker stamped once at store
 	// open (see OpenStore) so every query command emits it uniformly.
@@ -53,12 +52,11 @@ func (w *Writer) SetEmbedMissing(missing bool) { w.embedMissing = missing }
 
 // NewWriter creates a new output writer.
 // format controls rendering: "" (default) = Claude-optimized text, "json" = full JSON envelope.
-func NewWriter(out io.Writer, compact bool, format OutputFormat) *Writer {
+func NewWriter(out io.Writer, format OutputFormat) *Writer {
 	return &Writer{
-		out:     out,
-		compact: compact,
-		format:  format,
-		start:   time.Now(),
+		out:    out,
+		format: format,
+		start:  time.Now(),
 	}
 }
 
@@ -78,13 +76,10 @@ func (w *Writer) WriteResponse(resp any) error {
 	return w.writeClaude(resp)
 }
 
-// writeJSON writes the full JSON envelope (legacy/orca format).
+// writeJSON writes the full JSON envelope (legacy/orca format) as compact,
+// single-line JSON — the shape orca's go_symbol subprocess already consumes.
 func (w *Writer) writeJSON(resp any) error {
-	enc := json.NewEncoder(w.out)
-	if !w.compact {
-		enc.SetIndent("", "  ")
-	}
-	return enc.Encode(resp)
+	return json.NewEncoder(w.out).Encode(resp)
 }
 
 // writeClaude renders a response as terse structured text optimized for Claude.

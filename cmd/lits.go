@@ -13,8 +13,8 @@ func runLits(args []string) error {
 	start := time.Now()
 	value := args[0]
 
-	compact, lim, off, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	_, lim, off, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	s, dir, err := OpenStore(w, "lits")
 	if err != nil {

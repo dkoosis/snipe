@@ -498,12 +498,12 @@ func (s *Store) WriteIndexIncremental(
 
 	if len(allAffected) > 0 {
 		// Delete embeddings + purposes for symbols in affected files
-		if err := deleteByFilePaths(tx, "SELECT id FROM symbols", "DELETE FROM embeddings WHERE symbol_id IN", allAffected, repoRoot); err != nil {
+		if err := deleteByFilePaths(tx, childEmbeddings, allAffected, repoRoot); err != nil {
 			if !isNoSuchTableErr(err, "embeddings") {
 				return nil, fmt.Errorf("delete embeddings: %w", err)
 			}
 		}
-		if err := deleteByFilePaths(tx, "SELECT id FROM symbols", "DELETE FROM symbol_purposes WHERE symbol_id IN", allAffected, repoRoot); err != nil {
+		if err := deleteByFilePaths(tx, childSymbolPurposes, allAffected, repoRoot); err != nil {
 			if !isNoSuchTableErr(err, "symbol_purposes") {
 				return nil, fmt.Errorf("delete symbol_purposes: %w", err)
 			}
@@ -621,14 +621,29 @@ func deleteFromFileSet(tx *sql.Tx, table string, files []string) error {
 	return err
 }
 
-// deleteByFilePaths finds symbol IDs in affected files, then deletes from a target table.
-func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []string, repoRoot string) error {
+// childTable names a symbol-owned child table whose rows are purged when the
+// owning symbols are re-indexed. Constraining the table to this enum lets
+// deleteByFilePaths bake the (invariant) symbol-ID SELECT and build the DELETE
+// itself, so call sites name a table identity instead of passing raw SQL.
+type childTable string
+
+const (
+	childEmbeddings     childTable = "embeddings"
+	childSymbolPurposes childTable = "symbol_purposes"
+)
+
+// deleteByFilePaths finds symbol IDs in the affected files, then deletes their
+// rows from a symbol-owned child table. The symbol-ID SELECT is invariant; only
+// the child table varies, so it is named by the constrained childTable enum.
+func deleteByFilePaths(tx *sql.Tx, table childTable, files []string, repoRoot string) error {
 	if len(files) == 0 {
 		return nil
 	}
+	const selectQuery = "SELECT id FROM symbols"
+	deleteQuery := "DELETE FROM " + string(table) + " WHERE symbol_id IN" // table is a constrained enum constant, never user input
 	// Find symbol IDs in affected files (by absolute path)
 	placeholders, args := toPlaceholders(files)
-	query := fmt.Sprintf("%s WHERE file_path IN (%s)", selectQuery, strings.Join(placeholders, ",")) // #nosec G201 -- query parts are hardcoded
+	query := fmt.Sprintf("%s WHERE file_path IN (%s)", selectQuery, strings.Join(placeholders, ",")) // #nosec G201 -- selectQuery is a const; placeholders are '?'
 	rows, err := tx.Query(query, args...)
 	if err != nil {
 		return err
@@ -653,7 +668,7 @@ func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []stri
 		for i, f := range files {
 			relArgs[i] = toRelPath(f, repoRoot)
 		}
-		query = fmt.Sprintf("%s WHERE file_path_rel IN (%s)", selectQuery, strings.Join(placeholders, ",")) // #nosec G201 -- query parts are hardcoded
+		query = fmt.Sprintf("%s WHERE file_path_rel IN (%s)", selectQuery, strings.Join(placeholders, ",")) // #nosec G201 -- selectQuery is a const; placeholders are '?'
 		rows2, err := tx.Query(query, relArgs...)
 		if err != nil {
 			return err
@@ -677,7 +692,7 @@ func deleteByFilePaths(tx *sql.Tx, selectQuery, deleteQuery string, files []stri
 
 	// Delete from target table
 	idPlaceholders, idArgs := toPlaceholders(ids)
-	delQuery := fmt.Sprintf("%s (%s)", deleteQuery, strings.Join(idPlaceholders, ",")) // #nosec G201 -- query parts are hardcoded
+	delQuery := fmt.Sprintf("%s (%s)", deleteQuery, strings.Join(idPlaceholders, ",")) // #nosec G201 -- deleteQuery is enum-built; placeholders are '?'
 	_, err = tx.Exec(delQuery, idArgs...)
 	return err
 }

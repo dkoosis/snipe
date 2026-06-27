@@ -40,8 +40,7 @@ const (
 const remediationReindex = "snipe index"
 
 func runDoctor() error {
-	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	allOK := true
 	var checks []DoctorCheck

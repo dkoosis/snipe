@@ -17,7 +17,7 @@ var pkgDigest bool
 func runPkg(args []string) error {
 	start := time.Now()
 
-	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
+	_, lim, off, contextLines, withBody, _ := GetOutputConfig()
 	format := GetResponseFormat()
 
 	// pkg is an orientation command — show full surface by default
@@ -26,7 +26,7 @@ func runPkg(args []string) error {
 	}
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	pkgPattern := args[0]
 
@@ -201,7 +201,7 @@ type pkgDigestRow struct {
 }
 
 func runPkgDigest(s *store.Store, dir, pkgPattern string, startedAt time.Time) error {
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	fullPkg := query.FindFullPkgPath(s.DB(), pkgPattern)
 	if fullPkg == "" {

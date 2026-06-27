@@ -25,8 +25,7 @@ var (
 func runMetrics() error {
 	start := time.Now()
 
-	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	// Multi-kind: comma-separated list collapses N sequential calls into one
 	// merged table keyed by node (snipe-0zg). Composite kinds (topo, cycles,
@@ -529,7 +528,7 @@ type multiKindRow struct {
 // row-set, merge by NodeID into a single wide table, optionally filter by
 // --pkg, sort by the first kind value desc, then truncate to --top.
 func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error {
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	kinds := splitAndTrim(metricsKind)
 	if len(kinds) == 0 {

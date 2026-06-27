@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/dkoosis/snipe/internal/embed"
 )
 
 // TestEmbedStatusResultEmitsMeaningfulZeros guards that Total, Completed,
@@ -67,7 +69,7 @@ func (c *countingSaver) SaveEmbedding(symbolID string, embedding []float32, mode
 // (with a trivial embedding each), ignoring the reader entirely — so the test
 // needs no network, no real BatchClient, and no credentials.
 func fakeParser(symbolIDs ...string) embeddingStreamParser {
-	return func(_ io.Reader, fn func(symbolID string, embedding []float32) error) error {
+	return func(_ io.Reader, fn embed.EmbeddingHandler) error {
 		for _, id := range symbolIDs {
 			if err := fn(id, []float32{0.1, 0.2}); err != nil {
 				return err

@@ -40,7 +40,7 @@ func humanResp() Response[Result] {
 func TestHumanFormat_NonTTY_NoAnsi(t *testing.T) {
 	withTTY(t, false)
 	var buf bytes.Buffer
-	w := NewWriter(&buf, false, OutputHuman)
+	w := NewWriter(&buf, OutputHuman)
 	if err := w.WriteResponse(humanResp()); err != nil {
 		t.Fatalf("WriteResponse: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestHumanFormat_NonTTY_NoAnsi(t *testing.T) {
 func TestHumanFormat_TTY_HasAnsi(t *testing.T) {
 	withTTY(t, true)
 	var buf bytes.Buffer
-	w := NewWriter(&buf, false, OutputHuman)
+	w := NewWriter(&buf, OutputHuman)
 	if err := w.WriteResponse(humanResp()); err != nil {
 		t.Fatalf("WriteResponse: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestHumanFormat_TTY_HasAnsi(t *testing.T) {
 func TestHumanFormat_EmptyResults(t *testing.T) {
 	withTTY(t, false)
 	var buf bytes.Buffer
-	w := NewWriter(&buf, false, OutputHuman)
+	w := NewWriter(&buf, OutputHuman)
 	resp := Response[Result]{
 		Protocol: ProtocolVersion,
 		Ok:       true,
@@ -101,7 +101,7 @@ func TestHumanFormat_EmptyResults(t *testing.T) {
 func TestHumanFormat_ErrorRendering(t *testing.T) {
 	withTTY(t, false)
 	var buf bytes.Buffer
-	w := NewWriter(&buf, false, OutputHuman)
+	w := NewWriter(&buf, OutputHuman)
 	err := &Error{
 		Code:    ErrNotFound,
 		Message: "Symbol not found: Foo",
@@ -129,7 +129,7 @@ func TestHumanFormat_ErrorRendering(t *testing.T) {
 func TestHumanFormat_CompositeFallback(t *testing.T) {
 	withTTY(t, false)
 	var buf bytes.Buffer
-	w := NewWriter(&buf, false, OutputHuman)
+	w := NewWriter(&buf, OutputHuman)
 	resp := Response[PackResult]{
 		Protocol: ProtocolVersion,
 		Ok:       true,

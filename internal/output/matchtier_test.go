@@ -12,7 +12,7 @@ import (
 func TestClaudeMatchTierMarker(t *testing.T) {
 	render := func(degraded ...string) string {
 		var buf bytes.Buffer
-		w := NewWriter(&buf, false, OutputClaude)
+		w := NewWriter(&buf, OutputClaude)
 		resp := Response[Result]{
 			Protocol: ProtocolVersion,
 			Ok:       true,
@@ -42,7 +42,7 @@ func TestClaudeMatchTierMarker(t *testing.T) {
 // is the only place that magnitude survives.
 func TestClaudeSemanticMarker(t *testing.T) {
 	var buf bytes.Buffer
-	w := NewWriter(&buf, false, OutputClaude)
+	w := NewWriter(&buf, OutputClaude)
 	resp := Response[Result]{
 		Protocol: ProtocolVersion,
 		Ok:       true,

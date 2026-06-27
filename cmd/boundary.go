@@ -25,8 +25,7 @@ var (
 func runBoundary(args []string) error {
 	start := time.Now()
 
-	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	s, dir, err := OpenStore(w, "boundary")
 	if err != nil {
@@ -184,7 +183,7 @@ type layerCrossingRow struct {
 }
 
 func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	data, err := os.ReadFile(boundaryLayers)
 	if err != nil {

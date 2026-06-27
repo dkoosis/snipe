@@ -53,8 +53,7 @@ func runIndex(args []string) error {
 	}
 
 	// Setup output writer
-	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	// Acquire lock to signal indexing in progress
 	dbPath := store.DefaultIndexPath(absDir)

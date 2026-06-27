@@ -20,8 +20,7 @@ var (
 func runExplain(args []string) error {
 	start := time.Now()
 
-	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && explainAt == "" {

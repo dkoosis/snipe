@@ -12,8 +12,8 @@ import (
 func runImports(args []string) error {
 	start := time.Now()
 
-	compact, lim, offset, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	_, lim, offset, _, _, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	filePath := args[0]
 

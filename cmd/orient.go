@@ -43,7 +43,7 @@ type orientManifest struct {
 
 func runOrient() error {
 	start := time.Now()
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if orientOut == "" {
 		return w.WriteError("orient", &output.Error{

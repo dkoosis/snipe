@@ -14,14 +14,14 @@ var callersID string
 func runCallers(args []string) error {
 	start := time.Now()
 
-	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
+	_, lim, off, contextLines, withBody, _ := GetOutputConfig()
 	format := GetResponseFormat()
 
 	// Apply format overrides
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
 
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && callersID == "" {
 		return w.WriteError(cmdNameCallers, &output.Error{
