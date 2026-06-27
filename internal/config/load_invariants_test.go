@@ -19,7 +19,6 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 		setup   func(*testing.T) string
 		want    *config.Config
 		wantErr error
-		inspect func(*testing.T, *config.Config)
 	}{
 		{
 			name: "error: malformed project path as file returns not-a-directory",
@@ -52,11 +51,6 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 				return ""
 			},
 			want: &config.Config{Limit: 50, ContextLines: 3},
-			inspect: func(t *testing.T, got *config.Config) {
-				t.Helper()
-				require.Greater(t, got.Limit, 0)
-				require.Greater(t, got.ContextLines, 0)
-			},
 		},
 		{
 			name: "boundary: zero project values cannot erase defaults",
@@ -67,11 +61,6 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 				return project
 			},
 			want: &config.Config{Limit: 50, ContextLines: 3},
-			inspect: func(t *testing.T, got *config.Config) {
-				t.Helper()
-				require.Greater(t, got.Limit, 0)
-				require.Greater(t, got.ContextLines, 0)
-			},
 		},
 		{
 			name: "happy path: project overrides global while keeping other global settings",
@@ -86,11 +75,6 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 				return project
 			},
 			want: &config.Config{Limit: 75, ContextLines: 9},
-			inspect: func(t *testing.T, got *config.Config) {
-				t.Helper()
-				require.Greater(t, got.Limit, 0)
-				require.Greater(t, got.ContextLines, 0)
-			},
 		},
 	}
 
@@ -108,10 +92,6 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("diff (-want +got):\n%s", diff)
-			}
-
-			if tc.inspect != nil {
-				tc.inspect(t, got)
 			}
 		})
 	}

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 type failingTransport struct{ err error }
@@ -296,7 +298,6 @@ func TestUploadFile_NoGoroutineLeakOnTransportError(t *testing.T) {
 
 	// Settle pre-existing goroutines (test runner spawns some lazily).
 	runtime.GC()
-	time.Sleep(20 * time.Millisecond)
 	before := runtime.NumGoroutine()
 
 	for i := 0; i < 10; i++ {
@@ -305,11 +306,10 @@ func TestUploadFile_NoGoroutineLeakOnTransportError(t *testing.T) {
 		}
 	}
 
-	// Allow finalizers/scheduler to settle, then assert no growth.
+	// Poll until goroutines settle; avoids fixed-sleep flakiness under CI load.
 	runtime.GC()
-	time.Sleep(50 * time.Millisecond)
-	after := runtime.NumGoroutine()
-	if after > before+1 {
-		t.Fatalf("goroutine leak: before=%d after=%d", before, after)
-	}
+	require.Eventually(t, func() bool {
+		runtime.GC()
+		return runtime.NumGoroutine() <= before+1
+	}, 2*time.Second, 10*time.Millisecond, "goroutine leak: goroutine count did not settle within 2s (before=%d)", before)
 }

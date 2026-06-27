@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestOpenClose(t *testing.T) {
@@ -229,6 +230,8 @@ func TestConcurrentAccess(t *testing.T) {
 		// Success - no deadlock
 	case err := <-errChan:
 		t.Fatalf("Concurrent access error: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("deadlock detected: concurrent access test timed out")
 	}
 
 	close(errChan)
