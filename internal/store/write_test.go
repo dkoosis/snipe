@@ -650,6 +650,61 @@ func TestWriteIndexIncremental_OrphanedRefs(t *testing.T) {
 	}
 }
 
+// TestWriteIndexIncremental_OrphanedCallEdges verifies the snipe-bzw fix: a
+// call edge whose call site lives in an UNCHANGED file but whose callee symbol
+// is deleted (its defining file was removed/re-minted) is swept. Without the
+// sweep, the per-file delete misses it (the row's file_path is the caller's
+// file, which wasn't touched) and callers/callees/impact INNER-JOIN
+// call_graph→symbols silently drop it — under-reporting that accumulates
+// monotonically across incremental reindexes.
+func TestWriteIndexIncremental_OrphanedCallEdges(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	_ = s.SetMeta("repo_root", "/repo")
+
+	// sym1 (caller) in a.go calls sym2 (callee) in b.go. The edge's file_path
+	// is a.go — the call site — not b.go where the callee is defined.
+	symbols := []index.Symbol{
+		{ID: "sym1", Name: "Caller", Kind: index.KindFunc, FilePath: "/repo/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+		{ID: "sym2", Name: "Callee", Kind: index.KindFunc, FilePath: "/repo/b.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1},
+	}
+	edges := []index.CallEdge{
+		{CallerID: "sym1", CalleeID: "sym2", FilePath: "/repo/a.go", Line: 5, Col: 1},
+	}
+	if err := s.WriteIndex(symbols, nil, edges); err != nil {
+		t.Fatalf("Full WriteIndex failed: %v", err)
+	}
+
+	// Delete b.go: sym2 (the callee) vanishes. The edge in a.go is NOT touched
+	// by the per-file delete (its file_path is a.go), so only the orphan sweep
+	// can remove it.
+	if _, err := s.WriteIndexIncremental(nil, nil, nil, nil, nil, nil, []string{"/repo/b.go"}); err != nil {
+		t.Fatalf("WriteIndexIncremental (delete callee) failed: %v", err)
+	}
+
+	// No call_graph row may point at a deleted symbol.
+	var dangling int
+	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM call_graph WHERE caller_id NOT IN (SELECT id FROM symbols) OR callee_id NOT IN (SELECT id FROM symbols)`).Scan(&dangling); err != nil {
+		t.Fatalf("count dangling call edges: %v", err)
+	}
+	if dangling != 0 {
+		t.Errorf("call_graph has %d dangling edge(s) after incremental sweep, want 0", dangling)
+	}
+
+	// The orphaned edge is the only edge — table should be empty.
+	_, _, callCount, _ := s.GetStats()
+	if callCount != 0 {
+		t.Errorf("call edge count = %d, want 0 (orphan swept)", callCount)
+	}
+}
+
 func TestWriteLiterals(t *testing.T) {
 	dir := t.TempDir()
 	s, err := Open(filepath.Join(dir, "test.db"))
