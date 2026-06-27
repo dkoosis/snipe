@@ -339,7 +339,12 @@ func TestIsIndexingTrueWhenLockAlive(t *testing.T) {
 // TestIsIndexingFalseWhenLockStale is the regression test for the bug where an
 // interrupted index left a lock with a dead PID, gating every read command
 // (diagram, etc.) even though the index was fresh. IsIndexing must detect the
-// dead holder, remove the stale lock, and report not-indexing.
+// dead holder and report not-indexing.
+//
+// It also pins the predicate's PURITY (snipe-uap): IsIndexing must NOT mutate the
+// filesystem. The stale lock is left on disk for the write path (AcquireLock) to
+// reap — a read command gating on this predicate stays read-only. Reaping on the
+// write path is covered by TestAcquireLockRecoversStaleLock.
 func TestIsIndexingFalseWhenLockStale(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
@@ -356,9 +361,9 @@ func TestIsIndexingFalseWhenLockStale(t *testing.T) {
 	if IsIndexing(dbPath) {
 		t.Fatal("IsIndexing should be false when lock holder is dead")
 	}
-	// And the stale lock should have been cleaned up.
-	if Exists(lockPath) {
-		t.Fatal("IsIndexing should have removed the stale lock file")
+	// Purity: the predicate must leave the stale lock untouched on disk.
+	if !Exists(lockPath) {
+		t.Fatal("IsIndexing must not remove the lock file — it is a pure predicate")
 	}
 }
 
