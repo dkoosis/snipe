@@ -33,6 +33,12 @@ func TestEmbedStatusResultEmitsMeaningfulZeros(t *testing.T) {
 	if raw["stale"] != false {
 		t.Errorf("stale = %v, want false", raw["stale"])
 	}
+	// CreatedAt is a *time.Time so an absent timestamp is genuinely omitted —
+	// a time.Time would have leaked "0001-01-01T00:00:00Z" past omitempty,
+	// the D4 noise the no_batch result exhibits (snipe-0xt).
+	if _, ok := raw["created_at"]; ok {
+		t.Errorf("embed-status JSON has created_at at zero value — *time.Time should omit it (snipe-0xt)")
+	}
 }
 
 // failingSaver fails every SaveEmbedding, simulating a "database is locked"

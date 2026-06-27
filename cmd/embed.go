@@ -33,20 +33,23 @@ var (
 //
 // Total, Completed, Failed, and Stale carry meaning at their zero values
 // ("0 failed", "checked, not stale") — the very signals embed-status reports —
-// so they emit unconditionally (D4). The remaining string/time fields stay
-// omitempty: their zero values are absence, not signal.
+// so they emit unconditionally (D4). The remaining string fields stay
+// omitempty: their zero values are absence, not signal. CreatedAt is a
+// *time.Time so it is genuinely omitted when absent — omitempty is a no-op on
+// a time.Time value, which would otherwise leak "0001-01-01T00:00:00Z" noise
+// (e.g. the no_batch result, which never sets it) into the envelope (D4).
 type EmbedStatusResult struct {
-	BatchID    string    `json:"batch_id,omitempty"`
-	Status     string    `json:"status"`
-	Total      int       `json:"total"`
-	Completed  int       `json:"completed"`
-	Failed     int       `json:"failed"`
-	Model      string    `json:"model,omitempty"`
-	CreatedAt  time.Time `json:"created_at,omitempty"`
-	Age        string    `json:"age,omitempty"`
-	Stale      bool      `json:"stale"`
-	EmbedCount int       `json:"embed_count,omitempty"`
-	Message    string    `json:"message,omitempty"`
+	BatchID    string     `json:"batch_id,omitempty"`
+	Status     string     `json:"status"`
+	Total      int        `json:"total"`
+	Completed  int        `json:"completed"`
+	Failed     int        `json:"failed"`
+	Model      string     `json:"model,omitempty"`
+	CreatedAt  *time.Time `json:"created_at,omitempty"`
+	Age        string     `json:"age,omitempty"`
+	Stale      bool       `json:"stale"`
+	EmbedCount int        `json:"embed_count,omitempty"`
+	Message    string     `json:"message,omitempty"`
 }
 
 func runEmbedStatus() error {
@@ -143,7 +146,7 @@ func runEmbedStatus() error {
 				Completed:  state.Completed,
 				Failed:     state.Failed,
 				Model:      state.Model,
-				CreatedAt:  state.CreatedAt,
+				CreatedAt:  &state.CreatedAt,
 				EmbedCount: embedCount,
 				Message:    fmt.Sprintf("Downloaded and saved %d embeddings", embedCount),
 			}
@@ -168,7 +171,7 @@ func runEmbedStatus() error {
 				Completed: state.Completed,
 				Failed:    state.Failed,
 				Model:     state.Model,
-				CreatedAt: state.CreatedAt,
+				CreatedAt: &state.CreatedAt,
 				Message:   "Batch job failed or was cancelled",
 			}
 			return w.WriteResponse(output.Response[EmbedStatusResult]{
@@ -194,7 +197,7 @@ func runEmbedStatus() error {
 				Completed: state.Completed,
 				Failed:    state.Failed,
 				Model:     state.Model,
-				CreatedAt: state.CreatedAt,
+				CreatedAt: &state.CreatedAt,
 				Age:       age.Round(time.Minute).String(),
 				Stale:     isStale,
 				Message:   msg,
