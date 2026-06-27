@@ -313,9 +313,14 @@ func (c *BatchClient) DownloadFile(ctx context.Context, fileID string) (io.ReadC
 	return resp.Body, nil
 }
 
+// EmbeddingHandler receives one parsed embedding (symbol ID + vector) from a
+// batch-results stream. It is the single named spelling of the per-row callback
+// shared by ParseBatchResults and the cmd-side parser/persist seam.
+type EmbeddingHandler func(symbolID string, embedding []float32) error
+
 // ParseBatchResults streams JSONL from r, calling fn for each successfully parsed embedding.
 // Stops early and returns the error if fn returns an error.
-func (c *BatchClient) ParseBatchResults(r io.Reader, fn func(symbolID string, embedding []float32) error) error {
+func (c *BatchClient) ParseBatchResults(r io.Reader, fn EmbeddingHandler) error {
 	scanner := bufio.NewScanner(r)
 
 	// Handle potentially large lines

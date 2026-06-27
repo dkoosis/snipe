@@ -71,7 +71,7 @@ func renderSVG(d2src string) error {
 // ---------- arch ----------------------------------------------------------
 
 func runDiagramArch() error {
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 	s, _, err := OpenStore(w, "diagram arch")
 	if err != nil {
 		return err
@@ -258,7 +258,7 @@ func runDiagramFlow(args []string) error {
 		diagramFlowDepth = 10
 	}
 
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 	s, _, err := OpenStore(w, "diagram flow")
 	if err != nil {
 		return err
@@ -549,7 +549,7 @@ func walk(roots []string, edges [][2]string, depth, maxDepth int, syMap map[stri
 // ---------- lifecycle ----------------------------------------------------
 
 func runDiagramLifecycle(args []string) error {
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 	s, _, err := OpenStore(w, "diagram lifecycle")
 	if err != nil {
 		return err

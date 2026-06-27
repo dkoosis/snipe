@@ -15,8 +15,7 @@ var (
 )
 
 func runCheck() error {
-	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	dir, err := os.Getwd()
 	if err != nil {

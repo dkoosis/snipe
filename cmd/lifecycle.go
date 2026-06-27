@@ -23,7 +23,7 @@ func runLifecycle(args []string) error {
 
 	_, lim, off, _, _, _ := GetOutputConfig()
 
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && lifecycleAt == "" {
 		return w.WriteError("lifecycle", &output.Error{

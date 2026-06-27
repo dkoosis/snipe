@@ -33,7 +33,7 @@ type deadcodeRow struct {
 
 func runDeadcode() error {
 	start := time.Now()
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	s, dir, err := OpenStore(w, "deadcode")
 	if err != nil {

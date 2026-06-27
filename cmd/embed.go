@@ -64,8 +64,7 @@ func runEmbedStatus() error {
 	dbPath := store.DefaultIndexPath(absDir)
 
 	// Setup output writer
-	compact, _, _, _, _, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	// Load batch client
 	client, err := embed.NewBatchClient(snipeDir)
@@ -234,7 +233,7 @@ type embeddingSaver interface {
 // JSONL from r and invokes fn for each parsed embedding. Factoring it out as a
 // function value lets persistEmbeddings be unit-tested without a real
 // BatchClient or network round-trip.
-type embeddingStreamParser func(r io.Reader, fn func(symbolID string, embedding []float32) error) error
+type embeddingStreamParser func(r io.Reader, fn embed.EmbeddingHandler) error
 
 // downloadAndSaveEmbeddings streams batch results directly to the store.
 // Downloads and parses line-by-line to avoid buffering the entire payload in RAM.

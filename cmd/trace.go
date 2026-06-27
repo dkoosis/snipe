@@ -13,8 +13,7 @@ func runTrace(args []string) error {
 	value := args[0]
 
 	_, lim, off, _, _, _ := GetOutputConfig()
-	compact := false
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	s, dir, err := OpenStore(w, "trace")
 	if err != nil {

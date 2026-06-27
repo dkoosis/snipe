@@ -25,8 +25,8 @@ var (
 func runPack(args []string) error {
 	start := time.Now()
 
-	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	_, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && packAt == "" {
 		return w.WriteError(cmdNamePack, &output.Error{

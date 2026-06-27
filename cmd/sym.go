@@ -23,8 +23,8 @@ var (
 func runSym(args []string) error {
 	start := time.Now()
 
-	compact, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	_, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && symAt == "" {

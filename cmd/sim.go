@@ -24,8 +24,8 @@ var (
 func runSim(args []string) error {
 	start := time.Now()
 
-	compact, lim, off, contextLines, withBody, _ := GetOutputConfig()
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	_, lim, off, contextLines, withBody, _ := GetOutputConfig()
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if simPairs {
 		s, dir, err := OpenStore(w, cmdNameSim)
@@ -42,15 +42,15 @@ func runSim(args []string) error {
 			Message: "sim requires a query argument unless --pairs is set",
 		})
 	}
-	return runSimQuery(args, start, compact, lim, off, contextLines, withBody)
+	return runSimQuery(args, start, lim, off, contextLines, withBody)
 }
 
-func runSimQuery(args []string, start time.Time, compact bool, lim, off, contextLines int, withBody bool) error {
+func runSimQuery(args []string, start time.Time, lim, off, contextLines int, withBody bool) error {
 	queryText := args[0]
 	format := GetResponseFormat()
 	withBody, _, contextLines = ApplyFormatOverrides(format, withBody, false, contextLines)
 	summary := format == FormatSummary
-	w := output.NewWriter(os.Stdout, compact, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	s, dir, err := OpenStore(w, cmdNameSim)
 	if err != nil {
@@ -186,7 +186,7 @@ type simPairRow struct {
 }
 
 func runSimPairs(s *store.Store, dir string, startedAt time.Time) error {
-	w := output.NewWriter(os.Stdout, false, GetOutputFormat())
+	w := output.NewWriter(os.Stdout, GetOutputFormat())
 	if !simWithinPkg {
 		return w.WriteError(cmdNameSim, &output.Error{
 			Code:    output.ErrInternal,
