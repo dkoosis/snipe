@@ -47,8 +47,8 @@ type Meta struct {
 	RequestID     string            `json:"request_id,omitempty"`
 	Ms            int64             `json:"ms"`
 	Total         int               `json:"total"`
-	Offset        int               `json:"offset,omitempty"`
-	Limit         int               `json:"limit,omitempty"`
+	Offset        int               `json:"offset"`
+	Limit         int               `json:"limit"`
 	Truncated     bool              `json:"truncated"`
 	TokenEstimate int               `json:"token_estimate"`
 	DecisionPath  []string          `json:"decision_path,omitempty"` // Resolution strategy trace

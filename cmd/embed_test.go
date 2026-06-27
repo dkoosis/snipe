@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -8,6 +9,37 @@ import (
 	"strings"
 	"testing"
 )
+
+// TestEmbedStatusResultEmitsMeaningfulZeros guards that Total, Completed,
+// Failed, and Stale serialize at their zero values. "0 failed" and
+// "checked, not stale" (stale=false) are the signals embed-status reports;
+// omitempty silently dropped them from the JSON envelope (D4, snipe-0xt).
+func TestEmbedStatusResultEmitsMeaningfulZeros(t *testing.T) {
+	data, err := json.Marshal(EmbedStatusResult{Status: "completed"})
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	for _, field := range []string{"total", "completed", "failed", "stale"} {
+		if _, ok := raw[field]; !ok {
+			t.Errorf("embed-status JSON missing %q at zero value — omitempty dropped a meaningful zero (snipe-0xt)", field)
+		}
+	}
+	if raw["stale"] != false {
+		t.Errorf("stale = %v, want false", raw["stale"])
+	}
+	// CreatedAt is a *time.Time so an absent timestamp is genuinely omitted —
+	// a time.Time would have leaked "0001-01-01T00:00:00Z" past omitempty,
+	// the D4 noise the no_batch result exhibits (snipe-0xt).
+	if _, ok := raw["created_at"]; ok {
+		t.Errorf("embed-status JSON has created_at at zero value — *time.Time should omit it (snipe-0xt)")
+	}
+}
 
 // failingSaver fails every SaveEmbedding, simulating a "database is locked"
 // stall on the SQLite WAL — the failure mode that previously got swallowed and

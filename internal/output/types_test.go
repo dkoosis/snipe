@@ -54,6 +54,32 @@ func TestResponseMarshal(t *testing.T) {
 	}
 }
 
+// TestMetaEmitsZeroOffsetLimit guards that Offset and Limit serialize even at
+// their zero values. Page-0 results report Offset:0; dropping it (via omitempty)
+// breaks pagination disambiguation for the orca/Claude toolchain (D4, snipe-0xt).
+func TestMetaEmitsZeroOffsetLimit(t *testing.T) {
+	data, err := json.Marshal(Meta{Command: "def", IndexState: IndexFresh})
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	for _, field := range []string{"offset", "limit"} {
+		v, ok := raw[field]
+		if !ok {
+			t.Errorf("meta missing %q at zero value — omitempty dropped a meaningful zero (snipe-0xt)", field)
+			continue
+		}
+		if v.(float64) != 0 {
+			t.Errorf("meta %q = %v, want 0", field, v)
+		}
+	}
+}
+
 func TestErrorMarshal(t *testing.T) {
 	resp := Response[any]{
 		Protocol: ProtocolVersion,

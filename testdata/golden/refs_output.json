@@ -51,6 +51,7 @@
     "index_state": "fresh",
     "ms": 23,
     "total": 2,
+    "offset": 0,
     "limit": 50,
     "truncated": false,
     "token_estimate": 0
