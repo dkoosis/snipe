@@ -28,6 +28,18 @@
         "file": "server/config.go",
         "kind": "type"
       }
+    ],
+    "suggestions": [
+      {
+        "command": "snipe show abc123def45601",
+        "description": "Config in config/config.go",
+        "priority": 1
+      },
+      {
+        "command": "snipe show abc123def45602",
+        "description": "Config in server/config.go",
+        "priority": 1
+      }
     ]
   },
   "suggestions": [
