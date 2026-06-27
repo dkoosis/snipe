@@ -3,6 +3,7 @@
   "meta": {
     "command": "impact",
     "limit": 50,
+    "offset": 0,
     "query": {
       "symbol": "Callee"
     },

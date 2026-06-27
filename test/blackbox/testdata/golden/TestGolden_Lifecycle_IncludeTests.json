@@ -3,6 +3,7 @@
   "meta": {
     "command": "lifecycle",
     "limit": 50,
+    "offset": 0,
     "query": {
       "type": "Widget"
     },

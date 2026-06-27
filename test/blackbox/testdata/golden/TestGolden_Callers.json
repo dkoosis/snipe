@@ -3,6 +3,7 @@
   "meta": {
     "command": "callers",
     "limit": 50,
+    "offset": 0,
     "query": {
       "symbol": "Callee"
     },

@@ -3,6 +3,7 @@
   "meta": {
     "command": "callees",
     "limit": 50,
+    "offset": 0,
     "query": {
       "symbol": "CallMany"
     },
