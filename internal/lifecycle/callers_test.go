@@ -192,3 +192,79 @@ func TestWalkCallers_NoCallers(t *testing.T) {
 		t.Errorf("expected 0 callers, got %d", len(nodes))
 	}
 }
+
+// TestWalkCallers_DiamondFrontier exercises the frontier-batched walk where two
+// depth-1 nodes share a single depth-2 caller. The shared node must appear
+// exactly once at its shallowest depth — proving cross-frontier dedup survives
+// the switch from per-node queries to one batched query per level.
+func TestWalkCallers_DiamondFrontier(t *testing.T) {
+	db := setupCallersTestDB(t)
+	// fn <- a, fn <- b  (depth 1); a <- c, b <- c  (c shared at depth 2)
+	insertSym(t, db, "fn", "fn", "fn.go")
+	insertSym(t, db, "a", "a", "a.go")
+	insertSym(t, db, "b", "b", "b.go")
+	insertSym(t, db, "c", "c", "c.go")
+	insertCall(t, db, "a", "fn")
+	insertCall(t, db, "b", "fn")
+	insertCall(t, db, "c", "a")
+	insertCall(t, db, "c", "b")
+
+	nodes := WalkCallers(db, "fn", 3)
+
+	byID := map[string]int{}
+	count := map[string]int{}
+	for _, n := range nodes {
+		byID[n.ID] = n.Depth
+		count[n.ID]++
+	}
+	if len(nodes) != 3 {
+		t.Fatalf("expected 3 distinct callers (a,b,c), got %d: %v", len(nodes), nodes)
+	}
+	if byID["a"] != 1 || byID["b"] != 1 {
+		t.Errorf("a and b should be depth 1, got a=%d b=%d", byID["a"], byID["b"])
+	}
+	if byID["c"] != 2 {
+		t.Errorf("shared caller c should be depth 2, got %d", byID["c"])
+	}
+	if count["c"] != 1 {
+		t.Errorf("shared caller c should appear exactly once, got %d", count["c"])
+	}
+}
+
+// TestFrontierCallers_BatchesMultipleCallees is the direct evidence that the BFS
+// frontier is fetched in a single query: one frontierCallers call over multiple
+// callee IDs returns the union of their callers — what was formerly one query
+// per node.
+func TestFrontierCallers_BatchesMultipleCallees(t *testing.T) {
+	db := setupCallersTestDB(t)
+	insertSym(t, db, "fn1", "fn1", "fn1.go")
+	insertSym(t, db, "fn2", "fn2", "fn2.go")
+	insertSym(t, db, "x", "x", "x.go")
+	insertSym(t, db, "y", "y", "y.go")
+	insertCall(t, db, "x", "fn1")
+	insertCall(t, db, "y", "fn2")
+
+	edges, err := frontierCallers(db, []string{"fn1", "fn2"})
+	if err != nil {
+		t.Fatalf("frontierCallers: %v", err)
+	}
+	got := map[string]bool{}
+	for _, e := range edges {
+		got[e.callerID] = true
+	}
+	if len(edges) != 2 || !got["x"] || !got["y"] {
+		t.Fatalf("expected both callers x and y from one batched query, got %v", edges)
+	}
+}
+
+// TestFrontierCallers_Empty guards the zero-frontier short-circuit.
+func TestFrontierCallers_Empty(t *testing.T) {
+	db := setupCallersTestDB(t)
+	edges, err := frontierCallers(db, nil)
+	if err != nil {
+		t.Fatalf("frontierCallers(nil): %v", err)
+	}
+	if edges != nil {
+		t.Errorf("expected nil edges for empty frontier, got %v", edges)
+	}
+}

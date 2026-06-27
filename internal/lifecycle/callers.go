@@ -2,8 +2,7 @@ package lifecycle
 
 import (
 	"database/sql"
-
-	"github.com/dkoosis/snipe/internal/query"
+	"strings"
 )
 
 // CallerNode is one hop in the caller chain for a lifecycle function.
@@ -18,6 +17,12 @@ type CallerNode struct {
 // upward from symbolID, up to maxDepth hops. BFS with a visited set prevents
 // infinite recursion on mutually recursive or diamond call graphs.
 // Returns nil when maxDepth <= 0.
+//
+// The walk processes one whole BFS frontier (every node at a given depth) per
+// iteration with a single batched query, rather than one query per node. This
+// collapses the former N-queries-per-walk into one-query-per-level. The query
+// mirrors query.FindCallers' selection (test-file callers included, no role
+// filtering), so results are unchanged from the per-node version.
 func WalkCallers(db *sql.DB, symbolID string, maxDepth int) []CallerNode {
 	if maxDepth <= 0 {
 		return nil
@@ -25,36 +30,76 @@ func WalkCallers(db *sql.DB, symbolID string, maxDepth int) []CallerNode {
 	visited := map[string]bool{symbolID: true}
 	var result []CallerNode
 
-	type item struct {
-		id    string
-		depth int
-	}
-	queue := []item{{symbolID, 0}}
-
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-		if cur.depth >= maxDepth {
-			continue
-		}
-		rows, err := query.FindCallers(db, cur.id, 100, 0)
+	frontier := []string{symbolID}
+	for depth := 0; depth < maxDepth && len(frontier) > 0; depth++ {
+		edges, err := frontierCallers(db, frontier)
 		if err != nil {
-			continue
+			break
 		}
-		for i := range rows {
-			r := &rows[i]
-			if visited[r.CallerID] {
+		var next []string
+		for i := range edges {
+			e := &edges[i]
+			if visited[e.callerID] {
 				continue
 			}
-			visited[r.CallerID] = true
+			visited[e.callerID] = true
 			result = append(result, CallerNode{
-				ID:    r.CallerID,
-				Name:  r.CallerName,
-				File:  r.CallerFileRel,
-				Depth: cur.depth + 1,
+				ID:    e.callerID,
+				Name:  e.callerName,
+				File:  e.callerFileRel,
+				Depth: depth + 1,
 			})
-			queue = append(queue, item{r.CallerID, cur.depth + 1})
+			next = append(next, e.callerID)
 		}
+		frontier = next
 	}
 	return result
+}
+
+// callerEdge is one caller→callee edge fetched during the BFS walk.
+type callerEdge struct {
+	callerID      string
+	callerName    string
+	callerFileRel string
+}
+
+// frontierCallers returns the direct callers of every callee ID in the frontier
+// in a single query. It mirrors query.FindCallers' selection (test-file callers
+// included, no role filtering) but fetches only the three columns the walk needs
+// and batches the whole BFS frontier into one IN(...) query — replacing the
+// former per-node round trips with one query per BFS level. DISTINCT collapses a
+// caller reached via several frontier callees (or several call sites) to one row.
+func frontierCallers(db *sql.DB, ids []string) ([]callerEdge, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	// #nosec G201 -- placeholders are "?" literals; args carry the values (parameterized).
+	q := `
+		SELECT DISTINCT cg.caller_id, caller.name, caller.file_path_rel
+		FROM call_graph cg
+		JOIN symbols caller ON cg.caller_id = caller.id
+		WHERE cg.callee_id IN (` + strings.Join(placeholders, ",") + `)
+		ORDER BY caller.file_path_rel, caller.name`
+
+	rows, err := db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var edges []callerEdge
+	for rows.Next() {
+		var e callerEdge
+		if err := rows.Scan(&e.callerID, &e.callerName, &e.callerFileRel); err != nil {
+			return nil, err
+		}
+		edges = append(edges, e)
+	}
+	return edges, rows.Err()
 }
