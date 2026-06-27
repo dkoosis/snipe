@@ -576,6 +576,16 @@ func (s *Store) WriteIndexIncremental(
 		return nil, fmt.Errorf("sweep orphaned refs: %w", err)
 	}
 
+	// Sweep orphaned call edges: the same cross-file dangling-symbol problem
+	// hits call_graph. An edge whose caller sits in an unchanged file but
+	// whose callee (or caller) was re-minted in a changed file leaves a row
+	// pointing at a now-deleted symbol id. callers/callees/impact INNER-JOIN
+	// call_graph→symbols and silently drop these, so they accumulate
+	// monotonically and under-report the graph (snipe-bzw).
+	if _, err := tx.Exec(`DELETE FROM call_graph WHERE caller_id NOT IN (SELECT id FROM symbols) OR callee_id NOT IN (SELECT id FROM symbols)`); err != nil {
+		return nil, fmt.Errorf("sweep orphaned call edges: %w", err)
+	}
+
 	// Count orphans + write meta inside the same tx so a crash can't leave
 	// counters trailing the on-disk schema, and concurrent readers can't see
 	// orphaned_refs and incremental_count from different generations.
