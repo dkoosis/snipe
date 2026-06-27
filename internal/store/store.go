@@ -127,20 +127,20 @@ func LockPath(dbPath string) string {
 	return dbPath + ".lock"
 }
 
-// IsIndexing reports whether indexing is in progress. A lock file alone is not
-// enough: an interrupted `snipe index` leaves a stale lock that would otherwise
-// gate every read command forever. If the lock holder is dead, we opportunistically
-// remove the stale lock (same dead-PID logic as AcquireLock) and report not-indexing.
+// IsIndexing reports whether indexing is in progress: a lock file exists AND its
+// holder process is still alive. It is a pure predicate — it performs no
+// filesystem mutation, so the read commands that gate on it (cmd/root.go,
+// cmd/search.go) stay read-only. A stale lock (dead holder, e.g. an interrupted
+// `snipe index`) reports not-indexing but is left on disk; reaping it is a
+// separate, explicit step performed on the write path by AcquireLock.
 func IsIndexing(dbPath string) bool {
 	lockPath := LockPath(dbPath)
 	if _, err := os.Stat(lockPath); err != nil {
 		return false
 	}
 	// Lock exists — only "in progress" if the holder is still alive.
-	if tryRemoveStaleLock(lockPath) {
-		return false
-	}
-	return true
+	stale, _ := lockHeldByDeadProcess(lockPath)
+	return !stale
 }
 
 // AcquireLock creates a lock file for indexing.
@@ -171,37 +171,52 @@ func AcquireLock(dbPath string) error {
 	return f.Close()
 }
 
-// tryRemoveStaleLock checks whether the lock file is held by a dead process,
-// and removes it only if the file's contents still match what we verified as
-// stale. Without the re-read-and-match, two parallel snipe runs starting
-// against a stale lock could race: A reads the dead PID, C re-locks in the
-// gap, then A unlinks C's live lock. The match check shrinks that window
-// from "any past read" to a tight read→remove pair.
-func tryRemoveStaleLock(lockPath string) bool {
+// lockHeldByDeadProcess reports whether the lock at lockPath is stale: its holder
+// process is no longer alive, or its contents are empty/unparseable. It also
+// returns the trimmed contents it observed, so a follow-up removal can confirm
+// nothing re-locked in the gap. Pure read — performs no mutation. Both the
+// IsIndexing predicate and the tryRemoveStaleLock reap share this one liveness
+// check; only the reap acts on the verdict.
+func lockHeldByDeadProcess(lockPath string) (stale bool, observed string) {
 	data, err := os.ReadFile(lockPath) // #nosec G304
 	if err != nil {
-		return false
+		return false, ""
 	}
-	initial := strings.TrimSpace(string(data))
-	if initial == "" {
+	observed = strings.TrimSpace(string(data))
+	if observed == "" {
 		// Empty file (old format or crash mid-write) — treat as stale.
-		return removeLockIfContentsMatch(lockPath, "")
+		return true, ""
 	}
-	pid, err := strconv.Atoi(initial)
+	pid, err := strconv.Atoi(observed)
 	if err != nil {
 		// Unparseable — treat as stale.
-		return removeLockIfContentsMatch(lockPath, initial)
+		return true, observed
 	}
 	// os.FindProcess on Unix never fails for any int; the actual liveness
 	// check is Signal(0), which returns ESRCH for dead PIDs.
 	proc, _ := os.FindProcess(pid)
 	if proc == nil {
-		return removeLockIfContentsMatch(lockPath, initial)
+		return true, observed
 	}
 	if err := proc.Signal(syscall.Signal(0)); err != nil {
-		return removeLockIfContentsMatch(lockPath, initial)
+		return true, observed
 	}
-	return false
+	return false, observed
+}
+
+// tryRemoveStaleLock reaps the lock at lockPath when its holder is dead, removing
+// it only if the file's contents still match what we verified as stale. Without
+// the re-read-and-match, two parallel snipe runs starting against a stale lock
+// could race: A reads the dead PID, C re-locks in the gap, then A unlinks C's
+// live lock. The match check shrinks that window from "any past read" to a tight
+// read→remove pair. This is the write-path reap; the read-path predicate
+// (IsIndexing) deliberately does NOT call it.
+func tryRemoveStaleLock(lockPath string) bool {
+	stale, observed := lockHeldByDeadProcess(lockPath)
+	if !stale {
+		return false
+	}
+	return removeLockIfContentsMatch(lockPath, observed)
 }
 
 // removeLockIfContentsMatch unlinks lockPath only if its current contents (trimmed)
