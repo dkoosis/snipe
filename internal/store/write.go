@@ -126,18 +126,23 @@ func filterCallEdges(edges []index.CallEdge, symbolIDs map[string]struct{}) []in
 }
 
 func truncateTables(tx *sql.Tx) error {
-	// Delete in order: child tables first (refs, call_graph, imports, embeddings, symbol_purposes),
+	// Delete in order: child tables first (refs, call_graph, embeddings, symbol_purposes),
 	// then parent (symbols). This respects foreign key constraints.
 	// Note: embeddings are preserved via temp table and restored by restoreEmbeddings()
 	// Using explicit statements avoids string concatenation patterns that could be unsafe.
+	//
+	// `imports` is deliberately NOT truncated here. A full reindex spans several
+	// transactions: WriteIndex commits first, WriteImports later. If we cleared
+	// imports in this tx, a crash before WriteImports' commit would serve a
+	// fresh-looking but imports-empty index until the next full reindex (snipe-syt).
+	// Instead, imports is truncated+repopulated atomically inside WriteImports'
+	// own tx, so the two phases share a transaction. The imports table has no FK
+	// to symbols, so leaving it intact while symbols are deleted is safe.
 	if _, err := tx.Exec("DELETE FROM refs"); err != nil {
 		return fmt.Errorf("truncate refs: %w", err)
 	}
 	if _, err := tx.Exec("DELETE FROM call_graph"); err != nil {
 		return fmt.Errorf("truncate call_graph: %w", err)
-	}
-	if err := deleteOptionalTable(tx, "imports"); err != nil {
-		return err
 	}
 	// Delete embeddings (they'll be restored from temp table after symbols are inserted)
 	if err := deleteOptionalTable(tx, "embeddings"); err != nil {
@@ -328,13 +333,24 @@ func toPlaceholders(ss []string) (placeholders []string, args []any) {
 	return
 }
 
-// WriteImports writes import records to the database
+// WriteImports replaces all import records on a full reindex.
+//
+// The truncate and repopulate happen in ONE transaction so a crash can never
+// expose a committed-but-empty imports table. WriteIndex's truncateTables
+// deliberately leaves `imports` alone for this reason (snipe-syt) — clearing it
+// there and repopulating here, across two separate commits, opened a window
+// where a mid-reindex crash served a fresh-looking but imports-empty index.
 func (s *Store) WriteImports(imports []index.Import) (err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { rollbackOnError(tx, &err) }()
+
+	// Truncate + repopulate atomically within this tx.
+	if err := deleteOptionalTable(tx, "imports"); err != nil {
+		return err
+	}
 
 	if err := writeImports(tx, imports); err != nil {
 		return err
