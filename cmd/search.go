@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -14,6 +16,22 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/util"
 )
+
+// classifySearchErr maps a search.Search error to an output error code.
+// A genuine no-matches result returns a nil error (search.Search yields no
+// error on rg exit code 1), so any error here is either a missing rg binary
+// or a runtime failure. We distinguish them with a typed exec.ErrNotFound
+// probe (lookErr) instead of substring-matching the message — "not found"
+// also appears in unrelated rg/runtime errors, so the old match misfired.
+func classifySearchErr(err, lookErr error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(lookErr, exec.ErrNotFound) {
+		return output.ErrRgNotFound
+	}
+	return output.ErrInternal
+}
 
 var identifierRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*$`)
 
@@ -68,12 +86,11 @@ func runSearch(args []string) error {
 	// from walking outside the repo when invoked from a subdir or above the root.
 	results, err := search.Search(GetContext(), root, pattern, lim, ctx, globs...)
 	if err != nil {
-		code := output.ErrInternal
-		if strings.Contains(err.Error(), "not found") {
-			code = output.ErrRgNotFound
-		}
+		// Probe for the rg binary with a typed sentinel so a missing-rg
+		// failure is classified by exec.ErrNotFound, never by message text.
+		_, lookErr := exec.LookPath("rg")
 		return w.WriteError(cmdNameSearch, &output.Error{
-			Code:    code,
+			Code:    classifySearchErr(err, lookErr),
 			Message: err.Error(),
 		})
 	}

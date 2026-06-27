@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,16 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
+
+// editErrCode maps an edit.Apply/ApplyAndWrite error to an output error code.
+// edit.ErrSymbolNotFound is a public sentinel, so surface it as NOT_FOUND:
+// Claude (D1) must see a recoverable lookup miss, not an INTERNAL_ERROR crash.
+func editErrCode(err error) string {
+	if errors.Is(err, edit.ErrSymbolNotFound) {
+		return output.ErrNotFound
+	}
+	return output.ErrInternal
+}
 
 var (
 	editOperation   string
@@ -220,7 +231,7 @@ doEdit:
 
 	if err != nil {
 		return w.WriteError(cmdNameEdit, &output.Error{
-			Code:    output.ErrInternal,
+			Code:    editErrCode(err),
 			Message: err.Error(),
 		})
 	}
