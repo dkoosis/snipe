@@ -23,7 +23,6 @@ func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t 
 		input           string
 		want            []query.MethodInfo
 		wantErrContains string
-		inspect         func(*testing.T, []query.MethodInfo)
 	}{
 		{
 			name:            "error on closed database",
@@ -36,10 +35,6 @@ func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t 
 			seedSQL: []string{`INSERT INTO symbols VALUES ('1','Do','method','func()','(Widget)','a.go',10,'');`},
 			input:   "",
 			want:    nil,
-			inspect: func(t *testing.T, got []query.MethodInfo) {
-				t.Helper()
-				require.Empty(t, got)
-			},
 		},
 		{
 			name: "happy path includes value and pointer exported methods only",
@@ -55,26 +50,12 @@ func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t 
 				{ID: "1", Name: "Alpha", Signature: "func()", Receiver: "(Widget)", File: "a.go", Line: 10, Doc: "doc A"},
 				{ID: "2", Name: "Beta", Signature: "func(int)", Receiver: "(*Widget)", File: "a.go", Line: 20, Doc: "doc B"},
 			},
-			inspect: func(t *testing.T, got []query.MethodInfo) {
-				t.Helper()
-				for _, m := range got {
-					require.NotEmpty(t, m.ID)
-					require.Contains(t, []string{"(Widget)", "(*Widget)"}, m.Receiver)
-					require.Regexp(t, "^[A-Z]", m.Name)
-				}
-			},
 		},
 		{
 			name:    "boundary zero values in nullable columns become empty strings",
 			seedSQL: []string{`INSERT INTO symbols (id,name,kind,receiver,file_path_rel,line_start) VALUES ('9','Zeta','method','(Widget)','z.go',90);`},
 			input:   "Widget",
 			want:    []query.MethodInfo{{ID: "9", Name: "Zeta", Signature: "", Receiver: "(Widget)", File: "z.go", Line: 90, Doc: ""}},
-			inspect: func(t *testing.T, got []query.MethodInfo) {
-				t.Helper()
-				require.Len(t, got, 1)
-				require.Empty(t, got[0].Signature)
-				require.Empty(t, got[0].Doc)
-			},
 		},
 	}
 
@@ -102,10 +83,6 @@ func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t 
 
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("diff (-want +got):\n%s", diff)
-			}
-
-			if tc.inspect != nil {
-				tc.inspect(t, got)
 			}
 		})
 	}
