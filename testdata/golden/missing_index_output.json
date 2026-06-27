@@ -7,6 +7,8 @@
     "index_state": "missing",
     "ms": 1,
     "total": 0,
+    "offset": 0,
+    "limit": 0,
     "truncated": false,
     "token_estimate": 0
   },

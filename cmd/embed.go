@@ -30,16 +30,21 @@ var (
 )
 
 // EmbedStatusResult is the output for embed-status command.
+//
+// Total, Completed, Failed, and Stale carry meaning at their zero values
+// ("0 failed", "checked, not stale") — the very signals embed-status reports —
+// so they emit unconditionally (D4). The remaining string/time fields stay
+// omitempty: their zero values are absence, not signal.
 type EmbedStatusResult struct {
 	BatchID    string    `json:"batch_id,omitempty"`
 	Status     string    `json:"status"`
-	Total      int       `json:"total,omitempty"`
-	Completed  int       `json:"completed,omitempty"`
-	Failed     int       `json:"failed,omitempty"`
+	Total      int       `json:"total"`
+	Completed  int       `json:"completed"`
+	Failed     int       `json:"failed"`
 	Model      string    `json:"model,omitempty"`
 	CreatedAt  time.Time `json:"created_at,omitempty"`
 	Age        string    `json:"age,omitempty"`
-	Stale      bool      `json:"stale,omitempty"`
+	Stale      bool      `json:"stale"`
 	EmbedCount int       `json:"embed_count,omitempty"`
 	Message    string    `json:"message,omitempty"`
 }

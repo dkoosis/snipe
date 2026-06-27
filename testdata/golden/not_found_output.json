@@ -7,6 +7,8 @@
     "index_state": "fresh",
     "ms": 5,
     "total": 0,
+    "offset": 0,
+    "limit": 0,
     "truncated": false,
     "token_estimate": 0
   },
