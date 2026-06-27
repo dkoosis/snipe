@@ -5,6 +5,8 @@
     "decision_path": [
       "lookup:position"
     ],
+    "limit": 0,
+    "offset": 0,
     "query": {
       "at": "\u003crepo\u003e/main.go:25:11"
     },
