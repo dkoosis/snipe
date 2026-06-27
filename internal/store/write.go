@@ -347,7 +347,9 @@ func (s *Store) WriteImports(imports []index.Import) (err error) {
 	}
 	defer func() { rollbackOnError(tx, &err) }()
 
-	// Truncate + repopulate atomically within this tx.
+	// Truncate + repopulate atomically within this tx. Each step uses an explicit
+	// `return err`, so the deferred rollbackOnError(tx, &err) sees the failure via
+	// the named return; gocritic's sloppyReassign rules out the `=`-to-named form.
 	if err := deleteOptionalTable(tx, "imports"); err != nil {
 		return err
 	}

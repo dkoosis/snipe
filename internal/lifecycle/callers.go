@@ -73,33 +73,48 @@ func frontierCallers(db *sql.DB, ids []string) ([]callerEdge, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-	// #nosec G201 -- placeholders are "?" literals; args carry the values (parameterized).
-	q := `
-		SELECT DISTINCT cg.caller_id, caller.name, caller.file_path_rel
-		FROM call_graph cg
-		JOIN symbols caller ON cg.caller_id = caller.id
-		WHERE cg.callee_id IN (` + strings.Join(placeholders, ",") + `)
-		ORDER BY caller.file_path_rel, caller.name`
-
-	rows, err := db.Query(q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
+	// SQLite's default SQLITE_LIMIT_VARIABLE_NUMBER is 999; a wide BFS frontier
+	// (e.g. a heavily-called helper) can exceed it, so chunk the IN(...) set.
+	const maxVars = 999
 	var edges []callerEdge
-	for rows.Next() {
-		var e callerEdge
-		if err := rows.Scan(&e.callerID, &e.callerName, &e.callerFileRel); err != nil {
+	for start := 0; start < len(ids); start += maxVars {
+		end := start + maxVars
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunk := ids[start:end]
+		if err := func() error {
+			placeholders := make([]string, len(chunk))
+			args := make([]any, len(chunk))
+			for i, id := range chunk {
+				placeholders[i] = "?"
+				args[i] = id
+			}
+			// #nosec G201 -- placeholders are "?" literals; args carry the values (parameterized).
+			q := `
+				SELECT DISTINCT cg.caller_id, caller.name, caller.file_path_rel
+				FROM call_graph cg
+				JOIN symbols caller ON cg.caller_id = caller.id
+				WHERE cg.callee_id IN (` + strings.Join(placeholders, ",") + `)
+				ORDER BY caller.file_path_rel, caller.name`
+
+			rows, err := db.Query(q, args...)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			for rows.Next() {
+				var e callerEdge
+				if err := rows.Scan(&e.callerID, &e.callerName, &e.callerFileRel); err != nil {
+					return err
+				}
+				edges = append(edges, e)
+			}
+			return rows.Err()
+		}(); err != nil {
 			return nil, err
 		}
-		edges = append(edges, e)
 	}
-	return edges, rows.Err()
+	return edges, nil
 }

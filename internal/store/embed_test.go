@@ -51,6 +51,42 @@ func TestGetEmbeddingCorruptBlob(t *testing.T) {
 	}
 }
 
+// TestGetEmbeddingsBatchCorruptBlob verifies the batch retrieval paths
+// (GetAllEmbeddings, GetEmbeddingsByPackage) surface ErrCorruptEmbedding on a
+// non-empty undeserializable BLOB, same as the single-symbol GetEmbedding —
+// rather than silently emitting a nil vector into a similarity scan.
+func TestGetEmbeddingsBatchCorruptBlob(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer s.Close()
+
+	// A func symbol so it survives GetEmbeddingsByPackage's func/method filter.
+	sym := index.Symbol{
+		ID: "corrupt-sym", Name: "Func1", Kind: index.KindFunc,
+		FilePath: "/a.go", LineStart: 1, ColStart: 1, LineEnd: 10, ColEnd: 1,
+	}
+	if err := s.WriteIndex([]index.Symbol{sym}, nil, nil); err != nil {
+		t.Fatalf("WriteIndex failed: %v", err)
+	}
+	corrupt := []byte{0x01, 0x02, 0x03} // length not a multiple of 4 → DeserializeEmbedding returns nil
+	if _, err := s.db.Exec(
+		`INSERT OR REPLACE INTO embeddings (symbol_id, embedding, model, created_at) VALUES (?, ?, ?, ?)`,
+		sym.ID, corrupt, "test-model", "2026-06-27T00:00:00Z",
+	); err != nil {
+		t.Fatalf("insert corrupt embedding: %v", err)
+	}
+
+	if _, err := s.GetAllEmbeddings(); !errors.Is(err, ErrCorruptEmbedding) {
+		t.Errorf("GetAllEmbeddings: expected ErrCorruptEmbedding, got %v", err)
+	}
+	if _, err := s.GetEmbeddingsByPackage(); !errors.Is(err, ErrCorruptEmbedding) {
+		t.Errorf("GetEmbeddingsByPackage: expected ErrCorruptEmbedding, got %v", err)
+	}
+}
+
 // TestGetEmbeddingValidRoundTrip guards the happy path: a valid stored
 // embedding still round-trips without tripping the corruption check.
 func TestGetEmbeddingValidRoundTrip(t *testing.T) {

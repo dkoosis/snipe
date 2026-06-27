@@ -79,6 +79,11 @@ func (s *Store) GetAllEmbeddings() ([]EmbeddingRow, error) {
 			return nil, fmt.Errorf("scan embedding row: %w", err)
 		}
 		r.Embedding = vector.DeserializeEmbedding(data)
+		if r.Embedding == nil && len(data) > 0 {
+			// Same corruption guard as GetEmbedding: a non-empty BLOB that fails
+			// to deserialize is surfaced, not silently scored as an empty vector.
+			return nil, fmt.Errorf("get embedding for symbol %s: %w", r.SymbolID, ErrCorruptEmbedding)
+		}
 		results = append(results, r)
 	}
 	if err := rows.Err(); err != nil {
@@ -125,6 +130,11 @@ func (s *Store) GetEmbeddingsByPackage() ([]PkgEmbeddingRow, error) {
 			return nil, fmt.Errorf("scan pkg embedding row: %w", err)
 		}
 		r.Embedding = vector.DeserializeEmbedding(data)
+		if r.Embedding == nil && len(data) > 0 {
+			// Same corruption guard as GetEmbedding: a non-empty BLOB that fails
+			// to deserialize is surfaced, not silently scored as an empty vector.
+			return nil, fmt.Errorf("get embedding for symbol %s: %w", r.SymbolID, ErrCorruptEmbedding)
+		}
 		out = append(out, r)
 	}
 	if err := rows.Err(); err != nil {
