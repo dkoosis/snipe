@@ -108,7 +108,7 @@ func runIndex(args []string) error {
 		// user discovers --force. Force a one-time full reindex to backfill;
 		// the marker is written at the end of the metrics block, so subsequent
 		// runs skip normally.
-		if detection.result != skipResultProceedFull && metricsNeedBackfill(s) {
+		if detection.result != skipResultProceedFull && !skipMetrics && metricsNeedBackfill(s) {
 			fmt.Fprintf(os.Stderr, "Index predates current risk metrics — running full reindex to backfill (one-time)\n")
 			detection = &changeDetection{result: skipResultProceedFull}
 		}
@@ -273,7 +273,9 @@ func runIndex(args []string) error {
 		}
 		// Mark which generation of file-level metrics this index carries, so a
 		// later skip/incremental run can detect a stale index and backfill.
-		_ = s.SetMeta(metaFileMetricsVersion, fileMetricsVersion)
+		if err := s.SetMeta(metaFileMetricsVersion, fileMetricsVersion); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to write file metrics version: %v\n", err)
+		}
 	}
 
 	// Extract and write string literals (env var calls + named consts)
