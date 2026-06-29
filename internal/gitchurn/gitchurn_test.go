@@ -112,6 +112,53 @@ func TestWalkCountsCommitsAndAuthors(t *testing.T) {
 	}
 }
 
+// commitNameEmail commits one file with an explicit, decoupled author name and
+// email — used to prove author identity keys on email, not display name.
+func commitNameEmail(t *testing.T, dir, date, name, email, file, body string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, file), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	add := exec.Command("git", "add", "-A")
+	add.Dir = dir
+	if out, err := add.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v\n%s", err, out)
+	}
+	env := []string{
+		"GIT_AUTHOR_DATE=" + date, "GIT_COMMITTER_DATE=" + date,
+		"GIT_AUTHOR_NAME=" + name, "GIT_AUTHOR_EMAIL=" + email,
+		"GIT_COMMITTER_NAME=" + name, "GIT_COMMITTER_EMAIL=" + email,
+	}
+	c := exec.Command("git", "commit", "-q", "-m", "c")
+	c.Dir = dir
+	c.Env = append(os.Environ(), env...)
+	if out, err := c.CombinedOutput(); err != nil {
+		t.Fatalf("git commit: %v\n%s", err, out)
+	}
+}
+
+// TestWalkCountsAuthorsByEmailNotName guards the bus-factor signal against
+// user.name drift: one person committing under two display names but a single
+// email is one author, not two. (Observed live: "David Koosis" and
+// "dkoosis@gmail.com" both at <dkoosis@gmail.com> made every file read auth=2.)
+func TestWalkCountsAuthorsByEmailNotName(t *testing.T) {
+	dir := gitRepo(t)
+	commitNameEmail(t, dir, "2026-01-01T00:00:00Z", "David Koosis", "dk@example.com", "f.go", "package p\nvar A int\n")
+	commitNameEmail(t, dir, "2026-02-01T00:00:00Z", "dk@example.com", "dk@example.com", "f.go", "package p\nvar A, B int\n")
+
+	rows, err := Walk(dir)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	f := byPath(rows)["f.go"]
+	if f.Commits != 2 {
+		t.Errorf("f.go commits = %d, want 2", f.Commits)
+	}
+	if f.Authors != 1 {
+		t.Errorf("f.go authors = %d, want 1 (same email, two display names)", f.Authors)
+	}
+}
+
 func TestWalkIgnoresNonGoAndMerges(t *testing.T) {
 	dir := gitRepo(t)
 	commit(t, dir, "2026-01-01T00:00:00Z", "alice", map[string]string{
