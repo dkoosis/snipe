@@ -51,6 +51,11 @@ func runHotspots(top int, pkg, file string) error {
 		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
 	}
 	if len(cycloSum) == 0 {
+		// Preserve the JSON envelope for API/orca consumers in the common
+		// "index not populated yet" case; plain text is for humans only.
+		if GetOutputFormat() == output.OutputJSON {
+			return writeHotspotsJSON(nil, dir, start)
+		}
 		_, werr := os.Stdout.WriteString("hotspots · (no complexity data — run `snipe index` to populate)\n")
 		return werr
 	}

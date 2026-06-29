@@ -1153,7 +1153,9 @@ func relToRoot(root, absPath string) string {
 	if err != nil {
 		return absPath
 	}
-	return rel
+	// Force forward slashes so these keys join against gitchurn.Walk paths
+	// (git emits "/"-separated paths even on Windows, where Rel uses "\").
+	return filepath.ToSlash(rel)
 }
 
 // computeChurn derives per-file git change-frequency (the temporal axis of

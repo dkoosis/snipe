@@ -120,7 +120,12 @@ func matchGlob(glob, path string) bool {
 		return strings.HasPrefix(path, strings.TrimSuffix(glob, "**"))
 	}
 	if suffix, ok := strings.CutPrefix(glob, "**/"); ok {
-		return strings.HasSuffix(path, suffix) || strings.Contains(path, "/"+suffix)
+		// Match only on full path segments: the suffix must be the whole path,
+		// end after a separator, or sit between separators — never a partial
+		// filename ("xfoo.go") or a directory named like the file.
+		return path == suffix ||
+			strings.HasSuffix(path, "/"+suffix) ||
+			strings.Contains(path, "/"+suffix+"/")
 	}
 	if ok, _ := filepath.Match(glob, path); ok {
 		return true

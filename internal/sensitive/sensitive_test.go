@@ -50,6 +50,26 @@ func TestConfigGlobExtendsBuiltins(t *testing.T) {
 	}
 }
 
+func TestGlobMatchesFullSegmentsOnly(t *testing.T) {
+	// matchGlob in isolation — paths chosen to avoid built-in keywords.
+	cases := []struct {
+		glob, path string
+		want       bool
+	}{
+		{"**/widget.go", "internal/ui/widget.go", true},    // ends after a separator
+		{"**/widget.go", "widget.go", true},                // whole path
+		{"**/widget.go", "a/widget.go/b.go", true},         // between separators
+		{"**/widget.go", "internal/ui/mywidget.go", false}, // partial filename — must NOT match
+		{"internal/ui/**", "internal/ui/panel.go", true},   // /** prefix dir
+		{"internal/ui/**", "internal/uix/panel.go", false}, // prefix must be a real dir boundary
+	}
+	for _, tc := range cases {
+		if got := matchGlob(tc.glob, tc.path); got != tc.want {
+			t.Errorf("matchGlob(%q, %q) = %v, want %v", tc.glob, tc.path, got, tc.want)
+		}
+	}
+}
+
 func TestLoadMissingFileIsFine(t *testing.T) {
 	c := Load(t.TempDir()) // no .snipe/sensitive
 	if got := c.Zones("internal/auth/x.go"); !reflect.DeepEqual(got, []Zone{ZoneAuth}) {
