@@ -142,7 +142,8 @@ func extractFuncSymbol(pkg *packages.Package, decl *ast.FuncDecl, filePath, pkgP
 	}
 }
 
-// computeCyclo returns the McCabe cyclomatic complexity of a function body.
+// computeCyclo returns the McCabe cyclomatic complexity of a function body
+// (McCabe, "A Complexity Measure", IEEE TSE 1976).
 // 1 + count of decision points (if/for/range/case/comm/&&/||). Body=nil
 // (interface methods, external decls) → 1.
 func computeCyclo(body *ast.BlockStmt) int {
