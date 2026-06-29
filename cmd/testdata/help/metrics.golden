@@ -23,7 +23,7 @@ Flags:
       --top=20              Top-N rows to print
       --kind="pagerank"     Metric kind (or comma-separated
                             list for a merged table):
-                            pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|churn|usage
+                            pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|cognitive|churn|usage
       --graph="imports"     Graph kind ('imports' or 'calls')
       --pkg=STRING          Filter to a single package (suffix-matches package
                             import path)

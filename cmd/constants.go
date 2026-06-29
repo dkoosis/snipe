@@ -53,6 +53,7 @@ const (
 	cmdKindError     = "error"
 	cmdKindGraph     = "graph"
 	cmdKindCyclo     = "cyclo"
+	cmdKindCognitive = "cognitive"
 	cmdKindCycles    = "cycles"
 	cmdKindCoupling  = "coupling"
 	cmdKindInterface = "interface"

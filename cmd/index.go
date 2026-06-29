@@ -245,6 +245,9 @@ func runIndex(args []string) error {
 		if err := computeCycloRollups(s, symbols); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: cyclo rollup computation failed: %v\n", err)
 		}
+		if err := computeCognitiveRollups(s, symbols); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: cognitive rollup computation failed: %v\n", err)
+		}
 		if err := computeCallsGraphMetrics(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: calls-graph metrics computation failed: %v\n", err)
 		}
@@ -1022,17 +1025,27 @@ func computeLCOM4(s *store.Store) error {
 }
 
 // computeCycloRollups persists per-package McCabe cyclomatic-complexity
-// rollups (sum, p95, max) computed in-memory from already-extracted symbols.
-// Three metric kinds (cyclo_sum, cyclo_p95, cyclo_max) are stored under the
-// imports graph; `snipe metrics --kind=cyclo` joins them at read time.
-//
+// rollups (sum, p95, max) under the imports graph as cyclo_sum/p95/max;
+// `snipe metrics --kind=cyclo` joins them at read time.
 // Hot-package threshold: p95 > 10 OR max > 20.
 func computeCycloRollups(s *store.Store, symbols []index.Symbol) error {
-	t0 := time.Now()
-	rollups := index.PackageCycloRollups(symbols)
+	return writeComplexityRollups(s, "cyclo", index.PackageCycloRollups(symbols))
+}
+
+// computeCognitiveRollups is the cognitive-complexity counterpart, stored as
+// cognitive_sum/p95/max for `snipe metrics --kind=cognitive`.
+func computeCognitiveRollups(s *store.Store, symbols []index.Symbol) error {
+	return writeComplexityRollups(s, "cognitive", index.PackageCognitiveRollups(symbols))
+}
+
+// writeComplexityRollups persists a per-package rollup map under the imports
+// graph as {prefix}_sum/{prefix}_p95/{prefix}_max in one place, so cyclo and
+// cognitive share the storage shape.
+func writeComplexityRollups(s *store.Store, prefix string, rollups map[string]index.CycloRollup) error {
 	if len(rollups) == 0 {
 		return nil
 	}
+	t0 := time.Now()
 	sum := make(map[string]float64, len(rollups))
 	p95 := make(map[string]float64, len(rollups))
 	maxv := make(map[string]float64, len(rollups))
@@ -1041,17 +1054,17 @@ func computeCycloRollups(s *store.Store, symbols []index.Symbol) error {
 		p95[pkg] = r.P95
 		maxv[pkg] = float64(r.Max)
 	}
-	if err := s.WriteGraphMetrics("imports", "cyclo_sum", sum); err != nil {
-		return fmt.Errorf("write cyclo_sum: %w", err)
+	if err := s.WriteGraphMetrics("imports", prefix+"_sum", sum); err != nil {
+		return fmt.Errorf("write %s_sum: %w", prefix, err)
 	}
-	if err := s.WriteGraphMetrics("imports", "cyclo_p95", p95); err != nil {
-		return fmt.Errorf("write cyclo_p95: %w", err)
+	if err := s.WriteGraphMetrics("imports", prefix+"_p95", p95); err != nil {
+		return fmt.Errorf("write %s_p95: %w", prefix, err)
 	}
-	if err := s.WriteGraphMetrics("imports", "cyclo_max", maxv); err != nil {
-		return fmt.Errorf("write cyclo_max: %w", err)
+	if err := s.WriteGraphMetrics("imports", prefix+"_max", maxv); err != nil {
+		return fmt.Errorf("write %s_max: %w", prefix, err)
 	}
-	fmt.Fprintf(os.Stderr, "metrics: cyclo rollups computed for %d packages in %dms\n",
-		len(rollups), time.Since(t0).Milliseconds())
+	fmt.Fprintf(os.Stderr, "metrics: %s rollups computed for %d packages in %dms\n",
+		prefix, len(rollups), time.Since(t0).Milliseconds())
 	return nil
 }
 

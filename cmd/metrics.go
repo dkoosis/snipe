@@ -49,7 +49,7 @@ func runMetrics() error {
 	case "pagerank", "betweenness", "hits", "hub", "authority",
 		cmdKindCycles, cmdKindTopo, "degree", "in_degree", "out_degree", "eigenvector",
 		"ca", "ce", cmdKindCoupling, "instability", "abstractness", cmdKindDistance, kindLCOM4,
-		cmdKindCyclo, "cyclo_sum", "cyclo_p95", "cyclo_max", kindChurn:
+		cmdKindCyclo, "cyclo_sum", "cyclo_p95", "cyclo_max", cmdKindCognitive, kindChurn:
 		// ok
 	default:
 		return w.WriteError(cmdNameMetrics, &output.Error{
@@ -95,6 +95,11 @@ func runMetrics() error {
 	// Cyclo joins per-package sum/p95/max into a hot-package table.
 	if metricsKind == cmdKindCyclo {
 		return runCycloMetrics(s, dir, start)
+	}
+
+	// Cognitive (SonarSource) shares the rollup table shape with cyclo.
+	if metricsKind == cmdKindCognitive {
+		return runCognitiveMetrics(s, dir, start)
 	}
 
 	// Churn reads git change-frequency from file_churn (not the graph).
@@ -409,21 +414,32 @@ type cycloRow struct {
 	Max int     `json:"max"`
 }
 
+// runCycloMetrics and runCognitiveMetrics share one rollup renderer; they
+// differ only in the stored metric prefix/label and the hot-package
+// thresholds (cyclo: p95>10/max>20; cognitive: SonarSource-leaning p95>15/max>30).
 func runCycloMetrics(s *store.Store, dir string, startedAt time.Time) error {
-	sumRows, err := s.ReadTopN(cmdNameImports, "cyclo_sum", 0)
+	return runComplexityRollupMetrics(s, dir, startedAt, cmdKindCyclo, 10, 20)
+}
+
+func runCognitiveMetrics(s *store.Store, dir string, startedAt time.Time) error {
+	return runComplexityRollupMetrics(s, dir, startedAt, cmdKindCognitive, 15, 30)
+}
+
+func runComplexityRollupMetrics(s *store.Store, dir string, startedAt time.Time, label string, hotP95 float64, hotMax int) error {
+	sumRows, err := s.ReadTopN(cmdNameImports, label+"_sum", 0)
 	if err != nil {
-		return fmt.Errorf("read cyclo_sum: %w", err)
+		return fmt.Errorf("read %s_sum: %w", label, err)
 	}
-	p95Rows, err := s.ReadTopN(cmdNameImports, "cyclo_p95", 0)
+	p95Rows, err := s.ReadTopN(cmdNameImports, label+"_p95", 0)
 	if err != nil {
-		return fmt.Errorf("read cyclo_p95: %w", err)
+		return fmt.Errorf("read %s_p95: %w", label, err)
 	}
-	maxRows, err := s.ReadTopN(cmdNameImports, "cyclo_max", 0)
+	maxRows, err := s.ReadTopN(cmdNameImports, label+"_max", 0)
 	if err != nil {
-		return fmt.Errorf("read cyclo_max: %w", err)
+		return fmt.Errorf("read %s_max: %w", label, err)
 	}
 	if len(sumRows) == 0 && len(p95Rows) == 0 && len(maxRows) == 0 {
-		_, werr := os.Stdout.WriteString("imports graph · cyclo · (no rows — run `snipe index` to populate)\n")
+		_, werr := fmt.Fprintf(os.Stdout, "imports graph · %s · (no rows — run `snipe index` to populate)\n", label)
 		return werr
 	}
 
@@ -476,7 +492,7 @@ func runCycloMetrics(s *store.Store, dir string, startedAt time.Time) error {
 			Results:  rows,
 			Meta: output.Meta{
 				Command:  cmdNameMetrics,
-				Query:    map[string]string{cmdKindGraph: cmdNameImports, jsonKeyKind: cmdKindCyclo, flagPkg: metricsPkg},
+				Query:    map[string]string{cmdKindGraph: cmdNameImports, jsonKeyKind: label, flagPkg: metricsPkg},
 				RepoRoot: dir,
 				Ms:       time.Since(startedAt).Milliseconds(),
 				Total:    len(rows),
@@ -488,11 +504,11 @@ func runCycloMetrics(s *store.Store, dir string, startedAt time.Time) error {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "imports graph · cyclo · %d packages (p95 > 10 OR max > 20 = hot-package flag)\n", len(rows))
+	fmt.Fprintf(&b, "imports graph · %s · %d packages (p95 > %g OR max > %d = hot-package flag)\n", label, len(rows), hotP95, hotMax)
 	fmt.Fprintf(&b, "  %5s %5s %5s  %s\n", "sum", "p95", "max", flagPkg)
 	for _, r := range rows {
 		flag := "  "
-		if r.P95 > 10 || r.Max > 20 {
+		if r.P95 > hotP95 || r.Max > hotMax {
 			flag = "! "
 		}
 		fmt.Fprintf(&b, "%s%5d %5.1f %5d  %s\n", flag, r.Sum, r.P95, r.Max, r.Pkg)
