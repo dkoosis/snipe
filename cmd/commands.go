@@ -314,7 +314,7 @@ func (c *BoundaryCmd) Run() error {
 
 type MetricsCmd struct {
 	Top   int    `default:"20" help:"Top-N rows to print"`
-	Kind  string `default:"pagerank" help:"Metric kind (or comma-separated list for a merged table): pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|usage"`
+	Kind  string `default:"pagerank" help:"Metric kind (or comma-separated list for a merged table): pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|churn|usage"`
 	Graph string `default:"imports" help:"Graph kind ('imports' or 'calls')"`
 	Pkg   string `help:"Filter to a single package (suffix-matches package import path)"`
 }

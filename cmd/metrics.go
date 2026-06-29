@@ -49,7 +49,7 @@ func runMetrics() error {
 	case "pagerank", "betweenness", "hits", "hub", "authority",
 		cmdKindCycles, cmdKindTopo, "degree", "in_degree", "out_degree", "eigenvector",
 		"ca", "ce", cmdKindCoupling, "instability", "abstractness", cmdKindDistance, kindLCOM4,
-		cmdKindCyclo, "cyclo_sum", "cyclo_p95", "cyclo_max":
+		cmdKindCyclo, "cyclo_sum", "cyclo_p95", "cyclo_max", kindChurn:
 		// ok
 	default:
 		return w.WriteError(cmdNameMetrics, &output.Error{
@@ -95,6 +95,11 @@ func runMetrics() error {
 	// Cyclo joins per-package sum/p95/max into a hot-package table.
 	if metricsKind == cmdKindCyclo {
 		return runCycloMetrics(s, dir, start)
+	}
+
+	// Churn reads git change-frequency from file_churn (not the graph).
+	if metricsKind == kindChurn {
+		return runChurnMetrics(s, dir, start)
 	}
 
 	// --pkg implies "show this package only" — load all rows, then filter.

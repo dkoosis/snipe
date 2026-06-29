@@ -11,6 +11,7 @@ import (
 	"golang.org/x/mod/modfile"
 
 	"github.com/dkoosis/snipe/internal/embed"
+	"github.com/dkoosis/snipe/internal/gitchurn"
 	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/output"
@@ -246,6 +247,9 @@ func runIndex(args []string) error {
 		}
 		if err := computeCallsGraphMetrics(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: calls-graph metrics computation failed: %v\n", err)
+		}
+		if err := computeChurn(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: git churn computation failed: %v\n", err)
 		}
 	}
 
@@ -1045,6 +1049,43 @@ func computeCycloRollups(s *store.Store, symbols []index.Symbol) error {
 	}
 	fmt.Fprintf(os.Stderr, "metrics: cyclo rollups computed for %d packages in %dms\n",
 		len(rollups), time.Since(t0).Milliseconds())
+	return nil
+}
+
+// computeChurn derives per-file git change-frequency (the temporal axis of
+// the Tornhill hotspot model) and replaces the file_churn table. It always
+// writes — even an empty result — so the table tracks HEAD: a repo that
+// loses git history, or a non-git checkout, ends with no stale churn. Git
+// absence is a clean no-op inside gitchurn.Walk, not an error.
+func computeChurn(s *store.Store) error {
+	root, err := s.GetMeta("repo_root")
+	if err != nil {
+		return fmt.Errorf("read repo_root: %w", err)
+	}
+	if root == "" {
+		return nil
+	}
+	t0 := time.Now()
+	rows, err := gitchurn.Walk(root)
+	if err != nil {
+		return fmt.Errorf("walk git history: %w", err)
+	}
+	churn := make([]store.FileChurn, len(rows))
+	for i, r := range rows {
+		churn[i] = store.FileChurn{
+			Path:        r.Path,
+			Commits:     r.Commits,
+			Authors:     r.Authors,
+			FirstSeen:   r.FirstSeen,
+			LastChanged: r.LastChanged,
+			Score:       r.Score,
+		}
+	}
+	if err := s.WriteFileChurn(churn); err != nil {
+		return fmt.Errorf("write file churn: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "metrics: git churn computed for %d files in %dms\n",
+		len(churn), time.Since(t0).Milliseconds())
 	return nil
 }
 
