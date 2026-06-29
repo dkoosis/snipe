@@ -4,7 +4,8 @@ package graphmetrics
 import "math"
 
 // PageRank computes PageRank scores for all nodes in g using the Brin & Page
-// formulation with dangling-node mass redistribution. Damping is typically 0.85.
+// formulation ("The Anatomy of a Large-Scale Hypertextual Web Search Engine",
+// WWW7 1998) with dangling-node mass redistribution. Damping is typically 0.85.
 // Iteration stops when the L1 delta falls below 1e-6 or maxIter is reached.
 // Returned scores sum to ~1.0.
 func PageRank(g *Graph, damping float64, maxIter int) map[string]float64 {

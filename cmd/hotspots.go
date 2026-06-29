@@ -26,7 +26,7 @@ type hotspotRow struct {
 	Cognitive   int              `json:"cognitive"`           // summed SonarSource cognitive complexity (cog)
 	Commits     int              `json:"commits"`             // revisions touching the file (chn)
 	Authors     int              `json:"authors"`             // distinct committers / bus factor (auth)
-	FanIn       int              `json:"fan_in"`              // cross-file callers / blast radius (in)
+	FanIn       int              `json:"fan_in"`              // distinct caller files / blast radius (in)
 	LastChanged string           `json:"last_changed"`        // empty when churn unavailable
 	Sensitive   []sensitive.Zone `json:"sensitive,omitempty"` // auth/crypto/migration/... if any
 }
@@ -215,7 +215,8 @@ func zoneSuffix(zones []sensitive.Zone) string {
 func writeHotspotsText(rows []hotspotRow, haveChurn bool) error {
 	var b strings.Builder
 	b.WriteString("hotspots · unified risk (Tornhill crime-scene)\n")
-	b.WriteString("  risk = cyclo × change-frequency; cx=cyclo cog=cognitive chn=commits auth=bus-factor in=fan-in/blast-radius ⚑=sensitive\n")
+	b.WriteString("  risk = cyclo × change-frequency; cx=cyclo cxmax=worst-func cyclo cog=cognitive chn=commits auth=bus-factor in=fan-in/blast-radius ⚑=sensitive\n")
+	b.WriteString("  high cx + low cxmax → broad file, split; high cxmax → one gnarly func, simplify\n")
 	if !haveChurn {
 		b.WriteString("  ⚠ no git churn (not a git repo) — risk ranked on complexity alone; chn/auth omitted\n")
 	}
@@ -225,15 +226,15 @@ func writeHotspotsText(rows []hotspotRow, haveChurn bool) error {
 		return err
 	}
 	if haveChurn {
-		fmt.Fprintf(&b, "  %5s %5s %5s %5s %5s %5s  %s\n", "risk", "cx", "cog", "chn", "auth", "in", "path")
+		fmt.Fprintf(&b, "  %5s %5s %5s %5s %5s %5s %5s  %s\n", "risk", "cx", "cxmax", "cog", "chn", "auth", "in", "path")
 		for _, r := range rows {
-			fmt.Fprintf(&b, "  %5.2f %5d %5d %5d %5d %5d  %s%s\n",
-				r.Score, r.Cyclo, r.Cognitive, r.Commits, r.Authors, r.FanIn, r.Path, zoneSuffix(r.Sensitive))
+			fmt.Fprintf(&b, "  %5.2f %5d %5d %5d %5d %5d %5d  %s%s\n",
+				r.Score, r.Cyclo, r.CycloMax, r.Cognitive, r.Commits, r.Authors, r.FanIn, r.Path, zoneSuffix(r.Sensitive))
 		}
 	} else {
-		fmt.Fprintf(&b, "  %5s %5s %5s %5s  %s\n", "risk", "cx", "cog", "in", "path")
+		fmt.Fprintf(&b, "  %5s %5s %5s %5s %5s  %s\n", "risk", "cx", "cxmax", "cog", "in", "path")
 		for _, r := range rows {
-			fmt.Fprintf(&b, "  %5.2f %5d %5d %5d  %s%s\n", r.Score, r.Cyclo, r.Cognitive, r.FanIn, r.Path, zoneSuffix(r.Sensitive))
+			fmt.Fprintf(&b, "  %5.2f %5d %5d %5d %5d  %s%s\n", r.Score, r.Cyclo, r.CycloMax, r.Cognitive, r.FanIn, r.Path, zoneSuffix(r.Sensitive))
 		}
 	}
 	_, err := os.Stdout.WriteString(b.String())
