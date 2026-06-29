@@ -327,6 +327,16 @@ func (c *MetricsCmd) Run() error {
 	return runMetrics()
 }
 
+type HotspotsCmd struct {
+	Top  int    `default:"20" help:"Top-N files to print"`
+	Pkg  string `help:"Filter to paths containing this substring (e.g. internal/store)"`
+	File string `help:"Filter to paths containing this substring"`
+}
+
+func (c *HotspotsCmd) Run() error {
+	return runHotspots(c.Top, c.Pkg, c.File)
+}
+
 type DiagramCmd struct {
 	// diagram reuses the global --format flag (d2 default, or svg). It cannot
 	// redeclare --format because the global flag is embedded on every command.

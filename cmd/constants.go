@@ -14,6 +14,7 @@ const (
 	cmdNameDoctor      = "doctor"
 	cmdNameSim         = "sim"
 	cmdNameMetrics     = "metrics"
+	cmdNameHotspots    = "hotspots"
 	cmdNameSym         = "sym"
 	cmdNameSearch      = "search"
 	cmdNameShow        = "show"

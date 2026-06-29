@@ -248,6 +248,9 @@ func runIndex(args []string) error {
 		if err := computeCallsGraphMetrics(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: calls-graph metrics computation failed: %v\n", err)
 		}
+		if err := computeFileCyclo(s, symbols); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: file cyclo computation failed: %v\n", err)
+		}
 		if err := computeChurn(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: git churn computation failed: %v\n", err)
 		}
@@ -1050,6 +1053,59 @@ func computeCycloRollups(s *store.Store, symbols []index.Symbol) error {
 	fmt.Fprintf(os.Stderr, "metrics: cyclo rollups computed for %d packages in %dms\n",
 		len(rollups), time.Since(t0).Milliseconds())
 	return nil
+}
+
+// computeFileCyclo aggregates per-symbol McCabe complexity into per-file
+// sum and max, stored under a synthetic "files" graph. `snipe hotspots`
+// joins this against file_churn (path-keyed) to rank complexity ×
+// change-frequency. Test files are excluded to match computeCycloRollups —
+// hotspots targets production risk. Paths are relativized to repo_root so
+// they line up with the churn and symbols tables.
+func computeFileCyclo(s *store.Store, symbols []index.Symbol) error {
+	root, err := s.GetMeta("repo_root")
+	if err != nil {
+		return fmt.Errorf("read repo_root: %w", err)
+	}
+	sum := make(map[string]float64)
+	maxv := make(map[string]float64)
+	for i := range symbols {
+		sym := &symbols[i]
+		if sym.Kind != index.KindFunc && sym.Kind != index.KindMethod {
+			continue
+		}
+		if strings.HasSuffix(sym.FilePath, "_test.go") {
+			continue
+		}
+		rel := relToRoot(root, sym.FilePath)
+		c := float64(sym.Cyclo)
+		sum[rel] += c
+		if c > maxv[rel] {
+			maxv[rel] = c
+		}
+	}
+	if len(sum) == 0 {
+		return nil
+	}
+	if err := s.WriteGraphMetrics("files", "cyclo_sum", sum); err != nil {
+		return fmt.Errorf("write file cyclo_sum: %w", err)
+	}
+	if err := s.WriteGraphMetrics("files", "cyclo_max", maxv); err != nil {
+		return fmt.Errorf("write file cyclo_max: %w", err)
+	}
+	return nil
+}
+
+// relToRoot returns absPath relative to root, falling back to absPath when
+// root is empty or the paths share no base (mirrors store.toRelPath).
+func relToRoot(root, absPath string) string {
+	if root == "" {
+		return absPath
+	}
+	rel, err := filepath.Rel(root, absPath)
+	if err != nil {
+		return absPath
+	}
+	return rel
 }
 
 // computeChurn derives per-file git change-frequency (the temporal axis of

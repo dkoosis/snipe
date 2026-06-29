@@ -42,6 +42,7 @@ type CLI struct {
 	Types     TypesCmd     `cmd:"" group:"Graph & Structure:" help:"Show type relationships"`
 	Boundary  BoundaryCmd  `cmd:"" group:"Graph & Structure:" help:"Show symbols whose refs cross between two package sets"`
 	Metrics   MetricsCmd   `cmd:"" group:"Graph & Structure:" help:"Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph"`
+	Hotspots  HotspotsCmd  `cmd:"" group:"Graph & Structure:" help:"Rank files by complexity × git change-frequency (Tornhill hotspot model)"`
 	Diagram   DiagramCmd   `cmd:"" group:"Graph & Structure:" help:"Render snipe graphs as D2 diagram source"`
 	Lifecycle LifecycleCmd `cmd:"" group:"Graph & Structure:" help:"Trace every function creating, mutating, reading, or deleting a type"`
 	Deadcode  DeadcodeCmd  `cmd:"" group:"Graph & Structure:" help:"Report exported symbols with zero non-test references"`
