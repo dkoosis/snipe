@@ -337,6 +337,12 @@ func (c *HotspotsCmd) Run() error {
 	return runHotspots(c.Top, c.Pkg, c.File)
 }
 
+type SensitiveCmd struct{}
+
+func (c *SensitiveCmd) Run() error {
+	return runSensitive()
+}
+
 type DiagramCmd struct {
 	// diagram reuses the global --format flag (d2 default, or svg). It cannot
 	// redeclare --format because the global flag is embedded on every command.

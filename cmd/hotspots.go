@@ -10,18 +10,20 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/sensitive"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
 // hotspotRow is one file ranked by the Tornhill hotspot model.
 type hotspotRow struct {
-	Path        string  `json:"path"`
-	Score       float64 `json:"score"`        // 0..1, complexity × change-frequency
-	Cyclo       int     `json:"cyclo"`        // summed McCabe complexity of the file's funcs
-	CycloMax    int     `json:"cyclo_max"`    // hottest single function
-	Commits     int     `json:"commits"`      // revisions touching the file
-	Authors     int     `json:"authors"`      // distinct committers (bus factor)
-	LastChanged string  `json:"last_changed"` // empty when churn unavailable
+	Path        string           `json:"path"`
+	Score       float64          `json:"score"`               // 0..1, complexity × change-frequency
+	Cyclo       int              `json:"cyclo"`               // summed McCabe complexity of the file's funcs
+	CycloMax    int              `json:"cyclo_max"`           // hottest single function
+	Commits     int              `json:"commits"`             // revisions touching the file
+	Authors     int              `json:"authors"`             // distinct committers (bus factor)
+	LastChanged string           `json:"last_changed"`        // empty when churn unavailable
+	Sensitive   []sensitive.Zone `json:"sensitive,omitempty"` // auth/crypto/migration/... if any
 }
 
 // runHotspots ranks files by complexity × change-frequency — Tornhill's
@@ -68,6 +70,12 @@ func runHotspots(top int, pkg, file string) error {
 
 	rows := buildHotspots(cycloSum, maxByPath, churnByPath, haveChurn)
 	rows = filterHotspots(rows, pkg, file)
+	// Annotate with sensitive zones so a small-but-critical file (auth, crypto,
+	// migration) is visible even when its complexity × churn score is modest.
+	cls := sensitive.Load(dir)
+	for i := range rows {
+		rows[i].Sensitive = cls.Zones(rows[i].Path)
+	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Score != rows[j].Score {
 			return rows[i].Score > rows[j].Score
@@ -165,6 +173,15 @@ func writeHotspotsJSON(rows []hotspotRow, dir string, start time.Time) error {
 	return enc.Encode(resp)
 }
 
+// zoneSuffix renders a sensitive-zone marker appended to a hotspot's path,
+// e.g. " ⚑[auth,crypto]", or "" when the file is in no sensitive zone.
+func zoneSuffix(zones []sensitive.Zone) string {
+	if len(zones) == 0 {
+		return ""
+	}
+	return "  ⚑" + zonesString(zones)
+}
+
 func writeHotspotsText(rows []hotspotRow, haveChurn bool) error {
 	var b strings.Builder
 	b.WriteString("hotspots · complexity × change-frequency (Tornhill crime-scene: risk peaks where complex code changes often)\n")
@@ -179,13 +196,13 @@ func writeHotspotsText(rows []hotspotRow, haveChurn bool) error {
 	if haveChurn {
 		fmt.Fprintf(&b, "  %5s %6s %5s %8s %8s  %-12s  %s\n", "score", "cyclo", "cmax", "commits", "authors", "last-changed", "path")
 		for _, r := range rows {
-			fmt.Fprintf(&b, "  %5.2f %6d %5d %8d %8d  %-12s  %s\n",
-				r.Score, r.Cyclo, r.CycloMax, r.Commits, r.Authors, r.LastChanged, r.Path)
+			fmt.Fprintf(&b, "  %5.2f %6d %5d %8d %8d  %-12s  %s%s\n",
+				r.Score, r.Cyclo, r.CycloMax, r.Commits, r.Authors, r.LastChanged, r.Path, zoneSuffix(r.Sensitive))
 		}
 	} else {
 		fmt.Fprintf(&b, "  %5s %6s %5s  %s\n", "score", "cyclo", "cmax", "path")
 		for _, r := range rows {
-			fmt.Fprintf(&b, "  %5.2f %6d %5d  %s\n", r.Score, r.Cyclo, r.CycloMax, r.Path)
+			fmt.Fprintf(&b, "  %5.2f %6d %5d  %s%s\n", r.Score, r.Cyclo, r.CycloMax, r.Path, zoneSuffix(r.Sensitive))
 		}
 	}
 	_, err := os.Stdout.WriteString(b.String())
