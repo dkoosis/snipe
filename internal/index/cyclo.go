@@ -18,6 +18,19 @@ type CycloRollup struct {
 // per-package sum/p95/max. Filters production funcs+methods only (no tests,
 // no zero-cyclo entries from non-function symbols). Empty packages → no entry.
 func PackageCycloRollups(symbols []Symbol) map[string]CycloRollup {
+	return packageRollups(symbols, func(s *Symbol) int { return s.Cyclo })
+}
+
+// PackageCognitiveRollups is the cognitive-complexity counterpart of
+// PackageCycloRollups, using the same per-package sum/p95/max shape.
+func PackageCognitiveRollups(symbols []Symbol) map[string]CycloRollup {
+	return packageRollups(symbols, func(s *Symbol) int { return s.Cognitive })
+}
+
+// packageRollups groups production funcs+methods by package and rolls up the
+// per-symbol value selected by val into sum/p95/max. Test files and
+// non-function symbols are excluded; empty packages produce no entry.
+func packageRollups(symbols []Symbol, val func(*Symbol) int) map[string]CycloRollup {
 	byPkg := make(map[string][]int)
 	for i := range symbols {
 		s := &symbols[i]
@@ -30,7 +43,7 @@ func PackageCycloRollups(symbols []Symbol) map[string]CycloRollup {
 		if isTestFile(s.FilePath) {
 			continue
 		}
-		byPkg[s.PkgPath] = append(byPkg[s.PkgPath], s.Cyclo)
+		byPkg[s.PkgPath] = append(byPkg[s.PkgPath], val(s))
 	}
 	out := make(map[string]CycloRollup, len(byPkg))
 	for pkg, vals := range byPkg {

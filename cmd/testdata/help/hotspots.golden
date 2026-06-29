@@ -1,7 +1,6 @@
-Usage: snipe metrics [flags]
+Usage: snipe hotspots [flags]
 
-Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call
-graph
+Rank files by complexity × git change-frequency (Tornhill hotspot model)
 
 Flags:
   -h, --help                Show context-sensitive help.
@@ -20,10 +19,7 @@ Flags:
       --select="all"        Pick top candidates by score: all, best, top3,
                             top5 (applied before --limit)
 
-      --top=20              Top-N rows to print
-      --kind="pagerank"     Metric kind (or comma-separated
-                            list for a merged table):
-                            pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|cognitive|churn|usage
-      --graph="imports"     Graph kind ('imports' or 'calls')
-      --pkg=STRING          Filter to a single package (suffix-matches package
-                            import path)
+      --top=20              Top-N files to print
+      --pkg=STRING          Filter to paths containing this substring (e.g.
+                            internal/store)
+      --file=STRING         Filter to paths containing this substring

@@ -47,6 +47,10 @@ type Symbol struct {
 	// In-memory only (not persisted); used for per-package rollups via
 	// PackageCycloRollups. Zero for non-function symbols.
 	Cyclo int
+	// Cognitive is the SonarSource cognitive complexity for func/method
+	// symbols. In-memory only; used for per-package rollups via
+	// PackageCognitiveRollups. Zero for non-function symbols.
+	Cognitive int
 }
 
 // ExtractSymbols extracts all symbols from loaded packages
@@ -113,6 +117,7 @@ func extractFuncSymbol(pkg *packages.Package, decl *ast.FuncDecl, filePath, pkgP
 	sig := formatFuncSignatureTyped(pkg, decl)
 	doc := extractDoc(decl.Doc)
 	cyclo := computeCyclo(decl.Body)
+	cognitive := computeCognitive(decl.Body)
 
 	return &Symbol{
 		// ID uses identifier position for posKey matching with call graph
@@ -133,6 +138,7 @@ func extractFuncSymbol(pkg *packages.Package, decl *ast.FuncDecl, filePath, pkgP
 		Doc:       doc,
 		Receiver:  receiver,
 		Cyclo:     cyclo,
+		Cognitive: cognitive,
 	}
 }
 

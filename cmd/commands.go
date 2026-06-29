@@ -314,7 +314,7 @@ func (c *BoundaryCmd) Run() error {
 
 type MetricsCmd struct {
 	Top   int    `default:"20" help:"Top-N rows to print"`
-	Kind  string `default:"pagerank" help:"Metric kind (or comma-separated list for a merged table): pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|usage"`
+	Kind  string `default:"pagerank" help:"Metric kind (or comma-separated list for a merged table): pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|cognitive|churn|usage"`
 	Graph string `default:"imports" help:"Graph kind ('imports' or 'calls')"`
 	Pkg   string `help:"Filter to a single package (suffix-matches package import path)"`
 }
@@ -325,6 +325,22 @@ func (c *MetricsCmd) Run() error {
 	metricsGraph = c.Graph
 	metricsPkg = c.Pkg
 	return runMetrics()
+}
+
+type HotspotsCmd struct {
+	Top  int    `default:"20" help:"Top-N files to print"`
+	Pkg  string `help:"Filter to paths containing this substring (e.g. internal/store)"`
+	File string `help:"Filter to paths containing this substring"`
+}
+
+func (c *HotspotsCmd) Run() error {
+	return runHotspots(c.Top, c.Pkg, c.File)
+}
+
+type SensitiveCmd struct{}
+
+func (c *SensitiveCmd) Run() error {
+	return runSensitive()
 }
 
 type DiagramCmd struct {

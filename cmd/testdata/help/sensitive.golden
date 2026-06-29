@@ -1,7 +1,6 @@
-Usage: snipe metrics [flags]
+Usage: snipe sensitive [flags]
 
-Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call
-graph
+List files in security-sensitive zones (auth/crypto/migration/secret/payment)
 
 Flags:
   -h, --help                Show context-sensitive help.
@@ -19,11 +18,3 @@ Flags:
       --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
       --select="all"        Pick top candidates by score: all, best, top3,
                             top5 (applied before --limit)
-
-      --top=20              Top-N rows to print
-      --kind="pagerank"     Metric kind (or comma-separated
-                            list for a merged table):
-                            pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|cognitive|churn|usage
-      --graph="imports"     Graph kind ('imports' or 'calls')
-      --pkg=STRING          Filter to a single package (suffix-matches package
-                            import path)
