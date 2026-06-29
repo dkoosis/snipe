@@ -101,6 +101,17 @@ func runIndex(args []string) error {
 			fmt.Fprintf(os.Stderr, "Change detection failed: %v (proceeding with full index)\n", detectErr)
 			detection = &changeDetection{result: skipResultProceedFull}
 		}
+		// Backfill guard: an index built before the current file-level metrics
+		// existed carries a stale (or absent) version marker. A skip or
+		// incremental run would never populate file_churn / the "files" graph,
+		// leaving `snipe hotspots` and `metrics --kind=churn` empty until the
+		// user discovers --force. Force a one-time full reindex to backfill;
+		// the marker is written at the end of the metrics block, so subsequent
+		// runs skip normally.
+		if detection.result != skipResultProceedFull && metricsNeedBackfill(s) {
+			fmt.Fprintf(os.Stderr, "Index predates current risk metrics — running full reindex to backfill (one-time)\n")
+			detection = &changeDetection{result: skipResultProceedFull}
+		}
 		if detection.result == skipResultSkipped {
 			return nil
 		}
@@ -260,6 +271,9 @@ func runIndex(args []string) error {
 		if err := computeChurn(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: git churn computation failed: %v\n", err)
 		}
+		// Mark which generation of file-level metrics this index carries, so a
+		// later skip/incremental run can detect a stale index and backfill.
+		_ = s.SetMeta(metaFileMetricsVersion, fileMetricsVersion)
 	}
 
 	// Extract and write string literals (env var calls + named consts)
@@ -1140,6 +1154,28 @@ func computeFileFanIn(s *store.Store) error {
 		return fmt.Errorf("write file fan_in: %w", err)
 	}
 	return nil
+}
+
+// metaFileMetricsVersion names the meta key tracking the generation of
+// file-level risk metrics (file_churn + the "files" complexity/fan-in graph)
+// an index carries. fileMetricsVersion is the current generation — bump it
+// whenever a new file-level metric is added so existing indexes auto-backfill
+// on their next `snipe index`.
+const (
+	metaFileMetricsVersion = "file_metrics_version"
+	fileMetricsVersion     = "1"
+)
+
+// metricsNeedBackfill reports whether the index lacks the current generation of
+// file-level metrics — true for any index built before the marker was written
+// (or before a metric was added). It is the signal to force a full reindex
+// even when change detection would otherwise skip or go incremental.
+func metricsNeedBackfill(s *store.Store) bool {
+	// A missing key returns ("", err); an unreadable DB returns ("", err) too.
+	// Either way the value won't equal the current version, so we backfill —
+	// a one-time full reindex is the safe outcome, never data loss.
+	v, _ := s.GetMeta(metaFileMetricsVersion)
+	return v != fileMetricsVersion
 }
 
 // relToRoot returns absPath relative to root, falling back to absPath when
