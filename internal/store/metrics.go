@@ -65,6 +65,40 @@ func (s *Store) WriteGraphMetrics(graphKind, metric string, values map[string]fl
 	return nil
 }
 
+// FileFanIn returns, per file, the number of distinct caller symbols in other
+// files that call into it — a blast-radius proxy for `snipe hotspots`: how
+// much elsewhere depends on this file. Same-file calls are excluded (not
+// external risk) and callers are counted distinctly so repeated calls from one
+// function don't inflate the number. Keys come from symbols.file_path as
+// stored (absolute); the caller relativizes to match the cyclo/churn keys.
+func (s *Store) FileFanIn() (map[string]float64, error) {
+	rows, err := s.db.Query(`
+		SELECT callee.file_path AS f, COUNT(DISTINCT cg.caller_id) AS n
+		FROM call_graph cg
+		JOIN symbols caller ON cg.caller_id = caller.id
+		JOIN symbols callee ON cg.callee_id = callee.id
+		WHERE caller.file_path <> callee.file_path
+		GROUP BY callee.file_path`)
+	if err != nil {
+		return nil, fmt.Errorf("query file fan-in: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[string]float64)
+	for rows.Next() {
+		var f string
+		var n float64
+		if err := rows.Scan(&f, &n); err != nil {
+			return nil, fmt.Errorf("scan fan-in row: %w", err)
+		}
+		out[f] = n
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate fan-in rows: %w", err)
+	}
+	return out, nil
+}
+
 // ReadTopN returns the top-n rows for (graphKind, metric) ordered by rank ascending.
 // If n <= 0, all rows are returned.
 func (s *Store) ReadTopN(graphKind, metric string, n int) ([]MetricRow, error) {

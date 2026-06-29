@@ -251,8 +251,11 @@ func runIndex(args []string) error {
 		if err := computeCallsGraphMetrics(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: calls-graph metrics computation failed: %v\n", err)
 		}
-		if err := computeFileCyclo(s, symbols); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: file cyclo computation failed: %v\n", err)
+		if err := computeFileComplexity(s, symbols); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: file complexity computation failed: %v\n", err)
+		}
+		if err := computeFileFanIn(s); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: file fan-in computation failed: %v\n", err)
 		}
 		if err := computeChurn(s); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: git churn computation failed: %v\n", err)
@@ -1068,19 +1071,20 @@ func writeComplexityRollups(s *store.Store, prefix string, rollups map[string]in
 	return nil
 }
 
-// computeFileCyclo aggregates per-symbol McCabe complexity into per-file
-// sum and max, stored under a synthetic "files" graph. `snipe hotspots`
-// joins this against file_churn (path-keyed) to rank complexity ×
-// change-frequency. Test files are excluded to match computeCycloRollups —
-// hotspots targets production risk. Paths are relativized to repo_root so
-// they line up with the churn and symbols tables.
-func computeFileCyclo(s *store.Store, symbols []index.Symbol) error {
+// computeFileComplexity aggregates per-symbol McCabe and cognitive complexity
+// into per-file rollups, stored under a synthetic "files" graph. `snipe
+// hotspots` joins these against file_churn (path-keyed) and fan-in to form the
+// unified risk view. Test files are excluded to match computeCycloRollups —
+// hotspots targets production risk. Paths are relativized to repo_root so they
+// line up with the churn and symbols tables.
+func computeFileComplexity(s *store.Store, symbols []index.Symbol) error {
 	root, err := s.GetMeta("repo_root")
 	if err != nil {
 		return fmt.Errorf("read repo_root: %w", err)
 	}
 	sum := make(map[string]float64)
 	maxv := make(map[string]float64)
+	cog := make(map[string]float64)
 	for i := range symbols {
 		sym := &symbols[i]
 		if sym.Kind != index.KindFunc && sym.Kind != index.KindMethod {
@@ -1095,6 +1099,7 @@ func computeFileCyclo(s *store.Store, symbols []index.Symbol) error {
 		if c > maxv[rel] {
 			maxv[rel] = c
 		}
+		cog[rel] += float64(sym.Cognitive)
 	}
 	if len(sum) == 0 {
 		return nil
@@ -1105,13 +1110,43 @@ func computeFileCyclo(s *store.Store, symbols []index.Symbol) error {
 	if err := s.WriteGraphMetrics("files", "cyclo_max", maxv); err != nil {
 		return fmt.Errorf("write file cyclo_max: %w", err)
 	}
+	if err := s.WriteGraphMetrics("files", "cognitive_sum", cog); err != nil {
+		return fmt.Errorf("write file cognitive_sum: %w", err)
+	}
+	return nil
+}
+
+// computeFileFanIn stores per-file blast-radius (distinct cross-file callers)
+// under the "files" graph for `snipe hotspots`. FileFanIn keys come straight
+// from symbols.file_path (absolute), so they are relativized here to line up
+// with the cyclo/churn keys. Empty graph → no-op.
+func computeFileFanIn(s *store.Store) error {
+	root, err := s.GetMeta("repo_root")
+	if err != nil {
+		return fmt.Errorf("read repo_root: %w", err)
+	}
+	raw, err := s.FileFanIn()
+	if err != nil {
+		return fmt.Errorf("compute file fan-in: %w", err)
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+	fanIn := make(map[string]float64, len(raw))
+	for path, n := range raw {
+		fanIn[relToRoot(root, path)] = n
+	}
+	if err := s.WriteGraphMetrics("files", "fan_in", fanIn); err != nil {
+		return fmt.Errorf("write file fan_in: %w", err)
+	}
 	return nil
 }
 
 // relToRoot returns absPath relative to root, falling back to absPath when
-// root is empty or the paths share no base (mirrors store.toRelPath).
+// root is empty, absPath is already relative, or the paths share no base
+// (mirrors store.toRelPath).
 func relToRoot(root, absPath string) string {
-	if root == "" {
+	if root == "" || !filepath.IsAbs(absPath) {
 		return absPath
 	}
 	rel, err := filepath.Rel(root, absPath)

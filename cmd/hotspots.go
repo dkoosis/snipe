@@ -14,14 +14,19 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 )
 
-// hotspotRow is one file ranked by the Tornhill hotspot model.
+// hotspotRow is one file in the unified risk view. Score is the grounded
+// Tornhill hotspot (complexity × change-frequency); the other fields are the
+// risk components Claude reads to judge the dominant factor — they are NOT
+// folded into the score.
 type hotspotRow struct {
 	Path        string           `json:"path"`
-	Score       float64          `json:"score"`               // 0..1, complexity × change-frequency
-	Cyclo       int              `json:"cyclo"`               // summed McCabe complexity of the file's funcs
+	Score       float64          `json:"score"`               // 0..1, Tornhill hotspot = cyclo × churn
+	Cyclo       int              `json:"cyclo"`               // summed McCabe complexity (cx)
 	CycloMax    int              `json:"cyclo_max"`           // hottest single function
-	Commits     int              `json:"commits"`             // revisions touching the file
-	Authors     int              `json:"authors"`             // distinct committers (bus factor)
+	Cognitive   int              `json:"cognitive"`           // summed SonarSource cognitive complexity (cog)
+	Commits     int              `json:"commits"`             // revisions touching the file (chn)
+	Authors     int              `json:"authors"`             // distinct committers / bus factor (auth)
+	FanIn       int              `json:"fan_in"`              // cross-file callers / blast radius (in)
 	LastChanged string           `json:"last_changed"`        // empty when churn unavailable
 	Sensitive   []sensitive.Zone `json:"sensitive,omitempty"` // auth/crypto/migration/... if any
 }
@@ -53,22 +58,29 @@ func runHotspots(top int, pkg, file string) error {
 	if err != nil {
 		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
 	}
+	cognitiveSum, err := s.ReadTopN("files", "cognitive_sum", 0)
+	if err != nil {
+		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+	}
+	fanInRows, err := s.ReadTopN("files", "fan_in", 0)
+	if err != nil {
+		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+	}
 	churn, err := s.ReadFileChurnTopN(0)
 	if err != nil {
 		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
 	}
 
-	maxByPath := make(map[string]int, len(cycloMax))
-	for _, r := range cycloMax {
-		maxByPath[r.NodeID] = int(r.Value)
-	}
+	maxByPath := intByPath(cycloMax)
+	cogByPath := intByPath(cognitiveSum)
+	fanByPath := intByPath(fanInRows)
 	churnByPath := make(map[string]store.FileChurn, len(churn))
 	for _, c := range churn {
 		churnByPath[c.Path] = c
 	}
 	haveChurn := len(churn) > 0
 
-	rows := buildHotspots(cycloSum, maxByPath, churnByPath, haveChurn)
+	rows := buildHotspots(cycloSum, maxByPath, cogByPath, fanByPath, churnByPath, haveChurn)
 	rows = filterHotspots(rows, pkg, file)
 	// Annotate with sensitive zones so a small-but-critical file (auth, crypto,
 	// migration) is visible even when its complexity × churn score is modest.
@@ -92,12 +104,23 @@ func runHotspots(top int, pkg, file string) error {
 	return writeHotspotsText(rows, haveChurn)
 }
 
-// buildHotspots joins complexity with churn and assigns a normalized score.
-// Complexity is normalized linearly; churn is log-scaled first because commit
-// counts are heavy-tailed (a few files dominate). With churn present, only
-// files that have history are scored (inner join); without it, every file is
-// scored on complexity alone so the command still ranks something useful.
-func buildHotspots(cycloSum []store.MetricRow, maxByPath map[string]int, churnByPath map[string]store.FileChurn, haveChurn bool) []hotspotRow {
+// intByPath collapses metric rows into a path→int lookup.
+func intByPath(rows []store.MetricRow) map[string]int {
+	m := make(map[string]int, len(rows))
+	for _, r := range rows {
+		m[r.NodeID] = int(r.Value)
+	}
+	return m
+}
+
+// buildHotspots assembles the unified risk rows. The score is the grounded
+// Tornhill hotspot — norm(cyclo) × norm(log1p(commits)) — and nothing else;
+// cognitive, fan-in and sensitivity ride along as context columns rather than
+// being folded into an un-grounded composite. Complexity is normalized
+// linearly; churn is log-scaled first because commit counts are heavy-tailed.
+// With churn present, only files with history are scored (inner join); without
+// it, every file is scored on complexity alone so the command still ranks.
+func buildHotspots(cycloSum []store.MetricRow, maxByPath, cogByPath, fanByPath map[string]int, churnByPath map[string]store.FileChurn, haveChurn bool) []hotspotRow {
 	var maxCyclo, maxLogChurn float64
 	for _, r := range cycloSum {
 		if r.Value > maxCyclo {
@@ -131,8 +154,10 @@ func buildHotspots(cycloSum []store.MetricRow, maxByPath map[string]int, churnBy
 			Score:       score,
 			Cyclo:       int(r.Value),
 			CycloMax:    maxByPath[r.NodeID],
+			Cognitive:   cogByPath[r.NodeID],
 			Commits:     c.Commits,
 			Authors:     c.Authors,
+			FanIn:       fanByPath[r.NodeID],
 			LastChanged: c.LastChanged,
 		})
 	}
@@ -184,9 +209,10 @@ func zoneSuffix(zones []sensitive.Zone) string {
 
 func writeHotspotsText(rows []hotspotRow, haveChurn bool) error {
 	var b strings.Builder
-	b.WriteString("hotspots · complexity × change-frequency (Tornhill crime-scene: risk peaks where complex code changes often)\n")
+	b.WriteString("hotspots · unified risk (Tornhill crime-scene)\n")
+	b.WriteString("  risk = cyclo × change-frequency; cx=cyclo cog=cognitive chn=commits auth=bus-factor in=fan-in/blast-radius ⚑=sensitive\n")
 	if !haveChurn {
-		b.WriteString("  ⚠ no git churn available (not a git repo) — ranking by complexity only\n")
+		b.WriteString("  ⚠ no git churn (not a git repo) — risk ranked on complexity alone; chn/auth omitted\n")
 	}
 	if len(rows) == 0 {
 		b.WriteString("  (no rows)\n")
@@ -194,15 +220,15 @@ func writeHotspotsText(rows []hotspotRow, haveChurn bool) error {
 		return err
 	}
 	if haveChurn {
-		fmt.Fprintf(&b, "  %5s %6s %5s %8s %8s  %-12s  %s\n", "score", "cyclo", "cmax", "commits", "authors", "last-changed", "path")
+		fmt.Fprintf(&b, "  %5s %5s %5s %5s %5s %5s  %s\n", "risk", "cx", "cog", "chn", "auth", "in", "path")
 		for _, r := range rows {
-			fmt.Fprintf(&b, "  %5.2f %6d %5d %8d %8d  %-12s  %s%s\n",
-				r.Score, r.Cyclo, r.CycloMax, r.Commits, r.Authors, r.LastChanged, r.Path, zoneSuffix(r.Sensitive))
+			fmt.Fprintf(&b, "  %5.2f %5d %5d %5d %5d %5d  %s%s\n",
+				r.Score, r.Cyclo, r.Cognitive, r.Commits, r.Authors, r.FanIn, r.Path, zoneSuffix(r.Sensitive))
 		}
 	} else {
-		fmt.Fprintf(&b, "  %5s %6s %5s  %s\n", "score", "cyclo", "cmax", "path")
+		fmt.Fprintf(&b, "  %5s %5s %5s %5s  %s\n", "risk", "cx", "cog", "in", "path")
 		for _, r := range rows {
-			fmt.Fprintf(&b, "  %5.2f %6d %5d  %s%s\n", r.Score, r.Cyclo, r.CycloMax, r.Path, zoneSuffix(r.Sensitive))
+			fmt.Fprintf(&b, "  %5.2f %5d %5d %5d  %s%s\n", r.Score, r.Cyclo, r.Cognitive, r.FanIn, r.Path, zoneSuffix(r.Sensitive))
 		}
 	}
 	_, err := os.Stdout.WriteString(b.String())
