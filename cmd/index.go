@@ -1132,7 +1132,7 @@ func computeFileComplexity(s *store.Store, symbols []index.Symbol) error {
 	return nil
 }
 
-// computeFileFanIn stores per-file blast-radius (distinct cross-file callers)
+// computeFileFanIn stores per-file blast-radius (distinct caller files)
 // under the "files" graph for `snipe hotspots`. FileFanIn keys come straight
 // from symbols.file_path (absolute), so they are relativized here to line up
 // with the cyclo/churn keys. Empty graph → no-op.

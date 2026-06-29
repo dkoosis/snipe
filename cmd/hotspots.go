@@ -26,7 +26,7 @@ type hotspotRow struct {
 	Cognitive   int              `json:"cognitive"`           // summed SonarSource cognitive complexity (cog)
 	Commits     int              `json:"commits"`             // revisions touching the file (chn)
 	Authors     int              `json:"authors"`             // distinct committers / bus factor (auth)
-	FanIn       int              `json:"fan_in"`              // cross-file callers / blast radius (in)
+	FanIn       int              `json:"fan_in"`              // distinct caller files / blast radius (in)
 	LastChanged string           `json:"last_changed"`        // empty when churn unavailable
 	Sensitive   []sensitive.Zone `json:"sensitive,omitempty"` // auth/crypto/migration/... if any
 }

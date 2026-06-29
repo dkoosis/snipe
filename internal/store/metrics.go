@@ -65,15 +65,16 @@ func (s *Store) WriteGraphMetrics(graphKind, metric string, values map[string]fl
 	return nil
 }
 
-// FileFanIn returns, per file, the number of distinct caller symbols in other
-// files that call into it — a blast-radius proxy for `snipe hotspots`: how
-// much elsewhere depends on this file. Same-file calls are excluded (not
-// external risk) and callers are counted distinctly so repeated calls from one
-// function don't inflate the number. Keys come from symbols.file_path as
-// stored (absolute); the caller relativizes to match the cyclo/churn keys.
+// FileFanIn returns, per file, the number of distinct other files that call
+// into it — afferent coupling at file granularity (Martin's Ca), the
+// blast-radius proxy for `snipe hotspots`: how many files depend on this one.
+// Distinct files, not call sites: a file that calls in from five functions is
+// one dependent unit, so it counts once. Same-file calls are excluded (not
+// external risk). Keys come from symbols.file_path as stored (absolute); the
+// caller relativizes to match the cyclo/churn keys.
 func (s *Store) FileFanIn() (map[string]float64, error) {
 	rows, err := s.db.Query(`
-		SELECT callee.file_path AS f, COUNT(DISTINCT cg.caller_id) AS n
+		SELECT callee.file_path AS f, COUNT(DISTINCT caller.file_path) AS n
 		FROM call_graph cg
 		JOIN symbols caller ON cg.caller_id = caller.id
 		JOIN symbols callee ON cg.callee_id = callee.id
