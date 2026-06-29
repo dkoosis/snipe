@@ -29,7 +29,11 @@ const halfLifeDays = 180.0
 
 // commitSentinel (SOH) prefixes each commit-header line in the git log
 // stream so it can never collide with a file path. It is followed by the
-// author date and author name; subsequent non-empty lines are file paths.
+// author date and author email; subsequent non-empty lines are file paths.
+// Email (%aE) keys author identity rather than display name (%aN): the same
+// person often commits under several names (user.name drift), which would
+// inflate the distinct-author count. %aE also honors .mailmap, so the reverse
+// — one person, several emails — coalesces on repos that maintain one.
 const commitSentinel = "\x01"
 
 // FileChurn is the git change-frequency record for one file, keyed by a
@@ -37,7 +41,7 @@ const commitSentinel = "\x01"
 type FileChurn struct {
 	Path        string  // repo-relative path (matches symbols.file_path)
 	Commits     int     // non-merge commits touching the file (CodeScene revisions)
-	Authors     int     // distinct commit authors (bus-factor / knowledge-map signal)
+	Authors     int     // distinct commit authors by email (bus-factor / knowledge-map signal)
 	FirstSeen   string  // YYYY-MM-DD of the earliest touching commit
 	LastChanged string  // YYYY-MM-DD of the latest touching commit
 	Score       float64 // recency-weighted churn (see halfLifeDays)
@@ -63,7 +67,7 @@ func Walk(repoRoot string) ([]FileChurn, error) {
 	// to Go sources, which is all snipe indexes.
 	cmd := exec.Command("git", "-C", repoRoot, "log",
 		"--no-merges", "--no-renames",
-		"--pretty=tformat:"+commitSentinel+"%aI\t%aN",
+		"--pretty=tformat:"+commitSentinel+"%aI\t%aE",
 		"--name-only", "--", "*.go")
 	out, err := cmd.Output()
 	if err != nil {
@@ -122,10 +126,10 @@ func parseLog(stream string) []FileChurn {
 	byPath := make(map[string]*acc)
 
 	var (
-		curDate time.Time
-		curAuth string
-		haveCur bool
-		refDate time.Time // newest commit date, set from the first header
+		curDate  time.Time
+		curEmail string
+		haveCur  bool
+		refDate  time.Time // newest commit date, set from the first header
 	)
 
 	sc := bufio.NewScanner(strings.NewReader(stream))
@@ -134,13 +138,13 @@ func parseLog(stream string) []FileChurn {
 		line := sc.Text()
 		if strings.HasPrefix(line, commitSentinel) {
 			rest := line[len(commitSentinel):]
-			iso, author, _ := strings.Cut(rest, "\t")
+			iso, email, _ := strings.Cut(rest, "\t")
 			t, err := time.Parse(time.RFC3339, iso)
 			if err != nil {
 				haveCur = false
 				continue
 			}
-			curDate, curAuth, haveCur = t, author, true
+			curDate, curEmail, haveCur = t, email, true
 			if refDate.IsZero() {
 				refDate = t
 			}
@@ -156,7 +160,7 @@ func parseLog(stream string) []FileChurn {
 			byPath[path] = a
 		}
 		a.commits++
-		a.authors[curAuth] = struct{}{}
+		a.authors[curEmail] = struct{}{}
 		if curDate.Before(a.first) {
 			a.first = curDate
 		}
