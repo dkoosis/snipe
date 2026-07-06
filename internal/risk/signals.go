@@ -69,6 +69,7 @@ func Assess(s *store.Store, repoRoot, base, head string) Verdict {
 	signals = append(signals, churnSignal(s, goFiles)...)
 	signals = append(signals, roleSignals(s.DB(), repoRoot, changed)...)
 	signals = append(signals, blastSignal(s.DB(), changed)...)
+	signals = append(signals, beadsSignal(repoRoot, base, head)...)
 
 	return Fuse(signals, stats, false, "")
 }
