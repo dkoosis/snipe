@@ -46,6 +46,9 @@ type changedSym struct {
 // git or the index can't answer, it returns a degraded low verdict so the judge can
 // call it on any repo.
 func Assess(s *store.Store, repoRoot, base, head string) Verdict {
+	if s == nil {
+		return Fuse(nil, ChangeStats{}, true, "index unavailable")
+	}
 	stream, ok := gitDiff(repoRoot, base, head)
 	if !ok {
 		return Fuse(nil, ChangeStats{}, true,
@@ -77,7 +80,10 @@ func changedSymbols(db *sql.DB, repoRoot string, changes []FileChange) []changed
 	var out []changedSym
 	seen := make(map[string]bool)
 	for _, fc := range changes {
-		if !strings.HasSuffix(fc.Path, ".go") || len(fc.LineRanges) == 0 {
+		// Symbol-derived signals (role/blast/central-pkg) mean production risk;
+		// a _test.go edit shouldn't carry a persistence role or blast radius, so it
+		// contributes no changed symbols (its churn/pkg still count elsewhere).
+		if !strings.HasSuffix(fc.Path, ".go") || strings.HasSuffix(fc.Path, "_test.go") || len(fc.LineRanges) == 0 {
 			continue
 		}
 		abs := filepath.Join(repoRoot, fc.Path)

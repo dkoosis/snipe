@@ -87,6 +87,26 @@ func TestRoleSignals_FiresPersistenceOnStorePackageSymbol(t *testing.T) {
 	}
 }
 
+func TestChangedSymbols_ExcludesTestFiles(t *testing.T) {
+	t.Parallel()
+	repoRoot := t.TempDir()
+	s := seedStore(t, repoRoot)
+	// Seed a symbol in a _test.go file at the same overlapping range.
+	abs := filepath.Join(repoRoot, "internal/store/store_test.go")
+	if _, err := s.DB().Exec(`
+		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path,
+			line_start, col_start, line_end, col_end)
+		VALUES ('symT', 'TestWriteIndex', 'func', ?, 'internal/store/store_test.go',
+			'github.com/x/internal/store', 10, 1, 30, 1)
+	`, abs); err != nil {
+		t.Fatalf("insert test symbol: %v", err)
+	}
+	changes := []FileChange{{Path: "internal/store/store_test.go", LineRanges: [][2]int{{10, 30}}}}
+	if got := changedSymbols(s.DB(), repoRoot, changes); len(got) != 0 {
+		t.Fatalf("expected _test.go symbols excluded, got %+v", got)
+	}
+}
+
 func TestAssess_DegradesWhenNotAGitWorkTree(t *testing.T) {
 	t.Parallel()
 	repoRoot := t.TempDir() // empty dir, not a git repo

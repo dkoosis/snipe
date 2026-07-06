@@ -171,35 +171,40 @@ func RolesForSymbols(db *sql.DB, repoRoot string, ids []string) (map[string]Symb
 	if len(ids) == 0 {
 		return map[string]SymbolRole{}, nil
 	}
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		args[i] = id
-	}
-	rows, err := db.Query(`
-		SELECT id, name, kind, signature, pkg_path, file_path
-		FROM symbols
-		WHERE id IN (`+placeholders+`)
-		  AND kind IN ('func', 'method', 'struct', 'interface', 'type')
-	`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	symbols, err := scanSymbolInfos(rows)
-	if err != nil {
-		return nil, err
-	}
-
 	imports, err := loadImportsCache(db, repoRoot)
 	if err != nil {
 		return nil, err
 	}
 
-	out := make(map[string]SymbolRole, len(symbols))
-	for _, s := range symbols {
-		out[s.id] = classifySymbol(db, imports, s)
+	out := make(map[string]SymbolRole, len(ids))
+	// Chunk the IN clause under SQLite's default host-parameter limit (999) — a
+	// large diff can touch more symbols than a single query can bind.
+	const batchSize = 900
+	for start := 0; start < len(ids); start += batchSize {
+		batch := ids[start:min(start+batchSize, len(ids))]
+
+		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(batch)), ",")
+		args := make([]any, len(batch))
+		for i, id := range batch {
+			args[i] = id
+		}
+		rows, err := db.Query(`
+			SELECT id, name, kind, signature, pkg_path, file_path
+			FROM symbols
+			WHERE id IN (`+placeholders+`)
+			  AND kind IN ('func', 'method', 'struct', 'interface', 'type')
+		`, args...)
+		if err != nil {
+			return nil, err
+		}
+		symbols, err := scanSymbolInfos(rows)
+		_ = rows.Close()
+		if err != nil {
+			return nil, err
+		}
+		for _, s := range symbols {
+			out[s.id] = classifySymbol(db, imports, s)
+		}
 	}
 	return out, nil
 }

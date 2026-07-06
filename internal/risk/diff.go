@@ -28,11 +28,19 @@ func gitDiff(repoRoot, base, head string) (stream string, ok bool) {
 	if _, err := exec.LookPath("git"); err != nil {
 		return "", false
 	}
+	// A ref beginning with "-" would be parsed as a git option (e.g.
+	// `--output=/path`), letting a caller-supplied ref inject flags. Refs never
+	// legitimately start with "-", so reject rather than assess.
+	if strings.HasPrefix(base, "-") || strings.HasPrefix(head, "-") {
+		return "", false
+	}
 	if err := exec.Command("git", "-C", repoRoot, "rev-parse", "--is-inside-work-tree").Run(); err != nil {
 		return "", false
 	}
+	// --end-of-options fixes base/head as operands even if a future ref form
+	// looks option-like; the "--" then separates the *.go pathspec.
 	out, err := exec.Command("git", "-C", repoRoot, "diff",
-		"--unified=0", "--no-color", base, head, "--", "*.go").Output()
+		"--unified=0", "--no-color", "--end-of-options", base, head, "--", "*.go").Output()
 	if err != nil {
 		return "", false
 	}
