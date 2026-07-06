@@ -126,6 +126,10 @@ Graph & Structure:
   hotspots [flags]
     Rank files by complexity × git change-frequency (Tornhill hotspot model)
 
+  risk <base> [<head>] [flags]
+    Assess a diff's risk (base→head): code-graph verdict (roles, centrality,
+    blast, churn)
+
   sensitive [flags]
     List files in security-sensitive zones
     (auth/crypto/migration/secret/payment)

@@ -77,11 +77,58 @@ type SymbolRole struct {
 	PkgPath    string     `json:"pkg_path,omitempty"`
 }
 
+// symbolInfo is the raw metadata a symbol needs for role classification.
+type symbolInfo struct {
+	id        string
+	name      string
+	kind      string
+	signature sql.NullString
+	pkgPath   sql.NullString
+	filePath  string
+}
+
+// classifySymbol applies the structural role + orthogonal risk-flag heuristics to
+// one symbol. Shared by the whole-repo InferRoles and the targeted RolesForSymbols
+// so both classify identically.
+func classifySymbol(db *sql.DB, imports importsCache, s symbolInfo) SymbolRole {
+	sr := SymbolRole{
+		SymbolID:   s.id,
+		Name:       s.name,
+		Visibility: inferVisibility(s.name),
+	}
+	if s.pkgPath.Valid {
+		sr.PkgPath = s.pkgPath.String
+	}
+	switch s.kind {
+	case kindFunc, kindMethod:
+		sr.Role = inferRole(db, s.id, s.name, s.kind, s.signature.String, s.pkgPath.String)
+		// Risk classes are orthogonal to structural role and accumulate
+		// independently (funcs/methods only — the heuristics are call/signature based).
+		sr.RiskFlags = detectRiskFlags(db, imports, s.id, s.signature.String, s.filePath)
+	case kindStruct, kindInterface, kindType:
+		sr.Role = inferRoleForType(db, s.id, s.name, s.pkgPath.String)
+	default:
+		sr.Role = RoleInternal
+	}
+	return sr
+}
+
+// scanSymbolInfos collects symbolInfo rows from a query over the symbols table.
+func scanSymbolInfos(rows *sql.Rows) ([]symbolInfo, error) {
+	var symbols []symbolInfo
+	for rows.Next() {
+		var s symbolInfo
+		if err := rows.Scan(&s.id, &s.name, &s.kind, &s.signature, &s.pkgPath, &s.filePath); err != nil {
+			continue
+		}
+		symbols = append(symbols, s)
+	}
+	return symbols, rows.Err()
+}
+
 // InferRoles analyzes symbols in the database and classifies them by architectural role.
 // It queries the symbols, refs, call_graph, and imports tables to determine each symbol's role.
 func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
-	var results []SymbolRole
-
 	// Query all functions, methods, and types with their metadata
 	rows, err := db.Query(`
 		SELECT id, name, kind, signature, pkg_path, file_path
@@ -97,25 +144,8 @@ func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 	}
 	defer rows.Close()
 
-	// Collect symbols for processing
-	type symbolInfo struct {
-		id        string
-		name      string
-		kind      string
-		signature sql.NullString
-		pkgPath   sql.NullString
-		filePath  string
-	}
-	var symbols []symbolInfo
-
-	for rows.Next() {
-		var s symbolInfo
-		if err := rows.Scan(&s.id, &s.name, &s.kind, &s.signature, &s.pkgPath, &s.filePath); err != nil {
-			continue
-		}
-		symbols = append(symbols, s)
-	}
-	if err := rows.Err(); err != nil {
+	symbols, err := scanSymbolInfos(rows)
+	if err != nil {
 		return nil, err
 	}
 
@@ -126,36 +156,52 @@ func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 		return nil, err
 	}
 
-	// Process each symbol to determine its role
+	results := make([]SymbolRole, 0, len(symbols))
 	for _, s := range symbols {
-		sr := SymbolRole{
-			SymbolID:   s.id,
-			Name:       s.name,
-			Visibility: inferVisibility(s.name),
-		}
-		if s.pkgPath.Valid {
-			sr.PkgPath = s.pkgPath.String
-		}
+		results = append(results, classifySymbol(db, imports, s))
+	}
+	return results, nil
+}
 
-		// Determine role based on kind
-		var role Role
-		switch s.kind {
-		case kindFunc, kindMethod:
-			role = inferRole(db, s.id, s.name, s.kind, s.signature.String, s.pkgPath.String)
-			// Risk classes are orthogonal to structural role and accumulate
-			// independently (funcs/methods only — the heuristics are call/signature based).
-			sr.RiskFlags = detectRiskFlags(db, imports, s.id, s.signature.String, s.filePath)
-		case kindStruct, kindInterface, kindType:
-			role = inferRoleForType(db, s.id, s.name, s.pkgPath.String)
-		default:
-			role = RoleInternal
-		}
-		sr.Role = role
+// RolesForSymbols classifies a specific set of symbol IDs — the fast path for
+// callers (e.g. `snipe risk`) that already know which symbols changed and don't
+// want a whole-repo InferRoles pass. Returns a map keyed by symbol ID; IDs that
+// don't resolve to a func/method/type symbol are simply absent.
+func RolesForSymbols(db *sql.DB, repoRoot string, ids []string) (map[string]SymbolRole, error) {
+	if len(ids) == 0 {
+		return map[string]SymbolRole{}, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := db.Query(`
+		SELECT id, name, kind, signature, pkg_path, file_path
+		FROM symbols
+		WHERE id IN (`+placeholders+`)
+		  AND kind IN ('func', 'method', 'struct', 'interface', 'type')
+	`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-		results = append(results, sr)
+	symbols, err := scanSymbolInfos(rows)
+	if err != nil {
+		return nil, err
 	}
 
-	return results, nil
+	imports, err := loadImportsCache(db, repoRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]SymbolRole, len(symbols))
+	for _, s := range symbols {
+		out[s.id] = classifySymbol(db, imports, s)
+	}
+	return out, nil
 }
 
 // inferVisibility determines if a symbol is exported based on its name.

@@ -155,7 +155,7 @@
     }
   ],
   "project": "001",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "total_pkgs": 4,
   "total_symbols": 24
 }

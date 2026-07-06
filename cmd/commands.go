@@ -339,6 +339,15 @@ func (c *HotspotsCmd) Run() error {
 	return runHotspots(c.Top, c.Pkg, c.File)
 }
 
+type RiskCmd struct {
+	Base string `arg:"" help:"Base git ref (e.g. main, origin/main, a SHA)"`
+	Head string `arg:"" optional:"" default:"HEAD" help:"Head git ref (default HEAD)"`
+}
+
+func (c *RiskCmd) Run() error {
+	return runRisk(c.Base, c.Head)
+}
+
 type SensitiveCmd struct{}
 
 func (c *SensitiveCmd) Run() error {
