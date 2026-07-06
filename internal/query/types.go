@@ -53,7 +53,11 @@ type ImplementsInfo struct {
 	Note       string   `json:"note,omitempty"`
 }
 
-// GetTypeInfo retrieves type information for a symbol.
+// GetTypeInfo retrieves type information for a symbol by ID.
+// It performs a LookupByID then delegates to GetTypeInfoFromSymbol. Callers
+// that already hold the *SymbolRow (e.g. from a prior FindPackageSymbols/
+// LookupByName call) should call GetTypeInfoFromSymbol directly to avoid the
+// redundant lookup.
 func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 	sym, err := LookupByID(db, symbolID)
 	if err != nil {
@@ -61,6 +65,18 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 	}
 	if sym == nil {
 		return nil, fmt.Errorf("symbol not found: %s", symbolID)
+	}
+
+	return GetTypeInfoFromSymbol(db, sym)
+}
+
+// GetTypeInfoFromSymbol retrieves type information for an already-loaded
+// symbol row, skipping the LookupByID that GetTypeInfo performs. Use this
+// when the *SymbolRow is already in hand (e.g. from FindPackageSymbols or
+// LookupByName) to avoid an N+1 lookup pattern.
+func GetTypeInfoFromSymbol(db *sql.DB, sym *SymbolRow) (*TypeInfo, error) {
+	if sym == nil {
+		return nil, fmt.Errorf("symbol is nil")
 	}
 
 	// Only struct, interface, type alias kinds are valid
@@ -84,14 +100,14 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 	info.Methods = methods
 
 	// Get embeds (from refs where the reference is in this type's definition)
-	embeds, err := getEmbedsForType(db, symbolID, sym.FilePath, sym.LineStart, sym.LineEnd)
+	embeds, err := getEmbedsForType(db, sym.ID, sym.FilePath, sym.LineStart, sym.LineEnd)
 	if err != nil {
 		return nil, fmt.Errorf("get embeds for %s: %w", sym.Name, err)
 	}
 	info.Embeds = embeds
 
 	// Get fields (from symbols with kind=field in this type)
-	fields, err := getFieldsForType(db, symbolID, sym.FilePath, sym.LineStart, sym.LineEnd)
+	fields, err := getFieldsForType(db, sym.ID, sym.FilePath, sym.LineStart, sym.LineEnd)
 	if err != nil {
 		return nil, fmt.Errorf("get fields for %s: %w", sym.Name, err)
 	}

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -180,6 +181,15 @@ func AcquireLock(dbPath string) error {
 func lockHeldByDeadProcess(lockPath string) (stale bool, observed string) {
 	data, err := os.ReadFile(lockPath) // #nosec G304
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// TOCTOU: the lock was removed between the caller's os.Stat and
+			// this read (e.g. the holder released it). There is no lock to
+			// be stale — report stale so IsIndexing/reap treat it as gone,
+			// not as an in-progress hold.
+			return true, ""
+		}
+		// Some other read error (permissions, I/O) — we can't tell either
+		// way; don't reap a lock we couldn't inspect.
 		return false, ""
 	}
 	observed = strings.TrimSpace(string(data))
@@ -188,20 +198,55 @@ func lockHeldByDeadProcess(lockPath string) (stale bool, observed string) {
 		return true, ""
 	}
 	pid, err := strconv.Atoi(observed)
+	if err != nil || pid <= 0 {
+		// Unparseable, or a non-positive PID that only a corrupt/hand-edited
+		// lock could hold (real writers store os.Getpid(), always > 0). Signal(0)
+		// to 0 or a negative value targets a process group on Unix and would
+		// read as alive, wedging the lock forever — treat as stale instead.
+		return true, observed
+	}
+
+	// On Unix, os.FindProcess never fails for any int — liveness is decided
+	// below by Signal(0). On Windows, FindProcess itself opens a process
+	// handle (OpenProcess) and fails when the PID doesn't resolve to a live
+	// process, so a lookup error there means the holder is dead — EXCEPT for a
+	// permission error (ACCESS_DENIED), which means the PID resolves to a live
+	// process we simply can't inspect (e.g. an elevated holder). Don't reap it.
+	proc, err := os.FindProcess(pid)
 	if err != nil {
-		// Unparseable — treat as stale.
+		if errors.Is(err, os.ErrPermission) {
+			return false, observed
+		}
 		return true, observed
 	}
-	// os.FindProcess on Unix never fails for any int; the actual liveness
-	// check is Signal(0), which returns ESRCH for dead PIDs.
-	proc, _ := os.FindProcess(pid)
-	if proc == nil {
+	defer func() { _ = proc.Release() }() // release the Windows handle FindProcess opened; no-op on Unix
+
+	sigErr := proc.Signal(syscall.Signal(0))
+	switch {
+	case sigErr == nil:
+		// Holder alive.
+		return false, observed
+	case errors.Is(sigErr, os.ErrProcessDone) || errors.Is(sigErr, syscall.ESRCH):
+		// Unix: no such process — holder is dead. Go's os package translates
+		// the raw ESRCH errno from Kill into the os.ErrProcessDone sentinel
+		// before returning it, so that's the one that actually matches in
+		// practice; syscall.ESRCH is kept as a belt-and-suspenders check.
 		return true, observed
+	case errors.Is(sigErr, syscall.EPERM):
+		// Unix: process exists but is owned by another user, so Signal(0)
+		// is denied. It's alive — don't reap another user's live lock.
+		return false, observed
+	case runtime.GOOS == "windows":
+		// Windows: Signal(0) isn't a supported signal type and always
+		// errors here, live holder or not. FindProcess above already
+		// confirmed the PID resolves to a real process, so treat as alive.
+		return false, observed
+	default:
+		// Unknown error on a platform/signal combination we don't
+		// specifically handle — err toward "alive" so we never reap a lock
+		// we can't positively confirm is dead.
+		return false, observed
 	}
-	if err := proc.Signal(syscall.Signal(0)); err != nil {
-		return true, observed
-	}
-	return false, observed
 }
 
 // tryRemoveStaleLock reaps the lock at lockPath when its holder is dead, removing

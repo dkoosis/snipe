@@ -90,7 +90,26 @@ esac
 				t.Setenv("PATH", t.TempDir())
 			}
 
-			got := kg.GetHints(context.Background(), tc.cfg)
+			// GetHints applies a 2s per-query timeout (up to 3 queries in the
+			// success case). Under `go test ./...` with GOMAXPROCS saturated by
+			// concurrent packages, the shim subprocess can be scheduled late
+			// enough to blow that budget even though it does real work in
+			// milliseconds. Retry with a generous overall ceiling instead of
+			// asserting on the first attempt, so the result is load-independent
+			// rather than timing-sensitive.
+			const (
+				retryBudget = 10 * time.Second
+				retryPoll   = 100 * time.Millisecond
+			)
+			var got []kg.Hint
+			deadline := time.Now().Add(retryBudget)
+			for {
+				got = kg.GetHints(context.Background(), tc.cfg)
+				if cmp.Diff(tc.want, got) == "" || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(retryPoll)
+			}
 
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Fatalf("hints mismatch (-want +got):\n%s", diff)

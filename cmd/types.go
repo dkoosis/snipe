@@ -265,7 +265,10 @@ func runTypesForPackage(w *output.Writer, s interface {
 	results := make([]output.TypesResult, 0, len(typeSymbols))
 	for i := range typeSymbols {
 		sym := &typeSymbols[i]
-		info, err := query.GetTypeInfo(s.DB(), sym.ID)
+		// sym is already loaded from FindPackageSymbols above, so use the
+		// *SymbolRow entry point directly instead of re-running LookupByID
+		// per symbol (N+1 avoidance).
+		info, err := query.GetTypeInfoFromSymbol(s.DB(), sym)
 		if err != nil {
 			continue
 		}
