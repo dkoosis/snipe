@@ -11,4 +11,7 @@ package context
 //	1.0 — initial declared schema (snipe-yqo). Covers all fields present at
 //	      introduction; future additive fields keep 1.x, removals/renames go
 //	      to 2.0 with a CHANGELOG entry.
-const SchemaVersion = "1.0"
+//	1.1 — additive (sn-zd2): SymbolRef.role now populated on `context --full`
+//	      symbols (was boot-only), and new optional SymbolRef.risk_flags carries
+//	      orthogonal concurrency/security_boundary classes.
+const SchemaVersion = "1.1"

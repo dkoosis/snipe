@@ -28,7 +28,13 @@ type GenerateConfig struct {
 	Full bool
 	// MaxSymbols is the maximum number of symbols to include per category (default: 20)
 	MaxSymbols int
+	// KeySymbols caps the ranked key-symbol list in boot output (default: 15).
+	// Dedicated to boot; does not overload the global --limit (D2).
+	KeySymbols int
 }
+
+// defaultKeySymbols is the boot key-symbol cap when KeySymbols is unset (<= 0).
+const defaultKeySymbols = 15
 
 // Generate creates a ProjectContext from the snipe index.
 func Generate(cfg GenerateConfig) (*ProjectContext, error) {
@@ -58,8 +64,13 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 	// Get entry points (cmd/* main.go files) - backward compatible
 	entryPoints := getEntryPoints(cfg.DB, cfg.RepoRoot)
 
-	// Get top symbols by role-weighted ranking
-	rankedSymbols, err := RankSymbols(cfg.DB, cfg.RepoRoot, 15)
+	// Get top symbols by role-weighted ranking. The cap is configurable via
+	// --key-symbols (cfg.KeySymbols); default 15 when unset.
+	keyN := cfg.KeySymbols
+	if keyN <= 0 {
+		keyN = defaultKeySymbols
+	}
+	rankedSymbols, err := RankSymbols(cfg.DB, cfg.RepoRoot, keyN)
 	if err != nil {
 		// Fall back to ref-count based ranking if ranking fails
 		rankedSymbols = nil
@@ -69,7 +80,7 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 	keySymbols := rankedToSymbolRefs(rankedSymbols, cfg.RepoRoot)
 	if len(keySymbols) == 0 {
 		// Fall back to ref-count based if ranking produced no results
-		keySymbols = getKeySymbolsByRefCount(cfg.DB, cfg.RepoRoot, 10)
+		keySymbols = getKeySymbolsByRefCount(cfg.DB, cfg.RepoRoot, keyN)
 	}
 
 	// Load session for active work context
@@ -285,12 +296,14 @@ func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 // rankedToSymbolRefs converts ranked symbols to SymbolRef with role and purpose.
 func rankedToSymbolRefs(ranked []RankedSymbol, repoRoot string) []SymbolRef {
 	refs := make([]SymbolRef, 0, len(ranked))
-	for _, rs := range ranked {
+	for i := range ranked {
+		rs := &ranked[i]
 		ref := SymbolRef{
-			Name: rs.Name,
-			File: strings.TrimPrefix(rs.File, repoRoot+"/"),
-			Line: rs.Line,
-			Role: rs.Role,
+			Name:      rs.Name,
+			File:      strings.TrimPrefix(rs.File, repoRoot+"/"),
+			Line:      rs.Line,
+			Role:      rs.Role,
+			RiskFlags: rs.RiskFlags,
 		}
 		if rs.Doc != "" {
 			ref.Purpose = ExtractFirstSentence(rs.Doc)
@@ -890,8 +903,13 @@ func generateSymbols(db *sql.DB, repoRoot string, full bool, maxSymbols int) Sym
 		limit = 1000
 	}
 
-	syms.Types = querySymbolRefsByKind(db, repoRoot, "('type', 'interface', 'struct')", limit)
-	syms.Functions = querySymbolRefsByKind(db, repoRoot, "('func', 'method')", limit)
+	// Build the role/risk map once (batch) so every --full symbol carries its
+	// architectural role and orthogonal risk flags — avoids the N+1 that a
+	// per-row InferRoleForSymbol call would reintroduce (sn-zd2 defect 1).
+	roleMap, riskMap := buildRoleRiskMaps(db, repoRoot)
+
+	syms.Types = querySymbolRefsByKind(db, repoRoot, "('type', 'interface', 'struct')", limit, roleMap, riskMap)
+	syms.Functions = querySymbolRefsByKind(db, repoRoot, "('func', 'method')", limit, roleMap, riskMap)
 
 	// Get extension points: high-centrality symbols suitable for adding new functionality
 	syms.ExtensionPoints = getExtensionPoints(db, repoRoot)
@@ -899,12 +917,32 @@ func generateSymbols(db *sql.DB, repoRoot string, full bool, maxSymbols int) Sym
 	return syms
 }
 
-// querySymbolRefsByKind returns exported symbols of given kinds, ranked by reference count.
+// buildRoleRiskMaps runs role inference once and returns symbol-ID → role and
+// symbol-ID → risk-flags lookups. Both are empty (never nil-panic) if inference
+// fails, letting callers fall back to a visibility-based default.
+func buildRoleRiskMaps(db *sql.DB, repoRoot string) (map[string]Role, map[string][]string) {
+	roleMap := make(map[string]Role)
+	riskMap := make(map[string][]string)
+	symbolRoles, err := InferRoles(db, repoRoot)
+	if err != nil {
+		return roleMap, riskMap
+	}
+	for _, sr := range symbolRoles {
+		roleMap[sr.SymbolID] = sr.Role
+		if len(sr.RiskFlags) > 0 {
+			riskMap[sr.SymbolID] = sr.RiskFlags
+		}
+	}
+	return roleMap, riskMap
+}
+
+// querySymbolRefsByKind returns exported symbols of given kinds, ranked by reference count,
+// stamping each with its inferred role and any risk flags from the pre-built maps.
 // The kindClause is a SQL IN expression like "('func', 'method')".
-func querySymbolRefsByKind(db *sql.DB, repoRoot, kindClause string, limit int) []SymbolRef {
+func querySymbolRefsByKind(db *sql.DB, repoRoot, kindClause string, limit int, roleMap map[string]Role, riskMap map[string][]string) []SymbolRef {
 	// #nosec G201 -- kindClause is a hardcoded literal from caller
 	rows, err := db.Query(`
-		SELECT s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
+		SELECT s.id, s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
 		FROM symbols s
 		LEFT JOIN refs r ON s.id = r.symbol_id
 		WHERE s.kind IN `+kindClause+`
@@ -922,12 +960,23 @@ func querySymbolRefsByKind(db *sql.DB, repoRoot, kindClause string, limit int) [
 	var refs []SymbolRef
 	for rows.Next() {
 		var ref SymbolRef
-		var fullPath string
+		var id, fullPath string
 		var refCount int
-		if err := rows.Scan(&ref.Name, &fullPath, &ref.Line, &refCount); err != nil {
+		if err := rows.Scan(&id, &ref.Name, &fullPath, &ref.Line, &refCount); err != nil {
 			continue
 		}
 		ref.File = strings.TrimPrefix(fullPath, repoRoot+"/")
+		if role, ok := roleMap[id]; ok {
+			ref.Role = string(role)
+		} else {
+			// Not in the role map (e.g. test-file symbols InferRoles skips): all
+			// rows here are exported (name GLOB '[A-Z]*'), so default to api_boundary.
+			// Guarantees a non-empty role for every --full row (defect 1 guard).
+			ref.Role = string(RoleAPIBoundary)
+		}
+		if flags, ok := riskMap[id]; ok {
+			ref.RiskFlags = flags
+		}
 		refs = append(refs, ref)
 	}
 	return refs

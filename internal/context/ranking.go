@@ -20,31 +20,57 @@ var roleWeights = map[Role]float64{
 	RoleInternal:    1,
 }
 
-// RankedSymbol represents a symbol with its calculated priority score.
-type RankedSymbol struct {
-	ID       string  `json:"id"`
-	Name     string  `json:"name"`
-	File     string  `json:"file"`
-	Line     int     `json:"line"`
-	RefCount int     `json:"ref_count"`
-	Role     string  `json:"role"`
-	Priority float64 `json:"priority"`
-	Doc      string  `json:"doc,omitempty"`
+// riskWeights boost symbols carrying a risk flag so architecturally significant
+// concurrency/security code surfaces in ranked boot output even when its
+// structural role is weak (e.g. an unexported goroutine helper). Risk is
+// orthogonal to Role (sn-zd2 decision A): the effective weight is the max of the
+// structural role weight and any risk weight, not a product.
+var riskWeights = map[string]float64{
+	RiskSecurityBoundary: 6,
+	RiskConcurrency:      5,
 }
 
-// CalculatePriority computes the priority score for a symbol.
-// Formula: priority = (log(ref_count) + 1) * role_weight
-// This balances reference count with architectural importance.
+// RankedSymbol represents a symbol with its calculated priority score.
+type RankedSymbol struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	File      string   `json:"file"`
+	Line      int      `json:"line"`
+	RefCount  int      `json:"ref_count"`
+	Role      string   `json:"role"`
+	RiskFlags []string `json:"risk_flags,omitempty"`
+	Priority  float64  `json:"priority"`
+	Doc       string   `json:"doc,omitempty"`
+}
+
+// CalculatePriority computes the priority score for a symbol from its structural
+// role alone. Formula: priority = (log(ref_count) + 1) * role_weight.
 func CalculatePriority(refCount int, role Role) float64 {
+	return calcPriority(refCount, effectiveWeight(role, nil))
+}
+
+// calcPriority balances reference count with a supplied architectural weight.
+// Uses log(ref_count + 1) to handle zero refs and dampen high ref counts;
+// adding 1 ensures log is never negative for ref_count >= 0.
+func calcPriority(refCount int, weight float64) float64 {
+	logRefs := math.Log(float64(refCount) + 1)
+	return (logRefs + 1) * weight
+}
+
+// effectiveWeight returns the max of a symbol's structural-role weight and any
+// risk-flag weight. Risk is orthogonal to role (decision A): a security_boundary
+// internal helper is boosted to the security weight without compounding.
+func effectiveWeight(role Role, riskFlags []string) float64 {
 	weight, ok := roleWeights[role]
 	if !ok {
 		weight = 1 // Default to internal weight
 	}
-
-	// Use log(ref_count + 1) to handle zero refs and dampen high ref counts
-	// Adding 1 ensures log is never negative for ref_count >= 0
-	logRefs := math.Log(float64(refCount) + 1)
-	return (logRefs + 1) * weight
+	for _, f := range riskFlags {
+		if rw := riskWeights[f]; rw > weight {
+			weight = rw
+		}
+	}
+	return weight
 }
 
 // RankSymbols queries symbols from the database, infers their roles,
@@ -61,10 +87,14 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 		return nil, err
 	}
 
-	// Build role lookup map by symbol ID for O(1) access
+	// Build role + risk lookup maps by symbol ID for O(1) access
 	roleMap := make(map[string]Role, len(symbolRoles))
+	riskMap := make(map[string][]string, len(symbolRoles))
 	for _, sr := range symbolRoles {
 		roleMap[sr.SymbolID] = sr.Role
+		if len(sr.RiskFlags) > 0 {
+			riskMap[sr.SymbolID] = sr.RiskFlags
+		}
 	}
 
 	// Step 2: Query all symbols with their ref counts in a single batch query
@@ -111,7 +141,8 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 			}
 		}
 		rs.Role = string(role)
-		rs.Priority = CalculatePriority(rs.RefCount, role)
+		rs.RiskFlags = riskMap[rs.ID]
+		rs.Priority = calcPriority(rs.RefCount, effectiveWeight(role, rs.RiskFlags))
 
 		results = append(results, rs)
 	}
@@ -140,16 +171,22 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 
 	// Step 5: Enforce per-package diversity — no single package dominates key symbols.
 	// Cap at 3 symbols per package directory to ensure architectural breadth.
+	// Risk-flagged symbols (concurrency/security_boundary) are exempt: they're
+	// architecturally significant and the cap would otherwise starve them to 0 on
+	// large repos even when detected (sn-zd2 step 5).
 	const maxPerPackage = 3
 	pkgCount := make(map[string]int)
 	diverse := make([]RankedSymbol, 0, len(results))
-	for _, rs := range results {
-		pkg := packageDir(rs.File, repoRoot)
-		if pkgCount[pkg] >= maxPerPackage {
-			continue
+	for i := range results {
+		rs := &results[i]
+		if len(rs.RiskFlags) == 0 {
+			pkg := packageDir(rs.File, repoRoot)
+			if pkgCount[pkg] >= maxPerPackage {
+				continue
+			}
+			pkgCount[pkg]++
 		}
-		pkgCount[pkg]++
-		diverse = append(diverse, rs)
+		diverse = append(diverse, *rs)
 	}
 	results = diverse
 

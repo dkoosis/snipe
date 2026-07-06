@@ -29,6 +29,18 @@ const (
 	RoleInternal Role = "internal"
 )
 
+// Risk classes are orthogonal to Role (structural). A symbol may carry zero or
+// more risk flags in addition to its single structural Role (sn-zd2, decision A).
+const (
+	// RiskConcurrency flags a symbol that touches goroutine/channel/sync
+	// machinery — a channel-typed signature or a sync-primitive call site.
+	RiskConcurrency = "concurrency"
+	// RiskSecurityBoundary flags a symbol that crosses a security boundary —
+	// spawns external processes (os/exec), disables TLS verification, or stands
+	// up a network server.
+	RiskSecurityBoundary = "security_boundary"
+)
+
 // Symbol kind constants used for role inference.
 const (
 	kindFunc      = "func"
@@ -60,6 +72,7 @@ type SymbolRole struct {
 	SymbolID   string     `json:"symbol_id"`
 	Name       string     `json:"name"`
 	Role       Role       `json:"role"`
+	RiskFlags  []string   `json:"risk_flags,omitempty"`
 	Visibility Visibility `json:"visibility"`
 	PkgPath    string     `json:"pkg_path,omitempty"`
 }
@@ -122,6 +135,9 @@ func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 		switch s.kind {
 		case kindFunc, kindMethod:
 			role = inferRole(db, s.id, s.name, s.kind, s.signature.String, s.pkgPath.String)
+			// Risk classes are orthogonal to structural role and accumulate
+			// independently (funcs/methods only — the heuristics are call/signature based).
+			sr.RiskFlags = detectRiskFlags(db, s.id, s.signature.String, s.filePath)
 		case kindStruct, kindInterface, kindType:
 			role = inferRoleForType(db, s.id, s.name, s.pkgPath.String)
 		default:
@@ -422,6 +438,161 @@ func inferRoleForType(_ *sql.DB, _, name, pkgPath string) Role {
 		return RoleAPIBoundary
 	}
 	return RoleInternal
+}
+
+// detectRiskFlags returns the risk classes a func/method carries, orthogonal to
+// its structural Role. Detection keys off signals that already exist in the index
+// (signature, imports table, refs.ast_ctx call attribution) — no indexer change.
+//
+// Recall caveat (sn-zd2 / follow-up sn-hmz): the `go func` / goroutine-spawn case
+// is NOT detectable here because `go` statements and channel ops aren't emitted as
+// refs, calls, or signature tokens. Concurrency recall is capped to channel-typed
+// signatures and sync-primitive call sites until the indexer emits a `go` signal.
+func detectRiskFlags(db *sql.DB, symbolID, signature, filePath string) []string {
+	var flags []string
+	if isConcurrency(db, symbolID, signature, filePath) {
+		flags = append(flags, RiskConcurrency)
+	}
+	if isSecurityBoundary(db, symbolID, filePath) {
+		flags = append(flags, RiskSecurityBoundary)
+	}
+	return flags
+}
+
+// concurrencyCalls are sync/atomic primitive call names that, co-signalled with a
+// sync or sync/atomic import in the same file, indicate real concurrency handling.
+var concurrencyCallCtxs = []string{
+	"call:Lock", "call:Unlock", "call:RLock", "call:RUnlock",
+	"call:Wait", "call:Do", "call:Add", "call:Done",
+	"call:Store", "call:Load",
+}
+
+// isConcurrency reports whether a symbol handles concurrency:
+//  1. its signature declares a channel type ("chan T", "chan<- T", "<-chan T"), or
+//  2. its file imports sync/sync/atomic AND an enclosed call attributes to a sync
+//     primitive (Lock/Unlock/Wait/Do/Add/Store/Load/...).
+func isConcurrency(db *sql.DB, symbolID, signature, filePath string) bool {
+	if hasChannelType(signature) {
+		return true
+	}
+	if !fileImportsAny(db, filePath, "sync", "sync/atomic") {
+		return false
+	}
+	return enclosedCallCtx(db, symbolID, concurrencyCallCtxs)
+}
+
+// execCalls are os/exec entry points that spawn external processes.
+var execCallCtxs = []string{
+	"call:Command", "call:CommandContext",
+	"call:Run", "call:Start", "call:Output", "call:CombinedOutput",
+}
+
+// serverCalls stand up a network server (server-side net/http).
+var serverCallCtxs = []string{
+	"call:ListenAndServe", "call:ListenAndServeTLS", "call:Serve",
+}
+
+// isSecurityBoundary reports whether a symbol crosses a security boundary:
+//  1. file imports os/exec AND an enclosed call spawns a process, or
+//  2. file imports crypto/tls AND the symbol references InsecureSkipVerify, or
+//  3. file imports net/http AND the symbol stands up a server.
+//
+// Each rule requires the risky import as a co-signal so a name-only call
+// attribution (e.g. a method literally named Command) can't misfire alone.
+func isSecurityBoundary(db *sql.DB, symbolID, filePath string) bool {
+	if fileImportsAny(db, filePath, "os/exec") && enclosedCallCtx(db, symbolID, execCallCtxs) {
+		return true
+	}
+	if fileImportsAny(db, filePath, "crypto/tls") && enclosedRefMatches(db, symbolID, "InsecureSkipVerify") {
+		return true
+	}
+	if fileImportsAny(db, filePath, "net/http") && enclosedCallCtx(db, symbolID, serverCallCtxs) {
+		return true
+	}
+	return false
+}
+
+// hasChannelType reports whether a signature declares a channel-typed parameter
+// or result. It matches the `chan` keyword only at a token boundary so names like
+// "Exchange" (which contains "chan") don't misfire.
+func hasChannelType(signature string) bool {
+	const kw = "chan"
+	for i := 0; i+len(kw) <= len(signature); i++ {
+		if signature[i:i+len(kw)] != kw {
+			continue
+		}
+		if i > 0 && isIdentByte(signature[i-1]) {
+			continue // preceded by ident char → part of a larger word
+		}
+		if j := i + len(kw); j < len(signature) && isIdentByte(signature[j]) {
+			continue // followed by ident char → part of a larger word
+		}
+		return true
+	}
+	return false
+}
+
+// isIdentByte reports whether b can appear inside a Go identifier.
+func isIdentByte(b byte) bool {
+	return b == '_' ||
+		(b >= 'a' && b <= 'z') ||
+		(b >= 'A' && b <= 'Z') ||
+		(b >= '0' && b <= '9')
+}
+
+// fileImportsAny reports whether filePath imports any of the given package paths.
+func fileImportsAny(db *sql.DB, filePath string, pkgs ...string) bool {
+	if filePath == "" || len(pkgs) == 0 {
+		return false
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(pkgs)), ",")
+	args := make([]any, 0, len(pkgs)+1)
+	args = append(args, filePath)
+	for _, p := range pkgs {
+		args = append(args, p)
+	}
+	var n int
+	err := db.QueryRow(
+		`SELECT COUNT(*) FROM imports WHERE file_path = ? AND pkg_path IN (`+placeholders+`)`,
+		args...,
+	).Scan(&n)
+	return err == nil && n > 0
+}
+
+// enclosedCallCtx reports whether the symbol encloses a ref whose ast_ctx matches
+// any of the given call attributions. Depends on refs.enclosing_id + ast_ctx
+// (schema v18+); a pre-v18 index yields NULL ctx → no signal (mirrors the
+// lifecycle R1/R2 trap).
+func enclosedCallCtx(db *sql.DB, symbolID string, ctxs []string) bool {
+	if len(ctxs) == 0 {
+		return false
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ctxs)), ",")
+	args := make([]any, 0, len(ctxs)+1)
+	args = append(args, symbolID)
+	for _, c := range ctxs {
+		args = append(args, c)
+	}
+	var n int
+	err := db.QueryRow(
+		`SELECT COUNT(*) FROM refs WHERE enclosing_id = ? AND ast_ctx IN (`+placeholders+`)`,
+		args...,
+	).Scan(&n)
+	return err == nil && n > 0
+}
+
+// enclosedRefMatches reports whether the symbol encloses a ref whose ast_ctx or
+// snippet contains needle (used for field-access signals like InsecureSkipVerify
+// that aren't call attributions).
+func enclosedRefMatches(db *sql.DB, symbolID, needle string) bool {
+	var n int
+	err := db.QueryRow(
+		`SELECT COUNT(*) FROM refs
+		 WHERE enclosing_id = ?
+		   AND (ast_ctx LIKE '%' || ? || '%' OR snippet LIKE '%' || ? || '%')`,
+		symbolID, needle, needle,
+	).Scan(&n)
+	return err == nil && n > 0
 }
 
 // InferRoleForSymbol returns the role for a single symbol without scanning the entire DB.
