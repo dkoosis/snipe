@@ -88,6 +88,16 @@ func TestGetMethodsForType_ReturnsExportedMethodsByReceiver_When_QueryingType(t 
 	}
 }
 
+func TestGetTypeInfoFromSymbol_ReturnsError_When_SymbolIsNil(t *testing.T) {
+	t.Parallel()
+
+	// nil is rejected before any DB access, so a nil db is fine here.
+	info, err := query.GetTypeInfoFromSymbol(nil, nil)
+	require.Error(t, err)
+	require.Nil(t, info)
+	require.Contains(t, err.Error(), "symbol is nil")
+}
+
 func openSQLiteDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")

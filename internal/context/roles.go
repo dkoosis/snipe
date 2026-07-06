@@ -119,6 +119,13 @@ func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 		return nil, err
 	}
 
+	// Preload the risk-relevant imports once so risk classification is a map
+	// lookup per symbol, not a DB query per (symbol × package) probe (sn-c8o).
+	imports, err := loadImportsCache(db, repoRoot)
+	if err != nil {
+		return nil, err
+	}
+
 	// Process each symbol to determine its role
 	for _, s := range symbols {
 		sr := SymbolRole{
@@ -137,7 +144,7 @@ func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 			role = inferRole(db, s.id, s.name, s.kind, s.signature.String, s.pkgPath.String)
 			// Risk classes are orthogonal to structural role and accumulate
 			// independently (funcs/methods only — the heuristics are call/signature based).
-			sr.RiskFlags = detectRiskFlags(db, s.id, s.signature.String, s.filePath)
+			sr.RiskFlags = detectRiskFlags(db, imports, s.id, s.signature.String, s.filePath)
 		case kindStruct, kindInterface, kindType:
 			role = inferRoleForType(db, s.id, s.name, s.pkgPath.String)
 		default:
@@ -448,12 +455,12 @@ func inferRoleForType(_ *sql.DB, _, name, pkgPath string) Role {
 // is NOT detectable here because `go` statements and channel ops aren't emitted as
 // refs, calls, or signature tokens. Concurrency recall is capped to channel-typed
 // signatures and sync-primitive call sites until the indexer emits a `go` signal.
-func detectRiskFlags(db *sql.DB, symbolID, signature, filePath string) []string {
+func detectRiskFlags(db *sql.DB, imports importsCache, symbolID, signature, filePath string) []string {
 	var flags []string
-	if isConcurrency(db, symbolID, signature, filePath) {
+	if isConcurrency(db, imports, symbolID, signature, filePath) {
 		flags = append(flags, RiskConcurrency)
 	}
-	if isSecurityBoundary(db, symbolID, filePath) {
+	if isSecurityBoundary(db, imports, symbolID, filePath) {
 		flags = append(flags, RiskSecurityBoundary)
 	}
 	return flags
@@ -471,11 +478,11 @@ var concurrencyCallCtxs = []string{
 //  1. its signature declares a channel type ("chan T", "chan<- T", "<-chan T"), or
 //  2. its file imports sync/sync/atomic AND an enclosed call attributes to a sync
 //     primitive (Lock/Unlock/Wait/Do/Add/Store/Load/...).
-func isConcurrency(db *sql.DB, symbolID, signature, filePath string) bool {
+func isConcurrency(db *sql.DB, imports importsCache, symbolID, signature, filePath string) bool {
 	if hasChannelType(signature) {
 		return true
 	}
-	if !fileImportsAny(db, filePath, "sync", "sync/atomic") {
+	if !imports.fileImportsAny(filePath, "sync", "sync/atomic") {
 		return false
 	}
 	return enclosedCallCtx(db, symbolID, concurrencyCallCtxs)
@@ -499,14 +506,14 @@ var serverCallCtxs = []string{
 //
 // Each rule requires the risky import as a co-signal so a name-only call
 // attribution (e.g. a method literally named Command) can't misfire alone.
-func isSecurityBoundary(db *sql.DB, symbolID, filePath string) bool {
-	if fileImportsAny(db, filePath, "os/exec") && enclosedCallCtx(db, symbolID, execCallCtxs) {
+func isSecurityBoundary(db *sql.DB, imports importsCache, symbolID, filePath string) bool {
+	if imports.fileImportsAny(filePath, "os/exec") && enclosedCallCtx(db, symbolID, execCallCtxs) {
 		return true
 	}
-	if fileImportsAny(db, filePath, "crypto/tls") && enclosedRefMatches(db, symbolID, "InsecureSkipVerify") {
+	if imports.fileImportsAny(filePath, "crypto/tls") && enclosedRefMatches(db, symbolID, "InsecureSkipVerify") {
 		return true
 	}
-	if fileImportsAny(db, filePath, "net/http") && enclosedCallCtx(db, symbolID, serverCallCtxs) {
+	if imports.fileImportsAny(filePath, "net/http") && enclosedCallCtx(db, symbolID, serverCallCtxs) {
 		return true
 	}
 	return false
@@ -540,23 +547,65 @@ func isIdentByte(b byte) bool {
 		(b >= '0' && b <= '9')
 }
 
+// riskImportPkgs are the only import paths risk classification cares about. The
+// importsCache preloads exactly these so a whole InferRoles pass costs one imports
+// query, not one per (symbol × package) probe.
+var riskImportPkgs = []string{"sync", "sync/atomic", "os/exec", "crypto/tls", "net/http"}
+
+// importsCache maps a file path to the set of risk-relevant packages it imports.
+// It's built once per InferRoles run (loadImportsCache) and threaded through the
+// risk heuristics, replacing the per-symbol fileImportsAny query (sn-c8o).
+type importsCache map[string]map[string]bool
+
+// loadImportsCache preloads, in a single query, which files under repoRoot import
+// any riskImportPkgs package. Files importing none simply don't appear.
+func loadImportsCache(db *sql.DB, repoRoot string) (importsCache, error) {
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(riskImportPkgs)), ",")
+	args := make([]any, 0, len(riskImportPkgs)+1)
+	for _, p := range riskImportPkgs {
+		args = append(args, p)
+	}
+	args = append(args, repoRoot)
+	rows, err := db.Query(
+		`SELECT file_path, pkg_path FROM imports
+		 WHERE pkg_path IN (`+placeholders+`) AND file_path LIKE ? || '/%'`,
+		args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	cache := make(importsCache)
+	for rows.Next() {
+		var fp, pp string
+		if err := rows.Scan(&fp, &pp); err != nil {
+			continue
+		}
+		set := cache[fp]
+		if set == nil {
+			set = make(map[string]bool)
+			cache[fp] = set
+		}
+		set[pp] = true
+	}
+	return cache, rows.Err()
+}
+
 // fileImportsAny reports whether filePath imports any of the given package paths.
-func fileImportsAny(db *sql.DB, filePath string, pkgs ...string) bool {
+func (c importsCache) fileImportsAny(filePath string, pkgs ...string) bool {
 	if filePath == "" || len(pkgs) == 0 {
 		return false
 	}
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(pkgs)), ",")
-	args := make([]any, 0, len(pkgs)+1)
-	args = append(args, filePath)
-	for _, p := range pkgs {
-		args = append(args, p)
+	set := c[filePath]
+	if set == nil {
+		return false
 	}
-	var n int
-	err := db.QueryRow(
-		`SELECT COUNT(*) FROM imports WHERE file_path = ? AND pkg_path IN (`+placeholders+`)`,
-		args...,
-	).Scan(&n)
-	return err == nil && n > 0
+	for _, p := range pkgs {
+		if set[p] {
+			return true
+		}
+	}
+	return false
 }
 
 // enclosedCallCtx reports whether the symbol encloses a ref whose ast_ctx matches
