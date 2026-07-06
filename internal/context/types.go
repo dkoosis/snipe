@@ -225,12 +225,13 @@ type ExtensionPoint struct {
 
 // SymbolRef is a lightweight reference to a symbol.
 type SymbolRef struct {
-	Name       string `json:"name" yaml:"name"`
-	File       string `json:"file" yaml:"file"`
-	Line       int    `json:"line" yaml:"line"`
-	Role       string `json:"role,omitempty" yaml:"role,omitempty"`
-	Visibility string `json:"visibility,omitempty" yaml:"visibility,omitempty"`
-	Purpose    string `json:"purpose,omitempty" yaml:"purpose,omitempty"`
+	Name       string   `json:"name" yaml:"name"`
+	File       string   `json:"file" yaml:"file"`
+	Line       int      `json:"line" yaml:"line"`
+	Role       string   `json:"role,omitempty" yaml:"role,omitempty"`
+	RiskFlags  []string `json:"risk_flags,omitempty" yaml:"risk_flags,omitempty"`
+	Visibility string   `json:"visibility,omitempty" yaml:"visibility,omitempty"`
+	Purpose    string   `json:"purpose,omitempty" yaml:"purpose,omitempty"`
 }
 
 // BuildInfo describes the detected build/task system and CI configuration.

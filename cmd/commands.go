@@ -27,6 +27,7 @@ type ContextCmd struct {
 	OutputNug     bool `name:"output-nug" help:"Output as Orca nugget YAML (for save_nug)"`
 	Conventions   bool `help:"Detect coding conventions"`
 	SchemaVersion bool `name:"schema-version" help:"Print the context output schema version and exit"`
+	KeySymbols    int  `name:"key-symbols" default:"15" help:"Cap ranked key symbols in boot output (orient mode)"`
 }
 
 func (c *ContextCmd) Run() error {
@@ -42,6 +43,7 @@ func (c *ContextCmd) Run() error {
 	contextOutputNug = c.OutputNug
 	contextConventions = c.Conventions
 	contextSchemaVersion = c.SchemaVersion
+	contextKeySymbols = c.KeySymbols
 	return runContext(argsOf(c.Path))
 }
 

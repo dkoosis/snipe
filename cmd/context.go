@@ -20,6 +20,7 @@ var (
 	contextOutputNug     bool
 	contextConventions   bool
 	contextSchemaVersion bool
+	contextKeySymbols    int
 )
 
 func runContext(args []string) error {
@@ -65,9 +66,10 @@ func runContext(args []string) error {
 
 	// Generate context
 	cfg := context.GenerateConfig{
-		RepoRoot: projectRoot,
-		DB:       s.DB(),
-		Full:     contextFull,
+		RepoRoot:   projectRoot,
+		DB:         s.DB(),
+		Full:       contextFull,
+		KeySymbols: contextKeySymbols,
 	}
 
 	// --full and --conventions have no claudish text formatter; they default
