@@ -198,17 +198,25 @@ func lockHeldByDeadProcess(lockPath string) (stale bool, observed string) {
 		return true, ""
 	}
 	pid, err := strconv.Atoi(observed)
-	if err != nil {
-		// Unparseable — treat as stale.
+	if err != nil || pid <= 0 {
+		// Unparseable, or a non-positive PID that only a corrupt/hand-edited
+		// lock could hold (real writers store os.Getpid(), always > 0). Signal(0)
+		// to 0 or a negative value targets a process group on Unix and would
+		// read as alive, wedging the lock forever — treat as stale instead.
 		return true, observed
 	}
 
 	// On Unix, os.FindProcess never fails for any int — liveness is decided
 	// below by Signal(0). On Windows, FindProcess itself opens a process
 	// handle (OpenProcess) and fails when the PID doesn't resolve to a live
-	// process, so a lookup error there means the holder is dead.
+	// process, so a lookup error there means the holder is dead — EXCEPT for a
+	// permission error (ACCESS_DENIED), which means the PID resolves to a live
+	// process we simply can't inspect (e.g. an elevated holder). Don't reap it.
 	proc, err := os.FindProcess(pid)
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			return false, observed
+		}
 		return true, observed
 	}
 	defer func() { _ = proc.Release() }() // release the Windows handle FindProcess opened; no-op on Unix
