@@ -590,7 +590,7 @@ func (s *Store) WriteIndexIncremental(
 	// symbols whose defining files *were* changed, where the symbol no
 	// longer exists. Without this, orphaned_refs grows monotonically over
 	// many incremental reindexes — which was the user-visible symptom.
-	if _, err := tx.Exec(`DELETE FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`); err != nil {
+	if _, err := tx.Exec(`DELETE FROM refs WHERE NOT EXISTS (SELECT 1 FROM symbols WHERE symbols.id = refs.symbol_id)`); err != nil {
 		return nil, fmt.Errorf("sweep orphaned refs: %w", err)
 	}
 
@@ -600,7 +600,7 @@ func (s *Store) WriteIndexIncremental(
 	// pointing at a now-deleted symbol id. callers/callees/impact INNER-JOIN
 	// call_graph→symbols and silently drop these, so they accumulate
 	// monotonically and under-report the graph (snipe-bzw).
-	if _, err := tx.Exec(`DELETE FROM call_graph WHERE caller_id NOT IN (SELECT id FROM symbols) OR callee_id NOT IN (SELECT id FROM symbols)`); err != nil {
+	if _, err := tx.Exec(`DELETE FROM call_graph WHERE NOT EXISTS (SELECT 1 FROM symbols WHERE symbols.id = call_graph.caller_id) OR NOT EXISTS (SELECT 1 FROM symbols WHERE symbols.id = call_graph.callee_id)`); err != nil {
 		return nil, fmt.Errorf("sweep orphaned call edges: %w", err)
 	}
 
@@ -608,7 +608,7 @@ func (s *Store) WriteIndexIncremental(
 	// counters trailing the on-disk schema, and concurrent readers can't see
 	// orphaned_refs and incremental_count from different generations.
 	var orphanCount int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`).Scan(&orphanCount); err != nil {
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM refs WHERE NOT EXISTS (SELECT 1 FROM symbols WHERE symbols.id = refs.symbol_id)`).Scan(&orphanCount); err != nil {
 		return nil, fmt.Errorf("count orphaned refs: %w", err)
 	}
 	if _, err := tx.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('orphaned_refs', ?)`, fmt.Sprintf("%d", orphanCount)); err != nil {
