@@ -70,8 +70,9 @@ func TestEval(t *testing.T) {
 		}
 
 		results = append(results, RepoResult{
-			Name:  repoName,
-			Tasks: taskResults,
+			Name:       repoName,
+			Tasks:      taskResults,
+			Embeddings: countEmbeddings(t, dir),
 		})
 	}
 
@@ -119,6 +120,22 @@ const (
 	// improving retrieval ranking is how this number climbs back toward 1.0.
 	gateMRR = 0.72
 )
+
+// countEmbeddings reports how many vector embeddings the repo's index holds,
+// or -1 if the count is unavailable. Zero means the semantic-ranking path was
+// not exercised — a caveat the report surfaces so MRR isn't over-read.
+func countEmbeddings(t *testing.T, repoDir string) int {
+	t.Helper()
+	stdout, _, code := run(t, repoDir, "embed-status")
+	if code != 0 {
+		return -1
+	}
+	var resp embedStatusResponse
+	if err := json.Unmarshal(stdout, &resp); err != nil || len(resp.Results) == 0 {
+		return -1
+	}
+	return resp.Results[0].Total
+}
 
 // enforceGates fails the test when any aggregate metric drops below its floor.
 func enforceGates(t *testing.T, report EvalReport) {

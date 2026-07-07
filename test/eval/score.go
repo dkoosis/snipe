@@ -57,6 +57,10 @@ type RepoResult struct {
 	Name    string       `json:"name"`
 	Tasks   []TaskResult `json:"tasks"`
 	Skipped bool         `json:"skipped"`
+	// Embeddings is the count of vector embeddings in this repo's index.
+	// 0 means the semantic-ranking path was not exercised (MRR reflects
+	// lexical + graph ranking only); -1 means the count was unavailable.
+	Embeddings int `json:"embeddings"`
 }
 
 // CategoryScore aggregates metrics for one task category.
@@ -106,6 +110,14 @@ type snipeResult struct {
 type snipeMeta struct {
 	Command string `json:"command"`
 	Total   int    `json:"total"`
+}
+
+// embedStatusResponse parses `snipe embed-status --format json`; results[0].total
+// is the embedding count for the repo's index.
+type embedStatusResponse struct {
+	Results []struct {
+		Total int `json:"total"`
+	} `json:"results"`
 }
 
 type snipeError struct {
@@ -588,6 +600,9 @@ func formatReport(report EvalReport) string {
 			report.WeightedEfficiency, passOrMiss(report.WeightedEfficiency, 80)))
 	}
 
+	// Caveats — what the numbers above do NOT cover, so MRR isn't over-read.
+	b.WriteString(formatCaveats(report))
+
 	// Known gaps
 	var gaps []string
 	for _, repo := range report.Repos {
@@ -644,6 +659,46 @@ func formatReport(report EvalReport) string {
 		}
 	}
 
+	return b.String()
+}
+
+// formatCaveats surfaces what the aggregate numbers do NOT cover, so a reader
+// doesn't over-read MRR or the accuracy gates. Empty string when nothing to note.
+func formatCaveats(report EvalReport) string {
+	var notes []string
+
+	// Embedding coverage: MRR only reflects the semantic path where embeddings exist.
+	var scored, noEmbed, skipped int
+	for _, repo := range report.Repos {
+		if repo.Skipped {
+			skipped++
+			continue
+		}
+		scored++
+		if repo.Embeddings == 0 {
+			noEmbed++
+		}
+	}
+	if noEmbed > 0 {
+		notes = append(notes, fmt.Sprintf(
+			"Semantic ranking NOT exercised: %d/%d scored repos have zero embeddings. "+
+				"MRR reflects lexical + graph ranking only; reindex with `snipe index` to cover the embedding path.",
+			noEmbed, scored))
+	}
+	if skipped > 0 {
+		notes = append(notes, fmt.Sprintf(
+			"%d repo(s) skipped (not cloned) — run `mage EvalSetup`. Aggregates cover scored repos only.", skipped))
+	}
+
+	if len(notes) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\nCAVEATS\n")
+	b.WriteString(strings.Repeat("-", 68) + "\n")
+	for _, n := range notes {
+		b.WriteString("⚠ " + n + "\n")
+	}
 	return b.String()
 }
 
