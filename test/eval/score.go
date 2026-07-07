@@ -57,7 +57,26 @@ type RepoResult struct {
 	Name    string       `json:"name"`
 	Tasks   []TaskResult `json:"tasks"`
 	Skipped bool         `json:"skipped"`
+	// Embeddings is the count of vector embeddings in this repo's index.
+	// 0 means the semantic-ranking path was not exercised (MRR reflects
+	// lexical + graph ranking only); -1 means the count was unavailable.
+	Embeddings int `json:"embeddings"`
 }
+
+// Gate thresholds — single source for both the report display floors and the
+// build gate in enforceGates. Kept here (non-test file) so score.go's formatted
+// output and eval_test.go's enforcement reference the same constants and can't
+// drift. File/Symbol/Efficiency lock in current performance as a regression
+// floor. MRR (rank quality) is the discriminating axis now that the binary
+// metrics are saturated — floor set just below the measured baseline (0.76 after
+// the sn-4bxp MRR-stressor tasks landed) so a ranking regression fails the build.
+// See sn-4bxp.
+const (
+	gateFileAcc   = 90.0
+	gateSymbolAcc = 75.0
+	gateEff       = 80.0
+	gateMRR       = 0.72
+)
 
 // CategoryScore aggregates metrics for one task category.
 type CategoryScore struct {
@@ -106,6 +125,14 @@ type snipeResult struct {
 type snipeMeta struct {
 	Command string `json:"command"`
 	Total   int    `json:"total"`
+}
+
+// embedStatusResponse parses `snipe embed-status --format json`; results[0].total
+// is the embedding count for the repo's index.
+type embedStatusResponse struct {
+	Results []struct {
+		Total int `json:"total"`
+	} `json:"results"`
 }
 
 type snipeError struct {
@@ -567,13 +594,14 @@ func formatReport(report EvalReport) string {
 	// Aggregate (unweighted — equal per-task contribution)
 	b.WriteString("\nAGGREGATE (unweighted)\n")
 	b.WriteString(strings.Repeat("-", 68) + "\n")
-	b.WriteString(fmt.Sprintf("File accuracy:    %5.1f%%  (target: >90%%)  [%s]\n",
-		report.FileAcc, passOrMiss(report.FileAcc, 90)))
-	b.WriteString(fmt.Sprintf("Symbol accuracy:  %5.1f%%  (target: >75%%)  [%s]\n",
-		report.SymbolAcc, passOrMiss(report.SymbolAcc, 75)))
-	b.WriteString(fmt.Sprintf("Efficiency:       %5.1f%%  (target: >80%%)  [%s]\n",
-		report.Efficiency, passOrMiss(report.Efficiency, 80)))
-	b.WriteString(fmt.Sprintf("MRR (secondary):  %5.2f\n", report.MeanMRR))
+	b.WriteString(fmt.Sprintf("File accuracy:    %5.1f%%  (target: >%.0f%%)  [%s]\n",
+		report.FileAcc, gateFileAcc, passOrMiss(report.FileAcc, gateFileAcc)))
+	b.WriteString(fmt.Sprintf("Symbol accuracy:  %5.1f%%  (target: >%.0f%%)  [%s]\n",
+		report.SymbolAcc, gateSymbolAcc, passOrMiss(report.SymbolAcc, gateSymbolAcc)))
+	b.WriteString(fmt.Sprintf("Efficiency:       %5.1f%%  (target: >%.0f%%)  [%s]\n",
+		report.Efficiency, gateEff, passOrMiss(report.Efficiency, gateEff)))
+	b.WriteString(fmt.Sprintf("Mean MRR:         %5.2f   (floor:  %.2f)  [%s]\n",
+		report.MeanMRR, gateMRR, passOrMiss(report.MeanMRR, gateMRR)))
 
 	// Weighted aggregate (category importance × category score)
 	if report.WeightedFileAcc > 0 || report.WeightedSymbolAcc > 0 {
@@ -586,6 +614,9 @@ func formatReport(report EvalReport) string {
 		b.WriteString(fmt.Sprintf("Efficiency:       %5.1f%%  (target: >80%%)  [%s]\n",
 			report.WeightedEfficiency, passOrMiss(report.WeightedEfficiency, 80)))
 	}
+
+	// Caveats — what the numbers above do NOT cover, so MRR isn't over-read.
+	b.WriteString(formatCaveats(report))
 
 	// Known gaps
 	var gaps []string
@@ -643,6 +674,46 @@ func formatReport(report EvalReport) string {
 		}
 	}
 
+	return b.String()
+}
+
+// formatCaveats surfaces what the aggregate numbers do NOT cover, so a reader
+// doesn't over-read MRR or the accuracy gates. Empty string when nothing to note.
+func formatCaveats(report EvalReport) string {
+	var notes []string
+
+	// Embedding coverage: MRR only reflects the semantic path where embeddings exist.
+	var scored, noEmbed, skipped int
+	for _, repo := range report.Repos {
+		if repo.Skipped {
+			skipped++
+			continue
+		}
+		scored++
+		if repo.Embeddings == 0 {
+			noEmbed++
+		}
+	}
+	if noEmbed > 0 {
+		notes = append(notes, fmt.Sprintf(
+			"Semantic ranking NOT exercised: %d/%d scored repos have zero embeddings. "+
+				"MRR reflects lexical + graph ranking only; reindex with `snipe index` to cover the embedding path.",
+			noEmbed, scored))
+	}
+	if skipped > 0 {
+		notes = append(notes, fmt.Sprintf(
+			"%d repo(s) skipped (not cloned) — run `mage EvalSetup`. Aggregates cover scored repos only.", skipped))
+	}
+
+	if len(notes) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\nCAVEATS\n")
+	b.WriteString(strings.Repeat("-", 68) + "\n")
+	for _, n := range notes {
+		b.WriteString("⚠ " + n + "\n")
+	}
 	return b.String()
 }
 

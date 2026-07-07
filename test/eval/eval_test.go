@@ -70,8 +70,9 @@ func TestEval(t *testing.T) {
 		}
 
 		results = append(results, RepoResult{
-			Name:  repoName,
-			Tasks: taskResults,
+			Name:       repoName,
+			Tasks:      taskResults,
+			Embeddings: countEmbeddings(t, dir),
 		})
 	}
 
@@ -101,6 +102,63 @@ func TestEval(t *testing.T) {
 	writeReportJSON(t, report)
 	appendReportJSONL(t, report)
 	writeTaskStatus(t, report)
+
+	// Enforce gates — the report labels above are cosmetic; these fail the build.
+	enforceGates(t, report)
+}
+
+// countEmbeddings reports how many vector embeddings the repo's index holds,
+// or -1 if the count is unavailable. Zero means the semantic-ranking path was
+// not exercised — a caveat the report surfaces so MRR isn't over-read.
+func countEmbeddings(t *testing.T, repoDir string) int {
+	t.Helper()
+	stdout, _, code := run(t, repoDir, "embed-status")
+	if code != 0 {
+		return -1
+	}
+	var resp embedStatusResponse
+	if err := json.Unmarshal(stdout, &resp); err != nil || len(resp.Results) == 0 {
+		return -1
+	}
+	return resp.Results[0].Total
+}
+
+// enforceGates fails the test when any aggregate metric drops below its floor.
+func enforceGates(t *testing.T, report EvalReport) {
+	t.Helper()
+
+	// When every repo is skipped (e.g. .eval-repos absent — run 'mage EvalSetup'),
+	// aggregateReport leaves all metrics at zero. Enforcing gates on zeros would
+	// emit four bogus GATE FAILs and break `make audit` on a fresh checkout, so
+	// skip enforcement when nothing was actually scored.
+	scored := 0
+	for _, repo := range report.Repos {
+		if repo.Skipped {
+			continue
+		}
+		for _, tr := range repo.Tasks {
+			if !tr.KnownGap {
+				scored++
+			}
+		}
+	}
+	if scored == 0 {
+		t.Skip("no eval tasks ran (all repos skipped) — run 'mage EvalSetup' to enable gate enforcement")
+	}
+
+	check := func(name string, value, floor float64, pct bool) {
+		if value < floor {
+			unit := ""
+			if pct {
+				unit = "%"
+			}
+			t.Errorf("GATE FAIL: %s = %.2f%s below floor %.2f%s", name, value, unit, floor, unit)
+		}
+	}
+	check("File accuracy", report.FileAcc, gateFileAcc, true)
+	check("Symbol accuracy", report.SymbolAcc, gateSymbolAcc, true)
+	check("Efficiency", report.Efficiency, gateEff, true)
+	check("Mean MRR", report.MeanMRR, gateMRR, false)
 }
 
 // runTask executes all commands for a task and scores the results.

@@ -300,3 +300,38 @@ time. All five shipped in one session, `make audit` green:
 Eval note: not re-run this session — changes are correctness/determinism, but
 .test-package removal changes indexed-symbol counts on eval repos; reindex
 siblings before comparing scores against old baselines.
+
+## Eval MRR gate + rank-quality ratchet (2026-07-07, sn-4bxp)
+
+Problem: File% and Symbol% saturated at 100% across chi/cobra/bbolt/fzf — a
+maxed metric measures nothing. Worse, the eval had **no gate at all**: the
+`(target: >90%)` labels and PASS/FAIL strings were cosmetic; only benchmark.yaml
+parse errors ever failed the build. Scores could regress silently.
+
+Two fixes, one pass:
+
+1. **Real gates** (`enforceGates` in eval_test.go) — `t.Error` on File<90 /
+   Symbol<75 / Eff<80, plus a new **Mean MRR floor**. MRR (rank quality: is the
+   right answer ranked *first*, not just present) is the discriminating axis now
+   that binary metrics are pinned.
+
+2. **5 MRR-stressor tasks** (chi-search-02, cobra-callers-02, cobra-search-04,
+   fzf-search-04, fzf-search-05) — high-fanout queries where the target
+   localizes (file+symbol pass) but ranks deep. Verified rank against
+   `.eval-repos` before authoring.
+
+Before → after:
+
+| Metric | Before | After | Gate floor |
+|--------|--------|-------|------------|
+| File accuracy | 100.0% | 100.0% | >90 |
+| Symbol accuracy | 100.0% | 100.0% | >75 |
+| Efficiency | 97.1% | 97.5% | >80 |
+| **Mean MRR** | **0.85** | **0.76** | **>=0.72** |
+
+MRR dropped because the new tasks deliberately stress ranking (chi-search-02,
+cobra-search-04, fzf-search-04 each MRR 0.02 — right answer present, ranked
+~54th/63rd). Gate proven to discriminate: it FAILED at floor 0.80, passes at
+0.72 (baseline 0.76 with ~0.05 regression headroom). Improving retrieval
+ranking is now how MRR — and the gate headroom — climbs back toward 1.0.
+`make audit` green.

@@ -699,6 +699,18 @@ chi:
     difficulty: hard
     notes: "Concept-to-symbol. Agent knows 'radix tree' but not chi's internal names."
 
+  - id: chi-search-02
+    category: search
+    task: "Find where chi allocates a fresh routing context for each request"
+    commands: ["search 'context'", "def NewRouteContext"]
+    expected_symbols:
+      - "NewRouteContext"
+    expected_files:
+      - "context.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "MRR stressor (sn-4bxp): 'context' is high-fanout; NewRouteContext localizes (file+symbol pass) but ranks ~54/58. Rank quality is the discriminating signal now that binary metrics are saturated."
+
   # --- cross-cutting ---
 
   - id: chi-cross-01
@@ -784,6 +796,16 @@ cobra:
     max_calls: 1
     difficulty: medium
 
+  - id: cobra-callers-02
+    category: callers
+    task: "Find where the command's local (non-persistent) flag set is accessed"
+    commands: ["callers Command.Flags"]
+    expected_symbols:
+      - "Command.LocalFlags"
+    max_calls: 1
+    difficulty: hard
+    notes: "MRR stressor (sn-4bxp): Command.Flags has ~23 callers; LocalFlags is present but ranks ~3. File/symbol pass, MRR ~0.33."
+
   # --- callees ---
 
   - id: cobra-callees-01
@@ -853,6 +875,18 @@ cobra:
     max_calls: 2
     difficulty: hard
     notes: "Deliberately vague query. Tests whether search surfaces useful results for broad concepts."
+
+  - id: cobra-search-04
+    category: search
+    task: "Find the internal entry point that executes a command and returns the target command"
+    commands: ["search 'execute'", "def Command.ExecuteC"]
+    expected_symbols:
+      - "Command.ExecuteC"
+    expected_files:
+      - "command.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "MRR stressor (sn-4bxp): 'execute' returns ~64 hits; ExecuteC ranks ~4. Localizes but ranking is weak, MRR ~0.25."
 
   # --- cross-cutting ---
 
@@ -1068,6 +1102,30 @@ fzf:
     max_calls: 2
     difficulty: hard
     notes: "Conceptual search. 'bonus' and 'score' appear in the fuzzy matching algorithm for match quality."
+
+  - id: fzf-search-04
+    category: search
+    task: "Find fzf's primary fuzzy-match algorithm implementation"
+    commands: ["search 'match'", "def FuzzyMatchV2"]
+    expected_symbols:
+      - "FuzzyMatchV2"
+    expected_files:
+      - "src/algo/algo.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "MRR stressor (sn-4bxp): 'match' returns ~65 hits, mostly tests; FuzzyMatchV2 ranks ~63. File/symbol pass, MRR ~0.02 — worst ranked-but-present case."
+
+  - id: fzf-search-05
+    category: search
+    task: "Find the constructor for fzf's interactive terminal UI"
+    commands: ["search 'terminal'", "def NewTerminal"]
+    expected_symbols:
+      - "NewTerminal"
+    expected_files:
+      - "src/terminal.go"
+    max_calls: 2
+    difficulty: hard
+    notes: "MRR stressor (sn-4bxp): 'terminal' returns ~39 hits; NewTerminal ranks ~35. Localizes but ranking is weak, MRR ~0.03."
 
   # --- cross-cutting ---
 
