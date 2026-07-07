@@ -573,7 +573,8 @@ func formatReport(report EvalReport) string {
 		report.SymbolAcc, passOrMiss(report.SymbolAcc, 75)))
 	b.WriteString(fmt.Sprintf("Efficiency:       %5.1f%%  (target: >80%%)  [%s]\n",
 		report.Efficiency, passOrMiss(report.Efficiency, 80)))
-	b.WriteString(fmt.Sprintf("MRR (secondary):  %5.2f\n", report.MeanMRR))
+	b.WriteString(fmt.Sprintf("Mean MRR:         %5.2f   (floor:  0.72)  [%s]\n",
+		report.MeanMRR, passOrMiss(report.MeanMRR, 0.72)))
 
 	// Weighted aggregate (category importance × category score)
 	if report.WeightedFileAcc > 0 || report.WeightedSymbolAcc > 0 {

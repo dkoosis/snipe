@@ -101,6 +101,41 @@ func TestEval(t *testing.T) {
 	writeReportJSON(t, report)
 	appendReportJSONL(t, report)
 	writeTaskStatus(t, report)
+
+	// Enforce gates — the report labels above are cosmetic; these fail the build.
+	enforceGates(t, report)
+}
+
+// Gate thresholds. File/Symbol/Efficiency lock in current performance as a
+// regression floor. MRR (rank quality) is the discriminating axis now that the
+// binary metrics are saturated — floor set just below the measured baseline so
+// a ranking regression fails the build. See sn-4bxp.
+const (
+	gateFileAcc   = 90.0
+	gateSymbolAcc = 75.0
+	gateEff       = 80.0
+	// gateMRR floors rank quality just below the measured baseline (0.76 after the
+	// sn-4bxp MRR-stressor tasks landed). Any ranking regression fails the build;
+	// improving retrieval ranking is how this number climbs back toward 1.0.
+	gateMRR = 0.72
+)
+
+// enforceGates fails the test when any aggregate metric drops below its floor.
+func enforceGates(t *testing.T, report EvalReport) {
+	t.Helper()
+	check := func(name string, value, floor float64, pct bool) {
+		if value < floor {
+			unit := ""
+			if pct {
+				unit = "%"
+			}
+			t.Errorf("GATE FAIL: %s = %.2f%s below floor %.2f%s", name, value, unit, floor, unit)
+		}
+	}
+	check("File accuracy", report.FileAcc, gateFileAcc, true)
+	check("Symbol accuracy", report.SymbolAcc, gateSymbolAcc, true)
+	check("Efficiency", report.Efficiency, gateEff, true)
+	check("Mean MRR", report.MeanMRR, gateMRR, false)
 }
 
 // runTask executes all commands for a task and scores the results.
