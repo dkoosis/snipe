@@ -78,5 +78,5 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 - ORDER BY guard test (`internal/store/orderby_guard_test.go`) fails any embedded SQL whose final sort key isn't a plain column — append a stable tiebreaker
 - httptest blocking handlers: observe a stop chan, not just `r.Context().Done()` — `server.Close()` WaitGroups on the handler
 - Ranking SQL/sort with non-unique keys (e.g. same name across pkgs): always include `file_path` (or equivalent) as tiebreaker — golden tests will flake otherwise
-- Eval reads from `../cobra ../fzf ../orca ../chi ../bbolt`, NOT `.eval-repos/`. Reproduce results from those sibling dirs.
-- Eval sibling repos currently hold ZERO embeddings — semantic-only fixes won't show in the eval. Use deterministic paths or reindex with `snipe index` first.
+- Eval resolves each corpus repo: `$<REPO>_DIR` env → sibling `../<name>` → `.eval-repos/<name>` (first dir with `.snipe/index.db` wins). Siblings are absent now, so runs read `.eval-repos/`. `mage EvalSetup` clones missing ones. Corpus repos (chi/cobra/bbolt/fzf) are just Go codebases to query — unrelated to snipe's own CLI framework (kong).
+- `.eval-repos/` indexes hold ZERO embeddings — semantic-only fixes won't move the eval. Reindex (`snipe index`) or stick to deterministic-path tasks.
