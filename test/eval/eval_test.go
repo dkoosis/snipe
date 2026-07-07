@@ -107,20 +107,6 @@ func TestEval(t *testing.T) {
 	enforceGates(t, report)
 }
 
-// Gate thresholds. File/Symbol/Efficiency lock in current performance as a
-// regression floor. MRR (rank quality) is the discriminating axis now that the
-// binary metrics are saturated — floor set just below the measured baseline so
-// a ranking regression fails the build. See sn-4bxp.
-const (
-	gateFileAcc   = 90.0
-	gateSymbolAcc = 75.0
-	gateEff       = 80.0
-	// gateMRR floors rank quality just below the measured baseline (0.76 after the
-	// sn-4bxp MRR-stressor tasks landed). Any ranking regression fails the build;
-	// improving retrieval ranking is how this number climbs back toward 1.0.
-	gateMRR = 0.72
-)
-
 // countEmbeddings reports how many vector embeddings the repo's index holds,
 // or -1 if the count is unavailable. Zero means the semantic-ranking path was
 // not exercised — a caveat the report surfaces so MRR isn't over-read.
@@ -140,6 +126,26 @@ func countEmbeddings(t *testing.T, repoDir string) int {
 // enforceGates fails the test when any aggregate metric drops below its floor.
 func enforceGates(t *testing.T, report EvalReport) {
 	t.Helper()
+
+	// When every repo is skipped (e.g. .eval-repos absent — run 'mage EvalSetup'),
+	// aggregateReport leaves all metrics at zero. Enforcing gates on zeros would
+	// emit four bogus GATE FAILs and break `make audit` on a fresh checkout, so
+	// skip enforcement when nothing was actually scored.
+	scored := 0
+	for _, repo := range report.Repos {
+		if repo.Skipped {
+			continue
+		}
+		for _, tr := range repo.Tasks {
+			if !tr.KnownGap {
+				scored++
+			}
+		}
+	}
+	if scored == 0 {
+		t.Skip("no eval tasks ran (all repos skipped) — run 'mage EvalSetup' to enable gate enforcement")
+	}
+
 	check := func(name string, value, floor float64, pct bool) {
 		if value < floor {
 			unit := ""

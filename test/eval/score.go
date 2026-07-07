@@ -63,6 +63,21 @@ type RepoResult struct {
 	Embeddings int `json:"embeddings"`
 }
 
+// Gate thresholds — single source for both the report display floors and the
+// build gate in enforceGates. Kept here (non-test file) so score.go's formatted
+// output and eval_test.go's enforcement reference the same constants and can't
+// drift. File/Symbol/Efficiency lock in current performance as a regression
+// floor. MRR (rank quality) is the discriminating axis now that the binary
+// metrics are saturated — floor set just below the measured baseline (0.76 after
+// the sn-4bxp MRR-stressor tasks landed) so a ranking regression fails the build.
+// See sn-4bxp.
+const (
+	gateFileAcc   = 90.0
+	gateSymbolAcc = 75.0
+	gateEff       = 80.0
+	gateMRR       = 0.72
+)
+
 // CategoryScore aggregates metrics for one task category.
 type CategoryScore struct {
 	Tasks      int     `json:"tasks"`
@@ -579,14 +594,14 @@ func formatReport(report EvalReport) string {
 	// Aggregate (unweighted — equal per-task contribution)
 	b.WriteString("\nAGGREGATE (unweighted)\n")
 	b.WriteString(strings.Repeat("-", 68) + "\n")
-	b.WriteString(fmt.Sprintf("File accuracy:    %5.1f%%  (target: >90%%)  [%s]\n",
-		report.FileAcc, passOrMiss(report.FileAcc, 90)))
-	b.WriteString(fmt.Sprintf("Symbol accuracy:  %5.1f%%  (target: >75%%)  [%s]\n",
-		report.SymbolAcc, passOrMiss(report.SymbolAcc, 75)))
-	b.WriteString(fmt.Sprintf("Efficiency:       %5.1f%%  (target: >80%%)  [%s]\n",
-		report.Efficiency, passOrMiss(report.Efficiency, 80)))
-	b.WriteString(fmt.Sprintf("Mean MRR:         %5.2f   (floor:  0.72)  [%s]\n",
-		report.MeanMRR, passOrMiss(report.MeanMRR, 0.72)))
+	b.WriteString(fmt.Sprintf("File accuracy:    %5.1f%%  (target: >%.0f%%)  [%s]\n",
+		report.FileAcc, gateFileAcc, passOrMiss(report.FileAcc, gateFileAcc)))
+	b.WriteString(fmt.Sprintf("Symbol accuracy:  %5.1f%%  (target: >%.0f%%)  [%s]\n",
+		report.SymbolAcc, gateSymbolAcc, passOrMiss(report.SymbolAcc, gateSymbolAcc)))
+	b.WriteString(fmt.Sprintf("Efficiency:       %5.1f%%  (target: >%.0f%%)  [%s]\n",
+		report.Efficiency, gateEff, passOrMiss(report.Efficiency, gateEff)))
+	b.WriteString(fmt.Sprintf("Mean MRR:         %5.2f   (floor:  %.2f)  [%s]\n",
+		report.MeanMRR, gateMRR, passOrMiss(report.MeanMRR, gateMRR)))
 
 	// Weighted aggregate (category importance × category score)
 	if report.WeightedFileAcc > 0 || report.WeightedSymbolAcc > 0 {
