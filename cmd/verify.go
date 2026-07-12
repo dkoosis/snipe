@@ -57,9 +57,13 @@ func runVerify(base string) error {
 	start := time.Now()
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
-	s, root, err := OpenStore(w, cmdNameVerify)
+	// nil writer: suppress OpenStore's missing-index error envelope. verify
+	// degrades to a "nothing structural to check" message and exits 0, per
+	// its own contract (never a gate) — mirrors runRisk. root is still
+	// populated on error, so the message-writer has what it needs.
+	s, root, err := OpenStore(nil, cmdNameVerify)
 	if err != nil {
-		return err
+		return writeVerifyMessage(root, start, "index unavailable: "+err.Error())
 	}
 	defer s.Close()
 
@@ -205,8 +209,11 @@ func verifyBuildResult(db *sql.DB, changedFuncs, changedTestFuncs []query.Symbol
 			pkgPath = "./" + d
 		}
 		packages = append(packages, VerifyPackage{
-			Pkg:   pkgPath,
-			Run:   fmt.Sprintf("go test %s -run '%s'", pkgPath, strings.Join(names, "|")),
+			Pkg: pkgPath,
+			// -run is an unanchored regex: bare `TestCallee` also matches
+			// `TestCalleeEdge`. Anchor the alternation with ^(...)$ so the
+			// emitted line runs exactly the named tests (minimal, as promised).
+			Run:   fmt.Sprintf("go test %s -run '^(%s)$'", pkgPath, strings.Join(names, "|")),
 			Tests: names,
 		})
 	}

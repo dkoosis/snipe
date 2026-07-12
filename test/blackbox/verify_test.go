@@ -68,8 +68,9 @@ func TestVerify_CorrectTestSet(t *testing.T) {
 	if !strings.Contains(out, "tests cover them") {
 		t.Fatalf("expected coverage header, got:\n%s", out)
 	}
-	if !strings.Contains(out, "go test . -run '") {
-		t.Fatalf("expected a root-package go test run line, got:\n%s", out)
+	// -run must be anchored (^(...)$) so it runs exactly the named tests.
+	if !strings.Contains(out, "go test . -run '^(") {
+		t.Fatalf("expected an anchored root-package go test run line, got:\n%s", out)
 	}
 	if !strings.Contains(out, "TestCallee") {
 		t.Fatalf("expected direct test TestCallee named, got:\n%s", out)
@@ -160,6 +161,26 @@ func TestVerify_NoCoveringTests(t *testing.T) {
 	}
 	if !strings.Contains(out, "UseAmbiguous") {
 		t.Fatalf("expected UseAmbiguous named as uncovered, got:\n%s", out)
+	}
+}
+
+// TestVerify_MissingIndex asserts verify degrades (exit 0 + a clear message)
+// on a git repo with no .snipe index, rather than hard-failing. verify is
+// never a gate — its doc contract promises degrade-not-fail on a missing
+// index, mirroring `snipe risk`. No indexRepo call: the fixture is committed
+// but never indexed.
+func TestVerify_MissingIndex(t *testing.T) {
+	repoDir, _ := writeFixture(t)
+	repoDir = canonicalRepoDir(t, repoDir)
+	initGitRepo(t, repoDir)
+
+	stdout, stderr, exitCode := runRaw(t, repoDir, "verify")
+	if exitCode != 0 {
+		t.Fatalf("verify should exit 0 on missing index, got %d stderr=%s stdout=%s",
+			exitCode, string(stderr), string(stdout))
+	}
+	if !strings.Contains(string(stdout), "index unavailable") {
+		t.Fatalf("expected an 'index unavailable' degraded message, got:\n%s", string(stdout))
 	}
 }
 
