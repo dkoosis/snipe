@@ -123,16 +123,16 @@ func writeFile(t *testing.T, dir, name, body string) {
 }
 
 // commitAll stages every change in dir and commits it.
-func commitAll(t *testing.T, dir, msg string) {
+func commitAll(t *testing.T, dir string) {
 	t.Helper()
 	runGit(t, dir, "add", "-A")
-	runGit(t, dir, "commit", "-q", "-m", msg)
+	runGit(t, dir, "commit", "-q", "-m", "init")
 }
 
 func TestWorkingTreeDiff_CapturesStagedChanges_When_ChangeIsStagedOnly(t *testing.T) {
 	dir := gitRepo(t)
 	writeFile(t, dir, "a.go", "package p\n\nfunc A() {}\n")
-	commitAll(t, dir, "init")
+	commitAll(t, dir)
 
 	writeFile(t, dir, "a.go", "package p\n\nfunc A() {}\n\nfunc B() {}\n")
 	runGit(t, dir, "add", "a.go")
@@ -150,7 +150,7 @@ func TestWorkingTreeDiff_CapturesStagedChanges_When_ChangeIsStagedOnly(t *testin
 func TestWorkingTreeDiff_CapturesUnstagedChanges_When_ChangeIsUnstagedOnly(t *testing.T) {
 	dir := gitRepo(t)
 	writeFile(t, dir, "a.go", "package p\n\nfunc A() {}\n")
-	commitAll(t, dir, "init")
+	commitAll(t, dir)
 
 	// Modify without staging.
 	writeFile(t, dir, "a.go", "package p\n\nfunc A() {}\n\nfunc B() {}\n")
@@ -169,7 +169,7 @@ func TestWorkingTreeDiff_CapturesMixedChanges_When_OneFileStagedAndAnotherIsNot(
 	dir := gitRepo(t)
 	writeFile(t, dir, "a.go", "package p\n\nfunc A() {}\n")
 	writeFile(t, dir, "b.go", "package p\n\nfunc C() {}\n")
-	commitAll(t, dir, "init")
+	commitAll(t, dir)
 
 	// a.go: staged change.
 	writeFile(t, dir, "a.go", "package p\n\nfunc A() {}\n\nfunc B() {}\n")
@@ -193,7 +193,7 @@ func TestWorkingTreeDiff_CapturesMixedChanges_When_OneFileStagedAndAnotherIsNot(
 func TestWorkingTreeDiff_SynthesizesWholeFileChange_When_FileIsUntracked(t *testing.T) {
 	dir := gitRepo(t)
 	writeFile(t, dir, "a.go", "package p\n")
-	commitAll(t, dir, "init")
+	commitAll(t, dir)
 
 	writeFile(t, dir, "new.go", "package p\n\nfunc New() {}\n")
 
@@ -210,7 +210,7 @@ func TestWorkingTreeDiff_SynthesizesWholeFileChange_When_FileIsUntracked(t *test
 func TestWorkingTreeDiff_TracksRenamedFile_When_ContentIsModified(t *testing.T) {
 	dir := gitRepo(t)
 	writeFile(t, dir, "old.go", "package p\n\nfunc A() {}\n")
-	commitAll(t, dir, "init")
+	commitAll(t, dir)
 
 	runGit(t, dir, "mv", "old.go", "new.go")
 	writeFile(t, dir, "new.go", "package p\n\nfunc A() {}\n\nfunc B() {}\n")
@@ -229,7 +229,7 @@ func TestWorkingTreeDiff_TracksRenamedFile_When_ContentIsModified(t *testing.T) 
 func TestWorkingTreeDiff_ReportsNoChanges_When_TreeIsClean(t *testing.T) {
 	dir := gitRepo(t)
 	writeFile(t, dir, "a.go", "package p\n")
-	commitAll(t, dir, "init")
+	commitAll(t, dir)
 
 	changes, ok := workingTreeDiff(dir)
 	if !ok {
