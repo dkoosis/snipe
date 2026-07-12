@@ -348,6 +348,14 @@ func (c *RiskCmd) Run() error {
 	return runRisk(c.Base, c.Head)
 }
 
+type VerifyCmd struct {
+	Base string `help:"Base git ref for branch-vs-base diff; omit for working-tree vs HEAD"`
+}
+
+func (c *VerifyCmd) Run() error {
+	return runVerify(c.Base)
+}
+
 type SensitiveCmd struct{}
 
 func (c *SensitiveCmd) Run() error {
