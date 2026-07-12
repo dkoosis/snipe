@@ -13,21 +13,34 @@
 #   snipe-bin   : path to snipe binary (default: build from this repo)
 set -euo pipefail
 
+# jq parses every `snipe risk` verdict below; without it each merge silently
+# falls back to "low 0" and the whole calibration reads bogus. Fail loud instead.
+command -v jq >/dev/null 2>&1 || { echo "error: jq is required but not installed" >&2; exit 1; }
+
 TARGET="${1:?usage: risk-replay.sh <target-repo> [N] [snipe-bin]}"
 N="${2:-20}"
 SNIPE_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SNIPE_BIN="${3:-}"
 
+# Register cleanup BEFORE anything mktemp's, so a failed `go build` can't orphan files.
+WT=""
+CLEANUP_BIN=""
+cleanup() {
+  [[ -n "$WT" ]] && { git -C "$TARGET" worktree remove --force "$WT" 2>/dev/null || rm -rf "$WT"; }
+  [[ -n "$CLEANUP_BIN" ]] && rm -f "$CLEANUP_BIN"
+  return 0
+}
+trap cleanup EXIT
+
 if [[ -z "$SNIPE_BIN" ]]; then
   SNIPE_BIN="$(mktemp -t snipe-risk-replay.XXXXXX)"
+  CLEANUP_BIN="$SNIPE_BIN"  # we built it → we delete it (skip cleanup for a caller-supplied bin)
   echo "building snipe → $SNIPE_BIN" >&2
   (cd "$SNIPE_REPO" && go build -o "$SNIPE_BIN" .)
 fi
 
 TARGET="$(cd "$TARGET" && pwd)"
 WT="$(mktemp -d -t risk-replay-wt.XXXXXX)"
-cleanup() { git -C "$TARGET" worktree remove --force "$WT" 2>/dev/null || rm -rf "$WT"; }
-trap cleanup EXIT
 
 # Detached worktree so the target's live checkout (possibly dirty, on a team branch) is untouched.
 merges="$(git -C "$TARGET" log --merges -n "$N" --format='%H')"
