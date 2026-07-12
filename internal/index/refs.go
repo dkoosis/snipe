@@ -33,7 +33,7 @@ const (
 	CtxTypeDecl     = "typedecl" // within a type declaration (struct field, interface method)
 	CtxCallPrefix   = "call:"    // argument of a call; suffix is the callee name
 	CtxGo           = "go"       // a go statement (goroutine spawn)
-	CtxChan         = "chan"     // a channel send (ch <- x) or receive (<-ch)
+	CtxChan         = "chan"     // a channel send (ch <- x) or arrow-receive (<-ch); for-range receives and close() are not captured (see sn-v84m)
 )
 
 // ExtractRefs extracts all references from loaded packages.
