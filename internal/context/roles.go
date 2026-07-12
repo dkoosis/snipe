@@ -502,10 +502,13 @@ func inferRoleForType(_ *sql.DB, _, name, pkgPath string) Role {
 // its structural Role. Detection keys off signals that already exist in the index
 // (signature, imports table, refs.ast_ctx call attribution) — no indexer change.
 //
-// Recall caveat (sn-zd2 / follow-up sn-hmz): the `go func` / goroutine-spawn case
-// is NOT detectable here because `go` statements and channel ops aren't emitted as
-// refs, calls, or signature tokens. Concurrency recall is capped to channel-typed
-// signatures and sync-primitive call sites until the indexer emits a `go` signal.
+// Recall note (sn-zd2, closed by sn-hmz): the indexer now emits a synthetic
+// self-attributed ref (ast_ctx="go"/"chan") for go-statements and channel
+// sends/receives, attributed to the enclosing named function. isConcurrency
+// checks for it ungated below — no import co-signal needed, since that
+// ast_ctx is only ever emitted for a real GoStmt/channel op, unlike the
+// name-based `call:Lock` attribution which needs the sync-import gate to
+// avoid misfiring on a coincidentally-named method.
 func detectRiskFlags(db *sql.DB, imports importsCache, symbolID, signature, filePath string) []string {
 	var flags []string
 	if isConcurrency(db, imports, symbolID, signature, filePath) {
@@ -525,12 +528,25 @@ var concurrencyCallCtxs = []string{
 	"call:Store", "call:Load",
 }
 
+// goChanCtxs are the ast_ctx values the indexer emits for a real go-statement
+// or channel send/receive (self-attributed to the enclosing named func) —
+// mirrors index.CtxGo/CtxChan as literals; this package doesn't import
+// internal/index (existing convention here: concurrencyCallCtxs etc. are
+// literal "call:" strings too, not index.CtxCallPrefix-derived).
+// Unlike concurrencyCallCtxs, no import co-signal is needed: these values are
+// only ever emitted for an actual GoStmt/SendStmt/receive, never name-derived.
+var goChanCtxs = []string{"go", "chan"}
+
 // isConcurrency reports whether a symbol handles concurrency:
 //  1. its signature declares a channel type ("chan T", "chan<- T", "<-chan T"), or
-//  2. its file imports sync/sync/atomic AND an enclosed call attributes to a sync
+//  2. it encloses a go-statement or channel send/receive (ast_ctx="go"/"chan"), or
+//  3. its file imports sync/sync/atomic AND an enclosed call attributes to a sync
 //     primitive (Lock/Unlock/Wait/Do/Add/Store/Load/...).
 func isConcurrency(db *sql.DB, imports importsCache, symbolID, signature, filePath string) bool {
 	if hasChannelType(signature) {
+		return true
+	}
+	if enclosedCallCtx(db, symbolID, goChanCtxs) {
 		return true
 	}
 	if !imports.fileImportsAny(filePath, "sync", "sync/atomic") {

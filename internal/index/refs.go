@@ -32,6 +32,8 @@ const (
 	CtxSignature    = "sig"      // within a func declaration/literal signature
 	CtxTypeDecl     = "typedecl" // within a type declaration (struct field, interface method)
 	CtxCallPrefix   = "call:"    // argument of a call; suffix is the callee name
+	CtxGo           = "go"       // a go statement (goroutine spawn)
+	CtxChan         = "chan"     // a channel send (ch <- x) or receive (<-ch)
 )
 
 // ExtractRefs extracts all references from loaded packages.
@@ -90,6 +92,12 @@ func ExtractRefsFiltered(result *LoadResult, symbols []Symbol, cache *util.FileC
 			// Build syntactic context ranges for this file
 			ctxRanges := buildCtxRanges(file)
 
+			// Emit synthetic self-attributed refs for go-statements and channel
+			// sends/receives, attributed to the enclosing named function. These
+			// have no Uses-map entry (a `go` keyword and `<-`/`ch <-` operators
+			// aren't identifiers), so they're generated in a separate pass.
+			refs = append(refs, extractConcurrencyRefs(file, filePath, result.Fset, enclosingMap, lines)...)
+
 			// Extract references from Uses map
 			for ident, obj := range pkg.TypesInfo.Uses {
 				if obj == nil {
@@ -141,6 +149,55 @@ func ExtractRefsFiltered(result *LoadResult, symbols []Symbol, cache *util.FileC
 	}
 
 	return refs, nil
+}
+
+// extractConcurrencyRefs walks a file for go-statements and channel
+// sends/receives, emitting a synthetic self-attributed ref per occurrence
+// (symbol_id == enclosing_id == the enclosing named function's ID). These
+// AST nodes have no Uses-map entry (no identifier to resolve), so they're
+// generated here rather than in the main Uses-map loop. A go-stmt/channel-op
+// with no enclosing named func (e.g. inside a package-level func-literal
+// initializer) is skipped — there is no FK-valid symbol to attribute it to.
+func extractConcurrencyRefs(file *ast.File, filePath string, fset *token.FileSet, enclosingMap []enclosingFunc, lines []string) []Ref {
+	var out []Ref
+
+	emit := func(pos token.Pos, ctx, kind string) {
+		enclosingID := findEnclosing(pos, enclosingMap)
+		if enclosingID == "" {
+			return
+		}
+		posInfo := fset.Position(pos)
+		snippet := ""
+		if posInfo.Line > 0 && posInfo.Line <= len(lines) {
+			snippet = strings.TrimSpace(lines[posInfo.Line-1])
+		}
+		out = append(out, Ref{
+			ID:          generateID(filePath, posInfo.Line, posInfo.Column, kind),
+			SymbolID:    enclosingID,
+			FilePath:    filePath,
+			Line:        posInfo.Line,
+			Col:         posInfo.Column,
+			EnclosingID: enclosingID,
+			Snippet:     snippet,
+			ASTCtx:      ctx,
+		})
+	}
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.GoStmt:
+			emit(node.Go, CtxGo, "goref")
+		case *ast.SendStmt:
+			emit(node.Arrow, CtxChan, "chanref")
+		case *ast.UnaryExpr:
+			if node.Op == token.ARROW {
+				emit(node.OpPos, CtxChan, "chanref")
+			}
+		}
+		return true
+	})
+
+	return out
 }
 
 // SymbolPosIndex provides position-based symbol lookup with fallback for chunked loading.

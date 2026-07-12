@@ -42,14 +42,17 @@ func runDeadcode() error {
 	defer s.Close()
 
 	// Refs count: include vs. exclude tests selected by the file_path filter.
-	refsCountExpr := `(SELECT COUNT(*) FROM refs r WHERE r.symbol_id = s.id`
+	// Exclude go/chan synthetic self-refs (sn-hmz) — symbol_id == enclosing_id
+	// for those rows, which would make a goroutine-spawning exported func look
+	// referenced and never get flagged dead.
+	refsCountExpr := `(SELECT COUNT(*) FROM refs r WHERE r.symbol_id = s.id AND (r.ast_ctx IS NULL OR r.ast_ctx NOT IN ('go','chan'))`
 	if !deadIncludeTests {
 		refsCountExpr += ` AND r.file_path NOT LIKE '%_test.go'`
 	}
 	refsCountExpr += `)`
 
 	// Also pull total (always all-files) so callers can see the gap.
-	totalCountExpr := `(SELECT COUNT(*) FROM refs r WHERE r.symbol_id = s.id)`
+	totalCountExpr := `(SELECT COUNT(*) FROM refs r WHERE r.symbol_id = s.id AND (r.ast_ctx IS NULL OR r.ast_ctx NOT IN ('go','chan')))`
 
 	q := `
 		SELECT s.id, s.name, s.kind, s.pkg_path, s.file_path_rel, s.line_start, ` + totalCountExpr + ` AS refs_all

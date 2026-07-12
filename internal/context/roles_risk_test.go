@@ -123,11 +123,12 @@ func TestRiskClassification_Precision(t *testing.T) {
 	addImport(t, db, "/repo/counter.go", "sync")
 	addRefCtx(t, db, "r_lock", "guard", "/repo/counter.go", "call:Lock", "c.mu.Lock()")
 
-	// --- concurrency deferred-miss (plan §4.1 / sn-hmz) ---
-	// A pure `go func` spawner has no chan signature and no sync-primitive call,
-	// so it is NOT detectable until the indexer emits a go-statement signal.
-	// This asserts the documented recall gap rather than pretending it's covered.
+	// --- concurrency: pure go-func spawner (recall gap closed by sn-hmz) ---
+	// No chan signature and no sync-primitive call, but the indexer now emits
+	// a self-attributed ast_ctx="go" ref for the go-statement, enclosed by
+	// spawnWorker — detectable via the ungated goChanCtxs check.
 	addSym(t, db, "spawn", "spawnWorker", kindFunc, "func spawnWorker()", "repo/work", "/repo/worker.go")
+	addRefCtx(t, db, "r_go", "spawn", "/repo/worker.go", "go", "go worker()")
 
 	// --- security_boundary positives ---
 	// exec.Command caller: imports os/exec + encloses a Command call
@@ -155,7 +156,7 @@ func TestRiskClassification_Precision(t *testing.T) {
 		{"guardedCounter", RiskConcurrency},
 		{"runBackup", RiskSecurityBoundary},
 		{"dialTLS", RiskSecurityBoundary},
-		{"spawnWorker", ""},
+		{"spawnWorker", RiskConcurrency},
 		{"Command", ""},
 		{"plumbCtx", ""},
 	}
