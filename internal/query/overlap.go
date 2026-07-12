@@ -50,6 +50,30 @@ func mergeRanges(ranges []LineRange) []LineRange {
 	return merged
 }
 
+// overlapBatchPredicates caps the number of OR-leaf predicates per batched
+// query. Each flattened predicate binds at most 3 params (a fresh range
+// binds path+end+start; a stale file binds path alone), so a batch binds at
+// most 3 * 250 = 750 params — under the vendored SQLite host-parameter limit
+// (999) with headroom, far under the modern default (32766). The OR-spine is
+// at most 250 leaves deep plus a small constant per leaf, keeping expression
+// tree depth (~253) under MAX_EXPR_DEPTH=1000. It's a var, not a const, so
+// tests can lower it to force multi-batch behavior on small inputs.
+var overlapBatchPredicates = 250
+
+// overlapQueryPrefix and overlapQuerySuffix bracket each batch's WHERE
+// clause. Kept as a single, uninterrupted backtick literal each (not built
+// via concatenation) so orderby_guard_test.go's raw-source scan sees the
+// full "ORDER BY s.file_path, s.line_start, s.id" clause intact.
+const overlapQueryPrefix = `
+		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
+		       s.signature, s.doc, s.receiver, f.hash
+		FROM symbols s
+		LEFT JOIN files f ON s.file_path = f.path
+		WHERE `
+
+const overlapQuerySuffix = `
+		ORDER BY s.file_path, s.line_start, s.id`
+
 // FindOverlappingSymbols returns the symbols whose declared range
 // [line_start, line_end] overlaps at least one changed line range, batched
 // across every file in changes with a single query. changes maps each
@@ -86,60 +110,87 @@ func FindOverlappingSymbols(db *sql.DB, repoRoot string, changes map[string][]Li
 		staleSet[rel] = struct{}{}
 	}
 
-	var clauses []string
-	var args []any
-
-	var staleAbs []string
-	for _, p := range paths {
-		if _, ok := staleSet[toRelPath(p, repoRoot)]; ok {
-			staleAbs = append(staleAbs, p)
-		}
-	}
-	if len(staleAbs) > 0 {
-		placeholders := make([]string, len(staleAbs))
-		for i, p := range staleAbs {
-			placeholders[i] = "?"
-			args = append(args, p)
-		}
-		clauses = append(clauses, "s.file_path IN ("+strings.Join(placeholders, ",")+")")
-	}
+	// Flatten every predicate — one per stale file, one per merged fresh
+	// range — into parallel slices instead of building a single combined
+	// WHERE. IN(a,b) is semantically identical to path=a OR path=b, so
+	// dropping the combined stale IN(...) clause changes nothing but shape.
+	// Flattening lets stale and fresh predicates share one uniform batching
+	// loop below, and puts a hard, countable cap on params/depth per batch.
+	var predSQL []string
+	var predArgs [][]any
 
 	for _, p := range paths {
 		if _, ok := staleSet[toRelPath(p, repoRoot)]; ok {
-			continue // already covered by the stale IN(...) clause above
-		}
-		ranges := mergeRanges(changes[p])
-		if len(ranges) == 0 {
+			predSQL = append(predSQL, "s.file_path = ?")
+			predArgs = append(predArgs, []any{p})
 			continue
 		}
-		var rangeClauses []string
-		var rangeArgs []any
-		for _, r := range ranges {
-			rangeClauses = append(rangeClauses, "(s.line_start <= ? AND s.line_end >= ?)")
-			rangeArgs = append(rangeArgs, r.End, r.Start)
+		for _, r := range mergeRanges(changes[p]) {
+			predSQL = append(predSQL, "(s.file_path = ? AND s.line_start <= ? AND s.line_end >= ?)")
+			predArgs = append(predArgs, []any{p, r.End, r.Start})
 		}
-		clauses = append(clauses, "(s.file_path = ? AND ("+strings.Join(rangeClauses, " OR ")+"))")
-		args = append(args, p)
-		args = append(args, rangeArgs...)
 	}
 
-	if len(clauses) == 0 {
+	if len(predSQL) == 0 {
 		return nil, nil
 	}
 
-	query := `
-		SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
-		       s.signature, s.doc, s.receiver, f.hash
-		FROM symbols s
-		LEFT JOIN files f ON s.file_path = f.path
-		WHERE ` + strings.Join(clauses, " OR ") + `
-		ORDER BY s.file_path, s.line_start, s.id`
+	var allRows []SymbolRow
+	for start := 0; start < len(predSQL); start += overlapBatchPredicates {
+		end := start + overlapBatchPredicates
+		if end > len(predSQL) {
+			end = len(predSQL)
+		}
 
-	rows, err := db.Query(query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query overlapping symbols: %w", err)
+		query := overlapQueryPrefix + strings.Join(predSQL[start:end], " OR ") + overlapQuerySuffix
+
+		var args []any
+		for _, a := range predArgs[start:end] {
+			args = append(args, a...)
+		}
+
+		rows, err := db.Query(query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("query overlapping symbols: %w", err)
+		}
+		batch, err := scanSymbolRows(rows)
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+		allRows = append(allRows, batch...)
 	}
-	defer rows.Close()
 
-	return scanSymbolRows(rows)
+	// Dedupe by ID: symbols.id is a PRIMARY KEY and files.path is a PRIMARY
+	// KEY, so the LEFT JOIN yields exactly one row per matching symbol.
+	// Batches can only re-surface the same row (e.g. a symbol spanning
+	// hunks split across two batches) — never multiply it — so a seen-set
+	// on ID is a safe, sufficient dedupe.
+	seen := make(map[string]struct{}, len(allRows))
+	result := make([]SymbolRow, 0, len(allRows))
+	for i := range allRows {
+		if _, ok := seen[allRows[i].ID]; ok {
+			continue
+		}
+		seen[allRows[i].ID] = struct{}{}
+		result = append(result, allRows[i])
+	}
+
+	// Each batch is locally ordered by the per-query ORDER BY, but the
+	// merged stream across batches is not globally ordered. Re-sort in Go
+	// by (FilePath, LineStart, ID) to reproduce the single-query
+	// ORDER BY s.file_path, s.line_start, s.id exactly. ID must stay in the
+	// comparator: two symbols can share (FilePath, LineStart) (e.g.
+	// `var a, b int`), and only ID makes this a total order matching SQL.
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].FilePath != result[j].FilePath {
+			return result[i].FilePath < result[j].FilePath
+		}
+		if result[i].LineStart != result[j].LineStart {
+			return result[i].LineStart < result[j].LineStart
+		}
+		return result[i].ID < result[j].ID
+	})
+
+	return result, nil
 }
