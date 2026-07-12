@@ -8,7 +8,10 @@
 package risk
 
 import (
+	"bytes"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -105,6 +108,84 @@ func parseHunkHead(line string) (start, count int, ok bool) {
 		}
 	}
 	return start, count, true
+}
+
+// workingTreeDiff runs `git diff HEAD` (staged + unstaged combined, since both
+// are compared straight against HEAD rather than against each other) at
+// repoRoot, plus a separate untracked-file pass, and returns the same
+// []FileChange shape gitDiff/parseDiff produce for a ref-to-ref diff.
+// Untracked .go files are synthesized as whole-file changes spanning line 1
+// to their line count — git diff never reports them since they're outside
+// the index. ok is false — with no error — when git is absent or repoRoot
+// isn't a work tree, mirroring gitDiff's degrade-to-low-verdict contract.
+//
+// Rename detection (-M) is explicit here so a `git mv` + edit resolves to one
+// FileChange at the new path rather than a dropped delete plus a whole-file
+// add; a pure rename with no content change yields no hunks and so
+// contributes nothing, consistent with parseDiff dropping zero-range files.
+func workingTreeDiff(repoRoot string) (changes []FileChange, ok bool) {
+	if _, err := exec.LookPath("git"); err != nil {
+		return nil, false
+	}
+	if err := exec.Command("git", "-C", repoRoot, "rev-parse", "--is-inside-work-tree").Run(); err != nil {
+		return nil, false
+	}
+	out, err := exec.Command("git", "-C", repoRoot, "diff",
+		"--unified=0", "--no-color", "-M", "HEAD", "--", "*.go").Output()
+	if err != nil {
+		// Most commonly an unborn HEAD (no commits yet); degrade rather than
+		// fail, same as gitDiff's unresolved-ref case. verify has nothing
+		// meaningful to say about a repo with no baseline commit.
+		return nil, false
+	}
+	changes = parseDiff(string(out))
+	changes = append(changes, untrackedGoChanges(repoRoot)...)
+	return changes, true
+}
+
+// untrackedGoChanges lists untracked .go files at repoRoot (relative to it)
+// and synthesizes a whole-file FileChange for each non-empty one. Any git or
+// filesystem error drops the offending file rather than failing the caller —
+// this is a best-effort addition to workingTreeDiff, not a source of truth.
+func untrackedGoChanges(repoRoot string) []FileChange {
+	// -z emits NUL-separated, unquoted paths — robust against spaces, quotes,
+	// non-ASCII, and CRLF, all of which git otherwise quotes or mangles in the
+	// default newline-separated output.
+	out, err := exec.Command("git", "-C", repoRoot, "ls-files",
+		"-z", "--others", "--exclude-standard", "--", "*.go").Output()
+	if err != nil {
+		return nil
+	}
+	var changes []FileChange
+	for pathBytes := range bytes.SplitSeq(out, []byte{0}) {
+		path := string(pathBytes)
+		if path == "" {
+			continue
+		}
+		content, err := os.ReadFile(filepath.Join(repoRoot, path))
+		if err != nil {
+			continue
+		}
+		n := countLines(content)
+		if n == 0 {
+			continue
+		}
+		changes = append(changes, FileChange{Path: path, LineRanges: [][2]int{{1, n}}})
+	}
+	return changes
+}
+
+// countLines counts newline-delimited lines in content, counting a final
+// unterminated line if present. An empty slice has zero lines.
+func countLines(content []byte) int {
+	if len(content) == 0 {
+		return 0
+	}
+	n := bytes.Count(content, []byte("\n"))
+	if content[len(content)-1] != '\n' {
+		n++
+	}
+	return n
 }
 
 // changedGoFiles returns the paths of changed .go files, preserving order.
