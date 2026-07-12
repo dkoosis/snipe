@@ -15,6 +15,41 @@ type LineRange struct {
 	End   int
 }
 
+// mergeRanges normalizes a file's line ranges — swapping inverted bounds, then
+// sorting and coalescing overlapping or adjacent spans — so the overlap query
+// emits one predicate per distinct span instead of one per raw hunk. Fewer
+// predicates means fewer bind parameters and a shallower OR tree on large diffs.
+func mergeRanges(ranges []LineRange) []LineRange {
+	if len(ranges) == 0 {
+		return nil
+	}
+	norm := make([]LineRange, len(ranges))
+	for i, r := range ranges {
+		if r.End < r.Start {
+			r.Start, r.End = r.End, r.Start
+		}
+		norm[i] = r
+	}
+	sort.Slice(norm, func(i, j int) bool {
+		if norm[i].Start != norm[j].Start {
+			return norm[i].Start < norm[j].Start
+		}
+		return norm[i].End < norm[j].End
+	})
+	merged := norm[:1]
+	for _, r := range norm[1:] {
+		last := &merged[len(merged)-1]
+		if r.Start <= last.End+1 { // overlapping or directly adjacent
+			if r.End > last.End {
+				last.End = r.End
+			}
+			continue
+		}
+		merged = append(merged, r)
+	}
+	return merged
+}
+
 // FindOverlappingSymbols returns the symbols whose declared range
 // [line_start, line_end] overlaps at least one changed line range, batched
 // across every file in changes with a single query. changes maps each
@@ -73,19 +108,15 @@ func FindOverlappingSymbols(db *sql.DB, repoRoot string, changes map[string][]Li
 		if _, ok := staleSet[toRelPath(p, repoRoot)]; ok {
 			continue // already covered by the stale IN(...) clause above
 		}
-		ranges := changes[p]
+		ranges := mergeRanges(changes[p])
 		if len(ranges) == 0 {
 			continue
 		}
 		var rangeClauses []string
 		var rangeArgs []any
 		for _, r := range ranges {
-			start, end := r.Start, r.End
-			if end < start {
-				start, end = end, start
-			}
 			rangeClauses = append(rangeClauses, "(s.line_start <= ? AND s.line_end >= ?)")
-			rangeArgs = append(rangeArgs, end, start)
+			rangeArgs = append(rangeArgs, r.End, r.Start)
 		}
 		clauses = append(clauses, "(s.file_path = ? AND ("+strings.Join(rangeClauses, " OR ")+"))")
 		args = append(args, p)

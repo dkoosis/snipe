@@ -10,6 +10,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMergeRanges(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []LineRange
+		want []LineRange
+	}{
+		{"empty", nil, nil},
+		{"single", []LineRange{{5, 10}}, []LineRange{{5, 10}}},
+		{"inverted bounds swapped", []LineRange{{10, 5}}, []LineRange{{5, 10}}},
+		{"overlapping merged", []LineRange{{1, 5}, {4, 8}}, []LineRange{{1, 8}}},
+		{"adjacent merged", []LineRange{{1, 3}, {4, 6}}, []LineRange{{1, 6}}},
+		{"disjoint kept", []LineRange{{1, 3}, {10, 12}}, []LineRange{{1, 3}, {10, 12}}},
+		{"unsorted input", []LineRange{{10, 12}, {1, 3}, {2, 4}}, []LineRange{{1, 4}, {10, 12}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, mergeRanges(tt.in))
+		})
+	}
+}
+
 // insertOverlapSym inserts a symbol with an explicit line range, for overlap
 // testing where the fixed 1-10 range from insertTestSym isn't precise enough.
 func insertOverlapSym(t *testing.T, db *sql.DB, id, name, filePath, filePathRel string, lineStart, lineEnd int) {

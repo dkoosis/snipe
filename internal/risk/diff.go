@@ -134,7 +134,8 @@ func workingTreeDiff(repoRoot string) (changes []FileChange, ok bool) {
 		"--unified=0", "--no-color", "-M", "HEAD", "--", "*.go").Output()
 	if err != nil {
 		// Most commonly an unborn HEAD (no commits yet); degrade rather than
-		// fail, same as gitDiff's unresolved-ref case.
+		// fail, same as gitDiff's unresolved-ref case. verify has nothing
+		// meaningful to say about a repo with no baseline commit.
 		return nil, false
 	}
 	changes = parseDiff(string(out))
@@ -147,13 +148,17 @@ func workingTreeDiff(repoRoot string) (changes []FileChange, ok bool) {
 // filesystem error drops the offending file rather than failing the caller —
 // this is a best-effort addition to workingTreeDiff, not a source of truth.
 func untrackedGoChanges(repoRoot string) []FileChange {
+	// -z emits NUL-separated, unquoted paths — robust against spaces, quotes,
+	// non-ASCII, and CRLF, all of which git otherwise quotes or mangles in the
+	// default newline-separated output.
 	out, err := exec.Command("git", "-C", repoRoot, "ls-files",
-		"--others", "--exclude-standard", "--", "*.go").Output()
+		"-z", "--others", "--exclude-standard", "--", "*.go").Output()
 	if err != nil {
 		return nil
 	}
 	var changes []FileChange
-	for path := range strings.SplitSeq(strings.TrimRight(string(out), "\n"), "\n") {
+	for pathBytes := range bytes.SplitSeq(out, []byte{0}) {
+		path := string(pathBytes)
 		if path == "" {
 			continue
 		}
