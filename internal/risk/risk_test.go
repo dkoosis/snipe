@@ -38,10 +38,14 @@ func TestFuse_Thresholds(t *testing.T) {
 		{"score 4 is medium", []Signal{
 			{Signal: sigCentral, Weight: 2}, {Signal: sigRolePrefix + "persistence", Weight: 2},
 		}, VerdictMedium, 4},
-		{"score 5 is high", []Signal{
+		{"score 6 is medium (small central persistence change — sn-tgra)", []Signal{
 			{Signal: sigCentral, Weight: 2}, {Signal: sigRolePrefix + "persistence", Weight: 2},
-			{Signal: sigChurn, Weight: 1},
-		}, VerdictHigh, 5},
+			{Signal: sigBlast, Weight: 1}, {Signal: sigChurn, Weight: 1},
+		}, VerdictMedium, 6},
+		{"score 7 is high", []Signal{
+			{Signal: sigCentral, Weight: 2}, {Signal: sigRolePrefix + "persistence", Weight: 2},
+			{Signal: sigRolePrefix + "api_boundary", Weight: 2}, {Signal: sigChurn, Weight: 1},
+		}, VerdictHigh, 7},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
