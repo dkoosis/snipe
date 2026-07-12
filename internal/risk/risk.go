@@ -10,10 +10,13 @@ const (
 	VerdictHigh   = "high"
 )
 
-// Score thresholds for the verdict level (tunable; documented in the plan).
-// Deduped signal weights sum to the score.
+// Score thresholds for the verdict level. Calibrated against a 20-PR trixi replay
+// (sn-tgra): at scoreHigh=5, small changes to a central persistence symbol
+// (central+persistence+blast+churn = 6) read "high" indistinguishably from broad
+// blast-radius PRs. Raising to 7 reserves "high" (→ full review) for changes that
+// clear two strong signals AND breadth; two-strong-plus-a-weak lands "medium".
 const (
-	scoreHigh   = 5 // score >= scoreHigh   → high
+	scoreHigh   = 7 // score >= scoreHigh   → high
 	scoreMedium = 2 // score >= scoreMedium → medium; else low
 )
 
