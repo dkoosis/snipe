@@ -188,6 +188,28 @@ func countLines(content []byte) int {
 	return n
 }
 
+// WorkingTreeChanges returns the working-tree diff against HEAD (staged +
+// unstaged combined, plus untracked .go files) for repoRoot — the diff
+// acquisition `snipe verify` uses when no --base is given. It is a thin
+// exported wrapper over workingTreeDiff; see that doc for the untracked-file
+// synthesis and rename-detection details. ok is false — with no error —
+// when git is absent or repoRoot isn't a work tree.
+func WorkingTreeChanges(repoRoot string) ([]FileChange, bool) {
+	return workingTreeDiff(repoRoot)
+}
+
+// RefChanges returns the head-side line ranges changed between base and head
+// (e.g. `snipe verify --base main`). It is a thin exported wrapper composing
+// gitDiff + parseDiff. ok is false — with no error — when git is absent,
+// repoRoot isn't a work tree, or a ref won't resolve.
+func RefChanges(repoRoot, base, head string) ([]FileChange, bool) {
+	stream, ok := gitDiff(repoRoot, base, head)
+	if !ok {
+		return nil, false
+	}
+	return parseDiff(stream), true
+}
+
 // changedGoFiles returns the paths of changed .go files, preserving order.
 func changedGoFiles(changes []FileChange) []string {
 	var out []string

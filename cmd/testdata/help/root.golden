@@ -130,6 +130,10 @@ Graph & Structure:
     Assess a diff's risk (base→head): code-graph verdict (roles, centrality,
     blast, churn)
 
+  verify [flags]
+    Map a diff to the minimal go test set covering changed symbols (structural,
+    not a gate)
+
   sensitive [flags]
     List files in security-sensitive zones
     (auth/crypto/migration/secret/payment)
