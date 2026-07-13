@@ -237,3 +237,139 @@ func TestFindOverlappingSymbols_HandlesMultipleHunksInOneFile_When_RangesDisjoin
 	names := []string{got[0].Name, got[1].Name}
 	require.ElementsMatch(t, []string{"First", "Second"}, names)
 }
+
+// TestFindOverlappingSymbols_ReturnsEmpty_When_RangesEmptyAfterMerge covers a
+// guard distinct from ReturnsEmpty_When_NoChanges: changes is non-empty (the
+// path is present) but its range slice is empty, so mergeRanges yields no
+// predicates and no stale file exists either. This must hit the
+// len(predSQL) == 0 early return, not the len(changes) == 0 one.
+func TestFindOverlappingSymbols_ReturnsEmpty_When_RangesEmptyAfterMerge(t *testing.T) {
+	db := setupTestsDB(t)
+	defer db.Close()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.go")
+	markFresh(t, db, path)
+
+	insertOverlapSym(t, db, "s1", "Untouched", path, "empty.go", 10, 20)
+
+	got, err := FindOverlappingSymbols(db, "", map[string][]LineRange{
+		path: {},
+	})
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
+// TestFindOverlappingSymbols_Batches_When_ManyHunks drives >1000 disjoint
+// hunks through a single fresh file, forcing the predicate count past the
+// default batch cap (250) into multiple batches. It asserts the batching
+// path returns the right symbols, deduped and correctly ordered, without
+// needing to lower overlapBatchPredicates.
+func TestFindOverlappingSymbols_Batches_When_ManyHunks(t *testing.T) {
+	db := setupTestsDB(t)
+	defer db.Close()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "big.go")
+	markFresh(t, db, path)
+
+	// Hit spans a wide range (5-1600) that overlaps hunks from the first
+	// three of five batches (batch boundaries at indices 250/500/...).
+	insertOverlapSym(t, db, "s1", "Hit", path, "big.go", 5, 1600)
+	// Edge overlaps exactly one late hunk (index 1100, in the final batch).
+	insertOverlapSym(t, db, "s2", "Edge", path, "big.go", 3301, 3301)
+	// Miss sits in a gap between hunks that no hunk touches.
+	insertOverlapSym(t, db, "s3", "Miss", path, "big.go", 3302, 3302)
+
+	const hunkCount = 1200
+	ranges := make([]LineRange, hunkCount)
+	for i := 0; i < hunkCount; i++ {
+		line := 3*i + 1
+		ranges[i] = LineRange{Start: line, End: line}
+	}
+	require.Greater(t, hunkCount, overlapBatchPredicates,
+		"test assumes hunk count exceeds the default batch cap")
+
+	got, err := FindOverlappingSymbols(db, "", map[string][]LineRange{path: ranges})
+	require.NoError(t, err)
+
+	require.Len(t, got, 2)
+	require.Equal(t, "Hit", got[0].Name, "expected (FilePath, LineStart, ID) order: Hit (line 5) before Edge (line 3301)")
+	require.Equal(t, "Edge", got[1].Name)
+
+	seen := make(map[string]int, len(got))
+	for _, s := range got {
+		seen[s.ID]++
+	}
+	for id, count := range seen {
+		require.Equal(t, 1, count, "symbol %s returned more than once across batches", id)
+	}
+}
+
+// TestFindOverlappingSymbols_BatchedEqualsUnbatched_When_CapForcesSplit forces
+// the worst-case split (cap=1, one predicate per query) across a mixed
+// stale+fresh, multi-file, multi-range scenario, including a symbol hit by
+// two separate hunks that land in different batches. The batched result must
+// be identical to the result under the default (unbatched-in-practice) cap.
+func TestFindOverlappingSymbols_BatchedEqualsUnbatched_When_CapForcesSplit(t *testing.T) {
+	db := setupTestsDB(t)
+	defer db.Close()
+	dir := t.TempDir()
+
+	freshPath := filepath.Join(dir, "fresh.go")
+	markFresh(t, db, freshPath)
+	freshPath2 := filepath.Join(dir, "fresh2.go")
+	markFresh(t, db, freshPath2)
+	stalePath := "/repo/stale-unindexed.go"
+
+	insertOverlapSym(t, db, "s1", "FreshHit", freshPath, "fresh.go", 10, 20)
+	insertOverlapSym(t, db, "s2", "FreshMiss", freshPath, "fresh.go", 500, 520)
+	// TwoHunkHit is overlapped by two disjoint hunks below, so with cap=1 the
+	// two matching predicates land in different batches — this exercises
+	// cross-batch dedupe on the same symbol ID.
+	insertOverlapSym(t, db, "s3", "TwoHunkHit", freshPath2, "fresh2.go", 100, 110)
+	insertOverlapSym(t, db, "s4", "StaleAlwaysIncluded", stalePath, "stale-unindexed.go", 500, 520)
+
+	changes := map[string][]LineRange{
+		freshPath:  {{Start: 10, End: 15}},
+		freshPath2: {{Start: 95, End: 102}, {Start: 108, End: 115}},
+		stalePath:  {{Start: 1, End: 2}}, // irrelevant range — stale fallback ignores it
+	}
+
+	expected, err := FindOverlappingSymbols(db, "", changes)
+	require.NoError(t, err)
+	require.Len(t, expected, 3, "sanity: FreshHit, TwoHunkHit, StaleAlwaysIncluded")
+
+	orig := overlapBatchPredicates
+	overlapBatchPredicates = 1
+	defer func() { overlapBatchPredicates = orig }()
+
+	got, err := FindOverlappingSymbols(db, "", changes)
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+}
+
+// TestFindOverlappingSymbols_BatchesAcrossStaleFiles_When_CapForcesSplit
+// forces several stale files' single-predicate-per-file clauses into
+// separate batches (cap=1), covering the many-stale-files batching path
+// distinct from the many-fresh-hunks path above.
+func TestFindOverlappingSymbols_BatchesAcrossStaleFiles_When_CapForcesSplit(t *testing.T) {
+	db := setupTestsDB(t)
+	defer db.Close()
+
+	orig := overlapBatchPredicates
+	overlapBatchPredicates = 1
+	defer func() { overlapBatchPredicates = orig }()
+
+	insertOverlapSym(t, db, "s1", "StaleA", "/repo/a.go", "a.go", 10, 20)
+	insertOverlapSym(t, db, "s2", "StaleB", "/repo/b.go", "b.go", 10, 20)
+	insertOverlapSym(t, db, "s3", "StaleC", "/repo/c.go", "c.go", 10, 20)
+
+	got, err := FindOverlappingSymbols(db, "", map[string][]LineRange{
+		"/repo/a.go": {{Start: 1, End: 2}},
+		"/repo/b.go": {{Start: 1, End: 2}},
+		"/repo/c.go": {{Start: 1, End: 2}},
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+	names := []string{got[0].Name, got[1].Name, got[2].Name}
+	require.ElementsMatch(t, []string{"StaleA", "StaleB", "StaleC"}, names)
+}
