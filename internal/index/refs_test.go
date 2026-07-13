@@ -276,3 +276,92 @@ func use(n *Nug) {
 		}
 	}
 }
+
+// TestExtractRefs_ConcurrencyCtx verifies synthetic self-attributed refs are
+// emitted for go-statements and channel sends/receives, attributed to the
+// enclosing named function. A go-statement/channel-op with no enclosing
+// named func (e.g. inside a package-level IIFE) must NOT emit a ref.
+func TestExtractRefs_ConcurrencyCtx(t *testing.T) {
+	dir := t.TempDir()
+	src := `package conc
+
+func Spawn() {
+	go func() { _ = 1 }()
+}
+
+func Chan() {
+	ch := make(chan int, 1)
+	ch <- 1
+	<-ch
+}
+
+var _ = func() int {
+	go func() { _ = 1 }()
+	return 1
+}()
+`
+	files := map[string]string{
+		"go.mod":  "module example.com/conc\n\ngo 1.22\n",
+		"conc.go": src,
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := Load(LoadConfig{Dir: dir})
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	symbols, err := ExtractSymbols(result)
+	if err != nil {
+		t.Fatalf("extract symbols: %v", err)
+	}
+	refs, err := ExtractRefs(result, symbols)
+	if err != nil {
+		t.Fatalf("extract refs: %v", err)
+	}
+
+	var spawnID, chanID string
+	for _, s := range symbols {
+		switch s.Name {
+		case "Spawn":
+			spawnID = s.ID
+		case "Chan":
+			chanID = s.ID
+		}
+	}
+	if spawnID == "" || chanID == "" {
+		t.Fatalf("missing symbol IDs: spawnID=%q chanID=%q", spawnID, chanID)
+	}
+
+	var goRefs, chanRefs []Ref
+	for _, r := range refs {
+		switch r.ASTCtx {
+		case CtxGo:
+			goRefs = append(goRefs, r)
+		case CtxChan:
+			chanRefs = append(chanRefs, r)
+		}
+	}
+
+	// (a) exactly one go ref, self-attributed to Spawn. The package-level
+	// IIFE's go-statement has no enclosing named func and must be skipped.
+	if len(goRefs) != 1 {
+		t.Fatalf("len(goRefs) = %d, want 1 (got %+v)", len(goRefs), goRefs)
+	}
+	if goRefs[0].EnclosingID != spawnID || goRefs[0].SymbolID != spawnID {
+		t.Errorf("go ref = %+v, want EnclosingID=SymbolID=%q", goRefs[0], spawnID)
+	}
+
+	// (b) exactly two chan refs (send + receive), both self-attributed to Chan.
+	if len(chanRefs) != 2 {
+		t.Fatalf("len(chanRefs) = %d, want 2 (got %+v)", len(chanRefs), chanRefs)
+	}
+	for _, r := range chanRefs {
+		if r.EnclosingID != chanID || r.SymbolID != chanID {
+			t.Errorf("chan ref = %+v, want EnclosingID=SymbolID=%q", r, chanID)
+		}
+	}
+}

@@ -462,6 +462,7 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 		LEFT JOIN symbols s ON r.enclosing_id = s.id
 		LEFT JOIN files f ON r.file_path = f.path
 		WHERE r.symbol_id = ?
+		  AND (r.ast_ctx IS NULL OR r.ast_ctx NOT IN ('go','chan'))
 		ORDER BY
 		  CASE WHEN r.file_path = (SELECT file_path FROM symbols WHERE id = ?) THEN 0 ELSE 1 END,
 		  r.file_path,
@@ -752,10 +753,17 @@ func countParams(paramStr string) (count int, variadic bool) {
 	return commas + 1, variadic
 }
 
-// GetRefCount returns the number of references to a symbol.
+// GetRefCount returns the number of references to a symbol. Go/chan synthetic
+// self-refs (ast_ctx="go"/"chan", symbol_id == enclosing_id, sn-hmz) are
+// excluded — they are the symbol's own go-statements/channel ops, not
+// references TO it, and would otherwise inflate the count (and diverge from
+// `snipe deadcode`, which applies the same filter).
 func GetRefCount(db *sql.DB, symbolID string) (int, error) {
 	var count int
-	err := db.QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id = ?`, symbolID).Scan(&count)
+	err := db.QueryRow(
+		`SELECT COUNT(*) FROM refs WHERE symbol_id = ? AND (ast_ctx IS NULL OR ast_ctx NOT IN ('go','chan'))`,
+		symbolID,
+	).Scan(&count)
 	return count, err
 }
 

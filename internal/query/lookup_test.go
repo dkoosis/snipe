@@ -280,3 +280,72 @@ func TestLookupByName_QualifiedMethodForms(t *testing.T) {
 		}
 	}
 }
+
+// TestRefQueries_ExcludeGoChanSelfRefs verifies FindRefs and GetRefCount drop
+// the synthetic go/chan self-refs (ast_ctx="go"/"chan", symbol_id ==
+// enclosing_id, sn-hmz). Those rows are a function's own go-statements and
+// channel ops, not references TO it; counting them would inflate GetRefCount
+// and surface a "go worker()" statement as a reference row in `snipe refs`.
+func TestRefQueries_ExcludeGoChanSelfRefs(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`
+		CREATE TABLE symbols (
+			id TEXT PRIMARY KEY, name TEXT, kind TEXT,
+			file_path TEXT, file_path_rel TEXT, pkg_path TEXT,
+			line_start INT, col_start INT, line_end INT, col_end INT,
+			signature TEXT, doc TEXT, receiver TEXT
+		);
+		CREATE TABLE files (path TEXT PRIMARY KEY, mtime INT, hash TEXT);
+		CREATE TABLE refs (
+			id TEXT PRIMARY KEY, symbol_id TEXT NOT NULL,
+			file_path TEXT NOT NULL, file_path_rel TEXT,
+			line INT, col INT, enclosing_id TEXT, snippet TEXT, ast_ctx TEXT
+		);
+	`)
+	if err != nil {
+		t.Fatalf("create tables: %v", err)
+	}
+
+	// Serve encloses `go worker()` and a channel op; caller genuinely refs Serve.
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('serve','Serve','func','/srv.go','srv.go','pkg',1,1,10,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO symbols VALUES ('caller','callSite','func','/main.go','main.go','pkg',1,1,5,1,NULL,NULL,NULL)`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/srv.go',0,'h1')`)
+	execOrFatal(t, db, `INSERT INTO files VALUES ('/main.go',0,'h2')`)
+
+	// One genuine reference TO Serve (from callSite, no ast_ctx).
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r_real','serve','/main.go','main.go',3,5,'caller','Serve()',NULL)`)
+	// Serve's own go-statement + channel op: synthetic self-refs.
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r_go','serve','/srv.go','srv.go',4,2,'serve','go worker()','go')`)
+	execOrFatal(t, db, `INSERT INTO refs VALUES ('r_chan','serve','/srv.go','srv.go',5,2,'serve','ch <- 1','chan')`)
+
+	// GetRefCount: 1 real reference, not 3 (the two self-refs excluded).
+	count, err := GetRefCount(db, "serve")
+	if err != nil {
+		t.Fatalf("GetRefCount: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("GetRefCount(Serve) = %d, want 1 (go/chan self-refs must be excluded)", count)
+	}
+
+	// FindRefs: only the genuine reference, no go/chan self-ref rows.
+	refs, err := FindRefs(db, "serve", 50, 0)
+	if err != nil {
+		t.Fatalf("FindRefs: %v", err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("FindRefs(Serve) = %d rows, want 1", len(refs))
+	}
+	if refs[0].ID != "r_real" {
+		t.Errorf("FindRefs(Serve) returned %q, want the genuine ref r_real", refs[0].ID)
+	}
+	for _, r := range refs {
+		if r.ASTCtx == "go" || r.ASTCtx == "chan" {
+			t.Errorf("FindRefs returned a go/chan self-ref row: id=%s ast_ctx=%s snippet=%q", r.ID, r.ASTCtx, r.Snippet)
+		}
+	}
+}

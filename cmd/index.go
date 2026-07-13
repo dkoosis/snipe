@@ -1162,10 +1162,15 @@ func computeFileFanIn(s *store.Store) error {
 // file-level risk metrics (file_churn + the "files" complexity/fan-in graph)
 // an index carries. fileMetricsVersion is the current generation — bump it
 // whenever a new file-level metric is added so existing indexes auto-backfill
-// on their next `snipe index`.
+// on their next `snipe index`. Repurposed (v2, sn-hmz) as the force-reindex
+// lever for the go-stmt/channel-op ast_ctx signal too: any version bump here
+// forces a one-time full reindex, which is what's needed to backfill refs
+// for an ast_ctx value added after the index was built (schemaVersion is
+// unaffected — the index fingerprint excludes it, so bumping schemaVersion
+// alone would NOT trigger a reindex).
 const (
 	metaFileMetricsVersion = "file_metrics_version"
-	fileMetricsVersion     = "1"
+	fileMetricsVersion     = "2"
 )
 
 // metricsNeedBackfill reports whether the index lacks the current generation of
