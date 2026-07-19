@@ -26,6 +26,12 @@ func runImports(args []string) error {
 	// Make path absolute if relative
 	if !filepath.IsAbs(filePath) {
 		filePath = filepath.Join(dir, filePath)
+	} else if resolved, err := filepath.EvalSymlinks(filePath); err == nil {
+		// Canonicalize an already-absolute caller-supplied path (sn-za8p):
+		// the index stores canonical file_path values (via FindProjectRoot),
+		// so a raw absolute arg through a symlink would otherwise silently
+		// match zero rows.
+		filePath = resolved
 	}
 
 	imports, err := query.FindImports(s.DB(), filePath, lim, offset)
