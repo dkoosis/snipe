@@ -268,6 +268,7 @@ func GetChangeBoundaries(db *sql.DB, repoRoot string) (map[string][]string, erro
 				COUNT(r.id) as ref_count
 			FROM symbols s
 			LEFT JOIN refs r ON s.id = r.symbol_id
+			AND (r.ast_ctx IS NULL OR r.ast_ctx NOT IN ('go', 'chan'))
 			WHERE s.file_path LIKE ? || '/%'
 			  AND s.file_path NOT LIKE '%\_test.go' ESCAPE '\'
 			  AND s.kind IN ('func', 'method', 'type', 'interface', 'struct')

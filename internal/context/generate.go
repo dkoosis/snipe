@@ -945,6 +945,7 @@ func querySymbolRefsByKind(db *sql.DB, repoRoot, kindClause string, limit int, r
 		SELECT s.id, s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
 		FROM symbols s
 		LEFT JOIN refs r ON s.id = r.symbol_id
+		AND (r.ast_ctx IS NULL OR r.ast_ctx NOT IN ('go', 'chan'))
 		WHERE s.kind IN `+kindClause+`
 		  AND s.file_path LIKE ? || '/%'
 		  AND s.name GLOB '[A-Z]*'
@@ -1001,6 +1002,7 @@ func getExtensionPoints(db *sql.DB, repoRoot string) []ExtensionPoint {
 			(SELECT COUNT(*) FROM call_graph c WHERE c.callee_id = s.id) as caller_count
 		FROM symbols s
 		LEFT JOIN refs r ON s.id = r.symbol_id
+		AND (r.ast_ctx IS NULL OR r.ast_ctx NOT IN ('go', 'chan'))
 		WHERE s.file_path LIKE ? || '/%'
 		  AND s.name GLOB '[A-Z]*'
 		  AND (
