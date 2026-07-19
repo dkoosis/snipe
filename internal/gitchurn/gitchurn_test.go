@@ -11,18 +11,20 @@ import (
 func gitRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	run := func(env []string, args ...string) {
+	run := func(args ...string) {
 		t.Helper()
 		cmd := exec.Command("git", args...)
 		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), env...)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
 	}
-	run(nil, "init", "-q")
-	run(nil, "config", "user.email", "test@example.com")
-	run(nil, "config", "user.name", "Tester")
+	run("init", "-q")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "Tester")
+	// Disable any ambient hooks (e.g. a global commit-msg conventional-commit
+	// hook via core.hooksPath) so fixture commits aren't rejected.
+	run("config", "core.hooksPath", "/dev/null")
 	return dir
 }
 

@@ -1338,6 +1338,9 @@ func initGitRepo(t *testing.T, dir string) {
 		{"init"},
 		{"config", "user.email", "test@test.com"},
 		{"config", "user.name", "Test"},
+		// Disable ambient hooks (e.g. a global commit-msg conventional-commit
+		// hook via core.hooksPath) so fixture commits aren't rejected.
+		{"config", "core.hooksPath", "/dev/null"},
 		{"add", "."},
 		{"commit", "-m", "init"},
 	} {

@@ -97,6 +97,9 @@ func gitRepo(t *testing.T) string {
 	runGit(t, dir, "init", "-q")
 	runGit(t, dir, "config", "user.email", "test@example.com")
 	runGit(t, dir, "config", "user.name", "Tester")
+	// Disable any ambient hooks (e.g. a global commit-msg conventional-commit
+	// hook via core.hooksPath) so fixture commits aren't rejected.
+	runGit(t, dir, "config", "core.hooksPath", "/dev/null")
 	return dir
 }
 
