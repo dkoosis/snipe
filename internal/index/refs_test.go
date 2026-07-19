@@ -365,3 +365,84 @@ var _ = func() int {
 		}
 	}
 }
+
+// TestExtractRefs_RangeOverChannel verifies a `for v := range ch` receive is
+// classified as a chan ref (sn-v84m), while ranging over a slice or map
+// (no channel type) must NOT emit one.
+func TestExtractRefs_RangeOverChannel(t *testing.T) {
+	dir := t.TempDir()
+	src := `package rng
+
+func Drain(ch chan int) {
+	for v := range ch {
+		_ = v
+	}
+}
+
+func Walk(xs []int) {
+	for i := range xs {
+		_ = i
+	}
+}
+
+func Iter(m map[string]int) {
+	for k := range m {
+		_ = k
+	}
+}
+`
+	files := map[string]string{
+		"go.mod": "module example.com/rng\n\ngo 1.22\n",
+		"rng.go": src,
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := Load(LoadConfig{Dir: dir})
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	symbols, err := ExtractSymbols(result)
+	if err != nil {
+		t.Fatalf("extract symbols: %v", err)
+	}
+	refs, err := ExtractRefs(result, symbols)
+	if err != nil {
+		t.Fatalf("extract refs: %v", err)
+	}
+
+	var drainID, walkID, iterID string
+	for _, s := range symbols {
+		switch s.Name {
+		case "Drain":
+			drainID = s.ID
+		case "Walk":
+			walkID = s.ID
+		case "Iter":
+			iterID = s.ID
+		}
+	}
+	if drainID == "" || walkID == "" || iterID == "" {
+		t.Fatalf("missing symbol IDs: drainID=%q walkID=%q iterID=%q", drainID, walkID, iterID)
+	}
+
+	byEnclosing := map[string]int{}
+	for _, r := range refs {
+		if r.ASTCtx == CtxChan {
+			byEnclosing[r.EnclosingID]++
+		}
+	}
+
+	if byEnclosing[drainID] != 1 {
+		t.Errorf("Drain: chan refs = %d, want 1 (for-range over chan must classify as concurrency)", byEnclosing[drainID])
+	}
+	if byEnclosing[walkID] != 0 {
+		t.Errorf("Walk: chan refs = %d, want 0 (range over slice must not fire)", byEnclosing[walkID])
+	}
+	if byEnclosing[iterID] != 0 {
+		t.Errorf("Iter: chan refs = %d, want 0 (range over map must not fire)", byEnclosing[iterID])
+	}
+}
