@@ -2,7 +2,7 @@ module github.com/dkoosis/snipe
 
 go 1.25
 
-toolchain go1.25.8
+toolchain go1.26.5
 
 require (
 	github.com/stretchr/testify v1.8.1
