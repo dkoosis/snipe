@@ -10,7 +10,9 @@ import (
 
 func TestLits_EnvVarCallSites(t *testing.T) {
 	// Index the snipe repo itself, then query for a known env var.
-	// SNIPE_VOYAGE_API_KEY has 2 os.Getenv calls in internal/embed/client.go.
+	// SNIPE_VOYAGE_API_KEY has 1 os.Getenv call in internal/embed/client.go
+	// (HasCredentials); resolveCredentials reads it via keyring.GetOrEnv,
+	// which lits does not classify as an env call site.
 	indexRepo(t, repoRoot)
 
 	stdout, stderr, exitCode := run(t, repoRoot, "lits", "SNIPE_VOYAGE_API_KEY")
@@ -43,10 +45,10 @@ func TestLits_EnvVarCallSites(t *testing.T) {
 		}
 	}
 
-	// Exactly 2 os.Getenv("SNIPE_VOYAGE_API_KEY") calls exist in the codebase
+	// Exactly 1 os.Getenv("SNIPE_VOYAGE_API_KEY") call exists in the codebase
 	meta := requireMap(t, resp["meta"], "meta")
 	total := int(getFloat(t, meta["total"], "total"))
-	if total != 2 {
-		t.Errorf("want 2 refs for SNIPE_VOYAGE_API_KEY, got %d", total)
+	if total != 1 {
+		t.Errorf("want 1 ref for SNIPE_VOYAGE_API_KEY, got %d", total)
 	}
 }

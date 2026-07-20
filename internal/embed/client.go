@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,7 +12,24 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/dkoosis/keyring"
 )
+
+// keyringService is the macOS keychain namespace for this repo's CLI binary
+// (convention: service = app name, account = provider). The Voyage API key
+// lives at service "snipe", account "voyage".
+const (
+	keyringService = "snipe"
+	keyringAccount = "voyage"
+)
+
+// credStore returns the keychain store for snipe's secrets. keyring.New only
+// fails on an empty service name, so the error is effectively unreachable
+// with the literal above.
+func credStore() (*keyring.Store, error) {
+	return keyring.New(keyringService)
+}
 
 // Client handles embedding requests to Voyage AI.
 type Client struct {
@@ -52,8 +70,14 @@ func credentialsPath() string {
 }
 
 // HasCredentials checks if embedding credentials are available.
-// Returns true if SNIPE_VOYAGE_API_KEY env var is set or credentials file exists.
+// Returns true if the keychain holds a voyage key, the SNIPE_VOYAGE_API_KEY
+// env var is set, or the credentials file exists.
 func HasCredentials() bool {
+	if store, err := credStore(); err == nil {
+		if ok, hasErr := store.Has(keyringAccount); hasErr == nil && ok {
+			return true
+		}
+	}
 	if os.Getenv("SNIPE_VOYAGE_API_KEY") != "" {
 		return true
 	}
@@ -68,18 +92,29 @@ func HasCredentials() bool {
 	return strings.Contains(string(data), "SNIPE_VOYAGE_API_KEY=")
 }
 
-// resolveCredentials reads API key and model from env vars, falling back to the
-// credentials file. Returns (apiKey, model, endpoint, error).
+// resolveCredentials reads the API key keychain-first, then the
+// SNIPE_VOYAGE_API_KEY env var, then the credentials file (Linux + existing
+// installs). Model and endpoint are config, not secrets — plain env only.
+// Returns (apiKey, model, endpoint, error).
 func resolveCredentials() (string, string, string, error) {
-	apiKey := os.Getenv("SNIPE_VOYAGE_API_KEY")
+	store, err := credStore()
+	if err != nil {
+		return "", "", "", err
+	}
+	apiKey, keyErr := store.GetOrEnv(keyringAccount, "SNIPE_VOYAGE_API_KEY")
+	if keyErr != nil && !errors.Is(keyErr, keyring.ErrNotFound) && !errors.Is(keyErr, keyring.ErrUnsupported) {
+		// A locked or denied keychain must surface as an error — never
+		// silently downgrade to the plaintext fallback.
+		return "", "", "", fmt.Errorf("reading voyage API key from keychain: %w", keyErr)
+	}
 	model := os.Getenv("VOYAGE_MODEL")
 	endpoint := os.Getenv("VOYAGE_API_URL")
 
-	// Fall back to credentials file
+	// Last fallback: credentials file
 	if apiKey == "" {
 		creds, err := loadCredentials()
 		if err != nil {
-			return "", "", "", fmt.Errorf("no API key: set SNIPE_VOYAGE_API_KEY or create ~/.config/snipe/credentials: %w", err)
+			return "", "", "", fmt.Errorf("no API key: store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY), set SNIPE_VOYAGE_API_KEY, or create ~/.config/snipe/credentials: %w", err)
 		}
 		apiKey = creds["SNIPE_VOYAGE_API_KEY"]
 		if model == "" {

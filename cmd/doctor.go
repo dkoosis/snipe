@@ -268,7 +268,7 @@ func checkEmbeddings() DoctorCheck {
 		check.OK = true // Not a failure, just informational
 		check.Code = DoctorEmbedAuthMissing
 		check.Message = "no embedding credentials (embeddings disabled)"
-		check.Remediation = "add 'export SNIPE_VOYAGE_API_KEY=your-key' to ~/.trixi/secrets.env (or export directly)"
+		check.Remediation = "store the key in the macOS keychain: security add-generic-password -U -s snipe -a voyage -w YOUR-KEY (preferred); or export SNIPE_VOYAGE_API_KEY=your-key; the plaintext ~/.config/snipe/credentials file still works but is deprecated"
 	}
 
 	return check
