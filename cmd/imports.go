@@ -23,9 +23,17 @@ func runImports(args []string) error {
 	}
 	defer s.Close()
 
-	// Make path absolute if relative
+	// Make path absolute if relative, then canonicalize (sn-za8p): the index
+	// stores canonical file_path values (via FindProjectRoot), so a path
+	// through a symlink — an absolute arg, or a relative arg that traverses an
+	// intra-repo symlinked dir — would otherwise silently match zero rows.
+	// dir is already canonical, but the joined relative component may not be.
+	// EvalSymlinks failing (path doesn't exist) is not fatal; keep the raw value.
 	if !filepath.IsAbs(filePath) {
 		filePath = filepath.Join(dir, filePath)
+	}
+	if resolved, err := filepath.EvalSymlinks(filePath); err == nil {
+		filePath = resolved
 	}
 
 	imports, err := query.FindImports(s.DB(), filePath, lim, offset)

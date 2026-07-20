@@ -47,6 +47,14 @@ func runIndex(args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolve path: %w", err)
 	}
+	// Canonicalize an explicit path arg (sn-za8p): query commands resolve
+	// root from os.Getwd(), which macOS returns already symlink-resolved.
+	// FindProjectRoot canonicalizes too, but only when a .git/go.mod marker
+	// is found; this covers the fallback case below where none is found and
+	// absDir is used as-is.
+	if resolved, err := filepath.EvalSymlinks(absDir); err == nil {
+		absDir = resolved
+	}
 
 	// Always index relative to project root — not CWD or an arbitrary subdir (D3)
 	if root := util.FindProjectRoot(absDir); root != "" {

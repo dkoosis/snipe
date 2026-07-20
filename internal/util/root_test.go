@@ -23,8 +23,8 @@ func TestFindProjectRoot_FindsGitRoot_WhenRunFromSubdirectory(t *testing.T) {
 	}
 
 	got := util.FindProjectRoot(sub)
-	if got != tmp {
-		t.Fatalf("FindProjectRoot(%q) = %q, want %q", sub, got, tmp)
+	if want := canonical(t, tmp); got != want {
+		t.Fatalf("FindProjectRoot(%q) = %q, want %q", sub, got, want)
 	}
 }
 
@@ -41,8 +41,8 @@ func TestFindProjectRoot_FindsGoModRoot_WhenNoGit(t *testing.T) {
 	}
 
 	got := util.FindProjectRoot(sub)
-	if got != tmp {
-		t.Fatalf("FindProjectRoot(%q) = %q, want %q", sub, got, tmp)
+	if want := canonical(t, tmp); got != want {
+		t.Fatalf("FindProjectRoot(%q) = %q, want %q", sub, got, want)
 	}
 }
 
@@ -63,8 +63,8 @@ func TestFindProjectRoot_PrefersGitOverGoMod_WhenBothPresent(t *testing.T) {
 	}
 
 	got := util.FindProjectRoot(sub)
-	if got != sub {
-		t.Fatalf("FindProjectRoot(%q) = %q, want %q", sub, got, sub)
+	if want := canonical(t, sub); got != want {
+		t.Fatalf("FindProjectRoot(%q) = %q, want %q", sub, got, want)
 	}
 }
 
@@ -90,8 +90,8 @@ func TestFindProjectRoot_PrefersGitRoot_WhenGitIsHigherThanGoMod(t *testing.T) {
 	}
 
 	got := util.FindProjectRoot(pkg)
-	if got != tmp {
-		t.Fatalf("FindProjectRoot(%q) = %q, want %q (git root)", pkg, got, tmp)
+	if want := canonical(t, tmp); got != want {
+		t.Fatalf("FindProjectRoot(%q) = %q, want %q (git root)", pkg, got, want)
 	}
 }
 
@@ -118,8 +118,8 @@ func TestFindProjectRoot_GitWins_WhenGitIsDeeperThanGoMod(t *testing.T) {
 	}
 
 	got := util.FindProjectRoot(pkg)
-	if got != service {
-		t.Fatalf("FindProjectRoot(%q) = %q, want %q (.git wins over parent go.mod)", pkg, got, service)
+	if want := canonical(t, service); got != want {
+		t.Fatalf("FindProjectRoot(%q) = %q, want %q (.git wins over parent go.mod)", pkg, got, want)
 	}
 }
 
@@ -144,7 +144,53 @@ func TestFindProjectRoot_ReturnsStart_WhenStartIsRoot(t *testing.T) {
 	}
 
 	got := util.FindProjectRoot(tmp)
-	if got != tmp {
-		t.Fatalf("FindProjectRoot(%q) = %q, want %q", tmp, got, tmp)
+	if want := canonical(t, tmp); got != want {
+		t.Fatalf("FindProjectRoot(%q) = %q, want %q", tmp, got, want)
 	}
+}
+
+// TestFindProjectRoot_ResolvesSymlinks_WhenStartIsSymlinked guards sn-za8p:
+// query-side commands resolve project root from os.Getwd(), which macOS
+// returns already canonicalized (/private/var/... not /var/...). Index-side
+// resolved an explicit `snipe index <path>` arg with plain filepath.Abs, so a
+// symlinked start (e.g. a CI temp dir) left the returned root unresolved —
+// the two sides then disagreed on file_path and every store lookup silently
+// returned zero rows. FindProjectRoot must canonicalize regardless of which
+// side is calling it.
+func TestFindProjectRoot_ResolvesSymlinks_WhenStartIsSymlinked(t *testing.T) {
+	t.Parallel()
+
+	realDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(realDir, ".git"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	symParent := t.TempDir()
+	symDir := filepath.Join(symParent, "symlinked-repo")
+	if err := os.Symlink(realDir, symDir); err != nil {
+		t.Fatal(err)
+	}
+
+	viaSymlink := util.FindProjectRoot(symDir)
+	viaCanonical := util.FindProjectRoot(canonical(t, realDir))
+
+	if viaSymlink != viaCanonical {
+		t.Fatalf("FindProjectRoot(symlinked start) = %q, want %q (same as canonical start) — index and query sides would disagree on root", viaSymlink, viaCanonical)
+	}
+	if want := canonical(t, realDir); viaSymlink != want {
+		t.Fatalf("FindProjectRoot(%q) = %q, want canonicalized %q", symDir, viaSymlink, want)
+	}
+}
+
+// canonical resolves symlinks in p, failing the test if p doesn't exist. Used
+// to match FindProjectRoot's canonicalized return value against expectations
+// built from t.TempDir(), which on macOS is itself a symlink
+// (/var/folders -> /private/var/folders).
+func canonical(t *testing.T, p string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q): %v", p, err)
+	}
+	return resolved
 }

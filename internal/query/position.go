@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -15,8 +16,29 @@ type PositionQuery struct {
 	Col  int
 }
 
-// ParsePosition parses a position string like "file.go:42:12"
+// ParsePosition parses a position string like "file.go:42:12". If the file
+// component is already absolute, it is canonicalized via EvalSymlinks
+// (sn-za8p): relative file components get canonicalized for free when the
+// caller later joins them onto the (now-canonical, per FindProjectRoot) repo
+// root, but an absolute --at path bypasses that join entirely — without this,
+// an absolute path through a symlink (e.g. a macOS /var/folders temp dir)
+// would silently fail to match the canonical file_path values an index built
+// via FindProjectRoot stores. EvalSymlinks failing (path doesn't exist) is
+// not fatal; the original value is kept.
 func ParsePosition(s string) (*PositionQuery, error) {
+	pq, err := parsePositionRaw(s)
+	if err != nil {
+		return nil, err
+	}
+	if filepath.IsAbs(pq.File) {
+		if resolved, err := filepath.EvalSymlinks(pq.File); err == nil {
+			pq.File = resolved
+		}
+	}
+	return pq, nil
+}
+
+func parsePositionRaw(s string) (*PositionQuery, error) {
 	parts := strings.Split(s, ":")
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("invalid position format: %s (expected file:line or file:line:col)", s)
