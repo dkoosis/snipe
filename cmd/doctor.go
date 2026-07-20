@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -261,17 +262,43 @@ func checkEmbeddings() DoctorCheck {
 		Name: "embeddings",
 	}
 
-	if embed.HasCredentials() {
+	has := embed.HasCredentials()
+	probeErr := embed.LastProbeErr()
+	switch {
+	case has && probeErr == nil:
 		check.OK = true
 		check.Message = "embedding credentials available"
-	} else {
+	case has && probeErr != nil:
+		// Keychain is locked/unreadable but env or the credentials file
+		// covers it — say so instead of a false "credentials available".
+		check.OK = true
+		check.Message = "keychain locked or unreadable — using env/file credentials"
+		check.Details = probeErr.Error()
+		check.Remediation = "security unlock-keychain"
+	case probeErr != nil:
+		check.OK = true // Not a failure, just informational
+		check.Code = DoctorEmbedAuthMissing
+		check.Message = "keychain locked or unreadable and no env/file credentials (embeddings disabled)"
+		check.Details = probeErr.Error()
+		check.Remediation = "security unlock-keychain; or export SNIPE_VOYAGE_API_KEY=your-key"
+	default:
 		check.OK = true // Not a failure, just informational
 		check.Code = DoctorEmbedAuthMissing
 		check.Message = "no embedding credentials (embeddings disabled)"
-		check.Remediation = "add 'export SNIPE_VOYAGE_API_KEY=your-key' to ~/.trixi/secrets.env (or export directly)"
+		check.Remediation = embedAuthRemediation()
 	}
 
 	return check
+}
+
+// embedAuthRemediation orders the credential recipes by platform: the macOS
+// keychain recipe leads only on darwin; elsewhere there is no keychain
+// backend, so env/file guidance comes first.
+func embedAuthRemediation() string {
+	if runtime.GOOS == "darwin" {
+		return "store the key in the macOS keychain: security add-generic-password -U -s snipe -a voyage -w YOUR-KEY (preferred); or export SNIPE_VOYAGE_API_KEY=your-key; the plaintext ~/.config/snipe/credentials file still works but is deprecated"
+	}
+	return "export SNIPE_VOYAGE_API_KEY=your-key; or create ~/.config/snipe/credentials with SNIPE_VOYAGE_API_KEY=your-key (no keychain backend on this platform)"
 }
 
 func checkOrphans() DoctorCheck {

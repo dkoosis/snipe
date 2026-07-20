@@ -1379,7 +1379,9 @@ func runWithEnv(t *testing.T, repoDir string, env []string, args ...string) (std
 
 	cmd := exec.Command(binPath, args...)
 	cmd.Dir = repoDir
-	cmd.Env = env
+	// KEYRING_DISABLE keeps the binary under test off the real macOS keychain,
+	// so a developer's snipe/voyage keychain item can't defeat test isolation.
+	cmd.Env = append(append([]string{}, env...), "KEYRING_DISABLE=1")
 
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf

@@ -520,9 +520,14 @@ func (c *IndexCmd) Run() error {
 	// default in a struct tag, so honor an explicit --embed but otherwise fall
 	// back to credential detection — without this, resolveEmbedMode silently
 	// forces embedModeOff and the index ships with zero embeddings.
-	if flagPassed("embed") {
+	switch {
+	case flagPassed("embed"):
 		withEmbed = c.Embed
-	} else {
+	case c.EmbedMode == embedModeOff:
+		// --embed-mode=off must do zero keychain execs; the mode short-circuits
+		// in resolveEmbedMode anyway, so skip the credentials probe entirely.
+		withEmbed = false
+	default:
 		withEmbed = defaultWithEmbed()
 	}
 	embedMode = c.EmbedMode
