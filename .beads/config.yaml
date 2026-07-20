@@ -56,3 +56,5 @@
 # sync.remote: "git+https://github.com/dkoosis/snipe.git"
 dolt:
     shared-server: false
+sync:
+    remote: "git+https://github.com/dkoosis/snipe.git"
