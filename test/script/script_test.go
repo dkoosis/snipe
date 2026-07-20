@@ -53,6 +53,10 @@ func TestScripts(t *testing.T) {
 	}
 	index := exec.Command(binPath, "index", fixtureDir, "--enrich=false", "--embed-mode=off")
 	index.Dir = fixtureDir
+	// Seal this subprocess boundary too: without KEYRING_DISABLE a real
+	// snipe/voyage keychain item (or a locked-keychain prompt) on a developer
+	// Mac could leak into the fixture index run.
+	index.Env = append(os.Environ(), "KEYRING_DISABLE=1")
 	var iout, ierr bytes.Buffer
 	index.Stdout = &iout
 	index.Stderr = &ierr
