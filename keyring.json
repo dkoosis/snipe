@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "service": "snipe",
+  "accounts": [
+    {
+      "account": "voyage",
+      "env": "SNIPE_VOYAGE_API_KEY",
+      "required": true,
+      "description": "Voyage AI key for snipe's embeddings",
+      "obtain_url": "https://dash.voyageai.com"
+    }
+  ]
+}
