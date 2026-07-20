@@ -39,6 +39,8 @@ func writeRisk(v risk.Verdict, root string, start time.Time) error {
 
 // writeRiskJSON emits the verdict inside the standard envelope. The single verdict
 // is the sole result; consumers read `.results[0]` (e.g. `jq '.results[0].verdict'`).
+// This shape is a semver-guarded cross-repo contract — see docs/contracts/risk-json.md
+// (guard test: test/blackbox/risk_contract_test.go, sn-n8re).
 func writeRiskJSON(v risk.Verdict, root string, start time.Time) error {
 	resp := output.Response[risk.Verdict]{
 		Protocol: output.ProtocolVersion,
