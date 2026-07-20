@@ -2,9 +2,10 @@
 version: 2
 project_name: snipe
 
-before:
-  hooks:
-    - go mod download
+# No before-hook: the repo is fully vendored, so builds never fetch modules.
+# The old `go mod download` hook hit the network and would 404 on the private
+# github.com/dkoosis/keyring module (`go mod verify` is no better — it also
+# downloads modules missing from a fresh runner's cache).
 
 builds:
   - id: snipe
