@@ -73,6 +73,11 @@ func TestScripts(t *testing.T) {
 			}
 			env.Setenv("HOME", home)
 
+			// Disable keychain access in the snipe binary under test: a real
+			// snipe/voyage keychain item on a developer Mac would otherwise
+			// supply credentials and defeat key-absence isolation.
+			env.Setenv("KEYRING_DISABLE", "1")
+
 			// Copy the pre-indexed fixture into $WORK/fixture. snipe resolves the
 			// index root to the go.mod root (D3), and the .snipe index is
 			// path-portable, so the copy is immediately queryable.

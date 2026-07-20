@@ -80,7 +80,9 @@ func run(t *testing.T, repoDir string, args ...string) (stdout, stderr []byte, e
 
 	cmd := exec.Command(binPath, args...)
 	cmd.Dir = repoDir
-	cmd.Env = os.Environ()
+	// KEYRING_DISABLE keeps the binary under test off the real macOS keychain:
+	// eval must stay fully no-API even when a snipe/voyage keychain item exists.
+	cmd.Env = append(os.Environ(), "KEYRING_DISABLE=1")
 
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
