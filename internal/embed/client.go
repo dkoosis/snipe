@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dkoosis/keyring"
@@ -30,6 +31,53 @@ const (
 func credStore() (*keyring.Store, error) {
 	return keyring.New(keyringService)
 }
+
+// probeMu guards errLastProbe and warnedAccounts.
+var (
+	probeMu        sync.Mutex
+	errLastProbe   error
+	warnedAccounts = map[string]bool{}
+)
+
+// LastProbeErr returns the keychain error recorded by the most recent
+// credential probe (HasCredentials or resolveCredentials). Non-nil means the
+// keychain item was unreadable — locked, denied, or timed out
+// (keyring.ErrUnreadable) — so callers like doctor can report "keychain
+// locked — using env/file if set" instead of a false "credentials available".
+func LastProbeErr() error {
+	probeMu.Lock()
+	defer probeMu.Unlock()
+	return errLastProbe
+}
+
+// recordProbe stores the outcome of a keychain probe for LastProbeErr.
+func recordProbe(err error) {
+	probeMu.Lock()
+	defer probeMu.Unlock()
+	errLastProbe = err
+}
+
+// warnUnreadableOnce logs one prominent warning per account per process when
+// the keychain is unreadable and we downgrade to env/file. The keyring
+// contract forbids a SILENT downgrade; for a consumer that can run headless or
+// in the background (snipe index), a LOUD one-time downgrade is the correct
+// behavior — name the locked keychain, the account, and the fallback, then
+// carry on.
+func warnUnreadableOnce(account string, err error) {
+	probeMu.Lock()
+	defer probeMu.Unlock()
+	if warnedAccounts[account] {
+		return
+	}
+	warnedAccounts[account] = true
+	fmt.Fprintf(os.Stderr,
+		"WARNING: keychain item %s/%s is unreadable (keychain locked or access denied): %v — falling back to SNIPE_VOYAGE_API_KEY / ~/.config/snipe/credentials\n",
+		keyringService, account, err)
+}
+
+// envAPIKey is the single os.Getenv call site for SNIPE_VOYAGE_API_KEY in
+// this package (the blackbox literals test counts exactly one).
+func envAPIKey() string { return os.Getenv("SNIPE_VOYAGE_API_KEY") }
 
 // Client handles embedding requests to Voyage AI.
 type Client struct {
@@ -71,14 +119,25 @@ func credentialsPath() string {
 
 // HasCredentials checks if embedding credentials are available.
 // Returns true if the keychain holds a voyage key, the SNIPE_VOYAGE_API_KEY
-// env var is set, or the credentials file exists.
+// env var is set, or the credentials file exists. An unreadable keychain
+// (locked/denied — keyring.ErrUnreadable) is NOT treated as "credentials
+// available": the probe falls through to env/file and records the locked
+// state in LastProbeErr so doctor can name it, keeping this probe in
+// agreement with resolveCredentials.
 func HasCredentials() bool {
+	recordProbe(nil)
 	if store, err := credStore(); err == nil {
-		if ok, hasErr := store.Has(keyringAccount); hasErr == nil && ok {
+		ok, hasErr := store.Has(keyringAccount)
+		if hasErr == nil && ok {
 			return true
 		}
+		if hasErr != nil && errors.Is(hasErr, keyring.ErrUnreadable) {
+			// Locked or denied keychain — not confirmation of absence.
+			// Record it and consult env/file below.
+			recordProbe(hasErr)
+		}
 	}
-	if os.Getenv("SNIPE_VOYAGE_API_KEY") != "" {
+	if envAPIKey() != "" {
 		return true
 	}
 	path := credentialsPath()
@@ -102,9 +161,22 @@ func resolveCredentials() (string, string, string, error) {
 		return "", "", "", err
 	}
 	apiKey, keyErr := store.GetOrEnv(keyringAccount, "SNIPE_VOYAGE_API_KEY")
-	if keyErr != nil && !errors.Is(keyErr, keyring.ErrNotFound) && !errors.Is(keyErr, keyring.ErrUnsupported) {
-		// A locked or denied keychain must surface as an error — never
-		// silently downgrade to the plaintext fallback.
+	switch {
+	case keyErr == nil:
+	case errors.Is(keyErr, keyring.ErrNotFound), errors.Is(keyErr, keyring.ErrUnsupported):
+		// Confirmed absent, or no keychain backend: GetOrEnv already
+		// consulted the env var; fall through to the credentials file.
+	case errors.Is(keyErr, keyring.ErrUnreadable):
+		// Locked or denied keychain. snipe index can run headless or in the
+		// background, so a hard error here would be wrong — but a silent
+		// downgrade violates the keyring contract. Warn LOUDLY once per
+		// process, then consult env/file explicitly (GetOrEnv does not fall
+		// through on ErrUnreadable). If nothing else exists, embeddings
+		// switch off via the caller's existing Warning path.
+		recordProbe(keyErr)
+		warnUnreadableOnce(keyringAccount, keyErr)
+		apiKey = envAPIKey()
+	default:
 		return "", "", "", fmt.Errorf("reading voyage API key from keychain: %w", keyErr)
 	}
 	model := os.Getenv("VOYAGE_MODEL")

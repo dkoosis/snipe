@@ -11,8 +11,9 @@ import (
 func TestLits_EnvVarCallSites(t *testing.T) {
 	// Index the snipe repo itself, then query for a known env var.
 	// SNIPE_VOYAGE_API_KEY has 1 os.Getenv call in internal/embed/client.go
-	// (HasCredentials); resolveCredentials reads it via keyring.GetOrEnv,
-	// which lits does not classify as an env call site.
+	// (the envAPIKey helper, shared by HasCredentials and the ErrUnreadable
+	// downgrade in resolveCredentials); keyring.GetOrEnv also reads it, but
+	// lits does not classify that as an env call site.
 	indexRepo(t, repoRoot)
 
 	stdout, stderr, exitCode := run(t, repoRoot, "lits", "SNIPE_VOYAGE_API_KEY")
