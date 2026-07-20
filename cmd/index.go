@@ -431,23 +431,33 @@ func generateEmbeddings(ctx context.Context, s *store.Store, symbols []index.Sym
 
 // defaultWithEmbed reports the legacy --embed default: embeddings are on when
 // API credentials are available. Mirrors the cobra-era dynamic flag default.
-func defaultWithEmbed() bool { return embed.HasCredentials() }
+func defaultWithEmbed() bool { return credentialsProbe() }
+
+// credentialsProbe is a seam over embed.HasCredentials so tests can count
+// probe calls. The probe may exec /usr/bin/security (10s timeout on a locked
+// keychain), so --embed-mode=off paths must never reach it — heal's 15s
+// backstop leaves no headroom.
+var credentialsProbe = embed.HasCredentials
 
 // resolveEmbedMode determines the effective embedding mode.
 func resolveEmbedMode(mode string, legacyEmbed bool, s *store.Store) string {
+	// --embed-mode=off must do ZERO keychain execs: short-circuit before any
+	// credentials probe.
+	if mode == embedModeOff {
+		return embedModeOff
+	}
+
 	// Handle legacy --embed=false
 	if !legacyEmbed && mode == embedModeAuto {
 		return embedModeOff
 	}
 
 	// Check if credentials are available
-	if !embed.HasCredentials() {
+	if !credentialsProbe() {
 		return embedModeOff
 	}
 
 	switch mode {
-	case embedModeOff:
-		return embedModeOff
 	case embedModeBatch:
 		return embedModeBatch
 	case embedModeRealtime:
