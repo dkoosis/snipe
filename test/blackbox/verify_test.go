@@ -230,6 +230,52 @@ func TestVerify_Ripple(t *testing.T) {
 	}
 }
 
+// TestVerify_RippleUnexported edits an unexported func (foo.helper) that an
+// un-touched sibling file in the same package calls. "Outside the diff" is not
+// "outside the package", so this must ripple — the old exported-only filter
+// wrongly stayed silent, missing un-touched code a change could break (codex
+// PR #204 P1).
+func TestVerify_RippleUnexported(t *testing.T) {
+	repoDir := t.TempDir()
+	writeFile(t, filepath.Join(repoDir, "go.mod"), "module example.com/rip\n\ngo 1.20\n")
+	writeFile(t, filepath.Join(repoDir, "foo", "a.go"), `package foo
+
+func helper() string {
+	return "h"
+}
+`)
+	// b.go calls helper from a file the diff never touches — the ripple source.
+	writeFile(t, filepath.Join(repoDir, "foo", "b.go"), `package foo
+
+func Use() string {
+	return helper()
+}
+`)
+	repoDir = canonicalRepoDir(t, repoDir)
+	initGitRepo(t, repoDir)
+
+	editFile(t, filepath.Join(repoDir, "foo", "a.go"), `package foo
+
+func helper() string {
+	_ = 1
+	return "h"
+}
+`)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exit := runRaw(t, repoDir, "verify")
+	if exit != 0 {
+		t.Fatalf("verify exit %d stderr=%s stdout=%s", exit, string(stderr), string(stdout))
+	}
+	out := string(stdout)
+	if !strings.Contains(out, "ripple") {
+		t.Fatalf("expected a ripple warning for the unexported symbol, got:\n%s", out)
+	}
+	if !strings.Contains(out, "foo.helper") {
+		t.Fatalf("expected foo.helper named as rippling, got:\n%s", out)
+	}
+}
+
 // TestVerify_MissingIndex asserts verify degrades (exit 0 + a clear message)
 // on a git repo with no .snipe index, rather than hard-failing. verify is
 // never a gate — its doc contract promises degrade-not-fail on a missing

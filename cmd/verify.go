@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -261,13 +259,16 @@ func verifyBuildResult(db *sql.DB, changedFuncs, changedTestFuncs []query.Symbol
 	}, nil
 }
 
-// verifyBuildRipple flags changed EXPORTED funcs/methods whose callers reach
-// past the diff. For each, it counts the direct call sites (FindImpactCallersMulti
+// verifyBuildRipple flags changed funcs/methods whose callers reach past the
+// diff. For each, it counts the direct call sites (FindImpactCallersMulti
 // already drops _test.go callers) whose file is NOT in changedFiles — the
-// un-touched code a change could break. Unexported symbols can't be called from
-// outside their package, and diff-local churn isn't a ripple, so both are
-// skipped. Entries sort by symbol name (file+line tiebreak, since pkg.Name can
-// collide across receivers) and cap at verifyRippleCap for a frugal report (D4).
+// un-touched code a change could break. Exported and unexported symbols both
+// qualify: "outside the diff" is not "outside the package", so an unexported
+// func changed in one file and called from an un-touched sibling file in the
+// same package is a real ripple (an exported symbol filter would miss it).
+// Diff-local churn (external == 0) is not a ripple. Entries sort by symbol name
+// (file+line tiebreak, since pkg.Name can collide across receivers) and cap at
+// verifyRippleCap for a frugal report (D4).
 func verifyBuildRipple(db *sql.DB, changedFuncs []query.SymbolRow, changedFiles map[string]bool) ([]VerifyRipple, error) {
 	type entry struct {
 		name    string
@@ -278,9 +279,6 @@ func verifyBuildRipple(db *sql.DB, changedFuncs []query.SymbolRow, changedFiles 
 	var entries []entry
 	for i := range changedFuncs {
 		sym := &changedFuncs[i]
-		if !verifyIsExported(sym.Name) {
-			continue
-		}
 		callers, err := query.FindImpactCallersMulti(db, []string{sym.ID}, true, verifyRippleCallerLimit, 0)
 		if err != nil {
 			return nil, err
@@ -318,14 +316,6 @@ func verifyBuildRipple(db *sql.DB, changedFuncs []query.SymbolRow, changedFiles 
 		ripple = append(ripple, VerifyRipple{Symbol: e.name, Callers: e.callers})
 	}
 	return ripple, nil
-}
-
-// verifyIsExported reports whether name begins with an upper-case rune — the Go
-// export rule. Only exported symbols can be called from outside their package,
-// so only they can ripple past the diff.
-func verifyIsExported(name string) bool {
-	r, _ := utf8.DecodeRuneInString(name)
-	return unicode.IsUpper(r)
 }
 
 // verifyQualifiedName renders a changed symbol as "pkg.Name" (e.g.
