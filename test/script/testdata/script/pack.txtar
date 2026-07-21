@@ -1,0 +1,6 @@
+# pack — deep dive on one symbol (def+refs+callers+callees+role+purpose).
+# Proves: `pack Greet` renders the role classification and the definition block.
+cd $FIXTURE
+exec snipe pack Greet
+stdout '# Greet'
+stdout 'role: api_boundary'

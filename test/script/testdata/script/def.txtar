@@ -1,0 +1,6 @@
+# def — jump to a symbol definition by bare name.
+# Proves: `def Run` resolves the fixture function and prints its header + body.
+cd $FIXTURE
+exec snipe def Run
+stdout '# Run'
+stdout 'func Run\(\) string'

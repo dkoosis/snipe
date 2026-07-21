@@ -1,0 +1,6 @@
+# deps — dependency topology for the project.
+# Proves: the import edge beta -> alpha (beta.Reply calls alpha.Greet) is reported.
+# Asserts the edge, not the package/edge counts, so it survives fixture growth.
+cd $FIXTURE
+exec snipe deps
+stdout 'beta -> alpha'

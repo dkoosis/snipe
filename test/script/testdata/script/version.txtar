@@ -1,0 +1,4 @@
+# version — print version information. No index needed.
+# Proves: the command prints a version line and exits 0.
+exec snipe version
+stdout 'snipe version'

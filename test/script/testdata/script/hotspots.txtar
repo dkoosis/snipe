@@ -1,0 +1,9 @@
+# hotspots — files ranked by complexity x git change-frequency.
+# Uncovered by the blackbox suite, so this is the primary contract. The fixture
+# is not a git work tree, so change-frequency is unavailable; the command
+# degrades to complexity-only ranking and says so. Proves: the header renders
+# and the no-churn degrade path is announced, exit 0.
+cd $FIXTURE
+exec snipe hotspots
+stdout 'hotspots · unified risk'
+stdout 'no git churn'

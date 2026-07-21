@@ -1,0 +1,7 @@
+# types — type relationships (fields, methods, interface satisfaction).
+# Proves: `types Box` renders the struct's method set (Box.Size).
+cd $FIXTURE
+exec snipe types Box
+stdout '# Box'
+stdout 'methods:'
+stdout 'Size'

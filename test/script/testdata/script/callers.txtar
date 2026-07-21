@@ -1,0 +1,6 @@
+# callers — functions that call a symbol.
+# Proves: `callers Greet` names both callers (Run and beta.Reply).
+cd $FIXTURE
+exec snipe callers Greet
+stdout '# Run'
+stdout '# Reply'

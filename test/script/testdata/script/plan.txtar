@@ -1,0 +1,7 @@
+# plan — ordered edit worklist for a proposed symbol change.
+# Proves: `plan Greet` renders the worklist header (signature change) plus the
+# DEF line for the target definition. Exit 0 (structural, not a gate).
+cd $FIXTURE
+exec snipe plan Greet
+stdout 'plan Greet · signature change'
+stdout 'DEF  alpha/alpha\.go:7'

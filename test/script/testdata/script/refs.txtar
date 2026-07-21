@@ -1,0 +1,6 @@
+# refs — find all references to a symbol.
+# Proves: `refs Greet` reports the ref sites (Run's body and beta.Reply).
+cd $FIXTURE
+exec snipe refs Greet
+stdout '# Greet'
+stdout '\| ref'

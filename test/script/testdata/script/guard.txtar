@@ -1,0 +1,30 @@
+# guard — assert architecture boundary rules; exit non-zero on violation.
+# Uncovered by the blackbox suite, so this is the primary contract. Two cases
+# prove both sides of the exit contract:
+#   1. a clean spec (forbids a dependency that does not exist) passes, exit 0.
+#   2. a spec forbidding the real beta -> alpha edge (beta.Reply calls
+#      alpha.Greet) is flagged, exit non-zero.
+# Specs live beside the script in $WORK; guard resolves the index from $FIXTURE.
+cd $FIXTURE
+exec snipe guard $WORK/clean.yml
+stdout 'no violations'
+
+! exec snipe guard $WORK/violation.yml
+stdout '1 violation'
+stdout 'beta/beta\.go:7'
+
+-- clean.yml --
+version: 1
+rules:
+  - name: no-alpha-to-beta
+    from: example.com/fixture/alpha
+    to: example.com/fixture/beta
+    desc: alpha must not reach into beta
+
+-- violation.yml --
+version: 1
+rules:
+  - name: no-beta-to-alpha
+    from: example.com/fixture/beta
+    to: example.com/fixture/alpha
+    desc: beta must not reach into alpha

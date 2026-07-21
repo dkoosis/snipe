@@ -1,0 +1,7 @@
+# context — Claude-optimized project orientation (entry points, build, packages).
+# Proves: a bare run over the indexed fixture renders the structural orientation
+# sections Claude reads first.
+cd $FIXTURE
+exec snipe context
+stdout '## build'
+stdout '## key symbols'

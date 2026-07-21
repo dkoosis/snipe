@@ -1,0 +1,6 @@
+# callees — functions that a symbol calls.
+# Proves: `callees Run` names the two functions Run invokes (Greet, Reply).
+cd $FIXTURE
+exec snipe callees Run
+stdout '# Greet'
+stdout '# Reply'

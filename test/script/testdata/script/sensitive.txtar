@@ -1,0 +1,8 @@
+# sensitive — files in security-sensitive zones (auth/crypto/migration/secret/payment).
+# Uncovered by the blackbox suite, so this is the primary contract. The fixture
+# has no sensitive files, so the command reports the empty zone. Proves: the
+# header renders and the none-detected path is announced, exit 0.
+cd $FIXTURE
+exec snipe sensitive
+stdout 'sensitive zones · 0 files'
+stdout 'none detected'

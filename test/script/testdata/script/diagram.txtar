@@ -1,0 +1,8 @@
+# diagram — render snipe graphs as D2 diagram source.
+# The golden JSON for each subcommand is blackbox-covered; this smokes the
+# default text surface. Proves: `diagram arch` emits the summary header and a
+# fenced d2 block over the fixture's import graph, exit 0.
+cd $FIXTURE
+exec snipe diagram arch
+stdout 'diagram arch ·'
+stdout '```d2'

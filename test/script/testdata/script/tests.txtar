@@ -1,0 +1,7 @@
+# tests — tests that exercise a symbol.
+# The scripted fixture ships no _test.go files, so the happy "exercised" path
+# is left to the blackbox JSON contract (TestTests). Here we smoke the default
+# text surface: the command runs and renders its no-coverage sentinel, exit 0.
+cd $FIXTURE
+exec snipe tests Greet
+stdout 'No results'

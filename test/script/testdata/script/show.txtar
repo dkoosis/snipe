@@ -1,0 +1,8 @@
+# show — expand a symbol by 16-char hex ID.
+# The valid-ID happy path is blackbox-covered (TestShow); asserting a real ID
+# here would hardcode a hash that drifts if indexing changes. Instead we smoke
+# the default text surface of the graceful miss: a bogus ID renders a
+# not-found error (exit 0) rather than crashing.
+cd $FIXTURE
+exec snipe show deadbeefdeadbeef
+stdout 'symbol not found: deadbeefdeadbeef'

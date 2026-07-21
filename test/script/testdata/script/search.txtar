@@ -1,0 +1,6 @@
+# search — text search via ripgrep (no index required).
+# Proves: `search Greet` finds the symbol's source lines in the alpha package.
+cd $FIXTURE
+exec snipe search Greet
+stdout '# Greet'
+stdout 'alpha/alpha\.go'

@@ -1,0 +1,7 @@
+# status — index status and statistics (the default bare-`snipe` command).
+# status renders a JSON envelope as its default surface. Proves: a run over the
+# indexed fixture reports the status command with a fresh index state, exit 0.
+cd $FIXTURE
+exec snipe status
+stdout '"command":"status"'
+stdout '"state":"fresh"'

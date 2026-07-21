@@ -1,0 +1,6 @@
+# sym — symbol-only view (def+refs+callers+callees, no package context).
+# Proves: `sym Greet` renders the definition and its caller summary.
+cd $FIXTURE
+exec snipe sym Greet
+stdout '# Greet'
+stdout 'func Greet\(\) string'
