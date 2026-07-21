@@ -54,12 +54,14 @@ func FindLiteralRefs(db *sql.DB, value string) ([]LiteralRef, error) {
 // dropped past the cap (0 if none). An empty testFiles returns (nil, 0, nil)
 // without querying.
 //
-// A literal churns if its value contains "testdata/" or ends in ".golden". This
-// reuses the string_refs index, which captures only two literal shapes:
-// os.Getenv-family args and named string const declarations. Inline fixture-path
-// arguments (e.g. golden.Assert(t, got, "testdata/x.golden")) are NOT indexed,
-// so churn detection fires only when the path is declared as a const — the tidy,
-// common pattern. Broadening the extractor to inline args is out of scope.
+// A literal churns if its value contains "testdata/" or ends in ".golden" — the
+// same predicate the extractor's fixture pass gates on, so churn queries exactly
+// what index.ExtractLiterals emits. The string_refs index captures three literal
+// shapes: os.Getenv-family args, named string const declarations, and inline
+// fixture-path literals (kind=fixture, sn-8f6q.9). Churn keys on the value alone
+// and never filters by kind, so all three flow through — a fixture path surfaces
+// whether it is declared as a const or passed inline (e.g.
+// golden.Assert(t, got, "testdata/x.golden") or os.ReadFile("testdata/foo.golden")).
 func FindChurnLiterals(db *sql.DB, testFiles []string, limit int) (paths []string, truncated int, err error) {
 	if len(testFiles) == 0 {
 		return nil, 0, nil
