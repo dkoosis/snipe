@@ -9,8 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -58,7 +56,7 @@ func recordProbe(err error) {
 }
 
 // warnUnreadableOnce logs one prominent warning per account per process when
-// the keychain is unreadable and we downgrade to env/file. The keyring
+// the keychain is unreadable and we downgrade to the env var. The keyring
 // contract forbids a SILENT downgrade; for a consumer that can run headless or
 // in the background (snipe index), a LOUD one-time downgrade is the correct
 // behavior — name the locked keychain, the account, and the fallback, then
@@ -71,7 +69,7 @@ func warnUnreadableOnce(account string, err error) {
 	}
 	warnedAccounts[account] = true
 	fmt.Fprintf(os.Stderr,
-		"WARNING: keychain item %s/%s is unreadable (keychain locked or access denied): %v — falling back to SNIPE_VOYAGE_API_KEY / ~/.config/snipe/credentials\n",
+		"WARNING: keychain item %s/%s is unreadable (keychain locked or access denied): %v — falling back to SNIPE_VOYAGE_API_KEY\n",
 		keyringService, account, err)
 }
 
@@ -108,22 +106,12 @@ type EmbeddingResponse struct {
 	} `json:"usage"`
 }
 
-// credentialsPath returns the path to snipe's credentials file.
-func credentialsPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".config", "snipe", "credentials")
-}
-
 // HasCredentials checks if embedding credentials are available.
-// Returns true if the keychain holds a voyage key, the SNIPE_VOYAGE_API_KEY
-// env var is set, or the credentials file exists. An unreadable keychain
-// (locked/denied — keyring.ErrUnreadable) is NOT treated as "credentials
-// available": the probe falls through to env/file and records the locked
-// state in LastProbeErr so doctor can name it, keeping this probe in
-// agreement with resolveCredentials.
+// Returns true if the keychain holds a voyage key or the SNIPE_VOYAGE_API_KEY
+// env var is set. An unreadable keychain (locked/denied — keyring.ErrUnreadable)
+// is NOT treated as "credentials available": the probe falls through to the env
+// var and records the locked state in LastProbeErr so doctor can name it,
+// keeping this probe in agreement with resolveCredentials.
 func HasCredentials() bool {
 	recordProbe(nil)
 	if store, err := credStore(); err == nil {
@@ -133,28 +121,16 @@ func HasCredentials() bool {
 		}
 		if hasErr != nil && errors.Is(hasErr, keyring.ErrUnreadable) {
 			// Locked or denied keychain — not confirmation of absence.
-			// Record it and consult env/file below.
+			// Record it and consult the env var below.
 			recordProbe(hasErr)
 		}
 	}
-	if envAPIKey() != "" {
-		return true
-	}
-	path := credentialsPath()
-	if path == "" {
-		return false
-	}
-	data, err := os.ReadFile(path) // #nosec G304 -- path from credentialsPath() (user config)
-	if err != nil {
-		return false
-	}
-	return strings.Contains(string(data), "SNIPE_VOYAGE_API_KEY=")
+	return envAPIKey() != ""
 }
 
 // resolveCredentials reads the API key keychain-first, then the
-// SNIPE_VOYAGE_API_KEY env var, then the credentials file (Linux + existing
-// installs). Model and endpoint are config, not secrets — plain env only.
-// Returns (apiKey, model, endpoint, error).
+// SNIPE_VOYAGE_API_KEY env var. Model and endpoint are config, not secrets —
+// plain env only. Returns (apiKey, model, endpoint, error).
 func resolveCredentials() (string, string, string, error) {
 	store, err := credStore()
 	if err != nil {
@@ -165,12 +141,12 @@ func resolveCredentials() (string, string, string, error) {
 	case keyErr == nil:
 	case errors.Is(keyErr, keyring.ErrNotFound), errors.Is(keyErr, keyring.ErrUnsupported):
 		// Confirmed absent, or no keychain backend: GetOrEnv already
-		// consulted the env var; fall through to the credentials file.
+		// consulted the env var; nothing left to try.
 	case errors.Is(keyErr, keyring.ErrUnreadable):
 		// Locked or denied keychain. snipe index can run headless or in the
 		// background, so a hard error here would be wrong — but a silent
 		// downgrade violates the keyring contract. Warn LOUDLY once per
-		// process, then consult env/file explicitly (GetOrEnv does not fall
+		// process, then consult the env var explicitly (GetOrEnv does not fall
 		// through on ErrUnreadable). If nothing else exists, embeddings
 		// switch off via the caller's existing Warning path.
 		recordProbe(keyErr)
@@ -182,23 +158,8 @@ func resolveCredentials() (string, string, string, error) {
 	model := os.Getenv("VOYAGE_MODEL")
 	endpoint := os.Getenv("VOYAGE_API_URL")
 
-	// Last fallback: credentials file
 	if apiKey == "" {
-		creds, err := loadCredentials()
-		if err != nil {
-			return "", "", "", fmt.Errorf("no API key: store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY), set SNIPE_VOYAGE_API_KEY, or create ~/.config/snipe/credentials: %w", err)
-		}
-		apiKey = creds["SNIPE_VOYAGE_API_KEY"]
-		if model == "" {
-			model = creds["VOYAGE_MODEL"]
-		}
-		if endpoint == "" {
-			endpoint = creds["VOYAGE_API_URL"]
-		}
-	}
-
-	if apiKey == "" {
-		return "", "", "", fmt.Errorf("SNIPE_VOYAGE_API_KEY not set")
+		return "", "", "", fmt.Errorf("no API key: store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY) or set SNIPE_VOYAGE_API_KEY")
 	}
 	if model == "" {
 		model = "voyage-code-3"
@@ -207,7 +168,7 @@ func resolveCredentials() (string, string, string, error) {
 }
 
 // NewClient creates a new embedding client.
-// It reads credentials from ~/.config/snipe/credentials if not provided.
+// It reads the API key keychain-first, falling back to SNIPE_VOYAGE_API_KEY.
 func NewClient() (*Client, error) {
 	apiKey, model, endpoint, err := resolveCredentials()
 	if err != nil {
@@ -225,33 +186,6 @@ func NewClient() (*Client, error) {
 			Timeout: 30 * time.Second,
 		},
 	}, nil
-}
-
-// loadCredentials reads the credentials file.
-func loadCredentials() (map[string]string, error) {
-	path := credentialsPath()
-	if path == "" {
-		return nil, fmt.Errorf("cannot determine home directory")
-	}
-
-	data, err := os.ReadFile(path) // #nosec G304 -- path from credentialsPath() (user config)
-	if err != nil {
-		return nil, err
-	}
-
-	creds := make(map[string]string)
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			creds[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		}
-	}
-
-	return creds, nil
 }
 
 // Embed generates embeddings for the given texts.

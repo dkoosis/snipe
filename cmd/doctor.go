@@ -269,16 +269,16 @@ func checkEmbeddings() DoctorCheck {
 		check.OK = true
 		check.Message = "embedding credentials available"
 	case has && probeErr != nil:
-		// Keychain is locked/unreadable but env or the credentials file
+		// Keychain is locked/unreadable but the SNIPE_VOYAGE_API_KEY env var
 		// covers it — say so instead of a false "credentials available".
 		check.OK = true
-		check.Message = "keychain locked or unreadable — using env/file credentials"
+		check.Message = "keychain locked or unreadable — using env credentials"
 		check.Details = probeErr.Error()
 		check.Remediation = "security unlock-keychain"
 	case probeErr != nil:
 		check.OK = true // Not a failure, just informational
 		check.Code = DoctorEmbedAuthMissing
-		check.Message = "keychain locked or unreadable and no env/file credentials (embeddings disabled)"
+		check.Message = "keychain locked or unreadable and no env credentials (embeddings disabled)"
 		check.Details = probeErr.Error()
 		check.Remediation = "security unlock-keychain; or export SNIPE_VOYAGE_API_KEY=your-key"
 	default:
@@ -293,12 +293,12 @@ func checkEmbeddings() DoctorCheck {
 
 // embedAuthRemediation orders the credential recipes by platform: the macOS
 // keychain recipe leads only on darwin; elsewhere there is no keychain
-// backend, so env/file guidance comes first.
+// backend, so the env-var recipe is the only one.
 func embedAuthRemediation() string {
 	if runtime.GOOS == "darwin" {
-		return "store the key in the macOS keychain: security add-generic-password -U -s snipe -a voyage -w YOUR-KEY (preferred); or export SNIPE_VOYAGE_API_KEY=your-key; the plaintext ~/.config/snipe/credentials file still works but is deprecated"
+		return "store the key in the macOS keychain: security add-generic-password -U -s snipe -a voyage -w YOUR-KEY (preferred); or export SNIPE_VOYAGE_API_KEY=your-key"
 	}
-	return "export SNIPE_VOYAGE_API_KEY=your-key; or create ~/.config/snipe/credentials with SNIPE_VOYAGE_API_KEY=your-key (no keychain backend on this platform)"
+	return "export SNIPE_VOYAGE_API_KEY=your-key (no keychain backend on this platform)"
 }
 
 func checkOrphans() DoctorCheck {

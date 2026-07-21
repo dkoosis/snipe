@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -147,6 +149,33 @@ func TestEmbed_RespectsContextCancellation(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "context") && !strings.Contains(err.Error(), "deadline") {
 		t.Fatalf("expected context/deadline error, got: %v", err)
+	}
+}
+
+// TestCredentials_IgnoresPlaintextFile guards the sn-nduv removal: the
+// deprecated ~/.config/snipe/credentials fallback is gone, so a planted file
+// must never satisfy HasCredentials or resolveCredentials. Keychain is disabled
+// and the env var cleared, leaving the file as the only possible source — and
+// it must be ignored.
+func TestCredentials_IgnoresPlaintextFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KEYRING_DISABLE", "1")
+	t.Setenv("SNIPE_VOYAGE_API_KEY", "")
+
+	credDir := filepath.Join(home, ".config", "snipe")
+	if err := os.MkdirAll(credDir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(credDir, "credentials"), []byte("SNIPE_VOYAGE_API_KEY=planted-key\n"), 0o600); err != nil {
+		t.Fatalf("write credentials: %v", err)
+	}
+
+	if HasCredentials() {
+		t.Error("HasCredentials returned true from a plaintext file — the file fallback must be gone")
+	}
+	if _, _, _, err := resolveCredentials(); err == nil {
+		t.Error("resolveCredentials succeeded from a plaintext file — the file fallback must be gone")
 	}
 }
 
