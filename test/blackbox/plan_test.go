@@ -250,8 +250,10 @@ func TestPlan_DeleteZeroCallerFastPath(t *testing.T) {
 		t.Fatalf("plan exit %d stderr=%s stdout=%s", exit, string(stderr), string(stdout))
 	}
 	out := string(stdout)
-	if !strings.Contains(out, "safe to delete") {
-		t.Fatalf("expected safe-to-delete fast path, got:\n%s", out)
+	// Orphan is exported, so the header must NOT claim a bare "safe to delete"
+	// — it scopes the claim to the index and flags unseen external consumers.
+	if !strings.Contains(out, "no indexed non-test callers") {
+		t.Fatalf("expected index-scoped delete claim for exported symbol, got:\n%s", out)
 	}
 	if !strings.Contains(out, "test-only ref") {
 		t.Fatalf("expected test-only refs mention, got:\n%s", out)

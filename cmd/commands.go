@@ -368,7 +368,13 @@ type PlanCmd struct {
 func (c *PlanCmd) Run() error {
 	planAt = c.At
 	planID = c.ID
+	// Clamp negatives to 0 (most restrictive cap). A negative value must never
+	// reach planBuildCallSites, where <0 is the internal unlimited sentinel —
+	// a --max-callers=-1 typo would otherwise dump every site.
 	planMaxCallers = c.MaxCallers
+	if planMaxCallers < 0 {
+		planMaxCallers = 0
+	}
 	return runPlan(c.Change, argsOf(c.Symbol))
 }
 

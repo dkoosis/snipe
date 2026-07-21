@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -196,13 +198,19 @@ func runPlan(change string, args []string) error {
 		}
 
 	case planChangeDelete:
-		nonTest, testOnly, err := query.CountCallSites(s.DB(), symbolID)
-		if err != nil {
-			return internalErr(err)
-		}
 		refs, err := query.FindCallSites(s.DB(), symbolID)
 		if err != nil {
 			return internalErr(err)
+		}
+		// FindCallSites already carries IsTest per row, so count in Go rather
+		// than firing a second scan via CountCallSites.
+		var nonTest, testOnly int
+		for i := range refs {
+			if refs[i].IsTest {
+				testOnly++
+			} else {
+				nonTest++
+			}
 		}
 		if nonTest == 0 {
 			// Safe-to-delete fast path: list the test-only refs and stop.
@@ -301,7 +309,9 @@ func planAmbiguousMessage(name string, symbols []query.SymbolRow) string {
 // planFilterRefs splits FindCallSites rows on IsTest. wantTest=true keeps only
 // test-file refs (delete fast path); false keeps only production call sites.
 func planFilterRefs(refs []query.RefRow, wantTest bool) []query.RefRow {
-	out := refs[:0:0]
+	// Reuse refs' backing array — callers pass refs once and discard it, and
+	// the filter only ever shrinks (out never overtakes the read index).
+	out := refs[:0]
 	for i := range refs {
 		if refs[i].IsTest == wantTest {
 			out = append(out, refs[i])
@@ -320,7 +330,7 @@ func planBuildCallSites(refs []query.RefRow, maxSites int) (groups []PlanPkgGrou
 	totalSites = len(refs)
 	seenPkg := map[string]struct{}{}
 	for i := range refs {
-		seenPkg[filepath.Dir(refs[i].FilePathRel)] = struct{}{}
+		seenPkg[filepath.Dir(planRelFile(refs[i].FilePathRel, refs[i].FilePath))] = struct{}{}
 	}
 	totalPkgs = len(seenPkg)
 
@@ -331,7 +341,8 @@ func planBuildCallSites(refs []query.RefRow, maxSites int) (groups []PlanPkgGrou
 	idx := map[string]int{}
 	for i := range refs {
 		r := &refs[i]
-		pkg := filepath.Dir(r.FilePathRel)
+		file := planRelFile(r.FilePathRel, r.FilePath)
+		pkg := filepath.Dir(file)
 		gi, ok := idx[pkg]
 		if !ok {
 			gi = len(groups)
@@ -339,7 +350,7 @@ func planBuildCallSites(refs []query.RefRow, maxSites int) (groups []PlanPkgGrou
 			groups = append(groups, PlanPkgGroup{Pkg: pkg})
 		}
 		groups[gi].Sites = append(groups[gi].Sites, PlanSite{
-			File:      r.FilePathRel,
+			File:      file,
 			Line:      r.Line,
 			Col:       r.Col,
 			ID:        r.EnclosingID.String,
@@ -350,6 +361,20 @@ func planBuildCallSites(refs []query.RefRow, maxSites int) (groups []PlanPkgGrou
 		})
 	}
 	return groups, truncated, totalSites, totalPkgs
+}
+
+// planExportedName reports whether name is a Go-exported identifier (leading
+// upper-case rune). Method names may arrive as "Recv.Method" — the final
+// segment decides exportedness.
+func planExportedName(name string) bool {
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		name = name[i+1:]
+	}
+	if name == "" {
+		return false
+	}
+	r, _ := utf8.DecodeRuneInString(name)
+	return unicode.IsUpper(r)
 }
 
 // planRelFile prefers the relative path for output, falling back to absolute.
@@ -433,8 +458,14 @@ func writePlanHeader(b *strings.Builder, p PlanResult) {
 
 	switch {
 	case p.Change == planChangeDelete && p.SafeToDelete:
-		fmt.Fprintf(b, "plan %s · delete · safe to delete — 0 non-test callers, %d test-only ref%s\n",
-			p.Symbol, p.TestOnlyRefs, verifyPlural(p.TestOnlyRefs))
+		// "safe to delete" is index-scoped: an exported symbol may still have
+		// consumers outside this repo that the index can't see. Say so.
+		safe := "safe to delete"
+		if planExportedName(p.Symbol) {
+			safe = "no indexed non-test callers (exported — external consumers not visible to the index)"
+		}
+		fmt.Fprintf(b, "plan %s · delete · %s, %d test-only ref%s\n",
+			p.Symbol, safe, p.TestOnlyRefs, verifyPlural(p.TestOnlyRefs))
 	case p.Change == planChangeDelete:
 		fmt.Fprintf(b, "plan %s · delete · MUST remove %d ref%s in %d pkg%s before deleting def\n",
 			p.Symbol, sites, verifyPlural(sites), pkgs, verifyPlural(pkgs))
@@ -460,7 +491,9 @@ func writePlanDef(b *strings.Builder, p PlanResult) {
 }
 
 func writePlanCallSites(b *strings.Builder, p PlanResult, header string) {
-	if len(p.CallSites) == 0 {
+	// Truncated>0 with zero emitted sites is the --max-callers=0 case: still
+	// print the header + "+N more" so the count in the header isn't orphaned.
+	if len(p.CallSites) == 0 && p.Truncated == 0 {
 		return
 	}
 	fmt.Fprintln(b, header)
@@ -492,6 +525,7 @@ func writePlanTestOnlyRefs(b *strings.Builder, p PlanResult) {
 	n, _ := planCountSites(p.CallSites)
 	fmt.Fprintf(b, "test-only refs (%d)\n", n)
 	for _, g := range p.CallSites {
+		fmt.Fprintf(b, "%s (%d)\n", g.Pkg, len(g.Sites))
 		for _, s := range g.Sites {
 			id := s.ID
 			if id == "" {

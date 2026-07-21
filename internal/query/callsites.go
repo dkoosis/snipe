@@ -21,7 +21,7 @@ func FindCallSites(db *sql.DB, symbolID string) ([]RefRow, error) {
 	rows, err := db.Query(`
 		SELECT r.id, r.symbol_id, r.file_path, r.file_path_rel, r.line, r.col, r.enclosing_id, r.snippet, r.ast_ctx,
 		       s.name, s.kind, s.signature,
-		       (r.file_path GLOB '*_test.go') AS is_test
+		       (r.file_path LIKE '%_test.go') AS is_test
 		FROM refs r
 		LEFT JOIN symbols s ON r.enclosing_id = s.id
 		WHERE r.symbol_id = ?
@@ -62,8 +62,8 @@ func FindCallSites(db *sql.DB, symbolID string) ([]RefRow, error) {
 func CountCallSites(db *sql.DB, symbolID string) (nonTest, testOnly int, err error) {
 	err = db.QueryRow(`
 		SELECT
-		  COALESCE(SUM(CASE WHEN r.file_path GLOB '*_test.go' THEN 0 ELSE 1 END), 0) AS non_test,
-		  COALESCE(SUM(CASE WHEN r.file_path GLOB '*_test.go' THEN 1 ELSE 0 END), 0) AS test_only
+		  COALESCE(SUM(CASE WHEN r.file_path LIKE '%_test.go' THEN 0 ELSE 1 END), 0) AS non_test,
+		  COALESCE(SUM(CASE WHEN r.file_path LIKE '%_test.go' THEN 1 ELSE 0 END), 0) AS test_only
 		FROM refs r
 		WHERE r.symbol_id = ?
 		  AND (r.ast_ctx IS NULL OR r.ast_ctx NOT IN ('go','chan'))
