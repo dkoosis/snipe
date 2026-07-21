@@ -1,10 +1,35 @@
 // Package script runs testscript (.txtar) smoke tests against the snipe CLI.
 //
-// These are usage contracts: each script asserts a command's exit code plus one
-// stable human-readable line of output. They complement — and do NOT replace —
-// the JSON-envelope contract tests in test/blackbox. The blackbox suite proves
-// the --format json protocol; this suite proves the default Claude-text CLI
-// surface for commands the blackbox suite does not exercise.
+// Coexistence with test/blackbox — the two suites test DIFFERENT surfaces and
+// intentionally overlap on command names:
+//
+//   - blackbox (build tag `blackbox`, run() forces --format json) = the JSON
+//     envelope CONTRACT: field shapes, ok/error semantics, result payloads.
+//   - this suite (no build tag, plain `make`) = the DEFAULT CLI surface SMOKE:
+//     exit code + one stable line of whatever the command prints by DEFAULT
+//     (Claude-text for most; the default-JSON commands — edit/status/doctor —
+//     assert a stable envelope key). It is a cheap regression net for "does the
+//     command run and print its recognizable output on the surface Claude reads".
+//
+// Because they cover different surfaces, a command with a blackbox JSON test
+// still earns a default-surface smoke here — the two are not redundant.
+//
+// Gap note (snipe-p61): auditing the full cmd/cli.go command set against both
+// suites, only hotspots, sensitive, and guard were covered by NEITHER — those
+// are the primary contracts added here. The rest of the added scripts smoke the
+// default text surface of commands whose JSON contract lives in blackbox.
+//
+// Exemptions (a real happy-path assertion is impossible on this fixture; the
+// script smokes a documented fallback and says why, in its own header comment):
+//   - sim: zero-embedding index + no Voyage key → graceful no-key path.
+//   - risk / index: need a git work tree / would reindex per script (defeats the
+//     copy-a-prebuilt-index design) → --help fast-exit, like watch.
+//   - imports: a FILE-argument command; file lookups match the absolute path
+//     stored at index time, which no longer exists once the index is copied to a
+//     fresh $WORK path (name/package queries stay portable, file-path ones do
+//     not) → --help fast-exit (real path is blackbox TestImports).
+//   - verify / tests / show: the fixture has no diff / no _test.go / stable hex
+//     ID to assert → graceful degrade path (JSON contract is in blackbox).
 //
 // Pattern: build-and-exec. cmd.Execute() calls os.Exit internally (kong's
 // FatalIfErrorf), so the binary cannot be driven in-process. Instead the suite
@@ -97,13 +122,43 @@ func TestScripts(t *testing.T) {
 
 // writeScriptFixture writes a minimal Go module exercising the features the
 // scripted commands assert against:
-//   - cross-package refs (alpha ← beta, main → alpha/beta) for `boundary`
+//   - cross-package refs (alpha ← beta, main → alpha/beta) for `boundary`/`guard`
 //   - a named string constant for `trace`/`lits`
 //   - an unreferenced exported symbol for `deadcode`
-//   - a small call graph for `metrics`/`orient`
+//   - a small call graph for `metrics`/`orient`/`callers`/`callees`/`plan`
+//   - a self-contained `shape` package (interface + struct + implementers) so
+//     `impl`/`types` resolve real happy paths. shape imports nothing from
+//     alpha/beta and is imported by nothing, so it can't perturb the boundary,
+//     deadcode-anchor, or call-graph assertions the other scripts rely on.
 func writeScriptFixture(dir string) error {
 	files := map[string]string{
 		"go.mod": "module example.com/fixture\n\ngo 1.20\n",
+		"shape/shape.go": `package shape
+
+// Sizer is an interface — impl resolves its implementers.
+type Sizer interface {
+	Size() int
+}
+
+// Box is a struct implementing Sizer — types/lifecycle read its shape.
+type Box struct {
+	Width  int
+	Height int
+}
+
+// Size returns the box area.
+func (b Box) Size() int {
+	return b.Width * b.Height
+}
+
+// Dot is a second Sizer implementer.
+type Dot struct{}
+
+// Size is always zero.
+func (Dot) Size() int {
+	return 0
+}
+`,
 		"main.go": `package fixture
 
 import (

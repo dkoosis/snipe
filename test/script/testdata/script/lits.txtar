@@ -1,0 +1,6 @@
+# lits — locations of a string literal or env var name.
+# Proves: `lits banner-token-literal` resolves the named const Banner.
+cd $FIXTURE
+exec snipe lits banner-token-literal
+stdout '# Banner'
+stdout 'const'

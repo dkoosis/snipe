@@ -1,0 +1,7 @@
+# doctor — check snipe installation and configuration.
+# doctor renders a JSON envelope as its default surface. Proves: the run
+# completes and reports the doctor command with its check results, exit 0.
+cd $FIXTURE
+exec snipe doctor
+stdout '"command":"doctor"'
+stdout '"name":"ripgrep"'

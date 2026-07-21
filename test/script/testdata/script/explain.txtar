@@ -1,0 +1,7 @@
+# explain — structured function walkthrough (purpose, mechanism, callers).
+# Proves: `explain Run` renders the purpose + mechanism sections and names a call.
+cd $FIXTURE
+exec snipe explain Run
+stdout 'purpose:'
+stdout 'mechanism:'
+stdout 'calls Greet'

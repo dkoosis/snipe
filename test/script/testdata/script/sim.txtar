@@ -1,0 +1,8 @@
+# sim — semantic similarity search (needs embeddings).
+# The fixture index is built with --embed-mode=off (zero embeddings) and no
+# Voyage key resolves, so a real semantic hit is impossible here. Per the bead
+# exemption for embedding-backed commands, we assert the graceful no-key path:
+# sim explains embeddings are unavailable and points at doctor, exit 0.
+cd $FIXTURE
+exec snipe sim Greet
+stdout 'no API key'

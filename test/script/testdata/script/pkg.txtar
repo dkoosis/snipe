@@ -1,0 +1,6 @@
+# pkg — package overview with exported symbols.
+# Proves: `pkg alpha` reports the package header and its export count (Banner, Greet).
+cd $FIXTURE
+exec snipe pkg alpha
+stdout '# package alpha'
+stdout 'exports: 2'

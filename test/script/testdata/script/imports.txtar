@@ -1,0 +1,10 @@
+# imports — packages imported by a file.
+# imports takes a FILE argument, and file lookups match the absolute path stored
+# at index time. This suite queries a prebuilt index copied to a fresh $WORK path
+# (name/package queries are portable; file-path queries are not), so no
+# script-reachable file arg resolves against it. The real file-lookup path is
+# blackbox-covered (TestImports, which indexes and queries in-place). Here we
+# smoke the --help fast-exit: usage naming the required <file> arg, exit 0.
+exec snipe imports --help
+stdout 'Usage: snipe imports <file>'
+stdout 'Show packages imported by a file'

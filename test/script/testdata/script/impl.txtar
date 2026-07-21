@@ -1,0 +1,7 @@
+# impl — types implementing an interface.
+# Proves: `impl Sizer` resolves both implementers (Box, Dot) in the shape pkg.
+cd $FIXTURE
+exec snipe impl Sizer
+stdout '# Box'
+stdout '# Dot'
+stdout 'struct'

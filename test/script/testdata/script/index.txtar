@@ -1,0 +1,8 @@
+# index — build or update the code index.
+# The real indexing path (go/packages walk + persistence) is blackbox-covered
+# (TestIndex). This suite copies a prebuilt index into each script rather than
+# reindexing per script — a full reindex here would defeat that design and put
+# `go` back on the script path. So we smoke the --help fast-exit: usage prints
+# and exits 0.
+exec snipe index --help
+stdout 'Usage: snipe index'

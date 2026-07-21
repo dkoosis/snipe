@@ -1,0 +1,7 @@
+# edit — AST-aware code editing. Default is dry-run (no --apply), emitting the
+# edit plan as a JSON envelope without touching files.
+# Proves: a replace_body edit previews with applied=false (nothing written).
+cd $FIXTURE
+exec snipe edit Greet --operation replace_body --new-code 'return Banner'
+stdout '"operation":"replace_body"'
+stdout '"applied":false'

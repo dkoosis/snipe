@@ -1,0 +1,6 @@
+# importers — files that import a package.
+# Proves: `importers <alpha>` finds both import sites (main.go and beta/beta.go).
+cd $FIXTURE
+exec snipe importers example.com/fixture/alpha
+stdout 'main\.go:4 \| import'
+stdout 'beta/beta\.go:3 \| import'

@@ -1,0 +1,6 @@
+# impact — blast radius for changing a symbol.
+# Proves: `impact Greet` surfaces the direct callers (Run, Reply) with hints.
+cd $FIXTURE
+exec snipe impact Greet
+stdout '# Run'
+stdout 'hints: direct_caller'

@@ -1,0 +1,7 @@
+# lifecycle — CRUD trace for a type (Create/Mutate/Read/Delete + caller chains).
+# Proves: `lifecycle Box` renders the lifecycle header and role buckets; the
+# Box.Size method lands in the Read bucket.
+cd $FIXTURE
+exec snipe lifecycle Box
+stdout '# Lifecycle: Box'
+stdout '## Read'

@@ -1,0 +1,8 @@
+# verify — map a diff to the minimal go test set covering changed symbols.
+# The scripted fixture is a plain tree, not a git work tree, so there is no diff
+# to resolve; the real diff-mapping path is blackbox-covered (verify_test.go).
+# Here we smoke the default text surface of the graceful degrade: verify reports
+# the diff is unavailable rather than crashing, exit 0.
+cd $FIXTURE
+exec snipe verify
+stdout 'diff unavailable'
