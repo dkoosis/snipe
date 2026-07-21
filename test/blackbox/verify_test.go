@@ -81,6 +81,12 @@ func TestVerify_CorrectTestSet(t *testing.T) {
 	if strings.Contains(out, "no covering test") {
 		t.Fatalf("did not expect an uncovered-symbol warning, got:\n%s", out)
 	}
+	// Callee is exported but every caller (Caller/AnotherCaller/ThirdCaller/
+	// CallMany) lives in the edited file — all call sites are inside the diff,
+	// so nothing ripples. A fully-covered, diff-local change emits no warnings.
+	if strings.Contains(out, "ripple") {
+		t.Fatalf("did not expect a ripple warning on a diff-local change, got:\n%s", out)
+	}
 
 	// JSON envelope: same assertion, structured.
 	jout, jstderr, jexit := run(t, repoDir, "verify")
@@ -161,6 +167,112 @@ func TestVerify_NoCoveringTests(t *testing.T) {
 	}
 	if !strings.Contains(out, "UseAmbiguous") {
 		t.Fatalf("expected UseAmbiguous named as uncovered, got:\n%s", out)
+	}
+}
+
+// TestVerify_Ripple edits alpha.Ambiguous (in alpha/alpha.go), an exported
+// func whose only caller — UseAmbiguous — lives in main.go, a file the diff
+// never touches. verify must flag the ripple: a changed exported symbol called
+// from outside the diff, naming the symbol and the un-touched call-site count.
+func TestVerify_Ripple(t *testing.T) {
+	repoDir, paths := writeFixture(t)
+	repoDir = canonicalRepoDir(t, repoDir)
+	initGitRepo(t, repoDir)
+
+	editFile(t, paths["alpha"], strings.Replace(
+		readFile(t, paths["alpha"]),
+		"func Ambiguous() string {\n\treturn \"alpha\"\n}",
+		"func Ambiguous() string {\n\t_ = 1\n\treturn \"alpha\"\n}",
+		1,
+	))
+
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exitCode := runRaw(t, repoDir, "verify")
+	if exitCode != 0 {
+		t.Fatalf("verify exit %d stderr=%s stdout=%s", exitCode, string(stderr), string(stdout))
+	}
+	out := string(stdout)
+	if !strings.Contains(out, "ripple") {
+		t.Fatalf("expected a ripple warning, got:\n%s", out)
+	}
+	if !strings.Contains(out, "alpha.Ambiguous") {
+		t.Fatalf("expected alpha.Ambiguous named as rippling, got:\n%s", out)
+	}
+	if !strings.Contains(out, "(1 site)") {
+		t.Fatalf("expected the un-touched call-site count '(1 site)', got:\n%s", out)
+	}
+
+	// JSON envelope: the ripple section is present and structured.
+	jout, jstderr, jexit := run(t, repoDir, "verify")
+	if jexit != 0 {
+		t.Fatalf("verify --format json exit %d stderr=%s", jexit, string(jstderr))
+	}
+	resp := assertEnvelope(t, jout, "verify")
+	results := requireSlice(t, resp["results"], "results")
+	if len(results) != 1 {
+		t.Fatalf("want 1 result, got %d", len(results))
+	}
+	r := requireMap(t, results[0], "results[0]")
+	rip := requireSlice(t, r["ripple"], "ripple")
+	found := false
+	for _, e := range rip {
+		em := requireMap(t, e, "ripple[]")
+		if em["symbol"] == "alpha.Ambiguous" {
+			found = true
+			if got, ok := em["external_callers"].(float64); !ok || got != 1 {
+				t.Fatalf("expected external_callers=1 for alpha.Ambiguous, got %v", em["external_callers"])
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected alpha.Ambiguous in the ripple array, got: %v", rip)
+	}
+}
+
+// TestVerify_RippleUnexported edits an unexported func (foo.helper) that an
+// un-touched sibling file in the same package calls. "Outside the diff" is not
+// "outside the package", so this must ripple — the old exported-only filter
+// wrongly stayed silent, missing un-touched code a change could break (codex
+// PR #204 P1).
+func TestVerify_RippleUnexported(t *testing.T) {
+	repoDir := t.TempDir()
+	writeFile(t, filepath.Join(repoDir, "go.mod"), "module example.com/rip\n\ngo 1.20\n")
+	writeFile(t, filepath.Join(repoDir, "foo", "a.go"), `package foo
+
+func helper() string {
+	return "h"
+}
+`)
+	// b.go calls helper from a file the diff never touches — the ripple source.
+	writeFile(t, filepath.Join(repoDir, "foo", "b.go"), `package foo
+
+func Use() string {
+	return helper()
+}
+`)
+	repoDir = canonicalRepoDir(t, repoDir)
+	initGitRepo(t, repoDir)
+
+	editFile(t, filepath.Join(repoDir, "foo", "a.go"), `package foo
+
+func helper() string {
+	_ = 1
+	return "h"
+}
+`)
+	indexRepo(t, repoDir)
+
+	stdout, stderr, exit := runRaw(t, repoDir, "verify")
+	if exit != 0 {
+		t.Fatalf("verify exit %d stderr=%s stdout=%s", exit, string(stderr), string(stdout))
+	}
+	out := string(stdout)
+	if !strings.Contains(out, "ripple") {
+		t.Fatalf("expected a ripple warning for the unexported symbol, got:\n%s", out)
+	}
+	if !strings.Contains(out, "foo.helper") {
+		t.Fatalf("expected foo.helper named as rippling, got:\n%s", out)
 	}
 }
 

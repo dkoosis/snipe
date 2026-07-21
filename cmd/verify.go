@@ -25,6 +25,15 @@ const verifyTestLimit = 500
 // Claude never mistakes verify's structural mapping for a correctness gate.
 const verifyClaimNote = "note: verify maps tests to changed symbols structurally — not a correctness gate (run make audit)."
 
+// verifyRippleCallerLimit caps how many callers FindImpactCallersMulti returns
+// per changed exported symbol when counting ripple sites. Generous — the count
+// only needs to be meaningful, and a real diff rarely fans past it.
+const verifyRippleCallerLimit = 200
+
+// verifyRippleCap bounds how many ripple warnings verify emits, keeping the
+// report token-frugal (D4) even on a diff that churns many exported symbols.
+const verifyRippleCap = 20
+
 // VerifyResult is the structural test-coverage report for a diff: which
 // changed funcs/methods have covering tests, which don't, and the minimal
 // `go test` invocations exercising the covered ones. Message is set instead
@@ -36,7 +45,18 @@ type VerifyResult struct {
 	ChangedSymbols int             `json:"changed_symbols"`
 	Covered        int             `json:"covered"`
 	Uncovered      []string        `json:"uncovered,omitempty"`
+	Ripple         []VerifyRipple  `json:"ripple,omitempty"`
 	Packages       []VerifyPackage `json:"packages,omitempty"`
+}
+
+// VerifyRipple names a changed EXPORTED symbol whose callers reach past the
+// diff: Callers counts the direct call sites in files the diff never touched.
+// A cheap "this change may break un-touched code" nudge — structural, never a
+// correctness gate. Unexported symbols can't be called from outside their
+// package and diff-local churn isn't a ripple, so neither produces an entry.
+type VerifyRipple struct {
+	Symbol  string `json:"symbol"`
+	Callers int    `json:"external_callers"`
 }
 
 // VerifyPackage groups covering tests by the package that runs them, with a
@@ -93,7 +113,14 @@ func runVerify(base string) error {
 		return writeVerifyMessage(root, start, "no changed funcs/methods to verify")
 	}
 
-	v, err := verifyBuildResult(s.DB(), changedFuncs, changedTestFuncs)
+	// changedFiles: the diff's changed-file set (absolute paths), so ripple can
+	// tell a call site inside the diff from one in un-touched code.
+	changedFiles := make(map[string]bool, len(changeMap))
+	for p := range changeMap {
+		changedFiles[p] = true
+	}
+
+	v, err := verifyBuildResult(s.DB(), changedFuncs, changedTestFuncs, changedFiles)
 	if err != nil {
 		return w.WriteError(cmdNameVerify, &output.Error{Code: output.ErrInternal, Message: err.Error()})
 	}
@@ -158,7 +185,7 @@ func verifyIsTestFuncName(name string) bool {
 // a zero-coverage symbol couldn't be named. Changed test funcs are added to
 // the run set directly, without a coverage lookup (they're tests, not
 // targets).
-func verifyBuildResult(db *sql.DB, changedFuncs, changedTestFuncs []query.SymbolRow) (VerifyResult, error) {
+func verifyBuildResult(db *sql.DB, changedFuncs, changedTestFuncs []query.SymbolRow, changedFiles map[string]bool) (VerifyResult, error) {
 	testsByPkg := map[string]map[string]bool{}
 	addTest := func(dir, name string) {
 		if testsByPkg[dir] == nil {
@@ -218,12 +245,77 @@ func verifyBuildResult(db *sql.DB, changedFuncs, changedTestFuncs []query.Symbol
 		})
 	}
 
+	ripple, err := verifyBuildRipple(db, changedFuncs, changedFiles)
+	if err != nil {
+		return VerifyResult{}, err
+	}
+
 	return VerifyResult{
 		ChangedSymbols: len(changedFuncs) + len(changedTestFuncs),
 		Covered:        covered,
 		Uncovered:      uncovered,
+		Ripple:         ripple,
 		Packages:       packages,
 	}, nil
+}
+
+// verifyBuildRipple flags changed funcs/methods whose callers reach past the
+// diff. For each, it counts the direct call sites (FindImpactCallersMulti
+// already drops _test.go callers) whose file is NOT in changedFiles — the
+// un-touched code a change could break. Exported and unexported symbols both
+// qualify: "outside the diff" is not "outside the package", so an unexported
+// func changed in one file and called from an un-touched sibling file in the
+// same package is a real ripple (an exported symbol filter would miss it).
+// Diff-local churn (external == 0) is not a ripple. Entries sort by symbol name
+// (file+line tiebreak, since pkg.Name can collide across receivers) and cap at
+// verifyRippleCap for a frugal report (D4).
+func verifyBuildRipple(db *sql.DB, changedFuncs []query.SymbolRow, changedFiles map[string]bool) ([]VerifyRipple, error) {
+	type entry struct {
+		name    string
+		callers int
+		file    string
+		line    int
+	}
+	var entries []entry
+	for i := range changedFuncs {
+		sym := &changedFuncs[i]
+		callers, err := query.FindImpactCallersMulti(db, []string{sym.ID}, true, verifyRippleCallerLimit, 0)
+		if err != nil {
+			return nil, err
+		}
+		external := 0
+		for j := range callers {
+			if !changedFiles[callers[j].FilePath] {
+				external++
+			}
+		}
+		if external == 0 {
+			continue
+		}
+		entries = append(entries, entry{
+			name:    verifyQualifiedName(sym),
+			callers: external,
+			file:    sym.FilePath,
+			line:    sym.LineStart,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].name != entries[j].name {
+			return entries[i].name < entries[j].name
+		}
+		if entries[i].file != entries[j].file {
+			return entries[i].file < entries[j].file
+		}
+		return entries[i].line < entries[j].line
+	})
+	if len(entries) > verifyRippleCap {
+		entries = entries[:verifyRippleCap]
+	}
+	ripple := make([]VerifyRipple, 0, len(entries))
+	for _, e := range entries {
+		ripple = append(ripple, VerifyRipple{Symbol: e.name, Callers: e.callers})
+	}
+	return ripple, nil
 }
 
 // verifyQualifiedName renders a changed symbol as "pkg.Name" (e.g.
@@ -294,6 +386,15 @@ func writeVerifyText(v VerifyResult) error {
 		}
 		fmt.Fprintf(&b, "! %d changed symbol%s %s no covering test: %s\n",
 			len(v.Uncovered), verifyPlural(len(v.Uncovered)), verb, strings.Join(v.Uncovered, ", "))
+	}
+
+	if len(v.Ripple) > 0 {
+		parts := make([]string, len(v.Ripple))
+		for i, r := range v.Ripple {
+			parts[i] = fmt.Sprintf("%s (%d site%s)", r.Symbol, r.Callers, verifyPlural(r.Callers))
+		}
+		fmt.Fprintf(&b, "! ripple: %d changed exported symbol%s called from outside the diff — %s\n",
+			len(v.Ripple), verifyPlural(len(v.Ripple)), strings.Join(parts, ", "))
 	}
 
 	fmt.Fprintln(&b, verifyClaimNote)
