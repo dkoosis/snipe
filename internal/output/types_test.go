@@ -407,13 +407,14 @@ func TestTruncateBodySemantic(t *testing.T) {
 		if !truncated {
 			t.Error("should truncate")
 		}
-		if !strings.Contains(result.Body, "// ... truncated") {
-			t.Error("should contain truncation marker")
+		// The marker names the omitted-line count and the recovery lever (AXI #3).
+		if !strings.Contains(result.Body, "more lines") || !strings.Contains(result.Body, "--max-tokens=0") {
+			t.Errorf("marker should state omitted count and recovery flag, got %q", result.Body)
 		}
 		lines := strings.Split(result.Body, "\n")
 		lastContentLine := ""
 		for i := len(lines) - 1; i >= 0; i-- {
-			if !strings.Contains(lines[i], "truncated") && strings.TrimSpace(lines[i]) != "" {
+			if !strings.HasPrefix(strings.TrimSpace(lines[i]), "// ...") && strings.TrimSpace(lines[i]) != "" {
 				lastContentLine = strings.TrimSpace(lines[i])
 				break
 			}

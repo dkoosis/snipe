@@ -247,7 +247,16 @@ func (w *Writer) writeClaudeMeta(b *strings.Builder, meta Meta) {
 	// Only include metadata that helps Claude, skip noise
 	var parts []string
 	if meta.Truncated {
-		parts = append(parts, "truncated")
+		// Name the recovery lever so the agent can fetch the rest (AXI #3).
+		// Most commands truncate at --limit; the token-budget path (no --limit)
+		// falls through to a hint naming both possible levers.
+		switch {
+		case meta.Limit > 0 && meta.Total >= meta.Limit:
+			parts = append(parts, fmt.Sprintf("truncated at --limit=%d (raise --limit or --offset %d for more)",
+				meta.Limit, meta.Offset+meta.Total))
+		default:
+			parts = append(parts, "truncated (raise --max-tokens or --limit for the rest)")
+		}
 	}
 	if len(meta.StaleFiles) > 0 {
 		parts = append(parts, fmt.Sprintf("%d stale files", len(meta.StaleFiles)))
@@ -1278,7 +1287,11 @@ func truncateBodySemantic(result *Result, maxLines int) bool {
 		truncateAt = maxLines // Fallback to hard limit
 	}
 
-	result.Body = strings.Join(lines[:truncateAt], "\n") + "\n// ... truncated"
+	// Name the total and the recovery lever so the agent knows content is
+	// missing AND how to get it (AXI #3): --max-tokens=0 disables the budget.
+	result.Body = strings.Join(lines[:truncateAt], "\n") +
+		fmt.Sprintf("\n// ... +%d more lines (%d total — use --max-tokens=0 for full)",
+			len(lines)-truncateAt, len(lines))
 	return true
 }
 
