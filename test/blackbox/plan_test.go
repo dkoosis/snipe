@@ -49,6 +49,10 @@ func Orphan() string {
 
 import "testing"
 
+// targetGolden is a fixture path declared as a const so the string_refs
+// extractor indexes it — the churn detector should surface it for Target.
+const targetGolden = "testdata/target.golden"
+
 func TestTarget(t *testing.T) {
 	if Target("x") == "" {
 		t.Fatal("x")
@@ -270,6 +274,57 @@ func TestPlan_DeleteZeroCallerFastPath(t *testing.T) {
 	}
 	if n := int(getFloat(t, r["test_only_refs"], "test_only_refs")); n != 1 {
 		t.Fatalf("want 1 test-only ref, got %d", n)
+	}
+}
+
+// TestPlan_WillChurn proves the golden/testdata churn section: it appears (text
+// + JSON) when a covering test names a fixture-path const, and is omitted on the
+// delete fast path (which skips test collection, so no churn is scanned).
+func TestPlan_WillChurn(t *testing.T) {
+	repoDir, _ := writePlanFixture(t)
+	repoDir = canonicalRepoDir(t, repoDir)
+	initGitRepo(t, repoDir)
+	indexRepo(t, repoDir)
+
+	// Positive (text): Target's covering test declares targetGolden.
+	stdout, stderr, exit := runRaw(t, repoDir, "plan", "Target")
+	if exit != 0 {
+		t.Fatalf("plan exit %d stderr=%s stdout=%s", exit, string(stderr), string(stdout))
+	}
+	out := string(stdout)
+	if !strings.Contains(out, "WILL CHURN") {
+		t.Fatalf("expected WILL CHURN section, got:\n%s", out)
+	}
+	if !strings.Contains(out, "testdata/target.golden") {
+		t.Fatalf("expected churn path testdata/target.golden, got:\n%s", out)
+	}
+
+	// Positive (JSON): results[0].churn carries the path.
+	jout, _, _ := run(t, repoDir, "plan", "Target")
+	r := requireMap(t, requireSlice(t, assertEnvelope(t, jout, "plan")["results"], "results")[0], "results[0]")
+	churn := requireSlice(t, r["churn"], "churn")
+	var found bool
+	for _, c := range churn {
+		if getString(t, c, "churn[]") == "testdata/target.golden" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("churn JSON missing testdata/target.golden, got: %v", churn)
+	}
+
+	// Negative: the delete zero-caller fast path skips test collection entirely,
+	// so no churn section — even though Orphan's covering test shares the file.
+	dstdout, _, _ := runRaw(t, repoDir, "plan", "Orphan", "--change=delete")
+	if strings.Contains(string(dstdout), "WILL CHURN") {
+		t.Fatalf("delete fast path must omit WILL CHURN, got:\n%s", string(dstdout))
+	}
+	djson, _, _ := run(t, repoDir, "plan", "Orphan", "--change=delete")
+	dr := requireMap(t, requireSlice(t, assertEnvelope(t, djson, "plan")["results"], "results")[0], "results[0]")
+	if c, ok := dr["churn"]; ok && c != nil {
+		if len(requireSlice(t, c, "churn")) != 0 {
+			t.Fatalf("delete fast path JSON should have empty/absent churn, got: %v", c)
+		}
 	}
 }
 

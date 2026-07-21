@@ -24,9 +24,11 @@ const planTestLimit = 500
 // never mistakes plan's structural worklist for a correctness gate.
 const planClaimNote = "note: plan maps the edit worklist structurally — not a correctness gate (run make audit)."
 
-// planGoldenPlaceholder is the neutral golden/testdata stub. Churn detection is
-// a follow-up; for now plan only flags that fixtures may need a hand scan.
-const planGoldenPlaceholder = "churn not analyzed here; scan fixtures by hand if this symbol shapes golden output"
+// planChurnLimit caps the "will churn" list. Churn is an advisory heads-up, not
+// an exhaustive worklist — one symbol's covering tests rarely name more than a
+// handful of fixtures, and the cap bounds a pathological const block while the
+// "+N more" footer tells Claude to hand-scan the rest.
+const planChurnLimit = 20
 
 // Change modes for `snipe plan --change`.
 const (
@@ -47,18 +49,19 @@ var (
 // (no index, symbol not found, ambiguous, zero callers on delete uses the
 // SafeToDelete fields) — plan is never a gate, so every such path exits 0.
 type PlanResult struct {
-	Message      string         `json:"message,omitempty"`
-	Symbol       string         `json:"symbol,omitempty"`
-	ID           string         `json:"id,omitempty"`
-	Change       string         `json:"change"`
-	Def          *PlanDef       `json:"def,omitempty"`
-	CallSites    []PlanPkgGroup `json:"call_sites,omitempty"`
-	MustRemove   bool           `json:"must_remove,omitempty"`
-	SafeToDelete bool           `json:"safe_to_delete,omitempty"`
-	TestOnlyRefs int            `json:"test_only_refs,omitempty"`
-	Tests        PlanTests      `json:"tests"`
-	Golden       string         `json:"golden_placeholder,omitempty"`
-	Truncated    int            `json:"truncated_call_sites,omitempty"`
+	Message        string         `json:"message,omitempty"`
+	Symbol         string         `json:"symbol,omitempty"`
+	ID             string         `json:"id,omitempty"`
+	Change         string         `json:"change"`
+	Def            *PlanDef       `json:"def,omitempty"`
+	CallSites      []PlanPkgGroup `json:"call_sites,omitempty"`
+	MustRemove     bool           `json:"must_remove,omitempty"`
+	SafeToDelete   bool           `json:"safe_to_delete,omitempty"`
+	TestOnlyRefs   int            `json:"test_only_refs,omitempty"`
+	Tests          PlanTests      `json:"tests"`
+	Churn          []string       `json:"churn,omitempty"`
+	ChurnTruncated int            `json:"churn_truncated,omitempty"`
+	Truncated      int            `json:"truncated_call_sites,omitempty"`
 
 	// TotalCallSites/TotalPkgs are the pre-truncation totals the header
 	// reports ("def + N call sites in K pkgs"); CallSites may hold fewer once
@@ -156,7 +159,6 @@ func runPlan(change string, args []string) error {
 			ID:        symbolID,
 			Signature: defSym.Signature.String,
 		},
-		Golden: planGoldenPlaceholder,
 	}
 
 	// Tests: direct + transitive covering tests. Skipped for the delete
@@ -180,6 +182,29 @@ func runPlan(change string, args []string) error {
 				result.Tests.Direct = append(result.Tests.Direct, pt)
 			}
 		}
+
+		// Churn: golden/testdata fixture paths named in the covering test files,
+		// which this change is likely to force a regen of. Scope to the distinct
+		// absolute paths of the tests just collected.
+		testFiles := make([]string, 0, len(testRows))
+		seenFile := make(map[string]struct{})
+		for i := range testRows {
+			fp := testRows[i].FilePath
+			if fp == "" {
+				continue
+			}
+			if _, ok := seenFile[fp]; ok {
+				continue
+			}
+			seenFile[fp] = struct{}{}
+			testFiles = append(testFiles, fp)
+		}
+		churn, churnTrunc, err := query.FindChurnLiterals(s.DB(), testFiles, planChurnLimit)
+		if err != nil {
+			return err
+		}
+		result.Churn = churn
+		result.ChurnTruncated = churnTrunc
 		return nil
 	}
 
@@ -436,14 +461,14 @@ func writePlanText(p PlanResult) error {
 	case p.Change == planChangeDelete:
 		writePlanCallSites(&b, p, "MUST REMOVE — every ref below, else the build breaks")
 		writePlanTests(&b, p, "TESTS — drop or rewrite")
-		writePlanGolden(&b, p)
+		writePlanChurn(&b, p)
 	case p.Change == planChangeBehavior:
 		writePlanTests(&b, p, "TESTS — no signature change; verify these still pass / add cases for new behavior")
-		writePlanGolden(&b, p)
+		writePlanChurn(&b, p)
 	default: // signature
 		writePlanCallSites(&b, p, "CALL SITES — edit every one to match the new signature")
 		writePlanTests(&b, p, "TESTS — update/verify after editing")
-		writePlanGolden(&b, p)
+		writePlanChurn(&b, p)
 	}
 
 	fmt.Fprintln(&b, planClaimNote)
@@ -559,11 +584,28 @@ func writePlanTests(b *strings.Builder, p PlanResult, header string) {
 	}
 }
 
-func writePlanGolden(b *strings.Builder, p PlanResult) {
-	if p.Golden == "" {
+// writePlanChurn renders the golden/testdata fixtures the change is likely to
+// force a regen of. Emitted only when non-empty (D4: earn the bytes) — an empty
+// churn list says nothing.
+func writePlanChurn(b *strings.Builder, p PlanResult) {
+	if len(p.Churn) == 0 {
 		return
 	}
-	fmt.Fprintf(b, "GOLDEN / TESTDATA — %s\n", p.Golden)
+	// Header carries the pre-truncation total (like the plan header's call-site
+	// count); the list below shows the capped subset + a "+N more" footer.
+	total := len(p.Churn) + p.ChurnTruncated
+	plural := ""
+	if total != 1 {
+		plural = "s"
+	}
+	fmt.Fprintf(b, "WILL CHURN — %d testdata/golden path%s referenced by covering tests (regenerate this pass):\n",
+		total, plural)
+	for _, path := range p.Churn {
+		fmt.Fprintf(b, "  %s\n", path)
+	}
+	if p.ChurnTruncated > 0 {
+		fmt.Fprintf(b, "  +%d more\n", p.ChurnTruncated)
+	}
 }
 
 // planCountSites returns the number of emitted sites and distinct packages.
