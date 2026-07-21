@@ -1,6 +1,7 @@
 package output
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -20,6 +21,20 @@ type Response[T any] struct {
 	Meta        Meta         `json:"meta"`
 	Error       *Error       `json:"error"`
 	Suggestions []Suggestion `json:"suggestions,omitempty"`
+}
+
+// responseJSON mirrors Response[T] but carries no methods, so MarshalJSON can
+// delegate to the encoder without recursing.
+type responseJSON[T any] Response[T]
+
+// MarshalJSON guarantees a valid-but-empty answer serializes results as [], not
+// null (AXI #5, definitive empty states). A nil slice would force every JSON
+// consumer to null-guard where an empty array would not.
+func (r Response[T]) MarshalJSON() ([]byte, error) {
+	if r.Results == nil {
+		r.Results = []T{}
+	}
+	return json.Marshal(responseJSON[T](r))
 }
 
 // TelemetryCommand exposes the command name for the usage sink without
