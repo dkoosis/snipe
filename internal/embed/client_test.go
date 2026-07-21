@@ -3,6 +3,7 @@ package embed
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dkoosis/keyring"
 )
 
 func testClient(endpoint string) *Client {
@@ -190,6 +193,16 @@ func TestCredentials_EnvFirst(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("KEYRING_DISABLE", "")
 	t.Setenv("SNIPE_VOYAGE_API_KEY", "env-provided-key")
+
+	// The no-prompt contract is not "env wins" but "the keychain is never
+	// opened": opening it is what execs `security` and can hang a headless
+	// agent. Fail if credStore is touched at all while the env key is set.
+	orig := credStore
+	t.Cleanup(func() { credStore = orig })
+	credStore = func() (*keyring.Store, error) {
+		t.Error("credStore opened despite SNIPE_VOYAGE_API_KEY being set — this can exec `security` and hang headless agents")
+		return nil, errors.New("credStore must not be opened when the env key is set")
+	}
 
 	if !HasCredentials() {
 		t.Error("HasCredentials should report true when the env var is set")

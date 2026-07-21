@@ -25,8 +25,9 @@ const (
 
 // credStore returns the keychain store for snipe's secrets. keyring.New only
 // fails on an empty service name, so the error is effectively unreachable
-// with the literal above.
-func credStore() (*keyring.Store, error) {
+// with the literal above. A var, not a func, so tests can assert it is never
+// opened when the env key short-circuits the keychain path.
+var credStore = func() (*keyring.Store, error) {
 	return keyring.New(keyringService)
 }
 
@@ -147,7 +148,7 @@ func resolveCredentials() (string, string, string, error) {
 		// keeps automated invocations prompt-free.
 		store, err := credStore()
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", fmt.Errorf("opening keyring store: %w", err)
 		}
 		key, keyErr := store.Get(keyringAccount)
 		switch {
