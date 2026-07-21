@@ -1,14 +1,11 @@
 # Boot
 
 ## lane: DeepCaiman
-updated: 2026-07-20
+updated: 2026-07-21
 
-→ next: no open PRs — #196–#200 all on main. 5 ready: sn-nduv (drop plaintext creds file — follow-up to keyring #200) · sn-8f6q epic (verify+plan: .4 uncovered/ripple, .5 edit worklist) · snipe-p61 (txtar CLI coverage) · sn-5xen (optional read-tx). Medium → dispatch-bead-agent.
+↑ so-that: sharpen `snipe plan`/`verify` into a diff-native edit worklist Claude trusts before touching Go — serves ★ (Claude fluent in a repo without Explore agents).
 
-✓ done
-- v0.2.0 released (ships `snipe risk`). cc-plugins contract closed: judge branches on `.results[0].degraded`, never `len(results)`.
-- #199 merged: risk-JSON golden test + doc (sn-n8re, sn-33gg) — cc-plugins now enforces the contract against sn-n8re's guard.
-- #200 merged: voyage key keychain-first via `dkoosis/keyring` (sn-8qgp). keyring made **public** (v0.1.0) so `go install …@latest` resolves it.
+→ next: no open PRs — #202 merged (`snipe plan` v1 + review-triage fixes; sn-8f6q.5 closed, unblocked two follow-ups). sn-8f6q epic still open. 6 ready: sn-8f6q.4 (uncovered+ripple warnings) · .6 (golden churn detection) · .8 (test-file refs past FindTests' 2-hop) · snipe-p61 (txtar CLI coverage) · sn-5xen (optional read-tx). Medium → dispatch-bead-agent.
 
 ‡ traps:
 - git-fixture tests set `core.hooksPath=/dev/null` — keep it on any new throwaway-repo test or the global commit-msg hook rejects fixture commits.

@@ -46,3 +46,7 @@ docs/eval/EVAL_RESULTS.json
 .fo/
 .claude/scheduled_tasks.lock
 bin/
+# bd worktree
+sn-nduv/
+# bd worktree
+sn-8f6q.5/
