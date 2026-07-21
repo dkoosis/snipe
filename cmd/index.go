@@ -1186,9 +1186,16 @@ func computeFileFanIn(s *store.Store) error {
 // for an ast_ctx value added after the index was built (schemaVersion is
 // unaffected — the index fingerprint excludes it, so bumping schemaVersion
 // alone would NOT trigger a reindex).
+//
+// v3 (sn-8f6q.9): inline fixture-path literals are a new string_refs extraction
+// shape. Without a bump, an index built before this change keeps the old rows —
+// change detection compares only the dependency fingerprint and unchanged
+// source, so it skips, and `plan` reports the index fresh while missing WILL
+// CHURN paths until each affected test happens to change (or --force). The bump
+// forces the one-time full reindex that backfills them.
 const (
 	metaFileMetricsVersion = "file_metrics_version"
-	fileMetricsVersion     = "2"
+	fileMetricsVersion     = "3"
 )
 
 // metricsNeedBackfill reports whether the index lacks the current generation of
