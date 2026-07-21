@@ -147,6 +147,85 @@ func TestPlan_TestFileRefsBeyondFindTests_Delete(t *testing.T) {
 	assertTestCallSiteEnclosing(t, r, "deepHelper")
 }
 
+// countPlanSites totals the emitted sites across the given result section
+// ("call_sites" or "test_call_sites"), summing each package group's sites.
+func countPlanSites(t *testing.T, result map[string]any, section string) int {
+	t.Helper()
+	groups, ok := result[section]
+	if !ok || groups == nil {
+		return 0
+	}
+	n := 0
+	for _, g := range requireSlice(t, groups, section) {
+		gm := requireMap(t, g, "group")
+		n += len(requireSlice(t, gm["sites"], "sites"))
+	}
+	return n
+}
+
+// writePlanBudgetFixture builds a module with 3 production call sites AND 2
+// test-file call sites of Target — enough that applying --max-callers to each
+// partition independently would over-emit.
+func writePlanBudgetFixture(t *testing.T) string {
+	t.Helper()
+	repoDir := t.TempDir()
+	writeFile(t, filepath.Join(repoDir, "go.mod"), "module example.com/planbudget\n\ngo 1.20\n")
+	writeFile(t, filepath.Join(repoDir, "foo", "foo.go"), `package foo
+
+func Target(id string) string { return "t:" + id }
+
+func Serve1(id string) string { return Target(id) }
+func Serve2(id string) string { return Target(id) }
+func Serve3(id string) string { return Target(id) }
+`)
+	writeFile(t, filepath.Join(repoDir, "foo", "foo_test.go"), `package foo
+
+import "testing"
+
+func TestA(t *testing.T) {
+	if Target("x") == "" {
+		t.Fatal("x")
+	}
+}
+
+func TestB(t *testing.T) {
+	if Target("y") == "" {
+		t.Fatal("y")
+	}
+}
+`)
+	return repoDir
+}
+
+// TestPlan_MaxCallersCapsCombinedSections proves --max-callers bounds the TOTAL
+// call sites emitted (commands.go contract), not each of the production and
+// test-ref sections independently. With 3 prod + 2 test sites and
+// --max-callers=4, the pre-fix code emitted 3+2=5; the shared budget caps the
+// combined output at 4.
+func TestPlan_MaxCallersCapsCombinedSections(t *testing.T) {
+	repoDir := writePlanBudgetFixture(t)
+	repoDir = canonicalRepoDir(t, repoDir)
+	initGitRepo(t, repoDir)
+	indexRepo(t, repoDir)
+
+	const maxCallers = 4
+	jout, jstderr, jexit := run(t, repoDir, "plan", "Target", "--max-callers", "4")
+	if jexit != 0 {
+		t.Fatalf("plan json exit %d stderr=%s", jexit, string(jstderr))
+	}
+	r := requireMap(t, requireSlice(t, assertEnvelope(t, jout, "plan")["results"], "results")[0], "results[0]")
+	prod := countPlanSites(t, r, "call_sites")
+	test := countPlanSites(t, r, "test_call_sites")
+	if prod+test > maxCallers {
+		t.Fatalf("combined emitted sites = %d (prod %d + test %d); --max-callers=%d must cap the total",
+			prod+test, prod, test, maxCallers)
+	}
+	// The production section is primary — it should still claim its share.
+	if prod == 0 {
+		t.Fatalf("production call_sites empty; expected the primary section to keep its budget\nresult: %v", r)
+	}
+}
+
 // TestPlan_TestFileRefs_BehaviorOmits guards the scope: a behavior change edits
 // no call sites, so it carries no TEST-FILE REFS section.
 func TestPlan_TestFileRefs_BehaviorOmits(t *testing.T) {

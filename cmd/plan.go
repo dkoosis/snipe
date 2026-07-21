@@ -259,7 +259,7 @@ func runPlan(change string, args []string) error {
 		result.CallSites, result.Truncated, result.TotalCallSites, result.TotalPkgs =
 			planBuildCallSites(prodRefs, planMaxCallers)
 		result.TestCallSites, result.TestCallSitesTruncated, _, _ =
-			planBuildCallSites(testRefs, planMaxCallers)
+			planBuildCallSites(testRefs, planTestBudget(planMaxCallers, result.TotalCallSites, result.Truncated))
 		if err := buildTests(); err != nil {
 			return internalErr(err)
 		}
@@ -273,7 +273,7 @@ func runPlan(change string, args []string) error {
 		result.CallSites, result.Truncated, result.TotalCallSites, result.TotalPkgs =
 			planBuildCallSites(prodRefs, planMaxCallers)
 		result.TestCallSites, result.TestCallSitesTruncated, _, _ =
-			planBuildCallSites(testRefs, planMaxCallers)
+			planBuildCallSites(testRefs, planTestBudget(planMaxCallers, result.TotalCallSites, result.Truncated))
 		if err := buildTests(); err != nil {
 			return internalErr(err)
 		}
@@ -361,6 +361,24 @@ func planPartitionRefs(refs []query.RefRow) (prod, test []query.RefRow) {
 		}
 	}
 	return prod, test
+}
+
+// planTestBudget splits the single --max-callers cap across the production and
+// test-ref sections so the COMBINED emitted count honors the flag's documented
+// "cap total call sites emitted" contract (cmd/commands.go) — applying the cap
+// to each partition independently would let --max-callers=N emit up to 2N. It
+// returns what's left of the cap after the production section: the cap minus
+// the sites prod actually emitted (its pre-truncation total minus what it
+// dropped), floored at 0. The unlimited sentinel (<0) passes through so an
+// explicit no-cap request stays uncapped.
+func planTestBudget(maxCallers, prodTotal, prodTruncated int) int {
+	if maxCallers < 0 {
+		return maxCallers
+	}
+	if rem := maxCallers - (prodTotal - prodTruncated); rem > 0 {
+		return rem
+	}
+	return 0
 }
 
 // planBuildCallSites groups ordered refs by the ref file's package directory,
