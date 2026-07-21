@@ -49,19 +49,28 @@ var (
 // (no index, symbol not found, ambiguous, zero callers on delete uses the
 // SafeToDelete fields) — plan is never a gate, so every such path exits 0.
 type PlanResult struct {
-	Message        string         `json:"message,omitempty"`
-	Symbol         string         `json:"symbol,omitempty"`
-	ID             string         `json:"id,omitempty"`
-	Change         string         `json:"change"`
-	Def            *PlanDef       `json:"def,omitempty"`
-	CallSites      []PlanPkgGroup `json:"call_sites,omitempty"`
-	MustRemove     bool           `json:"must_remove,omitempty"`
-	SafeToDelete   bool           `json:"safe_to_delete,omitempty"`
-	TestOnlyRefs   int            `json:"test_only_refs,omitempty"`
-	Tests          PlanTests      `json:"tests"`
-	Churn          []string       `json:"churn,omitempty"`
-	ChurnTruncated int            `json:"churn_truncated,omitempty"`
-	Truncated      int            `json:"truncated_call_sites,omitempty"`
+	Message   string         `json:"message,omitempty"`
+	Symbol    string         `json:"symbol,omitempty"`
+	ID        string         `json:"id,omitempty"`
+	Change    string         `json:"change"`
+	Def       *PlanDef       `json:"def,omitempty"`
+	CallSites []PlanPkgGroup `json:"call_sites,omitempty"`
+
+	// TestCallSites is the _test.go call sites on the signature/delete paths —
+	// the raw ref-location view that catches test helpers and >=3-hop chains
+	// FindTests' 2-hop, Test*-named TESTS list can't reach. Superset-safe: it
+	// may overlap TESTS (which lists test *functions*, not ref locations).
+	// Absent on the behavior path and the delete fast path (D4: earn the bytes).
+	TestCallSites          []PlanPkgGroup `json:"test_call_sites,omitempty"`
+	TestCallSitesTruncated int            `json:"test_call_sites_truncated,omitempty"`
+
+	MustRemove     bool      `json:"must_remove,omitempty"`
+	SafeToDelete   bool      `json:"safe_to_delete,omitempty"`
+	TestOnlyRefs   int       `json:"test_only_refs,omitempty"`
+	Tests          PlanTests `json:"tests"`
+	Churn          []string  `json:"churn,omitempty"`
+	ChurnTruncated int       `json:"churn_truncated,omitempty"`
+	Truncated      int       `json:"truncated_call_sites,omitempty"`
 
 	// TotalCallSites/TotalPkgs are the pre-truncation totals the header
 	// reports ("def + N call sites in K pkgs"); CallSites may hold fewer once
@@ -241,12 +250,16 @@ func runPlan(change string, args []string) error {
 			// Safe-to-delete fast path: list the test-only refs and stop.
 			result.SafeToDelete = true
 			result.TestOnlyRefs = testOnly
-			result.CallSites, _, _, _ = planBuildCallSites(planFilterRefs(refs, true), -1)
+			_, testRefs := planPartitionRefs(refs)
+			result.CallSites, _, _, _ = planBuildCallSites(testRefs, -1)
 			break
 		}
 		result.MustRemove = true
+		prodRefs, testRefs := planPartitionRefs(refs)
 		result.CallSites, result.Truncated, result.TotalCallSites, result.TotalPkgs =
-			planBuildCallSites(planFilterRefs(refs, false), planMaxCallers)
+			planBuildCallSites(prodRefs, planMaxCallers)
+		result.TestCallSites, result.TestCallSitesTruncated, _, _ =
+			planBuildCallSites(testRefs, planTestBudget(planMaxCallers, result.TotalCallSites, result.Truncated))
 		if err := buildTests(); err != nil {
 			return internalErr(err)
 		}
@@ -256,8 +269,11 @@ func runPlan(change string, args []string) error {
 		if err != nil {
 			return internalErr(err)
 		}
+		prodRefs, testRefs := planPartitionRefs(refs)
 		result.CallSites, result.Truncated, result.TotalCallSites, result.TotalPkgs =
-			planBuildCallSites(planFilterRefs(refs, false), planMaxCallers)
+			planBuildCallSites(prodRefs, planMaxCallers)
+		result.TestCallSites, result.TestCallSitesTruncated, _, _ =
+			planBuildCallSites(testRefs, planTestBudget(planMaxCallers, result.TotalCallSites, result.Truncated))
 		if err := buildTests(); err != nil {
 			return internalErr(err)
 		}
@@ -331,18 +347,38 @@ func planAmbiguousMessage(name string, symbols []query.SymbolRow) string {
 	return b.String()
 }
 
-// planFilterRefs splits FindCallSites rows on IsTest. wantTest=true keeps only
-// test-file refs (delete fast path); false keeps only production call sites.
-func planFilterRefs(refs []query.RefRow, wantTest bool) []query.RefRow {
-	// Reuse refs' backing array — callers pass refs once and discard it, and
-	// the filter only ever shrinks (out never overtakes the read index).
-	out := refs[:0]
+// planPartitionRefs splits FindCallSites rows on IsTest in one pass into two
+// fresh slices, so BOTH partitions survive: the signature/delete paths render
+// production sites AND, separately, the _test.go refs the TESTS list can't reach
+// (helpers, >=3-hop chains). Fresh slices — neither partition aliases refs'
+// backing array, so callers may keep and render both.
+func planPartitionRefs(refs []query.RefRow) (prod, test []query.RefRow) {
 	for i := range refs {
-		if refs[i].IsTest == wantTest {
-			out = append(out, refs[i])
+		if refs[i].IsTest {
+			test = append(test, refs[i])
+		} else {
+			prod = append(prod, refs[i])
 		}
 	}
-	return out
+	return prod, test
+}
+
+// planTestBudget splits the single --max-callers cap across the production and
+// test-ref sections so the COMBINED emitted count honors the flag's documented
+// "cap total call sites emitted" contract (cmd/commands.go) — applying the cap
+// to each partition independently would let --max-callers=N emit up to 2N. It
+// returns what's left of the cap after the production section: the cap minus
+// the sites prod actually emitted (its pre-truncation total minus what it
+// dropped), floored at 0. The unlimited sentinel (<0) passes through so an
+// explicit no-cap request stays uncapped.
+func planTestBudget(maxCallers, prodTotal, prodTruncated int) int {
+	if maxCallers < 0 {
+		return maxCallers
+	}
+	if rem := maxCallers - (prodTotal - prodTruncated); rem > 0 {
+		return rem
+	}
+	return 0
 }
 
 // planBuildCallSites groups ordered refs by the ref file's package directory,
@@ -461,6 +497,7 @@ func writePlanText(p PlanResult) error {
 	case p.Change == planChangeDelete:
 		writePlanCallSites(&b, p, "MUST REMOVE — every ref below, else the build breaks")
 		writePlanTests(&b, p, "TESTS — drop or rewrite")
+		writePlanTestCallSites(&b, p, "TEST-FILE REFS — remove these too (ref-level view; catches helpers/≥3-hop the TESTS list misses)")
 		writePlanChurn(&b, p)
 	case p.Change == planChangeBehavior:
 		writePlanTests(&b, p, "TESTS — no signature change; verify these still pass / add cases for new behavior")
@@ -468,6 +505,7 @@ func writePlanText(p PlanResult) error {
 	default: // signature
 		writePlanCallSites(&b, p, "CALL SITES — edit every one to match the new signature")
 		writePlanTests(&b, p, "TESTS — update/verify after editing")
+		writePlanTestCallSites(&b, p, "TEST-FILE REFS — edit these too (ref-level view; catches helpers/≥3-hop the TESTS list misses)")
 		writePlanChurn(&b, p)
 	}
 
@@ -522,7 +560,32 @@ func writePlanCallSites(b *strings.Builder, p PlanResult, header string) {
 		return
 	}
 	fmt.Fprintln(b, header)
-	for _, g := range p.CallSites {
+	writePlanSiteGroups(b, p.CallSites)
+	if p.Truncated > 0 {
+		fmt.Fprintf(b, "  +%d more call sites (raise --max-callers)\n", p.Truncated)
+	}
+}
+
+// writePlanTestCallSites renders the _test.go call sites the TESTS list can't
+// reach — test helpers and >=3-hop chains past FindTests' 2-hop, Test*-named
+// cap. A ref-location view (distinct from TESTS' test-function view), so it may
+// overlap TESTS; the header says so. Omitted when empty (D4).
+func writePlanTestCallSites(b *strings.Builder, p PlanResult, header string) {
+	if len(p.TestCallSites) == 0 && p.TestCallSitesTruncated == 0 {
+		return
+	}
+	fmt.Fprintln(b, header)
+	writePlanSiteGroups(b, p.TestCallSites)
+	if p.TestCallSitesTruncated > 0 {
+		fmt.Fprintf(b, "  +%d more test-file refs (raise --max-callers)\n", p.TestCallSitesTruncated)
+	}
+}
+
+// writePlanSiteGroups renders package-grouped call sites — the body shared by
+// the production CALL SITES and the TEST-FILE REFS sections. The header and the
+// "+N more" footer differ per section, so callers own those; this owns the rows.
+func writePlanSiteGroups(b *strings.Builder, groups []PlanPkgGroup) {
+	for _, g := range groups {
 		fmt.Fprintf(b, "%s (%d)\n", g.Pkg, len(g.Sites))
 		for _, s := range g.Sites {
 			id := s.ID
@@ -540,9 +603,6 @@ func writePlanCallSites(b *strings.Builder, p PlanResult, header string) {
 			}
 			fmt.Fprintln(b, line)
 		}
-	}
-	if p.Truncated > 0 {
-		fmt.Fprintf(b, "  +%d more call sites (raise --max-callers)\n", p.Truncated)
 	}
 }
 
