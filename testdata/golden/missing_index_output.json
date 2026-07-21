@@ -1,7 +1,7 @@
 {
   "protocol": 1,
   "ok": false,
-  "results": null,
+  "results": [],
   "meta": {
     "command": "def",
     "index_state": "missing",
