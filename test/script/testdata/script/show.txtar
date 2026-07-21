@@ -2,7 +2,7 @@
 # The valid-ID happy path is blackbox-covered (TestShow); asserting a real ID
 # here would hardcode a hash that drifts if indexing changes. Instead we smoke
 # the default text surface of the graceful miss: a bogus ID renders a
-# not-found error (exit 0) rather than crashing.
+# not-found error envelope (exit 1, AXI #6) rather than crashing.
 cd $FIXTURE
-exec snipe show deadbeefdeadbeef
+! exec snipe show deadbeefdeadbeef
 stdout 'symbol not found: deadbeefdeadbeef'

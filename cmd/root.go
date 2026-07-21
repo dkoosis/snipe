@@ -252,6 +252,15 @@ func Execute() {
 		kong.Description(rootHelp),
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{Compact: false}),
+		// Own the exit code (AXI #6): --help still exits 0, but a flag/usage
+		// error exits a deliberate 2 instead of kong's default. Run and
+		// error-envelope exits (1) are handled below, bypassing kong.
+		kong.Exit(func(code int) {
+			if code != 0 {
+				code = 2
+			}
+			os.Exit(code)
+		}),
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -288,11 +297,24 @@ func Execute() {
 
 	ctx, err := parser.Parse(args)
 	if err != nil {
+		// Prints usage (UsageOnError) then exits 2 via the kong.Exit hook above.
 		parser.FatalIfErrorf(err)
 	}
 
-	err = ctx.Run()
-	ctx.FatalIfErrorf(err)
+	if err := ctx.Run(); err != nil {
+		// An internal Go error from a command (rare — most command-level
+		// problems are emitted via WriteError and return nil). Exit 1 directly,
+		// bypassing kong so the usage-error hook can't remap it to 2.
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	// The command ran, but may have emitted an error envelope (e.g. symbol not
+	// found) and returned nil. Reflect that in the exit code so agents chaining
+	// commands can detect failure (AXI #6).
+	if output.ProcessErrored() {
+		os.Exit(1)
+	}
 }
 
 // GetContext returns the command context (with timeout and signal handling).

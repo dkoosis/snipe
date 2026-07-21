@@ -2,7 +2,9 @@
 # The fixture index is built with --embed-mode=off (zero embeddings) and no
 # Voyage key resolves, so a real semantic hit is impossible here. Per the bead
 # exemption for embedding-backed commands, we assert the graceful no-key path:
-# sim explains embeddings are unavailable and points at doctor, exit 0.
+# sim explains embeddings are unavailable and points at doctor. The command
+# could not fulfil the query, so it emits an error envelope and exits non-zero
+# (exit 1, AXI #6) — distinct from a valid empty result.
 cd $FIXTURE
-exec snipe sim Greet
+! exec snipe sim Greet
 stdout 'no API key'

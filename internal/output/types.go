@@ -28,6 +28,12 @@ func (r Response[T]) TelemetryCommand() string {
 	return r.Meta.Command
 }
 
+// IsOk reports whether the response signalled success, so the Writer can set
+// the process exit code (AXI #6) without knowing every Response[T] instance.
+func (r Response[T]) IsOk() bool {
+	return r.Ok
+}
+
 // Suggestion provides actionable next steps for LLM consumers
 type Suggestion struct {
 	Command     string `json:"command"`             // The suggested snipe command
