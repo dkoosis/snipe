@@ -35,6 +35,19 @@ var showSuggestionsEnabled = false
 // SetShowSuggestions configures suggestion output for Claude mode.
 func SetShowSuggestions(v bool) { showSuggestionsEnabled = v }
 
+// processErrored records whether any emitted response signalled failure, so
+// Execute can exit non-zero (AXI #6: agents gate on the exit code). A valid
+// empty answer (Ok:true, zero results) leaves this false and keeps exit 0; an
+// error envelope (WriteError, or a WriteResponse whose Ok is false) trips it.
+var processErrored = false
+
+// ProcessErrored reports whether an error envelope was emitted this run.
+func ProcessErrored() bool { return processErrored }
+
+// ResetProcessErrored clears the error flag; for in-process tests that reuse
+// the package across cases.
+func ResetProcessErrored() { processErrored = false }
+
 // Writer handles output formatting for LLM consumers.
 type Writer struct {
 	out    io.Writer
@@ -64,6 +77,9 @@ func NewWriter(out io.Writer, format OutputFormat) *Writer {
 func (w *Writer) WriteResponse(resp any) error {
 	if m, ok := resp.(interface{ TelemetryCommand() string }); ok {
 		telemetry.Emit(m.TelemetryCommand(), "ok", time.Since(w.start).Milliseconds())
+	}
+	if r, ok := resp.(interface{ IsOk() bool }); ok && !r.IsOk() {
+		processErrored = true
 	}
 	switch w.format {
 	case OutputJSON:
@@ -231,7 +247,16 @@ func (w *Writer) writeClaudeMeta(b *strings.Builder, meta Meta) {
 	// Only include metadata that helps Claude, skip noise
 	var parts []string
 	if meta.Truncated {
-		parts = append(parts, "truncated")
+		// Name the recovery lever so the agent can fetch the rest (AXI #3).
+		// Most commands truncate at --limit; the token-budget path (no --limit)
+		// falls through to a hint naming both possible levers.
+		switch {
+		case meta.Limit > 0 && meta.Total >= meta.Limit:
+			parts = append(parts, fmt.Sprintf("truncated at --limit=%d (raise --limit or --offset %d for more)",
+				meta.Limit, meta.Offset+meta.Total))
+		default:
+			parts = append(parts, "truncated (raise --max-tokens or --limit for the rest)")
+		}
 	}
 	if len(meta.StaleFiles) > 0 {
 		parts = append(parts, fmt.Sprintf("%d stale files", len(meta.StaleFiles)))
@@ -909,6 +934,7 @@ func shortPkg(p string) string {
 
 // WriteError writes an error response
 func (w *Writer) WriteError(command string, err *Error) error {
+	processErrored = true
 	telemetry.Emit(command, err.Code, time.Since(w.start).Milliseconds())
 	if err.Next == nil {
 		err.Next = DefaultNextForCode(err.Code)
@@ -1261,7 +1287,11 @@ func truncateBodySemantic(result *Result, maxLines int) bool {
 		truncateAt = maxLines // Fallback to hard limit
 	}
 
-	result.Body = strings.Join(lines[:truncateAt], "\n") + "\n// ... truncated"
+	// Name the total and the recovery lever so the agent knows content is
+	// missing AND how to get it (AXI #3): --max-tokens=0 disables the budget.
+	result.Body = strings.Join(lines[:truncateAt], "\n") +
+		fmt.Sprintf("\n// ... +%d more lines (%d total — use --max-tokens=0 for full)",
+			len(lines)-truncateAt, len(lines))
 	return true
 }
 

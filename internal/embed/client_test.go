@@ -3,6 +3,7 @@ package embed
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dkoosis/keyring"
 )
 
 func testClient(endpoint string) *Client {
@@ -176,6 +179,40 @@ func TestCredentials_IgnoresPlaintextFile(t *testing.T) {
 	}
 	if _, _, _, err := resolveCredentials(); err == nil {
 		t.Error("resolveCredentials succeeded from a plaintext file — the file fallback must be gone")
+	}
+}
+
+// TestCredentials_EnvFirst locks the env-first ordering (AXI #6: never prompt).
+// When SNIPE_VOYAGE_API_KEY is set, resolveCredentials returns it and
+// HasCredentials reports true WITHOUT consulting the keychain — so an
+// env-provisioned process (agent, CI, orca) never execs `security` and can never
+// trip an OS unlock/allow dialog. KEYRING_DISABLE is left UNSET to prove the env
+// var alone short-circuits even with a keychain backend available; that
+// short-circuit is also what keeps this test hermetic across platforms.
+func TestCredentials_EnvFirst(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("KEYRING_DISABLE", "")
+	t.Setenv("SNIPE_VOYAGE_API_KEY", "env-provided-key")
+
+	// The no-prompt contract is not "env wins" but "the keychain is never
+	// opened": opening it is what execs `security` and can hang a headless
+	// agent. Fail if credStore is touched at all while the env key is set.
+	orig := credStore
+	t.Cleanup(func() { credStore = orig })
+	credStore = func() (*keyring.Store, error) {
+		t.Error("credStore opened despite SNIPE_VOYAGE_API_KEY being set — this can exec `security` and hang headless agents")
+		return nil, errors.New("credStore must not be opened when the env key is set")
+	}
+
+	if !HasCredentials() {
+		t.Error("HasCredentials should report true when the env var is set")
+	}
+	key, _, _, err := resolveCredentials()
+	if err != nil {
+		t.Fatalf("resolveCredentials: %v", err)
+	}
+	if key != "env-provided-key" {
+		t.Errorf("apiKey = %q, want the env-provided key (env must win over keychain)", key)
 	}
 }
 

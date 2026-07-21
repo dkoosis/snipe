@@ -25,8 +25,9 @@ const (
 
 // credStore returns the keychain store for snipe's secrets. keyring.New only
 // fails on an empty service name, so the error is effectively unreachable
-// with the literal above.
-func credStore() (*keyring.Store, error) {
+// with the literal above. A var, not a func, so tests can assert it is never
+// opened when the env key short-circuits the keychain path.
+var credStore = func() (*keyring.Store, error) {
 	return keyring.New(keyringService)
 }
 
@@ -107,59 +108,71 @@ type EmbeddingResponse struct {
 }
 
 // HasCredentials checks if embedding credentials are available.
-// Returns true if the keychain holds a voyage key or the SNIPE_VOYAGE_API_KEY
-// env var is set. An unreadable keychain (locked/denied — keyring.ErrUnreadable)
-// is NOT treated as "credentials available": the probe falls through to the env
-// var and records the locked state in LastProbeErr so doctor can name it,
-// keeping this probe in agreement with resolveCredentials.
+// Returns true if the SNIPE_VOYAGE_API_KEY env var is set or the keychain holds
+// a voyage key. The env var is checked FIRST so an env-provisioned process never
+// touches the keychain (AXI #6: never prompt — a `security` read can pop an OS
+// unlock/allow dialog). An unreadable keychain (locked/denied — ErrUnreadable)
+// is NOT treated as "credentials available": the locked state is recorded in
+// LastProbeErr so doctor can name it, keeping this probe in agreement with
+// resolveCredentials.
 func HasCredentials() bool {
 	recordProbe(nil)
+	if envAPIKey() != "" {
+		return true
+	}
 	if store, err := credStore(); err == nil {
 		ok, hasErr := store.Has(keyringAccount)
 		if hasErr == nil && ok {
 			return true
 		}
 		if hasErr != nil && errors.Is(hasErr, keyring.ErrUnreadable) {
-			// Locked or denied keychain — not confirmation of absence.
-			// Record it and consult the env var below.
+			// Locked or denied keychain — not confirmation of absence. Record it
+			// so doctor can name the state.
 			recordProbe(hasErr)
 		}
 	}
-	return envAPIKey() != ""
+	return false
 }
 
-// resolveCredentials reads the API key keychain-first, then the
-// SNIPE_VOYAGE_API_KEY env var. Model and endpoint are config, not secrets —
-// plain env only. Returns (apiKey, model, endpoint, error).
+// resolveCredentials reads the API key env-first (SNIPE_VOYAGE_API_KEY), then
+// the keychain. Env-first means an env-provisioned process — agents, CI, orca —
+// never execs `security`, so it can never trigger an OS keychain prompt (AXI #6:
+// never prompt for interactive input). The keychain is consulted only as a
+// fallback for humans who stored the key there. Model and endpoint are config,
+// not secrets — plain env only. Returns (apiKey, model, endpoint, error).
 func resolveCredentials() (string, string, string, error) {
-	store, err := credStore()
-	if err != nil {
-		return "", "", "", err
-	}
-	apiKey, keyErr := store.GetOrEnv(keyringAccount, "SNIPE_VOYAGE_API_KEY")
-	switch {
-	case keyErr == nil:
-	case errors.Is(keyErr, keyring.ErrNotFound), errors.Is(keyErr, keyring.ErrUnsupported):
-		// Confirmed absent, or no keychain backend: GetOrEnv already
-		// consulted the env var; nothing left to try.
-	case errors.Is(keyErr, keyring.ErrUnreadable):
-		// Locked or denied keychain. snipe index can run headless or in the
-		// background, so a hard error here would be wrong — but a silent
-		// downgrade violates the keyring contract. Warn LOUDLY once per
-		// process, then consult the env var explicitly (GetOrEnv does not fall
-		// through on ErrUnreadable). If nothing else exists, embeddings
-		// switch off via the caller's existing Warning path.
-		recordProbe(keyErr)
-		warnUnreadableOnce(keyringAccount, keyErr)
-		apiKey = envAPIKey()
-	default:
-		return "", "", "", fmt.Errorf("reading voyage API key from keychain: %w", keyErr)
+	apiKey := envAPIKey()
+	if apiKey == "" {
+		// Env absent — fall back to the keychain. This is the only path that
+		// execs `security`; skipping it whenever the env var is set is what
+		// keeps automated invocations prompt-free.
+		store, err := credStore()
+		if err != nil {
+			return "", "", "", fmt.Errorf("opening keyring store: %w", err)
+		}
+		key, keyErr := store.Get(keyringAccount)
+		switch {
+		case keyErr == nil:
+			apiKey = key
+		case errors.Is(keyErr, keyring.ErrNotFound), errors.Is(keyErr, keyring.ErrUnsupported):
+			// Confirmed absent, or no keychain backend (incl. KEYRING_DISABLE):
+			// nothing left to try.
+		case errors.Is(keyErr, keyring.ErrUnreadable):
+			// Locked or denied keychain. snipe index can run headless or in the
+			// background, so a hard error here would be wrong — but a silent
+			// downgrade violates the keyring contract. Warn LOUDLY once per
+			// process; embeddings then switch off via the caller's Warning path.
+			recordProbe(keyErr)
+			warnUnreadableOnce(keyringAccount, keyErr)
+		default:
+			return "", "", "", fmt.Errorf("reading voyage API key from keychain: %w", keyErr)
+		}
 	}
 	model := os.Getenv("VOYAGE_MODEL")
 	endpoint := os.Getenv("VOYAGE_API_URL")
 
 	if apiKey == "" {
-		return "", "", "", fmt.Errorf("no API key: store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY) or set SNIPE_VOYAGE_API_KEY")
+		return "", "", "", fmt.Errorf("no API key: set SNIPE_VOYAGE_API_KEY or store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY)")
 	}
 	if model == "" {
 		model = "voyage-code-3"
@@ -168,7 +181,7 @@ func resolveCredentials() (string, string, string, error) {
 }
 
 // NewClient creates a new embedding client.
-// It reads the API key keychain-first, falling back to SNIPE_VOYAGE_API_KEY.
+// It reads the API key env-first (SNIPE_VOYAGE_API_KEY), falling back to the keychain.
 func NewClient() (*Client, error) {
 	apiKey, model, endpoint, err := resolveCredentials()
 	if err != nil {

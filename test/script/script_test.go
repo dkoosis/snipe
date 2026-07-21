@@ -41,6 +41,7 @@ package script
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -231,6 +232,73 @@ func copyTree(src, dst string) error {
 		}
 		return os.WriteFile(target, data, info.Mode())
 	})
+}
+
+// TestExitCodeContract asserts the exact process exit codes snipe promises, so
+// agents chaining commands can gate on them (AXI #6). testscript's `! exec` only
+// distinguishes zero from non-zero; this drives the built binary directly to
+// pin the specific codes:
+//
+//	0 — success, or a valid empty answer (no results is not a failure)
+//	1 — an error envelope was emitted (e.g. symbol not found)
+//	2 — a flag / usage error (deliberate, not kong's default)
+func TestExitCodeContract(t *testing.T) {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatalf("find repo root: %v", err)
+	}
+
+	binDir := t.TempDir()
+	binPath := filepath.Join(binDir, "snipe")
+	build := exec.Command("go", "build", "-o", binPath, "./")
+	build.Dir = repoRoot
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build snipe: %v\n%s", err, out)
+	}
+
+	fixtureDir := t.TempDir()
+	if err := writeScriptFixture(fixtureDir); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	index := exec.Command(binPath, "index", fixtureDir, "--enrich=false", "--embed-mode=off")
+	index.Dir = fixtureDir
+	index.Env = append(os.Environ(), "KEYRING_DISABLE=1")
+	if out, err := index.CombinedOutput(); err != nil {
+		t.Fatalf("index fixture: %v\n%s", err, out)
+	}
+
+	run := func(args ...string) int {
+		cmd := exec.Command(binPath, args...)
+		cmd.Dir = fixtureDir
+		cmd.Env = append(os.Environ(), "KEYRING_DISABLE=1")
+		if err := cmd.Run(); err != nil {
+			var ee *exec.ExitError
+			if errors.As(err, &ee) {
+				return ee.ExitCode()
+			}
+			t.Fatalf("run %v: %v", args, err)
+		}
+		return 0
+	}
+
+	tests := []struct {
+		name string
+		args []string
+		want int
+	}{
+		{"success", []string{"def", "Run"}, 0},
+		{"valid empty (no callers)", []string{"callers", "Orphan"}, 0},
+		{"symbol not found", []string{"def", "ZZZNotARealSymbol"}, 1},
+		{"unknown bare command", []string{"frobnicatezzz"}, 1},
+		{"bad flag", []string{"def", "--definitely-not-a-flag"}, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := run(tt.args...); got != tt.want {
+				t.Errorf("snipe %v exit = %d, want %d", tt.args, got, tt.want)
+			}
+		})
+	}
 }
 
 func findRepoRoot() (string, error) {
