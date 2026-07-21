@@ -141,12 +141,12 @@ func resolveCredentials() (string, string, string, error) {
 	case keyErr == nil:
 	case errors.Is(keyErr, keyring.ErrNotFound), errors.Is(keyErr, keyring.ErrUnsupported):
 		// Confirmed absent, or no keychain backend: GetOrEnv already
-		// consulted the env var; fall through to the credentials file.
+		// consulted the env var; nothing left to try.
 	case errors.Is(keyErr, keyring.ErrUnreadable):
 		// Locked or denied keychain. snipe index can run headless or in the
 		// background, so a hard error here would be wrong — but a silent
 		// downgrade violates the keyring contract. Warn LOUDLY once per
-		// process, then consult env/file explicitly (GetOrEnv does not fall
+		// process, then consult the env var explicitly (GetOrEnv does not fall
 		// through on ErrUnreadable). If nothing else exists, embeddings
 		// switch off via the caller's existing Warning path.
 		recordProbe(keyErr)
