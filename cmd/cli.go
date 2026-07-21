@@ -45,6 +45,7 @@ type CLI struct {
 	Hotspots  HotspotsCmd  `cmd:"" group:"Graph & Structure:" help:"Rank files by complexity × git change-frequency (Tornhill hotspot model)"`
 	Risk      RiskCmd      `cmd:"" group:"Graph & Structure:" help:"Assess a diff's risk (base→head): code-graph verdict (roles, centrality, blast, churn)"`
 	Verify    VerifyCmd    `cmd:"" group:"Graph & Structure:" help:"Map a diff to the minimal go test set covering changed symbols (structural, not a gate)"`
+	Plan      PlanCmd      `cmd:"" group:"Graph & Structure:" help:"Ordered edit worklist for a proposed symbol change (def + call sites + tests; structural, not a gate)"`
 	Sensitive SensitiveCmd `cmd:"" group:"Graph & Structure:" help:"List files in security-sensitive zones (auth/crypto/migration/secret/payment)"`
 	Diagram   DiagramCmd   `cmd:"" group:"Graph & Structure:" help:"Render snipe graphs as D2 diagram source"`
 	Lifecycle LifecycleCmd `cmd:"" group:"Graph & Structure:" help:"Trace every function creating, mutating, reading, or deleting a type"`

@@ -22,6 +22,7 @@ const (
 	cmdNameTests       = "tests"
 	cmdNameTypes       = "types"
 	cmdNameVerify      = "verify"
+	cmdNamePlan        = "plan"
 	cmdNamePack        = "pack"
 	cmdNamePkg         = "pkg"
 	cmdNameImports     = "imports"
