@@ -179,6 +179,30 @@ func TestCredentials_IgnoresPlaintextFile(t *testing.T) {
 	}
 }
 
+// TestCredentials_EnvFirst locks the env-first ordering (AXI #6: never prompt).
+// When SNIPE_VOYAGE_API_KEY is set, resolveCredentials returns it and
+// HasCredentials reports true WITHOUT consulting the keychain — so an
+// env-provisioned process (agent, CI, orca) never execs `security` and can never
+// trip an OS unlock/allow dialog. KEYRING_DISABLE is left UNSET to prove the env
+// var alone short-circuits even with a keychain backend available; that
+// short-circuit is also what keeps this test hermetic across platforms.
+func TestCredentials_EnvFirst(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("KEYRING_DISABLE", "")
+	t.Setenv("SNIPE_VOYAGE_API_KEY", "env-provided-key")
+
+	if !HasCredentials() {
+		t.Error("HasCredentials should report true when the env var is set")
+	}
+	key, _, _, err := resolveCredentials()
+	if err != nil {
+		t.Fatalf("resolveCredentials: %v", err)
+	}
+	if key != "env-provided-key" {
+		t.Errorf("apiKey = %q, want the env-provided key (env must win over keychain)", key)
+	}
+}
+
 func TestEmbedOne_ReturnsFirstEmbedding(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(EmbeddingResponse{
