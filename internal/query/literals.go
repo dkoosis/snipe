@@ -75,9 +75,30 @@ func FindChurnLiterals(db *sql.DB, testFiles []string, limit int) (paths []strin
 	// Neither pattern contains a LIKE metacharacter, so no ESCAPE is needed.
 	args = append(args, "%testdata/%", "%.golden")
 
+	// Count the full distinct match set first so "+N more" stays exact while the
+	// SELECT below caps what it materializes. Without this, a pathological test
+	// file (thousands of testdata/ consts) would stream every row into Go before
+	// the cap applied — the cap would bound the output but not the work, defeating
+	// the point of limit for exactly the const registries this feature targets.
+	countQ := fmt.Sprintf(`
+		SELECT COUNT(*) FROM (
+			SELECT DISTINCT value
+			FROM string_refs
+			WHERE file_path IN (%s)
+			  AND (value LIKE ? OR value LIKE ?)
+		)
+	`, placeholders)
+	var total int
+	if err := db.QueryRow(countQ, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count churn literals: %w", err)
+	}
+	if total == 0 {
+		return nil, 0, nil
+	}
+
 	// DISTINCT collapses the same path referenced by two covering tests; ORDER BY
 	// value (a plain column) both sorts the output and satisfies the ORDER BY
-	// guard test.
+	// guard test. LIMIT bounds the rows SQLite streams back, not just the slice.
 	q := fmt.Sprintf(`
 		SELECT DISTINCT value
 		FROM string_refs
@@ -85,6 +106,10 @@ func FindChurnLiterals(db *sql.DB, testFiles []string, limit int) (paths []strin
 		  AND (value LIKE ? OR value LIKE ?)
 		ORDER BY value
 	`, placeholders)
+	if limit > 0 {
+		q += "\t\tLIMIT ?\n"
+		args = append(args, limit)
+	}
 
 	rows, err := db.Query(q, args...)
 	if err != nil {
@@ -103,9 +128,5 @@ func FindChurnLiterals(db *sql.DB, testFiles []string, limit int) (paths []strin
 		return nil, 0, err
 	}
 
-	if limit > 0 && len(paths) > limit {
-		truncated = len(paths) - limit
-		paths = paths[:limit]
-	}
-	return paths, truncated, nil
+	return paths, total - len(paths), nil
 }

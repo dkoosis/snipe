@@ -591,12 +591,15 @@ func writePlanChurn(b *strings.Builder, p PlanResult) {
 	if len(p.Churn) == 0 {
 		return
 	}
+	// Header carries the pre-truncation total (like the plan header's call-site
+	// count); the list below shows the capped subset + a "+N more" footer.
+	total := len(p.Churn) + p.ChurnTruncated
 	plural := ""
-	if len(p.Churn) != 1 {
+	if total != 1 {
 		plural = "s"
 	}
 	fmt.Fprintf(b, "WILL CHURN — %d testdata/golden path%s referenced by covering tests (regenerate this pass):\n",
-		len(p.Churn), plural)
+		total, plural)
 	for _, path := range p.Churn {
 		fmt.Fprintf(b, "  %s\n", path)
 	}
