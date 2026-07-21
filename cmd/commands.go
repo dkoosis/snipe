@@ -356,6 +356,22 @@ func (c *VerifyCmd) Run() error {
 	return runVerify(c.Base)
 }
 
+type PlanCmd struct {
+	Symbol string `arg:"" optional:"" help:"Symbol name or id"`
+
+	Change     string `enum:"signature,behavior,delete" default:"signature" help:"Which worklist to emit: signature (full), behavior (tests only), or delete (must-remove refs)"`
+	At         string `help:"Position to look up (file:line:col)"`
+	ID         string `name:"id" help:"Symbol ID to look up"`
+	MaxCallers int    `default:"50" help:"Cap total call sites emitted (token budget)"`
+}
+
+func (c *PlanCmd) Run() error {
+	planAt = c.At
+	planID = c.ID
+	planMaxCallers = c.MaxCallers
+	return runPlan(c.Change, argsOf(c.Symbol))
+}
+
 type SensitiveCmd struct{}
 
 func (c *SensitiveCmd) Run() error {

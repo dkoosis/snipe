@@ -511,6 +511,10 @@ type RefRow struct {
 	EnclosingKind      string
 	EnclosingSignature string
 	FileHash           string // Content hash for change detection
+
+	// IsTest is true when the ref lives in a *_test.go file. Populated only by
+	// FindCallSites (false from FindRefs).
+	IsTest bool
 }
 
 // ToResult converts a SymbolRow to an output.Result

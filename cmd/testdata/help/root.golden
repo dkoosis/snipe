@@ -134,6 +134,10 @@ Graph & Structure:
     Map a diff to the minimal go test set covering changed symbols (structural,
     not a gate)
 
+  plan [<symbol>] [flags]
+    Ordered edit worklist for a proposed symbol change (def + call sites +
+    tests; structural, not a gate)
+
   sensitive [flags]
     List files in security-sensitive zones
     (auth/crypto/migration/secret/payment)
