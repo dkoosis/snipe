@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sort"
@@ -135,6 +136,23 @@ func FindOverlappingSymbols(db *sql.DB, repoRoot string, changes map[string][]Li
 		return nil, nil
 	}
 
+	// Wrap the whole batch loop in one read transaction so every batch reads
+	// from a single, stable snapshot. Without it each batch runs as its own
+	// implicit transaction; a concurrent writer (e.g. a reindex in WAL mode)
+	// committing between two batches would straddle the write boundary and
+	// could double-count or drop a symbol. modernc.org/sqlite honors
+	// ReadOnly:true as a plain deferred BEGIN, which takes the read snapshot on
+	// the first query and holds it until Rollback. The loop only reads, so
+	// Rollback (never Commit) is correct and cheaper — a read-only tx has
+	// nothing to commit; the deferred Rollback also runs on any early error
+	// return below. This consistency guarantee is structural — verified by
+	// construction, not by a (necessarily flaky) mid-loop-writer timing test.
+	tx, err := db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("query overlapping symbols: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // read-only tx: nothing to persist, rollback is cleanup-only
+
 	var allRows []SymbolRow
 	for start := 0; start < len(predSQL); start += overlapBatchPredicates {
 		end := start + overlapBatchPredicates
@@ -149,7 +167,7 @@ func FindOverlappingSymbols(db *sql.DB, repoRoot string, changes map[string][]Li
 			args = append(args, a...)
 		}
 
-		rows, err := db.Query(query, args...)
+		rows, err := tx.Query(query, args...)
 		if err != nil {
 			return nil, fmt.Errorf("query overlapping symbols: %w", err)
 		}
