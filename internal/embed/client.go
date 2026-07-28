@@ -291,10 +291,10 @@ func (c *Client) Model() string {
 func LiveProbe(ctx context.Context) error {
 	client, err := NewClient()
 	if err != nil {
-		return err
+		return fmt.Errorf("create embedding client: %w", err)
 	}
 	if _, err := client.EmbedOne(ctx, "ping", "query"); err != nil {
-		return err
+		return fmt.Errorf("live embedding probe: %w", err)
 	}
 	return nil
 }
