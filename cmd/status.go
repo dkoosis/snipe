@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -56,7 +58,7 @@ func runStatus() error {
 				Total:      1,
 			},
 		}
-		return w.WriteResponse(resp)
+		return emitStatus(w, resp)
 	}
 
 	// Open store (read-only mode)
@@ -108,5 +110,29 @@ func runStatus() error {
 		},
 	}
 
-	return w.WriteResponse(resp)
+	return emitStatus(w, resp)
+}
+
+// emitStatus renders the status response. Default (Claude) surface is a terse
+// one-liner; --format json emits the full envelope (D1: Claude reads text, not
+// JSON envelope noise).
+func emitStatus(w *output.Writer, resp output.Response[StatusResponse]) error {
+	if GetOutputFormat() == output.OutputJSON {
+		return w.WriteResponse(resp)
+	}
+	r := resp.Results[0]
+	var b strings.Builder
+	fmt.Fprintf(&b, "index · %s", r.State)
+	if r.State != output.IndexMissing {
+		fmt.Fprintf(&b, " · %d symbols · %d refs · %d calls", r.Symbols, r.Refs, r.Calls)
+		if r.Fingerprint != "" {
+			fmt.Fprintf(&b, " · %s", r.Fingerprint)
+		}
+		if r.IndexedAt != "" {
+			fmt.Fprintf(&b, " · indexed %s", r.IndexedAt)
+		}
+	}
+	b.WriteByte('\n')
+	_, err := os.Stdout.WriteString(b.String())
+	return err
 }

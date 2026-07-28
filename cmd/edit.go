@@ -267,7 +267,7 @@ doEdit:
 		},
 	}
 
-	return w.WriteResponse(resp)
+	return emitEdit(w, resp)
 }
 
 func runBatchEdit(w *output.Writer, start time.Time) error {
@@ -385,5 +385,39 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 		},
 	}
 
-	return w.WriteResponse(resp)
+	return emitEdit(w, resp)
+}
+
+// emitEdit renders edit results. Default (Claude) surface is a terse status
+// line per edit plus the unified diff; --format json emits the full envelope
+// (D1). Dry-run vs applied is stated explicitly.
+func emitEdit(w *output.Writer, resp output.Response[EditResponse]) error {
+	if GetOutputFormat() == output.OutputJSON {
+		return w.WriteResponse(resp)
+	}
+	var b strings.Builder
+	for i := range resp.Results {
+		r := &resp.Results[i]
+		mode := "dry-run"
+		if r.Applied {
+			mode = "applied"
+		}
+		fmt.Fprintf(&b, "edit · %s · %s:%d-%d · %s\n", r.Operation, r.File, r.LineStart, r.LineEnd, mode)
+		if r.Diff != "" {
+			b.WriteString(r.Diff)
+			if !strings.HasSuffix(r.Diff, "\n") {
+				b.WriteByte('\n')
+			}
+		}
+	}
+	// Degraded ops (symbol not found, ambiguous, edit failed) never land in
+	// Results — surface them so a batch where every op fails isn't silent.
+	if len(resp.Meta.Degraded) > 0 {
+		fmt.Fprintf(&b, "edit · %d degraded\n", len(resp.Meta.Degraded))
+		for _, d := range resp.Meta.Degraded {
+			fmt.Fprintf(&b, "  ✗ %s\n", d)
+		}
+	}
+	_, err := os.Stdout.WriteString(b.String())
+	return err
 }

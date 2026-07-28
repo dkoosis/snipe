@@ -45,54 +45,36 @@ const remediationReindex = "snipe index"
 func runDoctor(probe bool) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
-	allOK := true
-	var checks []DoctorCheck
-
-	// Check ripgrep
-	rgCheck := checkRipgrep()
-	checks = append(checks, rgCheck)
-	if !rgCheck.OK {
-		allOK = false
-	}
-
-	// Check index
+	// ripgrep, index, Go toolchain, embeddings credentials (--probe live-checks).
 	indexCheck := checkIndex()
-	checks = append(checks, indexCheck)
-	if !indexCheck.OK {
-		allOK = false
-	}
-
-	// Check Go toolchain
-	goCheck := checkGoToolchain()
-	checks = append(checks, goCheck)
-	if !goCheck.OK {
-		allOK = false
-	}
-
-	// Check embeddings credentials (and, with --probe, that they work)
-	embedCheck := checkEmbeddings(probe)
-	checks = append(checks, embedCheck)
-	if !embedCheck.OK {
-		allOK = false
+	checks := []DoctorCheck{
+		checkRipgrep(),
+		indexCheck,
+		checkGoToolchain(),
+		checkEmbeddings(probe),
 	}
 
 	// Check orphaned references (only if index exists)
 	if indexCheck.OK {
-		orphanCheck := checkOrphans()
-		checks = append(checks, orphanCheck)
+		checks = append(checks, checkOrphans())
 	}
 
 	// Check index staleness
 	if indexCheck.OK {
-		staleCheck := checkStaleness()
-		checks = append(checks, staleCheck)
+		checks = append(checks, checkStaleness())
 	}
 
 	// Check for root mismatch
-	mismatchCheck := checkRootMismatch()
-	checks = append(checks, mismatchCheck)
-	if !mismatchCheck.OK {
-		allOK = false
+	checks = append(checks, checkRootMismatch())
+
+	// allOK derived from every rendered check — no check can be silently
+	// excluded from the summary verdict (a check that passes when degraded,
+	// e.g. staleness, sets its own OK=true).
+	allOK := true
+	for i := range checks {
+		if !checks[i].OK {
+			allOK = false
+		}
 	}
 
 	// Find repo root for meta (best-effort)
@@ -111,7 +93,44 @@ func runDoctor(probe bool) error {
 		},
 	}
 
-	return w.WriteResponse(resp)
+	if GetOutputFormat() == output.OutputJSON {
+		return w.WriteResponse(resp)
+	}
+	return writeDoctorText(checks, allOK)
+}
+
+// writeDoctorText renders the diagnostic as terse text (D1). One summary line,
+// then one line per check; failures carry their remediation command indented.
+func writeDoctorText(checks []DoctorCheck, allOK bool) error {
+	okCount := 0
+	for i := range checks {
+		if checks[i].OK {
+			okCount++
+		}
+	}
+	var b strings.Builder
+	status := "✓ ok"
+	if !allOK {
+		status = "✗ FAILED"
+	}
+	fmt.Fprintf(&b, "doctor · %d/%d checks %s\n", okCount, len(checks), status)
+	for i := range checks {
+		c := &checks[i]
+		glyph := "✓"
+		if !c.OK {
+			glyph = "✗"
+		}
+		line := fmt.Sprintf("  %s %-14s %s", glyph, c.Name, c.Message)
+		if c.Code != "" {
+			line += fmt.Sprintf(" [%s]", c.Code)
+		}
+		fmt.Fprintln(&b, strings.TrimRight(line, " "))
+		if !c.OK && c.Remediation != "" {
+			fmt.Fprintf(&b, "    → %s\n", c.Remediation)
+		}
+	}
+	_, err := os.Stdout.WriteString(b.String())
+	return err
 }
 
 func checkRipgrep() DoctorCheck {

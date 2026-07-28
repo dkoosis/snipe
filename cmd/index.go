@@ -344,7 +344,7 @@ func runIndex(args []string) error {
 		fmt.Fprintf(os.Stderr, "Batch embedding started (async). Use 'snipe embed-status' to check progress.\n")
 	}
 
-	return w.WriteResponse(indexResponse(absDir, start, len(symbols), nil))
+	return emitIndex(w, indexResponse(absDir, start, len(symbols), nil))
 }
 
 // filterEmbeddableSymbols returns symbols suitable for embedding (functions, methods,
@@ -798,7 +798,7 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 		nMod+nAdd+nDel, nMod, nAdd, nDel)
 
 	symCount, _, _, _ := s.GetStats()
-	return w.WriteResponse(indexResponse(absDir, start, symCount, orphanSuggestion(incResult)))
+	return emitIndex(w, indexResponse(absDir, start, symCount, orphanSuggestion(incResult)))
 }
 
 // runDeleteOnlyIndex handles the case where only files were deleted.
@@ -823,10 +823,31 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 	fmt.Fprintf(os.Stderr, "Deleted %d files\n", nDel)
 
 	symCount, _, _, _ := s.GetStats()
-	return w.WriteResponse(indexResponse(absDir, start, symCount, orphanSuggestion(incResult)))
+	return emitIndex(w, indexResponse(absDir, start, symCount, orphanSuggestion(incResult)))
 }
 
 // indexResponse builds a standard index command response.
+// emitIndex renders the index response. Default (Claude) surface is a terse
+// one-liner (progress detail already went to stderr); --format json emits the
+// full envelope (D1).
+func emitIndex(w *output.Writer, resp output.Response[any]) error {
+	if GetOutputFormat() == output.OutputJSON {
+		return w.WriteResponse(resp)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "indexed · %d symbols · %s · %dms\n",
+		resp.Meta.Total, resp.Meta.IndexState, resp.Meta.Ms)
+	for _, s := range resp.Suggestions {
+		fmt.Fprintf(&b, "→ %s", s.Command)
+		if s.Description != "" {
+			fmt.Fprintf(&b, "  (%s)", s.Description)
+		}
+		b.WriteByte('\n')
+	}
+	_, err := os.Stdout.WriteString(b.String())
+	return err
+}
+
 func indexResponse(absDir string, start time.Time, symCount int, suggestions []output.Suggestion) output.Response[any] {
 	return output.Response[any]{
 		Protocol:    output.ProtocolVersion,
@@ -1355,7 +1376,7 @@ func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start ti
 				Total:      symCount,
 			},
 		}
-		return &changeDetection{result: skipResultSkipped}, w.WriteResponse(resp)
+		return &changeDetection{result: skipResultSkipped}, emitIndex(w, resp)
 	}
 
 	// Changes detected — decide between incremental and full reindex
