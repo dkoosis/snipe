@@ -60,6 +60,7 @@ type CLI struct {
 	Edit EditCmd `cmd:"" group:"Edit (modifies files):" help:"AST-aware code editing — modifies files (dry-run unless --apply)"`
 
 	// Index & Health
+	Triage TriageCmd `cmd:"" group:"Index & Health:" help:"Bundle hotspots+package+test-proximity facts for a file set (facts only, no band/route decision)"`
 	Index  IndexCmd  `cmd:"" group:"Index & Health:" help:"Build or update the code index"`
 	Status StatusCmd `cmd:"" default:"withargs" group:"Index & Health:" help:"Show index status and statistics"`
 	Doctor DoctorCmd `cmd:"" group:"Index & Health:" help:"Check snipe installation and configuration"`
