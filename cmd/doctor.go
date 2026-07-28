@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,12 +36,13 @@ const (
 	DoctorIndexStale       = "INDEX_STALE"
 	DoctorOrphanedRefs     = "ORPHANED_REFS"
 	DoctorEmbedAuthMissing = "EMBED_AUTH_MISSING"
+	DoctorEmbedProbeFailed = "EMBED_PROBE_FAILED"
 )
 
 // Common remediation commands.
 const remediationReindex = "snipe index"
 
-func runDoctor() error {
+func runDoctor(probe bool) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	allOK := true
@@ -67,9 +69,12 @@ func runDoctor() error {
 		allOK = false
 	}
 
-	// Check embeddings credentials
-	embedCheck := checkEmbeddings()
+	// Check embeddings credentials (and, with --probe, that they work)
+	embedCheck := checkEmbeddings(probe)
 	checks = append(checks, embedCheck)
+	if !embedCheck.OK {
+		allOK = false
+	}
 
 	// Check orphaned references (only if index exists)
 	if indexCheck.OK {
@@ -257,7 +262,7 @@ func checkGoToolchain() DoctorCheck {
 	return check
 }
 
-func checkEmbeddings() DoctorCheck {
+func checkEmbeddings(probe bool) DoctorCheck {
 	check := DoctorCheck{
 		Name: "embeddings",
 	}
@@ -268,6 +273,9 @@ func checkEmbeddings() DoctorCheck {
 	case has && probeErr == nil:
 		check.OK = true
 		check.Message = "embedding credentials available"
+		if probe {
+			liveProbeEmbeddings(&check)
+		}
 	case has && probeErr != nil:
 		// Keychain is locked/unreadable but the SNIPE_VOYAGE_API_KEY env var
 		// covers it — say so instead of a false "credentials available".
@@ -275,6 +283,9 @@ func checkEmbeddings() DoctorCheck {
 		check.Message = "keychain locked or unreadable — using env credentials"
 		check.Details = probeErr.Error()
 		check.Remediation = "security unlock-keychain"
+		if probe {
+			liveProbeEmbeddings(&check)
+		}
 	case probeErr != nil:
 		check.OK = true // Not a failure, just informational
 		check.Code = DoctorEmbedAuthMissing
@@ -289,6 +300,25 @@ func checkEmbeddings() DoctorCheck {
 	}
 
 	return check
+}
+
+// liveProbeEmbeddings makes one minimal Voyage request to confirm the resolved
+// key actually works — present is not the same as working (revoked, typo'd, or
+// the endpoint is unreachable). It downgrades the check to a failure on a bad
+// key so `snipe doctor --probe` exits non-zero. Called only when credentials are
+// present and --probe is set.
+func liveProbeEmbeddings(check *DoctorCheck) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := embed.LiveProbe(ctx); err != nil {
+		check.OK = false
+		check.Code = DoctorEmbedProbeFailed
+		check.Message = "embedding credentials present but live probe failed (key invalid, revoked, or endpoint unreachable)"
+		check.Details = err.Error()
+		check.Remediation = "verify the Voyage API key is valid and the network reaches api.voyageai.com"
+		return
+	}
+	check.Message = "embedding credentials verified (live probe OK)"
 }
 
 // embedAuthRemediation orders the credential recipes by platform: the macOS
