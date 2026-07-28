@@ -172,6 +172,10 @@ Edit (modifies files):
     AST-aware code editing — modifies files (dry-run unless --apply)
 
 Index & Health:
+  triage [<files> ...] [flags]
+    Bundle hotspots+package+test-proximity facts for a file set (facts only,
+    no band/route decision)
+
   index [<path>] [flags]
     Build or update the code index
 

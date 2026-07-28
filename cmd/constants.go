@@ -20,6 +20,7 @@ const (
 	cmdNameSearch      = "search"
 	cmdNameShow        = "show"
 	cmdNameTests       = "tests"
+	cmdNameTriage      = "triage"
 	cmdNameTypes       = "types"
 	cmdNameVerify      = "verify"
 	cmdNamePlan        = "plan"

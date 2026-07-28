@@ -137,6 +137,14 @@ func (c *TestsCmd) Run() error {
 	return runTests(argsOf(c.Symbol))
 }
 
+type TriageCmd struct {
+	Files []string `arg:"" optional:"" help:"Files to triage (repo-relative or absolute)"`
+}
+
+func (c *TriageCmd) Run() error {
+	return runTriage(c.Files)
+}
+
 type ImpactCmd struct {
 	Symbol string `arg:"" optional:"" help:"Symbol name or id"`
 

@@ -31,6 +31,49 @@ type hotspotRow struct {
 	Sensitive   []sensitive.Zone `json:"sensitive,omitempty"` // auth/crypto/migration/... if any
 }
 
+// loadHotspotRows reads the per-file complexity and churn metrics and joins
+// them into unified risk rows, exactly as runHotspots does — factored out so
+// other commands (e.g. `snipe triage`) can look up a file's hotspot row
+// without duplicating the read+join. Returns (nil, false, nil) when the index
+// has no complexity data yet (distinct from an empty-but-populated index).
+func loadHotspotRows(s *store.Store) ([]hotspotRow, bool, error) {
+	cycloSum, err := s.ReadTopN("files", "cyclo_sum", 0)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(cycloSum) == 0 {
+		return nil, false, nil
+	}
+	cycloMax, err := s.ReadTopN("files", "cyclo_max", 0)
+	if err != nil {
+		return nil, false, err
+	}
+	cognitiveSum, err := s.ReadTopN("files", "cognitive_sum", 0)
+	if err != nil {
+		return nil, false, err
+	}
+	fanInRows, err := s.ReadTopN("files", "fan_in", 0)
+	if err != nil {
+		return nil, false, err
+	}
+	churn, err := s.ReadFileChurnTopN(0)
+	if err != nil {
+		return nil, false, err
+	}
+
+	maxByPath := intByPath(cycloMax)
+	cogByPath := intByPath(cognitiveSum)
+	fanByPath := intByPath(fanInRows)
+	churnByPath := make(map[string]store.FileChurn, len(churn))
+	for _, c := range churn {
+		churnByPath[c.Path] = c
+	}
+	haveChurn := len(churn) > 0
+
+	rows := buildHotspots(cycloSum, maxByPath, cogByPath, fanByPath, churnByPath, haveChurn)
+	return rows, haveChurn, nil
+}
+
 // runHotspots ranks files by complexity × change-frequency — Tornhill's
 // single most practical risk heuristic (Your Code as a Crime Scene, 2015;
 // CodeScene). Complex code that never changes is stable and churning simple
@@ -46,11 +89,11 @@ func runHotspots(top int, pkg, file string) error {
 	defer s.Close()
 	start := time.Now()
 
-	cycloSum, err := s.ReadTopN("files", "cyclo_sum", 0)
+	rows, haveChurn, err := loadHotspotRows(s)
 	if err != nil {
 		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
 	}
-	if len(cycloSum) == 0 {
+	if rows == nil {
 		// Preserve the JSON envelope for API/orca consumers in the common
 		// "index not populated yet" case; plain text is for humans only.
 		if GetOutputFormat() == output.OutputJSON {
@@ -59,33 +102,7 @@ func runHotspots(top int, pkg, file string) error {
 		_, werr := os.Stdout.WriteString("hotspots · (no complexity data — run `snipe index` to populate)\n")
 		return werr
 	}
-	cycloMax, err := s.ReadTopN("files", "cyclo_max", 0)
-	if err != nil {
-		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
-	}
-	cognitiveSum, err := s.ReadTopN("files", "cognitive_sum", 0)
-	if err != nil {
-		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
-	}
-	fanInRows, err := s.ReadTopN("files", "fan_in", 0)
-	if err != nil {
-		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
-	}
-	churn, err := s.ReadFileChurnTopN(0)
-	if err != nil {
-		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
-	}
 
-	maxByPath := intByPath(cycloMax)
-	cogByPath := intByPath(cognitiveSum)
-	fanByPath := intByPath(fanInRows)
-	churnByPath := make(map[string]store.FileChurn, len(churn))
-	for _, c := range churn {
-		churnByPath[c.Path] = c
-	}
-	haveChurn := len(churn) > 0
-
-	rows := buildHotspots(cycloSum, maxByPath, cogByPath, fanByPath, churnByPath, haveChurn)
 	rows = filterHotspots(rows, pkg, file)
 	// Annotate with sensitive zones so a small-but-critical file (auth, crypto,
 	// migration) is visible even when its complexity × churn score is modest.
