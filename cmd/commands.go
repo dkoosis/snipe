@@ -564,10 +564,12 @@ func (c *StatusCmd) Run() error {
 	return runStatus()
 }
 
-type DoctorCmd struct{}
+type DoctorCmd struct {
+	Probe bool `help:"Live-probe external APIs (e.g. Voyage embeddings) to verify keys work, not just that they're present. Makes a network call."`
+}
 
 func (c *DoctorCmd) Run() error {
-	return runDoctor()
+	return runDoctor(c.Probe)
 }
 
 // --- Misc ---

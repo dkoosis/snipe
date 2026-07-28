@@ -18,3 +18,7 @@ Flags:
       --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
       --select="all"        Pick top candidates by score: all, best, top3,
                             top5 (applied before --limit)
+
+      --probe               Live-probe external APIs (e.g. Voyage embeddings)
+                            to verify keys work, not just that they're present.
+                            Makes a network call.

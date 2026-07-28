@@ -216,6 +216,59 @@ func TestCredentials_EnvFirst(t *testing.T) {
 	}
 }
 
+// TestLiveProbe covers the doctor --probe path: a real one-shot request that
+// proves the resolved key works (2xx) or surfaces the failure (bad key, 4xx).
+// NewClient reads VOYAGE_API_URL for the endpoint, so the httptest server stands
+// in for Voyage. KEYRING_DISABLE keeps the probe hermetic — env key only.
+func TestLiveProbe(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		wantErr bool
+	}{
+		{
+			name: "valid key returns nil",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				_ = json.NewEncoder(w).Encode(EmbeddingResponse{
+					Data: []struct {
+						Object    string    `json:"object"`
+						Embedding []float32 `json:"embedding"`
+						Index     int       `json:"index"`
+					}{{Embedding: []float32{0.1}, Index: 0}},
+				})
+			},
+			wantErr: false,
+		},
+		{
+			name: "unauthorized key returns error",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"error":"invalid_api_key"}`))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(tt.handler)
+			t.Cleanup(server.Close)
+
+			t.Setenv("KEYRING_DISABLE", "1")
+			t.Setenv("SNIPE_VOYAGE_API_KEY", "test-key")
+			t.Setenv("VOYAGE_API_URL", server.URL)
+
+			err := LiveProbe(context.Background())
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("LiveProbe: %v", err)
+			}
+		})
+	}
+}
+
 func TestEmbedOne_ReturnsFirstEmbedding(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(EmbeddingResponse{

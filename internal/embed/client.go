@@ -281,3 +281,20 @@ func (c *Client) EmbedOne(ctx context.Context, text string, inputType string) ([
 func (c *Client) Model() string {
 	return c.model
 }
+
+// LiveProbe verifies the resolved credentials actually work by making one
+// minimal embedding request against Voyage. Presence of a key (HasCredentials)
+// does not prove it is valid, unrevoked, or that the endpoint is reachable —
+// this is the "is it working" check for doctor. Returns nil on a successful
+// round-trip; the wrapped error otherwise (401/403 = bad key, network = offline,
+// etc.). Costs one tiny billable request, so callers gate it behind an opt-in.
+func LiveProbe(ctx context.Context) error {
+	client, err := NewClient()
+	if err != nil {
+		return err
+	}
+	if _, err := client.EmbedOne(ctx, "ping", "query"); err != nil {
+		return err
+	}
+	return nil
+}
