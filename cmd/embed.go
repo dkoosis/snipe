@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dkoosis/snipe/internal/embed"
@@ -83,12 +84,7 @@ func runEmbedStatus() error {
 			Status:  "no_batch",
 			Message: "No batch embedding job found. Run 'snipe index' to start one.",
 		}
-		return w.WriteResponse(output.Response[EmbedStatusResult]{
-			Protocol: output.ProtocolVersion,
-			Ok:       true,
-			Results:  []EmbedStatusResult{result},
-			Meta:     output.Meta{Command: cmdNameEmbedStatus},
-		})
+		return emitEmbedStatus(w, result)
 	}
 
 	// Poll loop (or single check)
@@ -149,12 +145,7 @@ func runEmbedStatus() error {
 				EmbedCount: embedCount,
 				Message:    fmt.Sprintf("Downloaded and saved %d embeddings", embedCount),
 			}
-			return w.WriteResponse(output.Response[EmbedStatusResult]{
-				Protocol: output.ProtocolVersion,
-				Ok:       true,
-				Results:  []EmbedStatusResult{result},
-				Meta:     output.Meta{Command: cmdNameEmbedStatus},
-			})
+			return emitEmbedStatus(w, result)
 		}
 
 		// Handle failure
@@ -173,12 +164,7 @@ func runEmbedStatus() error {
 				CreatedAt: &state.CreatedAt,
 				Message:   "Batch job failed or was cancelled",
 			}
-			return w.WriteResponse(output.Response[EmbedStatusResult]{
-				Protocol: output.ProtocolVersion,
-				Ok:       true,
-				Results:  []EmbedStatusResult{result},
-				Meta:     output.Meta{Command: cmdNameEmbedStatus},
-			})
+			return emitEmbedStatus(w, result)
 		}
 
 		// If not waiting, return current status
@@ -201,12 +187,7 @@ func runEmbedStatus() error {
 				Stale:     isStale,
 				Message:   msg,
 			}
-			return w.WriteResponse(output.Response[EmbedStatusResult]{
-				Protocol: output.ProtocolVersion,
-				Ok:       true,
-				Results:  []EmbedStatusResult{result},
-				Meta:     output.Meta{Command: cmdNameEmbedStatus},
-			})
+			return emitEmbedStatus(w, result)
 		}
 
 		// Wait and poll again — honor ctx so Ctrl+C returns promptly instead of
@@ -217,6 +198,46 @@ func runEmbedStatus() error {
 		case <-time.After(time.Duration(embedPollSecs) * time.Second):
 		}
 	}
+}
+
+// emitEmbedStatus renders one embed-status result. Default (Claude) surface is
+// a terse one-liner; --format json emits the full envelope (D1).
+func emitEmbedStatus(w *output.Writer, result EmbedStatusResult) error {
+	resp := output.Response[EmbedStatusResult]{
+		Protocol: output.ProtocolVersion,
+		Ok:       true,
+		Results:  []EmbedStatusResult{result},
+		Meta:     output.Meta{Command: cmdNameEmbedStatus},
+	}
+	if GetOutputFormat() == output.OutputJSON {
+		return w.WriteResponse(resp)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "embeddings · %s", result.Status)
+	if result.Total > 0 {
+		fmt.Fprintf(&b, " · %d/%d", result.Completed, result.Total)
+	}
+	if result.Failed > 0 {
+		fmt.Fprintf(&b, " · %d failed", result.Failed)
+	}
+	if result.EmbedCount > 0 {
+		fmt.Fprintf(&b, " · %d saved", result.EmbedCount)
+	}
+	if result.Model != "" {
+		fmt.Fprintf(&b, " · %s", result.Model)
+	}
+	if result.Age != "" {
+		fmt.Fprintf(&b, " · age %s", result.Age)
+	}
+	if result.Stale {
+		b.WriteString(" · STALE")
+	}
+	if result.Message != "" {
+		fmt.Fprintf(&b, "\n%s", result.Message)
+	}
+	b.WriteByte('\n')
+	_, err := os.Stdout.WriteString(b.String())
+	return err
 }
 
 // embeddingSaver is the persistence seam downloadAndSaveEmbeddings writes

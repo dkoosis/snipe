@@ -111,7 +111,44 @@ func runDoctor(probe bool) error {
 		},
 	}
 
-	return w.WriteResponse(resp)
+	if GetOutputFormat() == output.OutputJSON {
+		return w.WriteResponse(resp)
+	}
+	return writeDoctorText(checks, allOK)
+}
+
+// writeDoctorText renders the diagnostic as terse text (D1). One summary line,
+// then one line per check; failures carry their remediation command indented.
+func writeDoctorText(checks []DoctorCheck, allOK bool) error {
+	okCount := 0
+	for i := range checks {
+		if checks[i].OK {
+			okCount++
+		}
+	}
+	var b strings.Builder
+	status := "✓ ok"
+	if !allOK {
+		status = "✗ FAILED"
+	}
+	fmt.Fprintf(&b, "doctor · %d/%d checks %s\n", okCount, len(checks), status)
+	for i := range checks {
+		c := &checks[i]
+		glyph := "✓"
+		if !c.OK {
+			glyph = "✗"
+		}
+		line := fmt.Sprintf("  %s %-14s %s", glyph, c.Name, c.Message)
+		if c.Code != "" {
+			line += fmt.Sprintf(" [%s]", c.Code)
+		}
+		fmt.Fprintln(&b, strings.TrimRight(line, " "))
+		if !c.OK && c.Remediation != "" {
+			fmt.Fprintf(&b, "    → %s\n", c.Remediation)
+		}
+	}
+	_, err := os.Stdout.WriteString(b.String())
+	return err
 }
 
 func checkRipgrep() DoctorCheck {

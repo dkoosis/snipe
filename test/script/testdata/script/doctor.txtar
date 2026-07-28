@@ -1,7 +1,11 @@
 # doctor — check snipe installation and configuration.
-# doctor renders a JSON envelope as its default surface. Proves: the run
-# completes and reports the doctor command with its check results, exit 0.
+# Default surface is terse text (D1); --format json emits the full envelope.
+# Proves: the run completes, prints the summary + per-check lines, exit 0;
+# and the json surface still carries the envelope for toolchain consumers.
 cd $FIXTURE
 exec snipe doctor
+stdout 'doctor · '
+stdout 'ripgrep'
+exec snipe doctor --format json
 stdout '"command":"doctor"'
 stdout '"name":"ripgrep"'
