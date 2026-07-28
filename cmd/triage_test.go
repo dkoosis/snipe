@@ -210,6 +210,87 @@ func TestTriageCommand_BundlesHotspotsPackageAndTestsFacts(t *testing.T) {
 	}
 }
 
+// insertTriageSymbol adds one func symbol to the fixture store.
+func insertTriageSymbol(t *testing.T, s *store.Store, root, id, name, fileRel string) {
+	t.Helper()
+	_, err := s.DB().Exec(`
+		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path, line_start, col_start, line_end, col_end)
+		VALUES (?, ?, 'func', ?, ?, 'example.com/p', 5, 1, 8, 1)
+	`, id, name, filepath.Join(root, fileRel), fileRel)
+	if err != nil {
+		t.Fatalf("insert symbol %s: %v", id, err)
+	}
+}
+
+// TestTriage_ExactPathMatch_NoSubstringCollision pins the P2 fix: a test in
+// tools/cmd/other.go must not make cmd/other.go appear tested. The old
+// FindSymbolsInFile `%pattern%` LIKE matched both files.
+func TestTriage_ExactPathMatch_NoSubstringCollision(t *testing.T) {
+	root := t.TempDir()
+	s, err := store.Open(store.DefaultIndexPath(root))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer s.Close()
+	if err := s.SetMeta("repo_root", root); err != nil {
+		t.Fatalf("set repo_root: %v", err)
+	}
+
+	// cmd/other.go: untested. tools/cmd/other.go: tested (substring superset).
+	insertTriageSymbol(t, s, root, "sym-qux", "Qux", "cmd/other.go")
+	insertTriageSymbol(t, s, root, "sym-bar", "Bar", "tools/cmd/other.go")
+	insertTriageSymbol(t, s, root, "sym-testbar", "TestBar", "tools/cmd/other_test.go")
+	if _, err := s.DB().Exec(`
+		INSERT INTO call_graph (caller_id, callee_id, file_path, line, col)
+		VALUES ('sym-testbar', 'sym-bar', ?, 6, 1)
+	`, filepath.Join(root, "tools/cmd/other_test.go")); err != nil {
+		t.Fatalf("insert call_graph: %v", err)
+	}
+
+	t.Chdir(root)
+	stdout, _, err := runCLI(t, "--format", "json", "triage", "cmd/other.go")
+	if err != nil {
+		t.Fatalf("triage error: %v", err)
+	}
+	var got triageJSON
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, stdout)
+	}
+	if len(got.FilesWithTests) != 0 {
+		t.Errorf("cmd/other.go must be untested (substring collision with tools/cmd/other.go), got with_tests=%v", got.FilesWithTests)
+	}
+}
+
+// TestTriage_TestFileInput_CountsAsTested pins the P2 fix: a changed _test.go
+// file that declares a test entry point counts as tested, rather than being
+// reported untested because no other test calls it.
+func TestTriage_TestFileInput_CountsAsTested(t *testing.T) {
+	root := t.TempDir()
+	s, err := store.Open(store.DefaultIndexPath(root))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer s.Close()
+	if err := s.SetMeta("repo_root", root); err != nil {
+		t.Fatalf("set repo_root: %v", err)
+	}
+
+	insertTriageSymbol(t, s, root, "sym-testthing", "TestThing", "cmd/thing_test.go")
+
+	t.Chdir(root)
+	stdout, _, err := runCLI(t, "--format", "json", "triage", "cmd/thing_test.go")
+	if err != nil {
+		t.Fatalf("triage error: %v", err)
+	}
+	var got triageJSON
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, stdout)
+	}
+	if len(got.FilesWithTests) != 1 || got.FilesWithTests[0] != "cmd/thing_test.go" {
+		t.Errorf("a _test.go file declaring TestThing must count as tested, got with_tests=%v without=%v", got.FilesWithTests, got.FilesWithoutTests)
+	}
+}
+
 func TestTriageCommand_EmptyInput_ReturnsValidEmptyEnvelope(t *testing.T) {
 	root := buildTriageFixture(t)
 	t.Chdir(root)

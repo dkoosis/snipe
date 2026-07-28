@@ -49,7 +49,10 @@ func runTriage(files []string) error {
 	}
 	defer s.Close()
 
-	resp := buildTriageResponse(s, dir, files)
+	resp, err := buildTriageResponse(s, dir, files)
+	if err != nil {
+		return err
+	}
 
 	if GetOutputFormat() == output.OutputJSON {
 		enc := json.NewEncoder(os.Stdout)
@@ -63,8 +66,10 @@ func runTriage(files []string) error {
 // file lands in Files (null score/fan_in/cyclo when unscored) and in exactly
 // one of FilesWithTests/FilesWithoutTests. Hotspot-read failures degrade to
 // "no scores" rather than failing the whole command — package and
-// test-proximity facts are independent of the hotspots table.
-func buildTriageResponse(s *store.Store, dir string, files []string) triageResponse {
+// test-proximity facts are independent of the hotspots table. A test-proximity
+// read error aborts instead: a gate must never act on a fabricated "untested"
+// verdict caused by an index/IO failure.
+func buildTriageResponse(s *store.Store, dir string, files []string) (triageResponse, error) {
 	hotByPath := map[string]hotspotRow{}
 	if rows, _, err := loadHotspotRows(s); err == nil {
 		for _, r := range rows {
@@ -95,7 +100,11 @@ func buildTriageResponse(s *store.Store, dir string, files []string) triageRespo
 		}
 		fileRows = append(fileRows, row)
 
-		if hasFileTests(s.DB(), rel) {
+		hasTests, err := hasFileTests(s.DB(), rel)
+		if err != nil {
+			return triageResponse{}, fmt.Errorf("triage test-proximity %s: %w", rel, err)
+		}
+		if hasTests {
 			withTests = append(withTests, rel)
 		} else {
 			withoutTests = append(withoutTests, rel)
@@ -107,15 +116,20 @@ func buildTriageResponse(s *store.Store, dir string, files []string) triageRespo
 		PackageCount:      len(pkgSeen),
 		FilesWithTests:    withTests,
 		FilesWithoutTests: withoutTests,
-	}
+	}, nil
 }
 
-// triageRelPath normalizes a CLI-supplied file argument (absolute, or
-// relative to CWD) into the repo-root-relative, forward-slashed form used as
-// the join key across symbols.file_path_rel, graph_metrics, and file_churn.
+// triageRelPath normalizes a CLI-supplied file argument into the
+// repo-root-relative, forward-slashed form used as the join key across
+// symbols.file_path_rel, graph_metrics, and file_churn. A non-absolute
+// argument resolves against the repo root (D3), NOT the CWD — the documented
+// input is repo-relative (git-diff paths), and resolving against CWD would
+// mis-join every fact when triage runs from a subdirectory.
 func triageRelPath(root, f string) string {
 	if !filepath.IsAbs(f) {
-		if abs, err := filepath.Abs(f); err == nil {
+		if root != "" {
+			f = filepath.Join(root, f)
+		} else if abs, err := filepath.Abs(f); err == nil {
 			f = abs
 		}
 	}
@@ -139,29 +153,72 @@ func resolveFilePackage(db *sql.DB, rel string) string {
 	return pkg.String
 }
 
-// hasFileTests reports whether any test exercises any symbol declared in the
-// file — the file-level test-presence signal triage actually wants. It replaces
-// the old `snipe tests --at <file>:1:1` idiom (and significance.sh's
-// has_nearby_tests), which anchored on a symbol starting at line 1; real symbols
-// almost never do, so that check reported "no tests" for well-tested files.
-// Enumerate the file's symbols, then FindTestsMulti over their IDs: one query,
-// correct at the file granularity.
-func hasFileTests(db *sql.DB, rel string) bool {
-	// FindSymbolsInFile takes a literal SQL LIMIT (0 = zero rows, not unlimited);
-	// 1000 comfortably covers every symbol in a single Go file.
-	syms, err := query.FindSymbolsInFile(db, rel, 1000, 0)
-	if err != nil || len(syms) == 0 {
-		return false
+// hasFileTests reports whether the file has test coverage — the file-level
+// test-presence signal triage actually wants. It replaces the old
+// `snipe tests --at <file>:1:1` idiom (and significance.sh's has_nearby_tests),
+// which anchored on a symbol starting at line 1; real symbols almost never do,
+// so that check reported "no tests" for well-tested files.
+//
+// Two cases count as "has tests":
+//   - the file IS a test file that declares a test entry point (Test/Benchmark/
+//     Fuzz/Example) — a changed test file needs no separate test of its own;
+//   - a test elsewhere calls a symbol declared in the file (FindTestsMulti).
+//
+// A read error propagates: the caller must not fabricate an "untested" verdict
+// from an index/IO failure.
+func hasFileTests(db *sql.DB, rel string) (bool, error) {
+	syms, err := triageFileSymbols(db, rel)
+	if err != nil {
+		return false, err
 	}
+	if len(syms) == 0 {
+		return false, nil
+	}
+	isTestFile := strings.HasSuffix(rel, "_test.go")
 	ids := make([]string, 0, len(syms))
 	for _, s := range syms {
-		ids = append(ids, s.ID)
+		if isTestFile && (s.kind == output.KindFunc || s.kind == output.KindMethod) &&
+			verifyIsTestFuncName(s.name) {
+			return true, nil
+		}
+		ids = append(ids, s.id)
 	}
 	rows, err := query.FindTestsMulti(db, ids, false, 1, 0)
 	if err != nil {
-		return false
+		return false, err
 	}
-	return len(rows) > 0
+	return len(rows) > 0, nil
+}
+
+// triageSymbol is the minimal symbol slice hasFileTests needs.
+type triageSymbol struct {
+	id, name, kind string
+}
+
+// triageFileSymbols returns every symbol declared in exactly this file. It uses
+// an exact file_path_rel match, NOT query.FindSymbolsInFile's `%pattern%` LIKE,
+// so requesting cmd/foo.go can never pull in symbols from tools/cmd/foo.go and
+// mis-attribute that file's tests.
+func triageFileSymbols(db *sql.DB, rel string) ([]triageSymbol, error) {
+	rows, err := db.Query(`
+		SELECT id, name, kind FROM symbols
+		WHERE file_path_rel = ? AND kind NOT IN ('field')
+		ORDER BY line_start, id
+	`, rel)
+	if err != nil {
+		return nil, fmt.Errorf("query file symbols: %w", err)
+	}
+	defer rows.Close()
+
+	var out []triageSymbol
+	for rows.Next() {
+		var s triageSymbol
+		if err := rows.Scan(&s.id, &s.name, &s.kind); err != nil {
+			return nil, fmt.Errorf("scan file symbol: %w", err)
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
 }
 
 func writeTriageText(resp triageResponse) error {
