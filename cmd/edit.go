@@ -410,6 +410,14 @@ func emitEdit(w *output.Writer, resp output.Response[EditResponse]) error {
 			}
 		}
 	}
+	// Degraded ops (symbol not found, ambiguous, edit failed) never land in
+	// Results — surface them so a batch where every op fails isn't silent.
+	if len(resp.Meta.Degraded) > 0 {
+		fmt.Fprintf(&b, "edit · %d degraded\n", len(resp.Meta.Degraded))
+		for _, d := range resp.Meta.Degraded {
+			fmt.Fprintf(&b, "  ✗ %s\n", d)
+		}
+	}
 	_, err := os.Stdout.WriteString(b.String())
 	return err
 }

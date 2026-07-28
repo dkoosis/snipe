@@ -8,3 +8,13 @@ stdout 'dry-run'
 exec snipe edit Greet --operation replace_body --new-code 'return Banner' --format json
 stdout '"operation":"replace_body"'
 stdout '"applied":false'
+
+# Batch mode where every op fails must not be silent: degraded entries surface
+# on the default text surface, not only in --format json (D1).
+stdin $WORK/batch.json
+exec snipe edit --batch
+stdout 'edit · 1 degraded'
+stdout 'symbol_not_found:NoSuchSymbol'
+
+-- batch.json --
+[{"symbol":"NoSuchSymbol","operation":"replace_body","new_code":"x"}]

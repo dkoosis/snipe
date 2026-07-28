@@ -45,54 +45,36 @@ const remediationReindex = "snipe index"
 func runDoctor(probe bool) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
-	allOK := true
-	var checks []DoctorCheck
-
-	// Check ripgrep
-	rgCheck := checkRipgrep()
-	checks = append(checks, rgCheck)
-	if !rgCheck.OK {
-		allOK = false
-	}
-
-	// Check index
+	// ripgrep, index, Go toolchain, embeddings credentials (--probe live-checks).
 	indexCheck := checkIndex()
-	checks = append(checks, indexCheck)
-	if !indexCheck.OK {
-		allOK = false
-	}
-
-	// Check Go toolchain
-	goCheck := checkGoToolchain()
-	checks = append(checks, goCheck)
-	if !goCheck.OK {
-		allOK = false
-	}
-
-	// Check embeddings credentials (and, with --probe, that they work)
-	embedCheck := checkEmbeddings(probe)
-	checks = append(checks, embedCheck)
-	if !embedCheck.OK {
-		allOK = false
+	checks := []DoctorCheck{
+		checkRipgrep(),
+		indexCheck,
+		checkGoToolchain(),
+		checkEmbeddings(probe),
 	}
 
 	// Check orphaned references (only if index exists)
 	if indexCheck.OK {
-		orphanCheck := checkOrphans()
-		checks = append(checks, orphanCheck)
+		checks = append(checks, checkOrphans())
 	}
 
 	// Check index staleness
 	if indexCheck.OK {
-		staleCheck := checkStaleness()
-		checks = append(checks, staleCheck)
+		checks = append(checks, checkStaleness())
 	}
 
 	// Check for root mismatch
-	mismatchCheck := checkRootMismatch()
-	checks = append(checks, mismatchCheck)
-	if !mismatchCheck.OK {
-		allOK = false
+	checks = append(checks, checkRootMismatch())
+
+	// allOK derived from every rendered check — no check can be silently
+	// excluded from the summary verdict (a check that passes when degraded,
+	// e.g. staleness, sets its own OK=true).
+	allOK := true
+	for i := range checks {
+		if !checks[i].OK {
+			allOK = false
+		}
 	}
 
 	// Find repo root for meta (best-effort)
