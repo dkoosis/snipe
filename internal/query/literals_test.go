@@ -55,6 +55,44 @@ func TestFindLiteralRefs_Missing(t *testing.T) {
 	}
 }
 
+func TestFindLiteralsByKind(t *testing.T) {
+	s := openLitTestStore(t)
+	refs := []index.StringRef{
+		{ID: "aabbccddeeff0011", Value: "VOYAGE_API_URL", Kind: "env", FilePath: "/b.go", Line: 3, Col: 5},
+		{ID: "1122334455667788", Value: "fixtureConst", Name: "fixtureConst", Kind: "const", FilePath: "/a.go", Line: 1, Col: 1},
+		{ID: "2233445566778899", Value: "SNIPE_VOYAGE_API_KEY", Kind: "env", FilePath: "/a.go", Line: 7, Col: 2},
+	}
+	if err := s.WriteLiterals(refs, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := query.FindLiteralsByKind(s.DB(), "env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("want 2 env refs, got %d: %+v", len(got), got)
+	}
+	// ORDER BY file_path, line, col: /a.go:7 sorts before /b.go:3.
+	if got[0].FilePath != "/a.go" || got[0].Value != "SNIPE_VOYAGE_API_KEY" {
+		t.Errorf("index 0: unexpected %+v", got[0])
+	}
+	if got[1].FilePath != "/b.go" || got[1].Value != "VOYAGE_API_URL" {
+		t.Errorf("index 1: unexpected %+v", got[1])
+	}
+}
+
+func TestFindLiteralsByKind_Empty(t *testing.T) {
+	s := openLitTestStore(t)
+	got, err := query.FindLiteralsByKind(s.DB(), "env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Errorf("want 0, got %d", len(got))
+	}
+}
+
 // churnFixture seeds string_refs covering both predicate arms (testdata/ and
 // .golden), a dup across two covering test files, a non-matching literal, and a
 // match in a NON-covering file — so a single fixture exercises scoping, the two

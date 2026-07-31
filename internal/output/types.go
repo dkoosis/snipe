@@ -961,3 +961,71 @@ type TraceResult struct {
 	Enclosing *Enclosing      `json:"enclosing,omitempty"`
 	Callers   []CallerPreview `json:"callers,omitempty"`
 }
+
+// ============================================================================
+// C4 types - facts-only architecture inventory for `snipe c4`.
+// ============================================================================
+
+// C4Result is the response for `snipe c4`. One result per invocation; Level
+// controls which sections `--level` filtering populated (see
+// internal/c4.BuildFacts). Datastores/External are computed for every level
+// and carry no `omitempty` — a section with zero facts (e.g. a repo with no
+// datastores) must still serialize as `[]`, not be silently absent;
+// buildC4Response initializes both to an empty, non-nil slice. Containers/
+// Flows/Components stay `omitempty`: they're level-gated (e.g. `--level
+// context` never populates Containers at all) and an absent key correctly
+// signals "not part of this level," not "computed empty."
+type C4Result struct {
+	Module     string             `json:"module"`
+	GoVersion  string             `json:"go_version,omitempty"`
+	Level      string             `json:"level"`
+	Containers []C4Container      `json:"containers,omitempty"`
+	Datastores []C4Datastore      `json:"datastores"`
+	External   []C4ExternalSystem `json:"external"`
+	Flows      []C4Flow           `json:"flows,omitempty"`
+	Components []C4Component      `json:"components,omitempty"`
+}
+
+// C4Container is a deployable process (today, always a Go main package).
+type C4Container struct {
+	Name string `json:"name"`
+	Tech string `json:"tech"`
+	File string `json:"file"`
+	Line int    `json:"line"`
+}
+
+// C4Datastore is a package that imports a driver from the fixed allowlist.
+type C4Datastore struct {
+	Name    string `json:"name"`
+	Driver  string `json:"driver"`
+	Package string `json:"package"`
+	File    string `json:"file"`
+	Line    int    `json:"line"`
+}
+
+// C4ExternalSystem is a third-party service detected via env-var literals
+// and/or third-party SDK imports.
+type C4ExternalSystem struct {
+	Name     string   `json:"name"`
+	Kind     string   `json:"kind"` // "env" | "import" | "env+import"
+	Evidence []string `json:"evidence"`
+	File     string   `json:"file"`
+	Line     int      `json:"line"`
+}
+
+// C4Flow is a directed edge from an importer package to a datastore or
+// external system.
+type C4Flow struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to"`
+	Kind string `json:"kind"` // "datastore" | "external"
+	File string `json:"file"`
+	Line int    `json:"line"`
+}
+
+// C4Component is a package-level breakdown entry for `--level component`.
+type C4Component struct {
+	Name    string `json:"name"`
+	Layer   string `json:"layer"`
+	Purpose string `json:"purpose,omitempty"`
+}

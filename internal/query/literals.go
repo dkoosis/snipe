@@ -47,6 +47,37 @@ func FindLiteralRefs(db *sql.DB, value string) ([]LiteralRef, error) {
 	return out, rows.Err()
 }
 
+// FindLiteralsByKind returns every string_refs row of the given kind ("env",
+// "const", or "fixture"), ordered by file_path, line, col — plain columns,
+// satisfying the ORDER BY guard test. No existing helper lists all rows of one
+// kind; FindLiteralRefs requires an exact known value, which the c4 command's
+// env-var external-system detection doesn't have (it scans every env lit and
+// filters by regex instead).
+func FindLiteralsByKind(db *sql.DB, kind string) ([]LiteralRef, error) {
+	rows, err := db.Query(`
+		SELECT id, value, COALESCE(name,''), kind, file_path, COALESCE(file_path_rel,''),
+		       line, col, COALESCE(enclosing_id,''), COALESCE(snippet,'')
+		FROM string_refs
+		WHERE kind = ?
+		ORDER BY file_path, line, col
+	`, kind)
+	if err != nil {
+		return nil, fmt.Errorf("query string_refs by kind: %w", err)
+	}
+	defer rows.Close()
+
+	var out []LiteralRef
+	for rows.Next() {
+		var r LiteralRef
+		if err := rows.Scan(&r.ID, &r.Value, &r.Name, &r.Kind, &r.FilePath, &r.FilePathRel,
+			&r.Line, &r.Col, &r.EnclosingID, &r.Snippet); err != nil {
+			return nil, fmt.Errorf("scan string_ref: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // FindChurnLiterals returns the distinct golden/testdata fixture paths named as
 // string literals in the given test files — the fixtures a symbol change is
 // likely to force Claude to regenerate. Results are deduped by value, sorted by
