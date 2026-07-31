@@ -81,9 +81,14 @@ func buildC4Response(s *store.Store, dir, level string, start time.Time) (output
 	}
 
 	result := output.C4Result{
-		Module:    facts.Module,
-		GoVersion: facts.GoVersion,
-		Level:     level,
+		Module:     facts.Module,
+		GoVersion:  facts.GoVersion,
+		Level:      level,
+		Containers: make([]output.C4Container, 0, len(facts.Containers)),
+		Datastores: make([]output.C4Datastore, 0, len(facts.Datastores)),
+		External:   make([]output.C4ExternalSystem, 0, len(facts.External)),
+		Flows:      make([]output.C4Flow, 0, len(facts.Flows)),
+		Components: make([]output.C4Component, 0, len(facts.Components)),
 	}
 	for _, c := range facts.Containers {
 		result.Containers = append(result.Containers, output.C4Container{

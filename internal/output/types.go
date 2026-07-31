@@ -967,16 +967,21 @@ type TraceResult struct {
 // ============================================================================
 
 // C4Result is the response for `snipe c4`. One result per invocation; Level
-// controls which sections downstream `--level` filtering populated (see
-// internal/c4.BuildFacts). Slices are non-nil-on-empty via Response[T]'s
-// MarshalJSON guarantee (AXI #5) — `.results` is always an array, never null.
+// controls which sections `--level` filtering populated (see
+// internal/c4.BuildFacts). Datastores/External are computed for every level
+// and carry no `omitempty` — a section with zero facts (e.g. a repo with no
+// datastores) must still serialize as `[]`, not be silently absent;
+// buildC4Response initializes both to an empty, non-nil slice. Containers/
+// Flows/Components stay `omitempty`: they're level-gated (e.g. `--level
+// context` never populates Containers at all) and an absent key correctly
+// signals "not part of this level," not "computed empty."
 type C4Result struct {
 	Module     string             `json:"module"`
 	GoVersion  string             `json:"go_version,omitempty"`
 	Level      string             `json:"level"`
 	Containers []C4Container      `json:"containers,omitempty"`
-	Datastores []C4Datastore      `json:"datastores,omitempty"`
-	External   []C4ExternalSystem `json:"external,omitempty"`
+	Datastores []C4Datastore      `json:"datastores"`
+	External   []C4ExternalSystem `json:"external"`
 	Flows      []C4Flow           `json:"flows,omitempty"`
 	Components []C4Component      `json:"components,omitempty"`
 }

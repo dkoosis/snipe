@@ -157,9 +157,24 @@ func TestC4_ResultsNeverNull(t *testing.T) {
 		t.Fatalf("want 1 result, got %d", len(results))
 	}
 	r := requireMap(t, results[0], "results[0]")
-	// datastores/external/flows may be omitted (omitempty) when empty, but
-	// they must never be present-and-null.
-	for _, field := range []string{"datastores", "external", "flows", "components"} {
+	// datastores/external are computed for every level and must always be
+	// present as a non-null array, even when empty — a consumer doing
+	// `.results[0].datastores | length` should never see a missing key or
+	// null.
+	for _, field := range []string{"datastores", "external"} {
+		v, ok := r[field]
+		if !ok {
+			t.Errorf("field %q must always be present, got no key", field)
+			continue
+		}
+		if v == nil {
+			t.Errorf("field %q is present but null; want a non-null (possibly empty) array", field)
+		}
+	}
+	// containers/flows/components are level-gated: absent is the correct
+	// signal that this level doesn't populate them, but present-and-null
+	// would still be a bug.
+	for _, field := range []string{"containers", "flows", "components"} {
 		if v, ok := r[field]; ok && v == nil {
 			t.Errorf("field %q is present but null; want omitted or a non-null array", field)
 		}

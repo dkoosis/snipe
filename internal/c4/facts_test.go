@@ -111,10 +111,10 @@ func TestBuildFacts_ExternalEnv_GroupsByStrippedToken(t *testing.T) {
 		{ID: "2222222222222222", Value: "VOYAGE_MODEL", Kind: "env", FilePath: filepath.Join(dir, "a.go"), Line: 12},
 		{ID: "3333333333333333", Value: "SNIPE_VOYAGE_API_KEY", Kind: "env", FilePath: filepath.Join(dir, "b.go"), Line: 3},
 	}
-	// module is "proj" here, not "snipe" — SNIPE_ isn't the module token, so it
-	// stays in the grouping key unless it collides with role tokens. Use a
-	// module named "voyageclient" instead so the module-token strip is exercised
-	// the same way the design field's SNIPE example exercises it on snipe itself.
+	// Override the default test module to "snipe" so SNIPE_VOYAGE_API_KEY's
+	// module-token strip is exercised the same way the design field's SNIPE
+	// example exercises it on snipe itself (newC4TestRepo's default module,
+	// "github.com/example/proj", wouldn't strip the SNIPE_ prefix at all).
 	if err := s.SetMeta("module_path", "github.com/example/snipe"); err != nil {
 		t.Fatal(err)
 	}
@@ -231,6 +231,34 @@ func TestBuildFacts_MergesEnvAndImportForSameService(t *testing.T) {
 	// the env hit's line (20) and silently wins the merge's evidence pick.
 	if got.File != filepath.Join(dir, "billing/pay.go") || got.Line != 5 {
 		t.Errorf("want import evidence pay.go:5, got %s:%d", got.File, got.Line)
+	}
+}
+
+func TestBuildFacts_MergeDoesNotFalsePositiveOnPrefixOverlap(t *testing.T) {
+	// Regression: mergeExternalSystems previously matched via
+	// strings.Contains in both directions, so an env group whose name is a
+	// substring of an unrelated import's org token (e.g. "OPEN" inside
+	// "OPENAI") would incorrectly merge two distinct services into one.
+	s, dir := newC4TestRepo(t)
+	refs := []index.StringRef{
+		{ID: "7777777777777777", Value: "OPEN_API_KEY", Kind: "env", FilePath: filepath.Join(dir, "a.go"), Line: 10},
+	}
+	if err := s.WriteLiterals(refs, ""); err != nil {
+		t.Fatal(err)
+	}
+	addImport(t, s.DB(), filepath.Join(dir, "b.go"), "github.com/openai/openai-go", testModule+"/pkg", 3)
+
+	f, err := c4.BuildFacts(s, dir, c4.LevelContext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.External) != 2 {
+		t.Fatalf("want 2 distinct external systems (OPEN env group, github.com/openai import), got %d: %+v", len(f.External), f.External)
+	}
+	for _, e := range f.External {
+		if e.Kind == "env+import" {
+			t.Errorf("want no merge between OPEN and github.com/openai, got merged system %+v", e)
+		}
 	}
 }
 

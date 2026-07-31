@@ -535,7 +535,7 @@ func mergeExternalSystems(envSystems, importSystems []ExternalSystem) []External
 			if token == "" {
 				continue
 			}
-			if token == e.Name || strings.Contains(e.Name, token) || strings.Contains(token, e.Name) {
+			if token == e.Name {
 				matchIdx = i
 				break
 			}
