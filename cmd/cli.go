@@ -49,6 +49,7 @@ type CLI struct {
 	Sensitive SensitiveCmd `cmd:"" group:"Graph & Structure:" help:"List files in security-sensitive zones (auth/crypto/migration/secret/payment)"`
 	Diagram   DiagramCmd   `cmd:"" group:"Graph & Structure:" help:"Render snipe graphs as D2 diagram source"`
 	Lifecycle LifecycleCmd `cmd:"" group:"Graph & Structure:" help:"Trace every function creating, mutating, reading, or deleting a type"`
+	C4        C4Cmd        `cmd:"" name:"c4" group:"Graph & Structure:" help:"C4 architecture fact inventory: containers, datastores, external systems, flows (facts only, no rendering)"`
 	Deadcode  DeadcodeCmd  `cmd:"" group:"Graph & Structure:" help:"Report exported symbols with zero non-test references"`
 	Guard     GuardCmd     `cmd:"" group:"Graph & Structure:" help:"Assert architecture boundary rules; exit non-zero on violation"`
 

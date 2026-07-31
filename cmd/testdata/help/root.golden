@@ -154,6 +154,10 @@ Graph & Structure:
   lifecycle [<type>] [flags]
     Trace every function creating, mutating, reading, or deleting a type
 
+  c4 [flags]
+    C4 architecture fact inventory: containers, datastores, external systems,
+    flows (facts only, no rendering)
+
   deadcode [flags]
     Report exported symbols with zero non-test references
 

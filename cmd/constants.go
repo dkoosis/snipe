@@ -32,6 +32,7 @@ const (
 	cmdNameStatus      = "status"
 	cmdNameIndex       = "index"
 	cmdNameEmbedStatus = "embed-status"
+	cmdNameC4          = "c4"
 )
 
 // Common flag/parameter names.
