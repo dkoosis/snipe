@@ -52,6 +52,7 @@ type CLI struct {
 	C4        C4Cmd        `cmd:"" name:"c4" group:"Graph & Structure:" help:"C4 architecture fact inventory: containers, datastores, external systems, flows (facts only, no rendering)"`
 	Deadcode  DeadcodeCmd  `cmd:"" group:"Graph & Structure:" help:"Report exported symbols with zero non-test references"`
 	Guard     GuardCmd     `cmd:"" group:"Graph & Structure:" help:"Assert architecture boundary rules; exit non-zero on violation"`
+	Report    ReportCmd    `cmd:"" group:"Graph & Structure:" help:"Self-contained HTML dashboard for humans: hotspot treemap, cycles, hotspots ranking, + D2 diagram placeholder slots"`
 
 	// Embeddings
 	Sim         SimCmd   `cmd:"" group:"Embeddings:" help:"Semantic similarity search"`
