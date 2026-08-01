@@ -56,6 +56,10 @@ func runDef(args []string) error {
 	}
 	defer s.Close()
 
+	// Computed once and reused on both the error path (WriteErrorWithMeta,
+	// sn-r1do.1) and the success path's Meta, instead of querying twice.
+	idxState := query.CheckIndexState(s.DB(), dir, Version)
+
 	var symbolID string
 	var queryInfo map[string]string
 	var decisionPath []string
@@ -65,7 +69,7 @@ func runDef(args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(defAt)
 		if err != nil {
-			return w.WriteError(cmdNameDef, &output.Error{
+			return w.WriteErrorWithMeta(cmdNameDef, defAt, decisionPath, idxState, 0, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -78,7 +82,7 @@ func runDef(args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError(cmdNameDef, &output.Error{
+			return w.WriteErrorWithMeta(cmdNameDef, defAt, decisionPath, idxState, 0, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: "no symbol found at " + defAt,
 			})
@@ -106,7 +110,7 @@ func runDef(args []string) error {
 				// This looks like file:symbol syntax
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteError(cmdNameDef, &output.Error{
+					return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, 0, &output.Error{
 						Code:    output.ErrInternal,
 						Message: err.Error(),
 					})
@@ -122,7 +126,7 @@ func runDef(args []string) error {
 						s := &symbols[i]
 						candidates[i] = s.ToCandidate()
 					}
-					return w.WriteError(cmdNameDef, output.NewAmbiguousError(name, candidates))
+					return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
 				}
 				// Fall through to regular lookup if not found
 			}
@@ -131,7 +135,7 @@ func runDef(args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameDef, &output.Error{
+			return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, 0, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -143,9 +147,9 @@ func runDef(args []string) error {
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
 				// If fuzzy search fails, just return the basic error
-				return w.WriteError(cmdNameDef, output.NewNotFoundError(name))
+				return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, 0, output.NewNotFoundError(name))
 			}
-			return w.WriteError(cmdNameDef, output.NewNotFoundError(name, suggestions...))
+			return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, len(suggestions), output.NewNotFoundError(name, suggestions...))
 		}
 
 		if len(symbols) > 1 {
@@ -164,7 +168,7 @@ func runDef(args []string) error {
 				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
-			return w.WriteError(cmdNameDef, output.NewAmbiguousError(name, candidates))
+			return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
@@ -175,16 +179,17 @@ func runDef(args []string) error {
 
 lookup:
 	// Get the symbol details
+	lookupArg := output.Meta{Query: queryInfo}.PrimaryQueryArg()
 	sym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteError(cmdNameDef, &output.Error{
+		return w.WriteErrorWithMeta(cmdNameDef, lookupArg, decisionPath, idxState, 0, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if sym == nil {
-		return w.WriteError(cmdNameDef, &output.Error{
+		return w.WriteErrorWithMeta(cmdNameDef, lookupArg, decisionPath, idxState, 0, &output.Error{
 			Code:    output.ErrNotFound,
 			Message: fmt.Sprintf("symbol %s not found", symbolID),
 		})
@@ -308,7 +313,7 @@ lookup:
 			Command:       cmdNameDef,
 			Query:         queryInfo,
 			RepoRoot:      dir,
-			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			IndexState:    idxState,
 			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(results),
@@ -331,9 +336,11 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 	}
 	defer s.Close()
 
+	idxState := query.CheckIndexState(s.DB(), dir, Version)
+
 	symbols, err := query.LookupByNameInPkg(s.DB(), name, defPkg)
 	if err != nil {
-		return w.WriteError(cmdNameDef, &output.Error{
+		return w.WriteErrorWithMeta(cmdNameDef, name, nil, idxState, 0, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -346,7 +353,7 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 			sym := &pkgSyms[i]
 			names[i] = sym.Name
 		}
-		return w.WriteError(cmdNameDef, output.NewNotFoundError(name+" in pkg "+defPkg, names...))
+		return w.WriteErrorWithMeta(cmdNameDef, name, nil, idxState, len(names), output.NewNotFoundError(name+" in pkg "+defPkg, names...))
 	}
 
 	if len(symbols) > 1 {
@@ -355,7 +362,7 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 			sym := &symbols[i]
 			candidates[i] = sym.ToCandidate()
 		}
-		return w.WriteError(cmdNameDef, output.NewAmbiguousError(name, candidates))
+		return w.WriteErrorWithMeta(cmdNameDef, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
 	}
 
 	sym := &symbols[0]
@@ -389,7 +396,7 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 			Command:       cmdNameDef,
 			Query:         map[string]string{flagSymbol: name, flagPkg: defPkg},
 			RepoRoot:      dir,
-			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			IndexState:    idxState,
 			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         1,

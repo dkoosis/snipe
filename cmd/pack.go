@@ -41,6 +41,10 @@ func runPack(args []string) error {
 	}
 	defer s.Close()
 
+	// Computed once and reused on both the error path (WriteErrorWithMeta,
+	// sn-r1do.1) and the success path's Meta.
+	idxState := query.CheckIndexState(s.DB(), dir, Version)
+
 	opts := packOpts{
 		withBody:     withBody,
 		withSiblings: withSiblings,
@@ -67,14 +71,14 @@ func runPack(args []string) error {
 	}
 
 	// Single-symbol mode
-	symbolID, queryInfo, err := resolvePackSymbol(w, s, dir, args, packAt)
+	symbolID, queryInfo, err := resolvePackSymbol(w, s, dir, args, packAt, idxState)
 	if err != nil {
 		return err
 	}
 
 	packResult, degraded, allResults, err := buildPackForSymbol(s, dir, symbolID, opts)
 	if err != nil {
-		return w.WriteError(cmdNamePack, &output.Error{
+		return w.WriteErrorWithMeta(cmdNamePack, output.Meta{Query: queryInfo}.PrimaryQueryArg(), nil, idxState, 0, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -92,7 +96,7 @@ func runPack(args []string) error {
 			Command:       cmdNamePack,
 			Query:         queryInfo,
 			RepoRoot:      dir,
-			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			IndexState:    idxState,
 			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         1,
@@ -106,17 +110,19 @@ func runPack(args []string) error {
 
 // runPackMulti handles multi-ID mode: snipe pack id1 id2 id3
 func runPackMulti(w *output.Writer, s *store.Store, dir string, args []string, opts packOpts, start time.Time) error {
+	idxState := query.CheckIndexState(s.DB(), dir, Version)
+
 	// Validate all args are hex IDs
 	ids := make([]string, 0, len(args))
 	for _, arg := range args {
 		if len(arg) != 16 {
-			return w.WriteError(cmdNamePack, &output.Error{
+			return w.WriteErrorWithMeta(cmdNamePack, arg, nil, idxState, 0, &output.Error{
 				Code:    output.ErrInternal,
 				Message: fmt.Sprintf("multi-ID mode requires 16-char hex IDs, got %q", arg),
 			})
 		}
 		if _, err := hex.DecodeString(arg); err != nil {
-			return w.WriteError(cmdNamePack, &output.Error{
+			return w.WriteErrorWithMeta(cmdNamePack, arg, nil, idxState, 0, &output.Error{
 				Code:    output.ErrInternal,
 				Message: fmt.Sprintf("invalid hex ID %q", arg),
 			})
@@ -154,7 +160,7 @@ func runPackMulti(w *output.Writer, s *store.Store, dir string, args []string, o
 			Command:       cmdNamePack,
 			Query:         queryInfo,
 			RepoRoot:      dir,
-			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			IndexState:    idxState,
 			Degraded:      allDegraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         len(allPackResults),
@@ -173,12 +179,13 @@ type packOpts struct {
 	contextLines int
 }
 
-// resolvePackSymbol resolves args/--at into a symbol ID.
-func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []string, at string) (string, map[string]string, error) {
+// resolvePackSymbol resolves args/--at into a symbol ID. idxState is threaded
+// through purely for usage.jsonl enrichment on the error path (sn-r1do.1).
+func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []string, at string, idxState output.IndexState) (string, map[string]string, error) {
 	if at != "" {
 		pos, err := query.ParsePosition(at)
 		if err != nil {
-			return "", nil, w.WriteError(cmdNamePack, &output.Error{
+			return "", nil, w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -188,7 +195,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		}
 		symbolID, err := query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return "", nil, w.WriteError(cmdNamePack, &output.Error{
+			return "", nil, w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -212,7 +219,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 			symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 			if err != nil {
-				return "", nil, w.WriteError(cmdNamePack, &output.Error{
+				return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &output.Error{
 					Code:    output.ErrInternal,
 					Message: err.Error(),
 				})
@@ -226,7 +233,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 					sym := &symbols[i]
 					candidates[i] = sym.ToCandidate()
 				}
-				return "", nil, w.WriteError(cmdNamePack, output.NewAmbiguousError(name, candidates))
+				return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
 			}
 		}
 	}
@@ -234,7 +241,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 	// Look up by name
 	symbols, err := query.LookupByName(s.DB(), name)
 	if err != nil {
-		return "", nil, w.WriteError(cmdNamePack, &output.Error{
+		return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
@@ -244,9 +251,9 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		maxDist := query.DefaultMaxDistance(name)
 		suggestions, sErr := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 		if sErr != nil {
-			return "", nil, w.WriteError(cmdNamePack, output.NewNotFoundError(name))
+			return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, output.NewNotFoundError(name))
 		}
-		return "", nil, w.WriteError(cmdNamePack, output.NewNotFoundError(name, suggestions...))
+		return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(suggestions), output.NewNotFoundError(name, suggestions...))
 	}
 
 	if len(symbols) > 1 {
@@ -255,7 +262,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 			sym := &symbols[i]
 			candidates[i] = sym.ToCandidate()
 		}
-		return "", nil, w.WriteError(cmdNamePack, output.NewAmbiguousError(name, candidates))
+		return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
 	}
 
 	return symbols[0].ID, map[string]string{flagSymbol: name}, nil

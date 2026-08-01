@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/telemetry"
 )
 
 // ProtocolVersion is the snipe wire protocol version.
@@ -49,6 +51,16 @@ func (r Response[T]) IsOk() bool {
 	return r.Ok
 }
 
+// TelemetryMeta exposes the fields the usage.jsonl sink needs (sn-r1do.1)
+// without the Writer needing to know every Response[T] instantiation — same
+// escape-hatch pattern as TelemetryCommand/IsOk above. Only meaningful on the
+// success path: WriteError carries its own arg/decision-path/candidate-count
+// through WriteErrorWithMeta instead, since an *Error has no Meta to read.
+func (r Response[T]) TelemetryMeta() (arg, rung string, triedRungs []string, indexState string) {
+	rung = telemetry.ClassifyRung(r.Meta.DecisionPath, r.Meta.Degraded, "ok")
+	return r.Meta.PrimaryQueryArg(), rung, r.Meta.DecisionPath, string(r.Meta.IndexState)
+}
+
 // Suggestion provides actionable next steps for LLM consumers
 type Suggestion struct {
 	Command     string `json:"command"`             // The suggested snipe command
@@ -75,6 +87,23 @@ type Meta struct {
 	DecisionPath  []string          `json:"decision_path,omitempty"` // Resolution strategy trace
 	StaleFiles    []string          `json:"stale_files,omitempty"`   // Files changed since last index
 	PkgDoc        string            `json:"pkg_doc,omitempty"`       // Package-level doc comment (set by `pkg`)
+}
+
+// queryArgPriority orders Meta.Query keys from "what Claude is looking for"
+// to "how it scoped the search" — PrimaryQueryArg picks the first key present
+// so usage.jsonl logs one representative arg per row (sn-r1do.1) instead of
+// a whole map.
+var queryArgPriority = []string{"symbol", "pattern", "package", "pkg", "ids", "file"}
+
+// PrimaryQueryArg reduces Meta.Query to the single query string telemetry
+// wants. Returns "" if Query is empty/nil/all-blank.
+func (m Meta) PrimaryQueryArg() string {
+	for _, k := range queryArgPriority {
+		if v, ok := m.Query[k]; ok && v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // DegradedNoEmbed is the stable degraded-marker token emitted (as `! noembed`

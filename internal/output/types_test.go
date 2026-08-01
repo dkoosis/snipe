@@ -2,8 +2,12 @@ package output
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/dkoosis/snipe/internal/telemetry"
 )
 
 func TestResponseMarshal(t *testing.T) {
@@ -839,5 +843,140 @@ func TestNewNotFoundError_RoutesToSearch(t *testing.T) {
 	}
 	if want := `snipe search "FooBar"`; err.Next.Command != want {
 		t.Errorf("Next.Command = %q, want %q", err.Next.Command, want)
+	}
+}
+
+// qSymbolKey/qFileKey are test-local aliases for the "symbol"/"file"
+// Meta.Query map keys, shared across this file's telemetry-enrichment tests
+// to avoid tipping the package's goconst literal-count threshold (struct-tag
+// occurrences like `json:"file"` don't count, but bare-string map keys do).
+const (
+	qSymbolKey = "symbol"
+	qFileKey   = "file"
+)
+
+// TestPrimaryQueryArg_PriorityOrder guards the sn-r1do.1 priority list:
+// "what Claude is looking for" (symbol/pattern) outranks "how it scoped the
+// search" (package/pkg/ids/file) when Meta.Query carries multiple keys.
+func TestPrimaryQueryArg_PriorityOrder(t *testing.T) {
+	tests := []struct {
+		name  string
+		query map[string]string
+		want  string
+	}{
+		{"empty", nil, ""},
+		{"symbol alone", map[string]string{qSymbolKey: "Foo"}, "Foo"},
+		{"symbol beats pattern", map[string]string{qSymbolKey: "Foo", "pattern": "bar"}, "Foo"},
+		{"pattern beats package", map[string]string{"pattern": "bar", "package": "pkg"}, "bar"},
+		{"package beats pkg", map[string]string{"package": "pkg1", "pkg": "pkg2"}, "pkg1"},
+		{"pkg beats ids", map[string]string{"pkg": "pkg2", "ids": "a,b"}, "pkg2"},
+		{"ids beats file", map[string]string{"ids": "a,b", qFileKey: "f.go"}, "a,b"},
+		{"file alone", map[string]string{qFileKey: "f.go"}, "f.go"},
+		{"blank value skipped", map[string]string{qSymbolKey: "", "pattern": "bar"}, "bar"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Meta{Query: tt.query}
+			if got := m.PrimaryQueryArg(); got != tt.want {
+				t.Errorf("PrimaryQueryArg() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestResponseTelemetryMeta_ClassifiesRung guards the WriteResponse escape
+// hatch (sn-r1do.1): Response[T].TelemetryMeta must surface the primary arg
+// and classify the rung from Meta.DecisionPath/Degraded consistently with
+// telemetry.ClassifyRung.
+func TestResponseTelemetryMeta_ClassifiesRung(t *testing.T) {
+	resp := Response[Result]{
+		Meta: Meta{
+			Query:        map[string]string{qSymbolKey: "Foo"},
+			DecisionPath: []string{"lookup:name_select"},
+			IndexState:   IndexFresh,
+		},
+	}
+	arg, rung, tried, idxState := resp.TelemetryMeta()
+	if arg != "Foo" {
+		t.Errorf("arg = %q, want %q", arg, "Foo")
+	}
+	if rung != telemetry.RungMethod {
+		t.Errorf("rung = %q, want %q", rung, telemetry.RungMethod)
+	}
+	if len(tried) != 1 || tried[0] != "lookup:name_select" {
+		t.Errorf("tried = %v, want [lookup:name_select]", tried)
+	}
+	if idxState != string(IndexFresh) {
+		t.Errorf("idxState = %q, want %q", idxState, IndexFresh)
+	}
+}
+
+// TestWriteErrorWithMeta_EmitsCandidateCountAndArg drives an AMBIGUOUS_SYMBOL
+// error through WriteErrorWithMeta and confirms the usage.jsonl row carries
+// arg, rung=notfound, and candidate_count == len(err.Candidates) — the bead's
+// own AC verify line ("a NOT_FOUND row shows ... candidate_count").
+func TestWriteErrorWithMeta_EmitsCandidateCountAndArg(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".snipe"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	telemetry.SetRoot(root)
+	t.Cleanup(func() { telemetry.SetRoot("") })
+
+	candidates := []Candidate{
+		{ID: "a", Name: "Config", File: "a/config.go", Kind: "type"},
+		{ID: "b", Name: "Config", File: "b/config.go", Kind: "type"},
+	}
+	w := NewWriter(&strings.Builder{}, OutputClaude)
+	_ = w.WriteErrorWithMeta("def", "Config", []string{"lookup:name"}, IndexFresh, len(candidates), NewAmbiguousError("Config", candidates))
+
+	recs, err := telemetry.ReadAll(root)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d usage.jsonl rows, want 1", len(recs))
+	}
+	r := recs[0]
+	if r.Arg != "Config" {
+		t.Errorf("Arg = %q, want %q", r.Arg, "Config")
+	}
+	if r.Rung != telemetry.RungNotFound {
+		t.Errorf("Rung = %q, want %q", r.Rung, telemetry.RungNotFound)
+	}
+	if r.CandidateCount != 2 {
+		t.Errorf("CandidateCount = %d, want 2", r.CandidateCount)
+	}
+	if r.Outcome != ErrAmbiguousSymbol {
+		t.Errorf("Outcome = %q, want %q", r.Outcome, ErrAmbiguousSymbol)
+	}
+}
+
+// TestWriteErrorWithMeta_NotFoundDidYouMeanCandidateCount guards the gap this
+// bead exists to close: NewNotFoundError's "did you mean" suggestions are
+// plain strings, not []Candidate (that field is AMBIGUOUS_SYMBOL-only), so
+// candidate_count for a fuzzy-suggested NOT_FOUND must come from an explicit
+// caller-supplied count, not len(err.Candidates) (which is always 0 here).
+func TestWriteErrorWithMeta_NotFoundDidYouMeanCandidateCount(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".snipe"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	telemetry.SetRoot(root)
+	t.Cleanup(func() { telemetry.SetRoot("") })
+
+	suggestions := []string{"ClassifyRung"}
+	w := NewWriter(&strings.Builder{}, OutputClaude)
+	_ = w.WriteErrorWithMeta("def", "ClasifyRung", nil, IndexFresh, len(suggestions), NewNotFoundError("ClasifyRung", suggestions...))
+
+	recs, err := telemetry.ReadAll(root)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d usage.jsonl rows, want 1", len(recs))
+	}
+	if recs[0].CandidateCount != 1 {
+		t.Errorf("CandidateCount = %d, want 1 (from the did-you-mean suggestion, not err.Candidates which is empty here)", recs[0].CandidateCount)
 	}
 }

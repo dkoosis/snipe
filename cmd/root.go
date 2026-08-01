@@ -486,6 +486,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	if root != "" {
 		telemetry.SetRoot(root)
 		telemetry.SetCaller(caller)
+		telemetry.SetSessionKey(telemetry.ResolveSessionKey(root))
 	}
 	if root == "" {
 		root = cwd // fallback: not in a git/go.mod repo, use CWD
