@@ -3,6 +3,7 @@ package cmd
 import (
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,6 +22,15 @@ var (
 	packCallersLimit int
 	packCalleesLimit int
 )
+
+// errPackResolveFailed is the sentinel resolvePackSymbol returns once it has
+// already written a structured error. WriteErrorWithMeta's own return value
+// is the io.WriteString result (nil on the common case of a successful
+// stdout write), which is indistinguishable from success if used directly
+// for control flow — that conflation caused runPack to fall through into
+// buildPackForSymbol with an empty symbolID and emit a second error
+// (sn-tba4). Mirrors the errGuardFailed pattern in guard.go.
+var errPackResolveFailed = errors.New("pack: symbol resolution failed")
 
 func runPack(args []string) error {
 	start := time.Now()
@@ -73,7 +83,10 @@ func runPack(args []string) error {
 	// Single-symbol mode
 	symbolID, queryInfo, err := resolvePackSymbol(w, s, dir, args, packAt, idxState)
 	if err != nil {
-		return err
+		// resolvePackSymbol already wrote the structured error and flagged
+		// output.ProcessErrored() for the exit code; returning nil here (not
+		// err) avoids a duplicate raw message on stderr from root.go.
+		return nil
 	}
 
 	packResult, degraded, allResults, err := buildPackForSymbol(s, dir, symbolID, opts)
@@ -185,20 +198,22 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 	if at != "" {
 		pos, err := query.ParsePosition(at)
 		if err != nil {
-			return "", nil, w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &output.Error{
+			w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
+			return "", nil, errPackResolveFailed
 		}
 		if !filepath.IsAbs(pos.File) {
 			pos.File = filepath.Join(dir, pos.File)
 		}
 		symbolID, err := query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return "", nil, w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &output.Error{
+			w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: err.Error(),
 			})
+			return "", nil, errPackResolveFailed
 		}
 		return symbolID, map[string]string{"at": at}, nil
 	}
@@ -219,10 +234,11 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 			symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 			if err != nil {
-				return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &output.Error{
+				w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &output.Error{
 					Code:    output.ErrInternal,
 					Message: err.Error(),
 				})
+				return "", nil, errPackResolveFailed
 			}
 			if len(symbols) == 1 {
 				return symbols[0].ID, map[string]string{flagSymbol: symbolPart, flagFile: filePart}, nil
@@ -233,7 +249,8 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 					sym := &symbols[i]
 					candidates[i] = sym.ToCandidate()
 				}
-				return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+				w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+				return "", nil, errPackResolveFailed
 			}
 		}
 	}
@@ -241,19 +258,22 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 	// Look up by name
 	symbols, err := query.LookupByName(s.DB(), name)
 	if err != nil {
-		return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &output.Error{
+		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
+		return "", nil, errPackResolveFailed
 	}
 
 	if len(symbols) == 0 {
 		maxDist := query.DefaultMaxDistance(name)
 		suggestions, sErr := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 		if sErr != nil {
-			return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, output.NewNotFoundError(name))
+			w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, output.NewNotFoundError(name))
+			return "", nil, errPackResolveFailed
 		}
-		return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(suggestions), output.NewNotFoundError(name, suggestions...))
+		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(suggestions), output.NewNotFoundError(name, suggestions...))
+		return "", nil, errPackResolveFailed
 	}
 
 	if len(symbols) > 1 {
@@ -262,7 +282,8 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 			sym := &symbols[i]
 			candidates[i] = sym.ToCandidate()
 		}
-		return "", nil, w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+		return "", nil, errPackResolveFailed
 	}
 
 	return symbols[0].ID, map[string]string{flagSymbol: name}, nil
