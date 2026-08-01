@@ -63,6 +63,7 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 | D4 | Token budget is a first-class concern | Every byte of output must earn its place. No envelope noise in default output |
 | D5 | Hex IDs chain across commands | 16-char IDs enable follow-up queries without re-lookup |
 | D6 | `make audit` is the merge gate | No exceptions |
+| D7 | D1 amendment: opt-in human artifacts | D1 default stays Claude-optimized. Explicit opt-in serves other audiences — precedent: `--format human`/`json`. Diagram commands (arch/flow/lifecycle, comprehension maps) default to a `docs/diagrams/*.md` living doc (summary + inline SVG + D2 source); explicit `--format d2/svg` stay stdout for tooling. `snipe report` (separate, not yet built) is a metrics dashboard aggregator — snipe owns the HTML shell + manifest of what it can emit, an external script owns D2→SVG rendering (keeps the `d2` dependency out of snipe). Ratified sn-fhw8. |
 
 ## invariants
 
