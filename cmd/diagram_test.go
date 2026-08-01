@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -151,5 +153,61 @@ func TestTopNWithinFrontier_NoTrimWhenNZero(t *testing.T) {
 	got := topNWithinFrontier(visited, map[string]float64{"a": 1.0}, 0, "a")
 	if len(got) != 2 {
 		t.Errorf("n=0 must keep all; got %d", len(got))
+	}
+}
+
+// sn-l1kh.1: writeDiagramDocTo must never fail when the d2 CLI is missing —
+// a degraded-but-valid doc, not a broken command.
+func TestWriteDiagramDocTo_D2Missing(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("PATH", t.TempDir()) // empty dir: exec.LookPath("d2") fails
+
+	if err := writeDiagramDocTo(root, "arch", "diagram arch · 2 packages", "a -> b\n"); err != nil {
+		t.Fatalf("writeDiagramDocTo returned error, want graceful degrade: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(root, "docs", "diagrams", "arch.md"))
+	if err != nil {
+		t.Fatalf("read doc: %v", err)
+	}
+	doc := string(got)
+
+	for _, want := range []string{"not found on PATH", "```d2", "a -> b", "diagram arch ·"} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("doc missing %q:\n%s", want, doc)
+		}
+	}
+	if strings.Contains(doc, "<svg") {
+		t.Errorf("doc has <svg> despite d2 being unavailable:\n%s", doc)
+	}
+}
+
+func TestWriteDiagramDocTo_D2Available(t *testing.T) {
+	root := t.TempDir()
+	binDir := t.TempDir()
+	fakeD2 := filepath.Join(binDir, "d2")
+	script := "#!/bin/sh\necho '<svg>FAKE-RENDER</svg>'\n"
+	if err := os.WriteFile(fakeD2, []byte(script), 0o755); err != nil { //nolint:gosec // test fixture binary, needs +x
+		t.Fatalf("write fake d2: %v", err)
+	}
+	t.Setenv("PATH", binDir)
+
+	if err := writeDiagramDocTo(root, "arch", "diagram arch · 2 packages", "a -> b\n"); err != nil {
+		t.Fatalf("writeDiagramDocTo: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(root, "docs", "diagrams", "arch.md"))
+	if err != nil {
+		t.Fatalf("read doc: %v", err)
+	}
+	doc := string(got)
+
+	for _, want := range []string{"<svg>FAKE-RENDER</svg>", "```d2", "a -> b", "diagram arch ·"} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("doc missing %q:\n%s", want, doc)
+		}
+	}
+	if strings.Contains(doc, "not rendered") {
+		t.Errorf("doc reports degrade despite fake d2 succeeding:\n%s", doc)
 	}
 }

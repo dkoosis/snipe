@@ -204,7 +204,11 @@ func TestGolden_Diagram_Arch(t *testing.T) {
 	initGitRepo(t, repoDir)
 	indexRepo(t, repoDir)
 
-	stdout, _, exitCode := runRaw(t, repoDir, "diagram", "arch")
+	// sn-l1kh: the truly-unset default now writes docs/diagrams/arch.md
+	// instead of printing D2 to stdout (see cmd/diagram_test.go for that
+	// path). --format d2 keeps the explicit-opt-in stdout dump this golden
+	// checks byte-for-byte.
+	stdout, _, exitCode := runRaw(t, repoDir, "diagram", "arch", "--format", "d2")
 	if exitCode != 0 {
 		t.Fatalf("exit %d", exitCode)
 	}
