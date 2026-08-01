@@ -1,6 +1,7 @@
-Usage: snipe diagram <command> [flags]
+Usage: snipe diagram datastore-map
 
-Render snipe graphs as D2 diagram source
+Datastore access map: schema + read/write packages per detected store. Writes
+docs/diagrams/datastore-map.md by default (--format d2/svg for stdout)
 
 Flags:
   -h, --help                Show context-sensitive help.
@@ -18,21 +19,3 @@ Flags:
       --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
       --select="all"        Pick top candidates by score: all, best, top3,
                             top5 (applied before --limit)
-
-Graph & Structure:
-  diagram arch [flags]
-    Package import graph trimmed to the top-N by PageRank, grouped by layer.
-    Writes docs/diagrams/arch.md by default (--format d2/svg for stdout)
-
-  diagram flow <entry> [flags]
-    Depth-limited call graph from an entry symbol
-
-  diagram lifecycle <type>
-    Render lifecycle CRUD groups for a type as D2
-
-  diagram seams [flags]
-    Rank pluggable interfaces by implementation count and fan-in. Writes
-    docs/diagrams/seam-map.md by default (--format d2/svg for stdout)  diagram datastore-map
-    Datastore access map: schema + read/write packages per detected store.
-    Writes docs/diagrams/datastore-map.md by default (--format d2/svg for
-    stdout)
