@@ -37,7 +37,8 @@ func runUsageMetrics() error {
 	}
 	byCmd := make(map[string]*agg)
 	total, totalErr := 0, 0
-	for _, r := range recs {
+	for i := range recs {
+		r := &recs[i]
 		a := byCmd[r.Command]
 		if a == nil {
 			a = &agg{}

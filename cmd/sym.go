@@ -41,6 +41,10 @@ func runSym(args []string) error {
 	}
 	defer s.Close()
 
+	// Computed once and reused on both the error path (WriteErrorWithMeta,
+	// sn-r1do.1) and the success path's Meta.
+	idxState := query.CheckIndexState(s.DB(), dir, Version)
+
 	var symbolID string
 	var queryInfo map[string]string
 
@@ -48,7 +52,7 @@ func runSym(args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(symAt)
 		if err != nil {
-			return w.WriteError(cmdNameSym, &output.Error{
+			return w.WriteErrorWithMeta(cmdNameSym, symAt, nil, idxState, 0, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -61,7 +65,7 @@ func runSym(args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError(cmdNameSym, &output.Error{
+			return w.WriteErrorWithMeta(cmdNameSym, symAt, nil, idxState, 0, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -83,7 +87,7 @@ func runSym(args []string) error {
 			_, lim, off, _, _, _ := GetOutputConfig()
 			symbols, err := query.FindSymbolsInFile(s.DB(), name, lim, off)
 			if err != nil {
-				return w.WriteError(cmdNameSym, &output.Error{
+				return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &output.Error{
 					Code:    output.ErrInternal,
 					Message: err.Error(),
 				})
@@ -94,13 +98,13 @@ func runSym(args []string) error {
 					sym := &symbols[i]
 					candidates[i] = sym.ToCandidate()
 				}
-				return w.WriteError(cmdNameSym, &output.Error{
+				return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(candidates), &output.Error{
 					Code:       output.ErrFileListing,
 					Message:    fmt.Sprintf("%s (%d symbols)", name, len(candidates)),
 					Candidates: candidates,
 				})
 			}
-			return w.WriteError(cmdNameSym, &output.Error{
+			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &output.Error{
 				Code:    output.ErrNotFound,
 				Message: "no symbols found in " + name,
 			})
@@ -113,7 +117,7 @@ func runSym(args []string) error {
 			if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteError(cmdNameSym, &output.Error{
+					return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &output.Error{
 						Code:    output.ErrInternal,
 						Message: err.Error(),
 					})
@@ -128,7 +132,7 @@ func runSym(args []string) error {
 						s := &symbols[i]
 						candidates[i] = s.ToCandidate()
 					}
-					return w.WriteError(cmdNameSym, output.NewAmbiguousError(name, candidates))
+					return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
 				}
 			}
 		}
@@ -136,7 +140,7 @@ func runSym(args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameSym, &output.Error{
+			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &output.Error{
 				Code:    output.ErrInternal,
 				Message: err.Error(),
 			})
@@ -146,9 +150,9 @@ func runSym(args []string) error {
 			maxDist := query.DefaultMaxDistance(name)
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
-				return w.WriteError(cmdNameSym, output.NewNotFoundError(name))
+				return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, output.NewNotFoundError(name))
 			}
-			return w.WriteError(cmdNameSym, output.NewNotFoundError(name, suggestions...))
+			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(suggestions), output.NewNotFoundError(name, suggestions...))
 		}
 
 		if len(symbols) > 1 {
@@ -157,7 +161,7 @@ func runSym(args []string) error {
 				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
-			return w.WriteError(cmdNameSym, output.NewAmbiguousError(name, candidates))
+			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
@@ -166,16 +170,17 @@ func runSym(args []string) error {
 
 lookup:
 	// Get the symbol details
+	lookupArg := output.Meta{Query: queryInfo}.PrimaryQueryArg()
 	sym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteError(cmdNameSym, &output.Error{
+		return w.WriteErrorWithMeta(cmdNameSym, lookupArg, nil, idxState, 0, &output.Error{
 			Code:    output.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if sym == nil {
-		return w.WriteError(cmdNameSym, &output.Error{
+		return w.WriteErrorWithMeta(cmdNameSym, lookupArg, nil, idxState, 0, &output.Error{
 			Code:    output.ErrNotFound,
 			Message: fmt.Sprintf("symbol %s not found", symbolID),
 		})
@@ -349,7 +354,7 @@ lookup:
 			Command:       cmdNameSym,
 			Query:         queryInfo,
 			RepoRoot:      dir,
-			IndexState:    query.CheckIndexState(s.DB(), dir, Version),
+			IndexState:    idxState,
 			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         1,

@@ -76,7 +76,21 @@ func NewWriter(out io.Writer, format OutputFormat) *Writer {
 // WriteResponse writes a response in the configured format.
 func (w *Writer) WriteResponse(resp any) error {
 	if m, ok := resp.(interface{ TelemetryCommand() string }); ok {
-		telemetry.Emit(m.TelemetryCommand(), "ok", time.Since(w.start).Milliseconds())
+		f := telemetry.Fields{
+			Command: m.TelemetryCommand(),
+			Outcome: "ok",
+			Ms:      time.Since(w.start).Milliseconds(),
+		}
+		// TelemetryMeta is the escape hatch Response[T] implements alongside
+		// TelemetryCommand/IsOk (sn-r1do.1) — the Writer sees only `resp any`,
+		// so it type-asserts for arg/rung/decision-path rather than knowing
+		// every Response[T] instantiation.
+		if tm, ok := resp.(interface {
+			TelemetryMeta() (string, string, []string, string)
+		}); ok {
+			f.Arg, f.Rung, f.TriedRungs, f.IndexState = tm.TelemetryMeta()
+		}
+		telemetry.Emit(f)
 	}
 	if r, ok := resp.(interface{ IsOk() bool }); ok && !r.IsOk() {
 		processErrored = true
@@ -943,10 +957,36 @@ func shortPkg(p string) string {
 	return p
 }
 
-// WriteError writes an error response
+// WriteError writes an error response. It carries no query arg or
+// decision-path — callers that have one in scope at the error site (def, sym,
+// pack per sn-r1do.1's verify line) should call WriteErrorWithMeta instead so
+// usage.jsonl's NOT_FOUND/AMBIGUOUS_SYMBOL rows aren't arg-blind. This stays
+// a thin wrapper so the dozens of call sites elsewhere keep compiling
+// unchanged (additive migration, not a forced repo-wide edit).
 func (w *Writer) WriteError(command string, err *Error) error {
+	return w.WriteErrorWithMeta(command, "", nil, "", 0, err)
+}
+
+// WriteErrorWithMeta writes an error response, enriching usage.jsonl with the
+// query arg, the decision-path tried so far, the index state at error time,
+// and candidateCount (sn-r1do.1). candidateCount is an explicit parameter
+// rather than len(err.Candidates) because the "did you mean" suggestions on
+// a NOT_FOUND error (NewNotFoundError's variadic strings) never populate
+// Candidates — that field is AMBIGUOUS_SYMBOL-only ([]Candidate, full
+// structs). Callers pass whichever count they actually have in scope; 0 when
+// neither applies.
+func (w *Writer) WriteErrorWithMeta(command, arg string, decisionPath []string, indexState IndexState, candidateCount int, err *Error) error {
 	processErrored = true
-	telemetry.Emit(command, err.Code, time.Since(w.start).Milliseconds())
+	telemetry.Emit(telemetry.Fields{
+		Command:        command,
+		Outcome:        err.Code,
+		Ms:             time.Since(w.start).Milliseconds(),
+		Arg:            arg,
+		Rung:           telemetry.ClassifyRung(decisionPath, nil, err.Code),
+		CandidateCount: candidateCount,
+		IndexState:     string(indexState),
+		TriedRungs:     decisionPath,
+	})
 	if err.Next == nil {
 		err.Next = DefaultNextForCode(err.Code)
 	}
