@@ -154,10 +154,18 @@ Graph & Structure:
 
   diagram seams [flags]
     Rank pluggable interfaces by implementation count and fan-in. Writes
-    docs/diagrams/seam-map.md by default (--format d2/svg for stdout)  diagram datastore-map
+    docs/diagrams/seam-map.md by default (--format d2/svg for stdout)
+
+  diagram datastore-map
     Datastore access map: schema + read/write packages per detected store.
     Writes docs/diagrams/datastore-map.md by default (--format d2/svg for
     stdout)
+
+  diagram system-map [flags]
+    Comprehension view: packages collapsed into a handful of subsystems, only
+    cross-subsystem edges shown. Writes docs/diagrams/system-map.md by default
+    (--format d2/svg for stdout)
+
   lifecycle [<type>] [flags]
     Trace every function creating, mutating, reading, or deleting a type
 
