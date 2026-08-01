@@ -266,9 +266,11 @@ func TestBuildFacts_ExternalImport_RealLineEvidence(t *testing.T) {
 	// Regression: externalFromImports must report the import statement's
 	// actual line, not a hardcoded Line:1 — a prior version's SQL never
 	// selected `line`, so every import-detected external system reported
-	// file:1 regardless of where the import really was.
+	// file:1 regardless of where the import really was. Uses an allowlisted
+	// known-service import (no env correlation needed) so the case survives
+	// the sn-04xb narrowing below.
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "github.com/alecthomas/kong", testModule+"/cmd", 42)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "github.com/twilio/twilio-go", testModule+"/cmd", 42)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContext)
 	if err != nil {
@@ -280,6 +282,23 @@ func TestBuildFacts_ExternalImport_RealLineEvidence(t *testing.T) {
 	got := f.External[0]
 	if got.File != filepath.Join(dir, "cmd/root.go") || got.Line != 42 {
 		t.Errorf("want root.go:42 (real import line), got %s:%d", got.File, got.Line)
+	}
+}
+
+func TestBuildFacts_ExternalImport_OrdinaryLibraryExcluded(t *testing.T) {
+	// sn-04xb: a bare third-party import with no env-var credential evidence
+	// and no known-service allowlist match is a compile-time library
+	// dependency (a CLI framework here), not a runtime external system — it
+	// must not be reported as one.
+	s, dir := newC4TestRepo(t)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "github.com/alecthomas/kong", testModule+"/cmd", 3)
+
+	f, err := c4.BuildFacts(s, dir, c4.LevelContext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.External) != 0 {
+		t.Errorf("want 0 external systems (ordinary library import), got %+v", f.External)
 	}
 }
 

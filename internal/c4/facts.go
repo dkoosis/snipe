@@ -131,6 +131,35 @@ var testLibAllowlist = []string{
 	"github.com/google/go-cmp",
 }
 
+// knownServiceAllowlist recognizes import roots that are themselves strong
+// evidence of a runtime external system — well-known SaaS/service SDKs —
+// even with no correlating env-var credential. A bare third-party import
+// that matches neither this allowlist nor an env system (see
+// mergeExternalSystems) is an ordinary compile-time library dependency (a
+// CLI framework, a logging lib, ...), not a runtime external system: import
+// evidence alone overclaims what is only a "linked at compile time" fact.
+var knownServiceAllowlist = []string{
+	"stripe",
+	"twilio",
+	"sendgrid",
+	"openai",
+	"anthropic",
+	"aws/aws-sdk-go",
+	"slack-go/slack",
+	"plaid/plaid-go",
+}
+
+// isKnownService reports whether root matches the curated known-service
+// allowlist.
+func isKnownService(root string) bool {
+	for _, s := range knownServiceAllowlist {
+		if strings.Contains(root, s) {
+			return true
+		}
+	}
+	return false
+}
+
 // BuildFacts assembles the C4 fact inventory for the repo indexed at s, whose
 // root is dir. level filters which sections populate:
 //   - context:   module + external systems + datastores only, no containers
@@ -557,9 +586,13 @@ func mergeExternalSystems(envSystems, importSystems []ExternalSystem) []External
 	}
 
 	for i, im := range importSystems {
-		if !usedImport[i] {
-			merged = append(merged, im)
+		if usedImport[i] {
+			continue
 		}
+		if !isKnownService(im.Name) {
+			continue // bare import, no env correlation: compile-time dep, not a runtime external system
+		}
+		merged = append(merged, im)
 	}
 
 	sort.Slice(merged, func(i, j int) bool { return merged[i].Name < merged[j].Name })

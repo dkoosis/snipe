@@ -12,8 +12,10 @@ import (
 // kinds: a Go main entry point (container), a package importing a SQLite
 // driver (datastore), a package with a fake external SDK import plus an
 // os.Getenv env-var call (external system, per the design field's own
-// stripe-go/STRIPE_API_KEY example), and a package importing testify only
-// from a _test.go file (must NOT surface as external).
+// stripe-go/STRIPE_API_KEY example), a package importing testify only
+// from a _test.go file (must NOT surface as external), and a package
+// importing an ordinary compile-time-only library with no env correlation
+// (sn-04xb: must NOT surface as external either).
 func writeC4Fixture(t *testing.T) (repoDir string) {
 	t.Helper()
 
@@ -46,6 +48,13 @@ func Charge() string {
 	os.Getenv("STRIPE_API_KEY")
 	return stripe.Key
 }
+`)
+
+	writeFile(t, filepath.Join(repoDir, "cmd/root.go"), `package cmd
+
+import "github.com/alecthomas/kong"
+
+func Parse() *kong.Context { return nil }
 `)
 
 	writeFile(t, filepath.Join(repoDir, "internal/util/assert_helper.go"), `package util
@@ -129,12 +138,14 @@ func TestC4_ContainerLevel_JSON(t *testing.T) {
 		t.Errorf("want a positive line number, got %v", line)
 	}
 
-	// testify must never surface as an external system, merged or otherwise.
+	// testify and kong (ordinary compile-time libs) must never surface as
+	// external systems, merged or otherwise (sn-04xb for kong).
 	for _, item := range external {
 		m := requireMap(t, item, "external[i]")
 		name := getString(t, m["name"], "external[i].name")
-		if strings.Contains(strings.ToLower(name), "testify") {
-			t.Errorf("testify must not appear as an external system, got %v", external)
+		lower := strings.ToLower(name)
+		if strings.Contains(lower, "testify") || strings.Contains(lower, "kong") {
+			t.Errorf("testify/kong must not appear as an external system, got %v", external)
 		}
 	}
 }
