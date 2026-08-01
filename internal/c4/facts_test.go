@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/dkoosis/snipe/internal/c4"
@@ -126,8 +127,86 @@ func TestBuildFacts_Datastore(t *testing.T) {
 	if f.Datastores[0].Name != "SQLite" {
 		t.Errorf("want SQLite, got %q", f.Datastores[0].Name)
 	}
-	if f.Datastores[0].Package != testModule+"/internal/store" {
-		t.Errorf("want package %q, got %q", testModule+"/internal/store", f.Datastores[0].Package)
+	if len(f.Datastores[0].Evidence) != 1 || f.Datastores[0].Evidence[0] != testModule+"/internal/store" {
+		t.Errorf("want evidence [%q], got %v", testModule+"/internal/store", f.Datastores[0].Evidence)
+	}
+}
+
+// TestBuildFacts_Datastore_GroupsByTechnology is the sn-igsn regression: a
+// technology imported from multiple packages (or via multiple driver
+// packages that map to the same display name) must collapse into ONE
+// Datastore row with every importer folded into Evidence, not one row per
+// importer.
+func TestBuildFacts_Datastore_GroupsByTechnology(t *testing.T) {
+	s, dir := newC4TestRepo(t)
+	addImport(t, s.DB(), filepath.Join(dir, "internal/store/db.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "modernc.org/sqlite", testModule+"/cmd", 7)
+	addImport(t, s.DB(), filepath.Join(dir, "internal/query/q.go"), "database/sql", testModule+"/internal/query", 1)
+	addImport(t, s.DB(), filepath.Join(dir, "internal/query/q_test.go"), "database/sql", testModule+"/internal/query_test", 2)
+
+	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Datastores) != 2 {
+		t.Fatalf("want 2 datastore technologies (SQLite, SQL), got %d: %+v", len(f.Datastores), f.Datastores)
+	}
+
+	byName := make(map[string]c4.Datastore, len(f.Datastores))
+	for _, d := range f.Datastores {
+		byName[d.Name] = d
+	}
+
+	sqlite, ok := byName["SQLite"]
+	if !ok {
+		t.Fatalf("want a SQLite datastore, got %+v", f.Datastores)
+	}
+	wantSQLite := []string{testModule + "/cmd", testModule + "/internal/store"}
+	if !reflect.DeepEqual(sqlite.Evidence, wantSQLite) {
+		t.Errorf("want SQLite evidence %v (both importers, sorted), got %v", wantSQLite, sqlite.Evidence)
+	}
+
+	sqlRow, ok := byName["SQL"]
+	if !ok {
+		t.Fatalf("want a SQL datastore, got %+v", f.Datastores)
+	}
+	wantSQL := []string{testModule + "/internal/query", testModule + "/internal/query_test"}
+	if !reflect.DeepEqual(sqlRow.Evidence, wantSQL) {
+		t.Errorf("want SQL evidence %v (both importers, sorted), got %v", wantSQL, sqlRow.Evidence)
+	}
+}
+
+// TestBuildFacts_Datastore_AnchoredMatchExcludesLookalike is a regression
+// for the driverAllowlist's substring-match bug flagged on PR #214: a
+// strings.Contains match on "badger" would misclassify any module merely
+// containing that word as a path component (e.g. "badgerlint") as the
+// Badger driver. matchesDriverPath anchors to full path segments instead.
+func TestBuildFacts_Datastore_AnchoredMatchExcludesLookalike(t *testing.T) {
+	s, dir := newC4TestRepo(t)
+	addImport(t, s.DB(), filepath.Join(dir, "internal/lint/l.go"), "github.com/acme/badgerlint", testModule+"/internal/lint", 1)
+
+	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Datastores) != 0 {
+		t.Errorf("want 0 datastores (badgerlint is not the Badger driver), got %+v", f.Datastores)
+	}
+}
+
+// TestBuildFacts_Datastore_AnchoredMatchIncludesVersionedSubpackage checks
+// the anchoring doesn't over-correct into false negatives: a real driver's
+// versioned subpackage (e.g. pgx/v5) must still match.
+func TestBuildFacts_Datastore_AnchoredMatchIncludesVersionedSubpackage(t *testing.T) {
+	s, dir := newC4TestRepo(t)
+	addImport(t, s.DB(), filepath.Join(dir, "internal/store/pg.go"), "github.com/jackc/pgx/v5", testModule+"/internal/store", 1)
+
+	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Datastores) != 1 || f.Datastores[0].Name != "PostgreSQL" {
+		t.Errorf("want 1 PostgreSQL datastore (pgx/v5 versioned subpackage), got %+v", f.Datastores)
 	}
 }
 

@@ -9,9 +9,10 @@ import (
 )
 
 // writeC4Fixture writes a repo shaped for the c4 command's three signal
-// kinds: a Go main entry point (container), a package importing a SQLite
-// driver (datastore), a package with a fake external SDK import plus an
-// os.Getenv env-var call (external system, per the design field's own
+// kinds: a Go main entry point (container), two packages importing the same
+// SQLite driver (datastore — sn-igsn: must group into ONE row, not one per
+// importer), a package with a fake external SDK import plus an os.Getenv
+// env-var call (external system, per the design field's own
 // stripe-go/STRIPE_API_KEY example), a package importing testify only
 // from a _test.go file (must NOT surface as external), and a package
 // importing an ordinary compile-time-only library with no env correlation
@@ -32,6 +33,16 @@ func main() {}
 import _ "modernc.org/sqlite"
 
 func Open() {}
+`)
+
+	// A second, distinct importer of the same driver technology: the c4
+	// command must fold this into the SAME "SQLite" datastore row rather than
+	// emit a second per-importer row.
+	writeFile(t, filepath.Join(repoDir, "internal/index/idx.go"), `package index
+
+import _ "modernc.org/sqlite"
+
+func Load() {}
 `)
 
 	writeFile(t, filepath.Join(repoDir, "billing/pay.go"), `package billing
@@ -105,14 +116,19 @@ func TestC4_ContainerLevel_JSON(t *testing.T) {
 		t.Errorf("want container name c4fixture, got %q", name)
 	}
 
-	// Datastore: SQLite via modernc.org/sqlite.
+	// Datastore: SQLite via modernc.org/sqlite, grouped into ONE row even
+	// though two distinct packages import it (sn-igsn).
 	datastores := requireSlice(t, r["datastores"], "datastores")
 	if len(datastores) != 1 {
-		t.Fatalf("want 1 datastore, got %d: %v", len(datastores), datastores)
+		t.Fatalf("want 1 datastore (grouped by technology), got %d: %v", len(datastores), datastores)
 	}
 	d := requireMap(t, datastores[0], "datastores[0]")
 	if name := getString(t, d["name"], "datastores[0].name"); name != "SQLite" {
 		t.Errorf("want datastore SQLite, got %q", name)
+	}
+	dsEvidence := requireSlice(t, d["evidence"], "datastores[0].evidence")
+	if len(dsEvidence) != 2 {
+		t.Errorf("want 2 evidence entries (both importing packages), got %d: %v", len(dsEvidence), dsEvidence)
 	}
 
 	// External: stripe-go import + STRIPE_API_KEY env merge into ONE system
