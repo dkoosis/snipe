@@ -400,6 +400,7 @@ type DiagramCmd struct {
 	Lifecycle  DiagramLifecycleCmd  `cmd:"" help:"Render lifecycle CRUD groups for a type as D2"`
 	Seams      DiagramSeamsCmd      `cmd:"" help:"Rank pluggable interfaces by implementation count and fan-in. Writes docs/diagrams/seam-map.md by default (--format d2/svg for stdout)"`
 	Datastores DiagramDatastoresCmd `cmd:"" name:"datastore-map" help:"Datastore access map: schema + read/write packages per detected store. Writes docs/diagrams/datastore-map.md by default (--format d2/svg for stdout)"`
+	System     DiagramSystemCmd     `cmd:"" name:"system-map" help:"Comprehension view: packages collapsed into a handful of subsystems, only cross-subsystem edges shown. Writes docs/diagrams/system-map.md by default (--format d2/svg for stdout)"`
 }
 
 // AfterApply maps the global --format into the diagram package var. Unset
@@ -461,6 +462,15 @@ type DiagramDatastoresCmd struct{}
 
 func (c *DiagramDatastoresCmd) Run() error {
 	return runDiagramDatastores()
+}
+
+type DiagramSystemCmd struct {
+	Top int `default:"0" help:"Trim to top-N packages by PageRank before grouping (0 = no trim)"`
+}
+
+func (c *DiagramSystemCmd) Run() error {
+	systemMapTopN = c.Top
+	return runDiagramSystem()
 }
 
 type LifecycleCmd struct {
