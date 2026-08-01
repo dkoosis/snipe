@@ -237,11 +237,15 @@ func goVersionFromMod(dir string) (string, error) {
 }
 
 // findContainers returns one Container per distinct package declaring a
-// `func main()`, named after the module (the design field's AC expects a
-// single "snipe" container on snipe's own single-binary repo).
+// `func main()`, named after its own package (path.Base of pkg_path) so a
+// repo with multiple cmd/<tool>/main.go binaries gets distinct names per
+// container instead of one module-wide name repeated N times. The root/
+// single-binary case (pkg_path == modulePath, e.g. a top-level main.go) falls
+// back to the module display name, preserving today's behavior on snipe's
+// own single-binary repo (design field's AC: a single "snipe" container).
 func findContainers(db *sql.DB, modulePath string) ([]Container, error) {
 	rows, err := db.Query(`
-		SELECT DISTINCT file_path, line_start
+		SELECT DISTINCT file_path, COALESCE(pkg_path, ''), line_start
 		FROM symbols
 		WHERE name = 'main' AND kind = 'func'
 		ORDER BY file_path, line_start
@@ -251,21 +255,32 @@ func findContainers(db *sql.DB, modulePath string) ([]Container, error) {
 	}
 	defer rows.Close()
 
-	name := moduleDisplayName(modulePath)
+	moduleName := moduleDisplayName(modulePath)
 	var out []Container
 	for rows.Next() {
-		var file string
+		var file, pkgPath string
 		var line int
-		if err := rows.Scan(&file, &line); err != nil {
+		if err := rows.Scan(&file, &pkgPath, &line); err != nil {
 			return nil, fmt.Errorf("scan main func: %w", err)
 		}
 		out = append(out, Container{
-			Name: name,
+			Name: containerName(pkgPath, modulePath, moduleName),
 			File: file,
 			Line: line,
 		})
 	}
 	return out, rows.Err()
+}
+
+// containerName names a main-package container after its own package
+// (path.Base of pkgPath) so distinct cmd/<tool>/main.go binaries get distinct
+// names. Falls back to the module display name when pkgPath is empty or is
+// the module root itself (the single-binary case).
+func containerName(pkgPath, modulePath, moduleName string) string {
+	if pkgPath == "" || pkgPath == modulePath {
+		return moduleName
+	}
+	return path.Base(pkgPath)
 }
 
 // moduleDisplayName returns the last path segment of a module path, e.g.

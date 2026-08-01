@@ -40,7 +40,7 @@ func newC4TestRepo(t *testing.T) (*store.Store, string) {
 	return s, dir
 }
 
-func addSymbol(t *testing.T, db *sql.DB, id, name, kind, pkgPath, filePath string, lineStart int) {
+func addSymbol(t *testing.T, db *sql.DB, id, name, kind, pkgPath, filePath string, lineStart int) { //nolint:unparam // general-purpose test fixture helper; every call site happens to pass "main" today
 	t.Helper()
 	_, err := db.Exec(`
 		INSERT INTO symbols (id, name, kind, pkg_path, file_path, line_start, col_start, line_end, col_end)
@@ -82,6 +82,33 @@ func TestBuildFacts_Container(t *testing.T) {
 	}
 	if got.Line != 5 {
 		t.Errorf("want line 5, got %d", got.Line)
+	}
+}
+
+func TestBuildFacts_Container_MultiMainDistinctNames(t *testing.T) {
+	// sn-57vf: a repo with two cmd/<tool>/main.go binaries must report two
+	// containers with distinct names derived from their own package (foo,
+	// bar), not two rows both named after the module.
+	s, dir := newC4TestRepo(t)
+	addSymbol(t, s.DB(), "m1", "main", "func", testModule+"/cmd/foo", filepath.Join(dir, "cmd/foo/main.go"), 5)
+	addSymbol(t, s.DB(), "m2", "main", "func", testModule+"/cmd/bar", filepath.Join(dir, "cmd/bar/main.go"), 7)
+
+	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Containers) != 2 {
+		t.Fatalf("want 2 containers, got %d: %+v", len(f.Containers), f.Containers)
+	}
+	names := make(map[string]bool)
+	for _, c := range f.Containers {
+		names[c.Name] = true
+	}
+	if !names["foo"] || !names["bar"] {
+		t.Errorf("want containers named %q and %q, got %v", "foo", "bar", names)
+	}
+	if names["proj"] {
+		t.Errorf("want no container named after the module (%q), got %v", "proj", names)
 	}
 }
 
