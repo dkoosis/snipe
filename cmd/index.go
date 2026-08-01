@@ -298,6 +298,27 @@ func runIndex(args []string) error {
 		return fmt.Errorf("write files: %w", err)
 	}
 
+	// Write file→package fallback rows (sn-dzbj): tier-2 (loader) covers every
+	// file go/packages actually loaded, including symbol-less ones (doc.go);
+	// tier-3 (header) covers files go/packages never loaded at all
+	// (build-tag-excluded), via the bare package name captured in
+	// ExtractFileInfo. Loader MUST write first — tier-3's INSERT OR IGNORE
+	// relies on it to implement "same-dir loader row wins" (write.go doc).
+	filePkgs := index.ExtractFilePackages(result)
+	if err := s.WriteFilePackages(filePkgs, absDir, store.FilePackageSourceLoader); err != nil {
+		return fmt.Errorf("write file packages (loader): %w", err)
+	}
+	headerPkgs := make([]index.FilePackage, 0, len(files))
+	for _, f := range files {
+		if f.PackageName == "" {
+			continue
+		}
+		headerPkgs = append(headerPkgs, index.FilePackage{Path: f.Path, PkgPath: f.PackageName})
+	}
+	if err := s.WriteFilePackages(headerPkgs, absDir, store.FilePackageSourceHeader); err != nil {
+		return fmt.Errorf("write file packages (header): %w", err)
+	}
+
 	// Store fingerprint and metadata
 	if err := s.SetMeta("fingerprint", fp.Combined); err != nil {
 		return fmt.Errorf("store fingerprint: %w", err)
@@ -783,6 +804,26 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 	}
 	if err := s.WriteFiles(files); err != nil {
 		return fmt.Errorf("write files: %w", err)
+	}
+
+	// Write file→package fallback rows (sn-dzbj) — same two-tier write as the
+	// full-reindex path (see comment there). `result`/`files` cover ALL files
+	// here too (ExtractFileInfo/the go/packages load are not filtered to
+	// changed files), so this stays correct on every incremental run, not just
+	// full reindexes.
+	filePkgs := index.ExtractFilePackages(result)
+	if err := s.WriteFilePackages(filePkgs, absDir, store.FilePackageSourceLoader); err != nil {
+		return fmt.Errorf("write file packages (loader): %w", err)
+	}
+	headerPkgs := make([]index.FilePackage, 0, len(files))
+	for _, f := range files {
+		if f.PackageName == "" {
+			continue
+		}
+		headerPkgs = append(headerPkgs, index.FilePackage{Path: f.Path, PkgPath: f.PackageName})
+	}
+	if err := s.WriteFilePackages(headerPkgs, absDir, store.FilePackageSourceHeader); err != nil {
+		return fmt.Errorf("write file packages (header): %w", err)
 	}
 
 	// Update metadata

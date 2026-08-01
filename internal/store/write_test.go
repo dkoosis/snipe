@@ -856,3 +856,101 @@ func TestWritePackageDocsEmptyClearsTable(t *testing.T) {
 		t.Errorf("want empty table, got %d rows", n)
 	}
 }
+
+// TestWriteFilePackages_LoaderWinsOverHeader pins the sn-dzbj write ordering
+// invariant (write.go doc on WriteFilePackages): a loader (tier-2) row for a
+// path always wins over a header (tier-3) row for the same path, regardless
+// of which call happens first within a run — INSERT OR REPLACE for loader,
+// INSERT OR IGNORE for header, against the shared file_path_rel primary key.
+func TestWriteFilePackages_LoaderWinsOverHeader(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close()
+	root := "/repo"
+
+	// Normal run order: loader first, then header for the complement. A file
+	// covered by loader must not be shadowed by a stale/weaker header guess.
+	if err := s.WriteFilePackages([]index.FilePackage{
+		{Path: "/repo/pkg/a.go", PkgPath: "example.com/repo/pkg"},
+	}, root, FilePackageSourceLoader); err != nil {
+		t.Fatalf("write loader: %v", err)
+	}
+	if err := s.WriteFilePackages([]index.FilePackage{
+		{Path: "/repo/pkg/a.go", PkgPath: "pkg"}, // bare name, would be wrong if it won
+		{Path: "/repo/other/b.go", PkgPath: "other"},
+	}, root, FilePackageSourceHeader); err != nil {
+		t.Fatalf("write header: %v", err)
+	}
+
+	got := map[string]string{}
+	rows, err := s.DB().Query(`SELECT file_path_rel, pkg_path FROM file_packages`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rel, pkg string
+		if err := rows.Scan(&rel, &pkg); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		got[rel] = pkg
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+
+	if got["pkg/a.go"] != "example.com/repo/pkg" {
+		t.Errorf("pkg/a.go = %q, want loader's example.com/repo/pkg (header must not shadow it)", got["pkg/a.go"])
+	}
+	if got["other/b.go"] != "other" {
+		t.Errorf("other/b.go = %q, want header's bare name (no loader row to shadow)", got["other/b.go"])
+	}
+}
+
+// TestWriteFilePackages_SourceScopedDelete confirms a refresh of one source
+// never touches rows from the other source — the whole point of scoping the
+// DELETE by source (write.go doc): a tier-2 refresh during incremental
+// indexing must not wipe tier-3 rows from a prior full index, and vice versa.
+func TestWriteFilePackages_SourceScopedDelete(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close()
+	root := "/repo"
+
+	if err := s.WriteFilePackages([]index.FilePackage{
+		{Path: "/repo/a.go", PkgPath: "example.com/repo/a"},
+	}, root, FilePackageSourceLoader); err != nil {
+		t.Fatalf("seed loader: %v", err)
+	}
+	if err := s.WriteFilePackages([]index.FilePackage{
+		{Path: "/repo/b.go", PkgPath: "b"},
+	}, root, FilePackageSourceHeader); err != nil {
+		t.Fatalf("seed header: %v", err)
+	}
+
+	// Refresh loader with an EMPTY set (e.g. a run where go/packages loaded
+	// nothing new) — the header row for b.go must survive untouched.
+	if err := s.WriteFilePackages(nil, root, FilePackageSourceLoader); err != nil {
+		t.Fatalf("refresh loader empty: %v", err)
+	}
+
+	var loaderCount, headerCount int
+	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM file_packages WHERE source = ?`, FilePackageSourceLoader).Scan(&loaderCount); err != nil {
+		t.Fatalf("count loader: %v", err)
+	}
+	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM file_packages WHERE source = ?`, FilePackageSourceHeader).Scan(&headerCount); err != nil {
+		t.Fatalf("count header: %v", err)
+	}
+	if loaderCount != 0 {
+		t.Errorf("loader rows = %d, want 0 (refreshed with empty set)", loaderCount)
+	}
+	if headerCount != 1 {
+		t.Errorf("header rows = %d, want 1 (untouched by loader-scoped refresh)", headerCount)
+	}
+}

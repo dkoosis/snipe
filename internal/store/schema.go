@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 19
+const schemaVersion = 20
 
 // migration represents a database migration.
 type migration struct {
@@ -283,6 +283,18 @@ var migrations = []migration{
 			score        REAL NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_file_churn_commits ON file_churn(commits);
+		`,
+	},
+	{
+		version: 20,
+		name:    "file_packages_table",
+		up: `
+		CREATE TABLE IF NOT EXISTS file_packages (
+			file_path_rel TEXT PRIMARY KEY,
+			pkg_path      TEXT NOT NULL,
+			source        TEXT NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_file_packages_pkg ON file_packages(pkg_path);
 		`,
 	},
 }

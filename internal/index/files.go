@@ -13,10 +13,11 @@ import (
 
 // FileInfo represents file metadata for change detection
 type FileInfo struct {
-	Path   string
-	Mtime  int64
-	Hash   string
-	Header string // leading comment block above package clause (cleaned, capped)
+	Path        string
+	Mtime       int64
+	Hash        string
+	Header      string // leading comment block above package clause (cleaned, capped)
+	PackageName string // bare `package <name>` clause; "" if unparsed/unknown
 }
 
 // maxHeaderLen caps the stored header length to keep token budget honest (D4).
@@ -80,23 +81,26 @@ func computeFileInfo(path string) (FileInfo, error) {
 		return FileInfo{}, err // HashFileSHA256 already includes path context
 	}
 
-	header, _ := extractFileHeader(path) // best-effort; empty on error
+	header, pkgName, _ := extractFileHeader(path) // best-effort; empty on error
 
 	return FileInfo{
-		Path:   path,
-		Mtime:  stat.ModTime().Unix(),
-		Hash:   hash,
-		Header: header,
+		Path:        path,
+		Mtime:       stat.ModTime().Unix(),
+		Hash:        hash,
+		Header:      header,
+		PackageName: pkgName,
 	}, nil
 }
 
-// extractFileHeader reads the leading comment block above the `package` clause.
-// Skips build constraints (`//go:build`, `// +build`). Joins consecutive `//`
-// lines with spaces and caps at maxHeaderLen.
-func extractFileHeader(path string) (string, error) {
+// extractFileHeader reads the leading comment block above the `package` clause,
+// plus the bare package name declared on that clause (tier-3 fallback identity
+// for resolveFilePackage when go/packages never loaded the file at all — see
+// ExtractFilePackages). Skips build constraints (`//go:build`, `// +build`).
+// Joins consecutive `//` lines with spaces and caps at maxHeaderLen.
+func extractFileHeader(path string) (header, pkgName string, err error) {
 	f, err := os.Open(path) // #nosec G304 -- path from indexer walk
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer f.Close()
 
@@ -107,6 +111,7 @@ func extractFileHeader(path string) (string, error) {
 		line := strings.TrimRight(sc.Text(), " \t")
 		trim := strings.TrimSpace(line)
 		if strings.HasPrefix(trim, "package ") {
+			pkgName = strings.TrimSpace(strings.TrimPrefix(trim, "package "))
 			break
 		}
 		if trim == "" {
@@ -126,7 +131,7 @@ func extractFileHeader(path string) (string, error) {
 	if len(joined) > maxHeaderLen {
 		joined = joined[:maxHeaderLen] + "…"
 	}
-	return joined, nil
+	return joined, pkgName, nil
 }
 
 // HashFileSHA256 computes a truncated SHA256 hash of a file (16 hex chars).
