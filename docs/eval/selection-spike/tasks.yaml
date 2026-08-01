@@ -1,0 +1,95 @@
+# CLI selection spike (sn-l1kh.6) — task definitions
+#
+# These tasks probe command SELECTION behavior — which snipe subcommand a
+# fresh agent reaches for when several near-synonym commands could plausibly
+# answer the same natural-language question. This is orthogonal to the
+# scripted benchmark.yaml harness: that harness replays a FIXED command list
+# per task (see Task.Commands in test/eval/score.go) and cannot observe which
+# command an agent would have chosen — the choice is hardcoded by the
+# benchmark author. Measuring selection requires giving a fresh agent only
+# the natural-language question and the CLI's own --help output, then
+# recording what it tries. See selection-spike/REPORT.md for methodology,
+# results, and the ranked fumble-rate report.
+#
+# Corpus: go-chi/chi (github.com/go-chi/chi), indexed with --embed-mode=off.
+# Each task names the cluster it probes and the command(s) the snipe author
+# intended for that framing (per cmd/cli.go's help text), for scoring only —
+# this was never shown to the agents that ran the tasks.
+
+corpus: go-chi/chi
+clusters:
+  describe-symbol:
+    commands: [pack, sym, explain, def, show]
+    note: "show excluded from live tasks — it consumes a prior ID, not a first move"
+    tasks:
+      - id: D1
+        ideal: [pack, context]
+        prompt: >
+          What is the Mux type, and how does it relate to other types and
+          functions in this file? Give me a full picture.
+      - id: D2
+        ideal: [explain]
+        prompt: >
+          Explain step-by-step what the ServeHTTP method on Mux does — its
+          purpose, the mechanism, who calls it, and anything risky about it.
+      - id: D3
+        ideal: [sym, def]
+        prompt: >
+          I just want a quick, no-frills look at where URLParam is defined
+          and what calls it — skip anything about packages.
+
+  find-by-content:
+    commands: [search, lits, trace, sim]
+    tasks:
+      - id: F1
+        ideal: [lits]
+        prompt: >
+          Find every place the string literal "X-Forwarded-For" shows up in
+          this codebase.
+      - id: F2
+        ideal: [trace]
+        prompt: >
+          The string "RequestIDKey" appears in context.go — trace how it
+          flows through the request lifecycle end-to-end, not just where
+          it's mentioned.
+      - id: F3
+        ideal: [sim]
+        prompt: >
+          Where does chi implement protection against IP spoofing /
+          client-IP extraction? I don't know the function or file name —
+          just describe the concept.
+
+  about-to-change:
+    commands: [plan, impact, verify, risk]
+    note: "risk excluded from live tasks — needs git base/head refs, not a first move on a fresh question"
+    tasks:
+      - id: P1
+        ideal: [plan]
+        prompt: >
+          I'm about to change the signature of URLParam. What do I need to
+          update across the codebase?
+      - id: P2
+        ideal: [impact]
+        prompt: >
+          If I change the behavior of GetClientIP, what's the blast radius —
+          which parts of the code and which callers would be affected?
+      - id: P3
+        ideal: [verify]
+        prompt: >
+          I'm about to modify middleware/throttle.go. Which tests should I
+          run to make sure I don't break anything?
+
+  control:
+    commands: [index, callers]
+    note: "unambiguous single-command questions, outside the three named clusters — baseline fumble rate for comparison"
+    tasks:
+      - id: C1
+        ideal: [index]
+        prompt: "Build a fresh snipe index for this repo."
+      - id: C2
+        ideal: [callers]
+        prompt: "Find every function that calls the Use method on Mux."
+
+self_report_format: |
+  TASK_ID / COMMANDS_TRIED / FIRST_USEFUL_COMMAND / DISTINCT_COMMANDS_TRIED /
+  RETRIED / APPROX_TOOL_CALLS_TO_USEFUL / ANSWER
