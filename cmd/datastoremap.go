@@ -290,7 +290,7 @@ func renderDatastoreDiagram(stores []datastoremap.Store) *diagram.Builder {
 	for _, st := range stores {
 		storeID := diagram.SanitizeID(st.Name + "_" + st.Package)
 		storeNode := "store_" + storeID
-		b.AddNode(storeNode, st.Name, "cylinder", map[string]string{diagramFill: diagramColorWarn, "bold": diagramTrue})
+		b.AddNode(storeNode, st.Name, "cylinder", map[string]string{diagramFill: diagramColorWarn, diagramBold: diagramTrue})
 
 		if st.Package == "" {
 			continue

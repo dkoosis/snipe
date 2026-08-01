@@ -263,7 +263,7 @@ func nodeStyleForRank(rank int) map[string]string {
 	case rank == 0:
 		return nil
 	case rank <= 3:
-		return map[string]string{diagramFill: diagramColorWarn, "bold": diagramTrue}
+		return map[string]string{diagramFill: diagramColorWarn, diagramBold: diagramTrue}
 	case rank <= 10:
 		return map[string]string{diagramFill: "#fef3c7"}
 	default:
@@ -419,7 +419,7 @@ func runDiagramFlow(args []string) error {
 		style := map[string]string{}
 		if id == root.ID {
 			style[diagramFill] = diagramColorWarn
-			style["bold"] = diagramTrue
+			style[diagramBold] = diagramTrue
 		}
 		if len(style) == 0 {
 			style = nil
@@ -689,7 +689,7 @@ func runDiagramLifecycle(args []string) error {
 
 	// Center node: the type.
 	typeNodeID := "type_" + diagram.SanitizeID(sym.Name)
-	b.AddNode(typeNodeID, sym.Name, "cylinder", map[string]string{diagramFill: diagramColorWarn, "bold": diagramTrue})
+	b.AddNode(typeNodeID, sym.Name, "cylinder", map[string]string{diagramFill: diagramColorWarn, diagramBold: diagramTrue})
 
 	// One container per role with role-specific tint.
 	roleColors := map[lifecycle.Role]string{

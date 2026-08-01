@@ -78,6 +78,7 @@ const (
 	diagramFill      = "fill"
 	diagramColorWarn = "#fde68a"
 	diagramTrue      = "true"
+	diagramBold      = "bold"
 )
 
 // Common error message strings.

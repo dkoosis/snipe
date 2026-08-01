@@ -69,7 +69,7 @@ func runDiagramSystem() error {
 	for _, gr := range groups {
 		style := map[string]string{diagramFill: "#f5f5f5"}
 		if hasHighRank(gr.pkgs, ranking) {
-			style = map[string]string{diagramFill: diagramColorWarn, "bold": diagramTrue}
+			style = map[string]string{diagramFill: diagramColorWarn, diagramBold: diagramTrue}
 		}
 		label := fmt.Sprintf("%s (%d)", gr.name, len(gr.pkgs))
 		b.AddNode(systemNodeID(gr.name), label, "", style)

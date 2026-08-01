@@ -196,7 +196,7 @@ func buildSeams(db *sql.DB) ([]Seam, error) {
 func seamNodeStyle(pos int) map[string]string {
 	switch {
 	case pos <= 3:
-		return map[string]string{diagramFill: diagramColorWarn, "bold": diagramTrue}
+		return map[string]string{diagramFill: diagramColorWarn, diagramBold: diagramTrue}
 	case pos <= 10:
 		return map[string]string{diagramFill: "#fef3c7"}
 	default:
