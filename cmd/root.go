@@ -68,16 +68,13 @@ const rootHelp = `snipe: Go code navigation for Claude.
   snipe context            Claude-optimized orientation
   snipe context --full     Full architecture dump
 
-Pick the right overview command:
-  context   start here — project orientation (read first)
-  pack      deep dive on one symbol or package
-  sym       symbol-only (def+refs+callers+callees), no package context
-  explain   structured function walkthrough (LLM consumption)
-
-Typical flow:  context → pack <symbol> → callers/callees → tests <symbol>
-IDs chain:     every result's 'id' field is valid input to the next command
-Index:         all commands except 'search' need a built index — run 'snipe index' first
-Writes:        only 'edit' modifies files; all other commands are read-only`
+Notes:
+  Typical flow:  context → pack <symbol> → callers/callees → tests <symbol>
+  IDs chain:     every result's 'id' field is valid input to the next command
+  Index:         all commands except 'search' need a built index —
+                 run 'snipe index' first
+  Writes:        only 'edit' modifies files; all other commands are
+                 read-only`
 
 // Globals holds the persistent flags shared by every command. It is embedded
 // into the root CLI struct so the flags parse in any position, and its
