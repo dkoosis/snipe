@@ -93,7 +93,7 @@ type Globals struct {
 	MaxTokens     int           `name:"max-tokens" help:"Token budget (0 = unlimited)" default:"0"`
 	Format        string        `help:"concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY)" default:"concise"`
 	KGHints       bool          `name:"kg-hints" help:"Include Orca KG hints"`
-	Suggestions   bool          `help:"Include next-step suggestions in Claude output"`
+	NoSuggestions bool          `name:"no-suggestions" help:"Suppress next-step suggestions in Claude output"`
 	Timeout       time.Duration `help:"Timeout for command (e.g., 30s, 5m)"`
 	Select        string        `help:"Pick top candidates by score: all, best, top3, top5 (applied before --limit)" default:"all" enum:"all,best,top3,top5"`
 	// Reserved for orca telemetry — hidden until persistToolCall is wired.
@@ -114,7 +114,7 @@ func (g *Globals) AfterApply() error {
 	maxTokens = g.MaxTokens
 	responseFormat = g.Format
 	withKGHints = g.KGHints
-	showSuggestions = g.Suggestions
+	showSuggestions = !g.NoSuggestions
 	timeout = g.Timeout
 	selectMode = g.Select
 	caller = g.Caller

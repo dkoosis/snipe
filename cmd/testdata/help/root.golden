@@ -37,7 +37,7 @@ Flags:
       --format="concise"    concise (LLM default) | detailed | summary | json
                             (stable, for tooling) | human (TTY)
       --kg-hints            Include Orca KG hints
-      --suggestions         Include next-step suggestions in Claude output
+      --no-suggestions      Suppress next-step suggestions in Claude output
       --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
       --select="all"        Pick top candidates by score: all, best, top3,
                             top5 (applied before --limit)

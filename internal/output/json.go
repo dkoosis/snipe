@@ -28,9 +28,9 @@ const (
 )
 
 // showSuggestionsEnabled controls whether suggestions are emitted in Claude text mode.
-// Off by default — suggestions are toolchain metadata, not needed in Claude output.
-// Enable with --suggestions flag (SetShowSuggestions).
-var showSuggestionsEnabled = false
+// On by default (AXI #9: contextual disclosure) — next-step command templates
+// eliminate a round trip. Suppress with --no-suggestions (SetShowSuggestions).
+var showSuggestionsEnabled = true
 
 // SetShowSuggestions configures suggestion output for Claude mode.
 func SetShowSuggestions(v bool) { showSuggestionsEnabled = v }
@@ -140,6 +140,17 @@ func (w *Writer) writeClaudeResults(b *strings.Builder, results []Result, meta M
 	if respErr != nil {
 		w.writeClaudeError(b, respErr)
 		return
+	}
+
+	// Lead with a total (AXI #4: pre-computed aggregates eliminate a
+	// header-counting round trip), matching diagram's "N packages · M edges"
+	// convention.
+	if meta.Total > 0 {
+		if meta.Total == 1 {
+			b.WriteString("1 result\n")
+		} else {
+			fmt.Fprintf(b, "%d results\n", meta.Total)
+		}
 	}
 
 	for i := range results {
@@ -538,13 +549,13 @@ func (w *Writer) writeClaudeDeps(b *strings.Builder, results []DepsResult, meta 
 		r := &results[i]
 		fmt.Fprintf(b, "# %s\n", r.Package)
 		if len(r.Dependencies) > 0 {
-			b.WriteString("imports:\n")
+			fmt.Fprintf(b, "imports (%d):\n", len(r.Dependencies))
 			for _, d := range r.Dependencies {
 				fmt.Fprintf(b, "  %s (%d files)\n", d.Package, d.FileCount)
 			}
 		}
 		if len(r.Dependents) > 0 {
-			b.WriteString("imported by:\n")
+			fmt.Fprintf(b, "imported by (%d):\n", len(r.Dependents))
 			for _, d := range r.Dependents {
 				fmt.Fprintf(b, "  %s (%d files)\n", d.Package, d.FileCount)
 			}
