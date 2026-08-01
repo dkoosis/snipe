@@ -1,6 +1,6 @@
 # north star — snipe
 
-★ the map a coding LLM gets instead of a pile of files — what a symbol is, who calls it, what breaks, what covers it, in structured JSON under 50ms
+★ Maps a Go codebase for LLMs orientation and navigation: symbols, callers, hotspots, metrics, in structured JSON.
 
 *Seeded 2026-07-21 ⊕ drafted by Claude from `north-star-mini.md` (KG nug 0b105e61f67f — the fuller narrative home); ratify or rewrite, dk.*
 
