@@ -1,8 +1,20 @@
 # diagram — render snipe graphs as D2 diagram source.
 # The golden JSON for each subcommand is blackbox-covered; this smokes the
-# default text surface. Proves: `diagram arch` emits the summary header and a
-# fenced d2 block over the fixture's import graph, exit 0.
+# default and --format d2 text surfaces, exit 0 both ways.
 cd $FIXTURE
+
+# Default (no --format): writes docs/diagrams/arch.md (sn-l1kh) instead of
+# printing to stdout — living doc, D2 source + SVG (or a degrade note when
+# the d2 CLI isn't on PATH). Whether d2 is actually on PATH varies by
+# environment, so this only asserts the always-true content; the SVG-vs-
+# degrade branch itself is unit-tested in cmd/diagram_test.go.
 exec snipe diagram arch
+stdout 'wrote .*docs/diagrams/arch\.md'
+exists $FIXTURE/docs/diagrams/arch.md
+grep 'diagram arch ·' $FIXTURE/docs/diagrams/arch.md
+grep '```d2' $FIXTURE/docs/diagrams/arch.md
+
+# Explicit --format d2: unchanged stdout dump (orca/tooling still rely on this).
+exec snipe diagram arch --format d2
 stdout 'diagram arch ·'
 stdout '```d2'

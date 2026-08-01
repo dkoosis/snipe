@@ -395,18 +395,21 @@ func (c *SensitiveCmd) Run() error {
 type DiagramCmd struct {
 	// diagram reuses the global --format flag (d2 default, or svg). It cannot
 	// redeclare --format because the global flag is embedded on every command.
-	Arch      DiagramArchCmd      `cmd:"" help:"Package import graph trimmed to the top-N by PageRank, grouped by layer"`
+	Arch      DiagramArchCmd      `cmd:"" help:"Package import graph trimmed to the top-N by PageRank, grouped by layer. Writes docs/diagrams/arch.md by default (--format d2/svg for stdout)"`
 	Flow      DiagramFlowCmd      `cmd:"" help:"Depth-limited call graph from an entry symbol"`
 	Lifecycle DiagramLifecycleCmd `cmd:"" help:"Render lifecycle CRUD groups for a type as D2"`
 }
 
-// AfterApply maps the global --format into the diagram package var. The prior
-// cobra default was "d2"; treat the global "concise" default as unset.
+// AfterApply maps the global --format into the diagram package var. Unset
+// (no --format passed) stays "": emit() treats that the same as explicit
+// "d2" (stdout), but emitDoc() (arch; sn-l1kh) treats truly-unset as the
+// signal to write docs/diagrams/<name>.md instead — only an explicit
+// --format d2 keeps the old stdout dump.
 func (c *DiagramCmd) AfterApply() error {
 	if flagPassed("format") {
 		diagramFormat = responseFormat
 	} else {
-		diagramFormat = "d2"
+		diagramFormat = ""
 	}
 	return nil
 }
