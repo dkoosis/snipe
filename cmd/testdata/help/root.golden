@@ -169,6 +169,10 @@ Graph & Structure:
   guard [<spec>] [flags]
     Assert architecture boundary rules; exit non-zero on violation
 
+  report [flags]
+    Self-contained HTML dashboard for humans: hotspot treemap, cycles, hotspots
+    ranking, + D2 diagram placeholder slots
+
 Embeddings:
   sim [<query>] [flags]
     Semantic similarity search
