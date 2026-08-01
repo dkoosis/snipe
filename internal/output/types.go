@@ -994,13 +994,15 @@ type C4Container struct {
 	Line int    `json:"line"`
 }
 
-// C4Datastore is a package that imports a driver from the fixed allowlist.
+// C4Datastore is a driver technology detected via the fixed import
+// allowlist, grouped across every importing package (one row per
+// technology, e.g. "SQLite" — not one row per importer).
 type C4Datastore struct {
-	Name    string `json:"name"`
-	Driver  string `json:"driver"`
-	Package string `json:"package"`
-	File    string `json:"file"`
-	Line    int    `json:"line"`
+	Name     string   `json:"name"`
+	Driver   string   `json:"driver"`
+	Evidence []string `json:"evidence"`
+	File     string   `json:"file"`
+	Line     int      `json:"line"`
 }
 
 // C4ExternalSystem is a third-party service detected via env-var literals

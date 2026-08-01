@@ -97,7 +97,7 @@ func buildC4Response(s *store.Store, dir, level string, start time.Time) (output
 	}
 	for _, d := range facts.Datastores {
 		result.Datastores = append(result.Datastores, output.C4Datastore{
-			Name: d.Name, Driver: d.Driver, Package: d.Package, File: d.File, Line: d.Line,
+			Name: d.Name, Driver: d.Driver, Evidence: d.Evidence, File: d.File, Line: d.Line,
 		})
 	}
 	for _, e := range facts.External {
@@ -166,7 +166,8 @@ func writeC4Text(results []output.C4Result) error {
 		b.WriteString("\n## datastores\n")
 		writeC4Capped(&b, len(r.Datastores), func(i int) string {
 			d := r.Datastores[i]
-			return fmt.Sprintf("  %s | %s | %s | %s:%d\n", d.Name, d.Driver, d.Package, d.File, d.Line)
+			return fmt.Sprintf("  %s | %s | evidence: %s | %s:%d\n",
+				d.Name, d.Driver, strings.Join(d.Evidence, ", "), d.File, d.Line)
 		})
 	}
 

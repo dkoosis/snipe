@@ -56,13 +56,19 @@ type Container struct {
 	Line int
 }
 
-// Datastore is a package that imports a driver from the fixed allowlist.
+// Datastore is a driver technology detected via the fixed import allowlist,
+// grouped across every importing package — one row per distinct technology
+// (e.g. one "SQLite" row covering both modernc.org/sqlite and
+// mattn/go-sqlite3 importers), not one row per importer. Evidence lists the
+// distinct importing packages; File/Line is the deterministic earliest
+// evidence across the whole group (isEarlierEvidence), the same pick rule
+// mergeExternalSystems already uses for ExternalSystem.
 type Datastore struct {
-	Name    string // display name, e.g. "SQLite"
-	Driver  string // the matched import pkg_path
-	Package string // the importing package
-	File    string
-	Line    int
+	Name     string   // display name, e.g. "SQLite"
+	Driver   string   // representative matched import pkg_path
+	Evidence []string // importing package paths, sorted
+	File     string
+	Line     int
 }
 
 // ExternalSystem is a third-party service, detected via env-var literals
@@ -92,9 +98,10 @@ type Component struct {
 	Purpose string
 }
 
-// driverAllowlist maps a substring match against imports.pkg_path to a
-// display datastore name (design field's fixed allowlist). Order does not
-// matter: matches are independent, evaluated against every import row.
+// driverAllowlist maps a path-segment-anchored match (see
+// matchesDriverPath) against imports.pkg_path to a display datastore name
+// (design field's fixed allowlist). Order does not matter: matches are
+// independent, evaluated against every import row.
 var driverAllowlist = []struct{ match, name string }{
 	{"modernc.org/sqlite", "SQLite"},
 	{"mattn/go-sqlite3", "SQLite"},
@@ -104,6 +111,30 @@ var driverAllowlist = []struct{ match, name string }{
 	{"bbolt", "BoltDB"},
 	{"badger", "Badger"},
 	{"database/sql", "SQL"},
+}
+
+// matchesDriverPath reports whether pkgPath matches an allowlist entry,
+// anchored to a full path segment (or exact prefix) rather than raw
+// substring containment (CodeRabbit finding on PR #214, folded into
+// sn-igsn's grouping-key redesign): a bare strings.Contains would
+// misclassify a module merely containing an allowlisted word as one of its
+// path components — e.g. "github.com/acme/badgerlint" contains "badger" but
+// is not the Badger driver. match may be a single segment ("badger") or a
+// multi-segment suffix ("mattn/go-sqlite3"); pkgPath matches when match is
+// pkgPath itself, a leading path-segment prefix of it, a trailing
+// path-segment suffix of it, or a path-segment-bounded substring of it
+// (covers versioned subpackages like "github.com/jackc/pgx/v5").
+func matchesDriverPath(pkgPath, match string) bool {
+	if pkgPath == match {
+		return true
+	}
+	if strings.HasPrefix(pkgPath, match+"/") {
+		return true
+	}
+	if strings.HasSuffix(pkgPath, "/"+match) {
+		return true
+	}
+	return strings.Contains(pkgPath, "/"+match+"/")
 }
 
 // envSuffixRe matches the design field's external-system env-var predicate:
@@ -279,7 +310,11 @@ func moduleDisplayName(modulePath string) string {
 }
 
 // findDatastores scans the imports table for rows matching the fixed driver
-// allowlist, deduped by (display name, importing package).
+// allowlist, grouped by display name (technology) — one Datastore per
+// distinct technology, with every importing package folded into its Evidence
+// list rather than emitted as a repeat row (sn-igsn: per-importer output was
+// noisy relative to D4 and the C4-model's own semantics — a datastore is a
+// container-level element, not a per-caller fact).
 func findDatastores(db *sql.DB) ([]Datastore, error) {
 	rows, err := db.Query(`
 		SELECT file_path, pkg_path, COALESCE(importer_pkg,''), line
@@ -291,9 +326,14 @@ func findDatastores(db *sql.DB) ([]Datastore, error) {
 	}
 	defer rows.Close()
 
-	type key struct{ name, pkg string }
-	seen := make(map[key]bool)
-	var out []Datastore
+	type group struct {
+		driver    string // representative matched pkg_path (first encountered)
+		importers map[string]bool
+		file      string
+		line      int
+	}
+	groups := make(map[string]*group)
+	var order []string
 	for rows.Next() {
 		var file, pkgPath, importerPkg string
 		var line int
@@ -301,33 +341,45 @@ func findDatastores(db *sql.DB) ([]Datastore, error) {
 			return nil, fmt.Errorf("scan import: %w", err)
 		}
 		for _, d := range driverAllowlist {
-			if !strings.Contains(pkgPath, d.match) {
+			if !matchesDriverPath(pkgPath, d.match) {
 				continue
 			}
-			k := key{d.name, importerPkg}
-			if seen[k] {
-				break
+			g, ok := groups[d.name]
+			if !ok {
+				g = &group{driver: pkgPath, importers: make(map[string]bool)}
+				groups[d.name] = g
+				order = append(order, d.name)
 			}
-			seen[k] = true
-			out = append(out, Datastore{
-				Name:    d.name,
-				Driver:  pkgPath,
-				Package: importerPkg,
-				File:    file,
-				Line:    line,
-			})
+			if importerPkg != "" {
+				g.importers[importerPkg] = true
+			}
+			if isEarlierEvidence(file, line, g.file, g.line) {
+				g.file, g.line = file, line
+			}
 			break
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Name != out[j].Name {
-			return out[i].Name < out[j].Name
+
+	sort.Strings(order)
+	out := make([]Datastore, 0, len(order))
+	for _, name := range order {
+		g := groups[name]
+		evidence := make([]string, 0, len(g.importers))
+		for pkg := range g.importers {
+			evidence = append(evidence, pkg)
 		}
-		return out[i].Package < out[j].Package
-	})
+		sort.Strings(evidence)
+		out = append(out, Datastore{
+			Name:     name,
+			Driver:   g.driver,
+			Evidence: evidence,
+			File:     g.file,
+			Line:     g.line,
+		})
+	}
 	return out, nil
 }
 
@@ -503,7 +555,7 @@ func allTestFiles(files []string) bool {
 // allowlist — such imports are reported as datastores, not external systems.
 func isDriverMatch(pkgPath string) bool {
 	for _, d := range driverAllowlist {
-		if strings.Contains(pkgPath, d.match) {
+		if matchesDriverPath(pkgPath, d.match) {
 			return true
 		}
 	}
@@ -633,10 +685,12 @@ func isEarlierEvidence(file string, line int, bestFile string, bestLine int) boo
 func findFlows(db *sql.DB, datastores []Datastore, external []ExternalSystem) ([]Flow, error) {
 	var out []Flow
 	for _, d := range datastores {
-		if d.Package == "" {
-			continue
+		for _, pkg := range d.Evidence {
+			if pkg == "" {
+				continue
+			}
+			out = append(out, Flow{From: pkg, To: d.Name, Kind: "datastore", File: d.File, Line: d.Line})
 		}
-		out = append(out, Flow{From: d.Package, To: d.Name, Kind: "datastore", File: d.File, Line: d.Line})
 	}
 
 	importerByRoot, err := loadImporterPkgsByRoot(db)
