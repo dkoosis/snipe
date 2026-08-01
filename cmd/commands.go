@@ -398,6 +398,7 @@ type DiagramCmd struct {
 	Arch      DiagramArchCmd      `cmd:"" help:"Package import graph trimmed to the top-N by PageRank, grouped by layer. Writes docs/diagrams/arch.md by default (--format d2/svg for stdout)"`
 	Flow      DiagramFlowCmd      `cmd:"" help:"Depth-limited call graph from an entry symbol"`
 	Lifecycle DiagramLifecycleCmd `cmd:"" help:"Render lifecycle CRUD groups for a type as D2"`
+	Seams     DiagramSeamsCmd     `cmd:"" help:"Rank pluggable interfaces by implementation count and fan-in. Writes docs/diagrams/seam-map.md by default (--format d2/svg for stdout)"`
 }
 
 // AfterApply maps the global --format into the diagram package var. Unset
@@ -444,6 +445,15 @@ type DiagramLifecycleCmd struct {
 
 func (c *DiagramLifecycleCmd) Run() error {
 	return runDiagramLifecycle([]string{c.Type})
+}
+
+type DiagramSeamsCmd struct {
+	Top int `default:"20" help:"Max ranked seams to render (0 = no cap)"`
+}
+
+func (c *DiagramSeamsCmd) Run() error {
+	diagramSeamsTopN = c.Top
+	return runDiagramSeams()
 }
 
 type LifecycleCmd struct {
