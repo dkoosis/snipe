@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -288,6 +289,65 @@ func TestTriage_TestFileInput_CountsAsTested(t *testing.T) {
 	}
 	if len(got.FilesWithTests) != 1 || got.FilesWithTests[0] != "cmd/thing_test.go" {
 		t.Errorf("a _test.go file declaring TestThing must count as tested, got with_tests=%v without=%v", got.FilesWithTests, got.FilesWithoutTests)
+	}
+}
+
+// TestTriage_ResolvesPackageForSymbolFreeFile pins the sn-dzbj fix: a file
+// that contributes ZERO rows to symbols (doc.go-style — package-comment-only,
+// or a file go/packages never loaded) must still resolve a real package via
+// the file_packages fallback table, and package_count must count it instead
+// of silently undercounting.
+func TestTriage_ResolvesPackageForSymbolFreeFile(t *testing.T) {
+	root := t.TempDir()
+	s, err := store.Open(store.DefaultIndexPath(root))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer s.Close()
+	if err := s.SetMeta("repo_root", root); err != nil {
+		t.Fatalf("set repo_root: %v", err)
+	}
+
+	// cmd/other.go: normal case, package resolves via symbols.pkg_path.
+	insertTriageSymbol(t, s, root, "sym-qux", "Qux", "cmd/other.go")
+
+	// cmd/doc.go: NO symbols row at all — simulates a doc.go with only a
+	// package-level comment (ExtractSymbols finds nothing to emit) or a
+	// build-tag-excluded file. Its package identity comes ONLY from
+	// file_packages, written the way a real `snipe index` run would via
+	// index.ExtractFilePackages / WriteFilePackages(source="loader").
+	if err := s.WriteFilePackages([]index.FilePackage{
+		{Path: filepath.Join(root, "cmd/doc.go"), PkgPath: "example.com/newpkg"},
+	}, root, store.FilePackageSourceLoader); err != nil {
+		t.Fatalf("write file_packages: %v", err)
+	}
+
+	t.Chdir(root)
+	stdout, _, err := runCLI(t, "--format", "json", "triage", "cmd/other.go", "cmd/doc.go")
+	if err != nil {
+		t.Fatalf("triage error: %v", err)
+	}
+	var got triageJSON
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, stdout)
+	}
+
+	byPath := map[string]string{}
+	for _, f := range got.Files {
+		byPath[f.Path] = f.Package
+	}
+	if byPath["cmd/doc.go"] != "example.com/newpkg" {
+		t.Errorf("cmd/doc.go package = %q, want example.com/newpkg (via file_packages fallback, not empty)", byPath["cmd/doc.go"])
+	}
+	if byPath["cmd/other.go"] != "example.com/p" {
+		t.Errorf("cmd/other.go package = %q, want example.com/p", byPath["cmd/other.go"])
+	}
+
+	// package_count must include the symbol-free file's package — the bug
+	// this bead fixes was resolveFilePackage returning "" for it, which drops
+	// the file out of pkgSeen and silently undercounts.
+	if got.PackageCount != 2 {
+		t.Errorf("package_count = %d, want 2 (example.com/p + example.com/newpkg)", got.PackageCount)
 	}
 }
 

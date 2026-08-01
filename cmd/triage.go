@@ -136,9 +136,15 @@ func triageRelPath(root, f string) string {
 	return relToRoot(root, f)
 }
 
-// resolveFilePackage looks up the real Go package for a file via the
-// symbols table's pkg_path column — NOT path-dirname (plan: package must be
-// the real Go package). Returns "" when the file has no indexed symbols.
+// resolveFilePackage looks up the real Go package for a file — NOT
+// path-dirname (plan: package must be the real Go package). It tries, in
+// order: (1) symbols.pkg_path — the common case, most authoritative; (2)
+// file_packages.pkg_path (schema v20) — covers files that contribute zero
+// indexed symbols, either because go/packages loaded the file but it declares
+// no func/type/const/var (doc.go) or because go/packages never loaded it at
+// all (build-tag-excluded), the latter via a file-local `package X` parse
+// rather than a canonical import path. Returns "" only when neither
+// mechanism found any package identity for the file (sn-dzbj).
 func resolveFilePackage(db *sql.DB, rel string) string {
 	var pkg sql.NullString
 	err := db.QueryRow(`
@@ -147,6 +153,11 @@ func resolveFilePackage(db *sql.DB, rel string) string {
 		ORDER BY pkg_path
 		LIMIT 1
 	`, rel).Scan(&pkg)
+	if err == nil && pkg.String != "" {
+		return pkg.String
+	}
+
+	err = db.QueryRow(`SELECT pkg_path FROM file_packages WHERE file_path_rel = ?`, rel).Scan(&pkg)
 	if err != nil {
 		return ""
 	}

@@ -425,6 +425,69 @@ func (s *Store) WriteFiles(files []index.FileInfo) (err error) {
 	return nil
 }
 
+// File-package source tags for the file_packages table (schema v20). Loader
+// rows carry the canonical Go import path go/packages resolved (tier 2 in
+// resolveFilePackage); header rows carry a bare package-name parse used only
+// when go/packages never loaded the file at all (tier 3).
+const (
+	FilePackageSourceLoader = "loader"
+	FilePackageSourceHeader = "header"
+)
+
+// WriteFilePackages populates the file_packages table, the fallback path
+// resolveFilePackage (cmd/triage.go) uses when a file contributes zero rows to
+// symbols (doc.go-style, or build-tag-excluded).
+//
+// Source-scoped delete: only rows for the given source are cleared before
+// insert, so a tier-2 refresh during incremental indexing can't wipe tier-3
+// rows written by a prior full index (or vice versa) — each call only ever
+// owns its own source's slice of the table.
+//
+// file_path_rel is the PRIMARY KEY across ALL sources (one package identity
+// per file), so the two tiers use different conflict resolution:
+//   - FilePackageSourceLoader (authoritative): INSERT OR REPLACE — a fresh
+//     go/packages load always supersedes a stale tier-3 guess for the same file.
+//   - FilePackageSourceHeader (fallback): INSERT OR IGNORE — so calling this
+//     AFTER the loader call in the same index run leaves any already-committed
+//     tier-2 row untouched. This is what implements "same-dir loader row wins"
+//     (sn-dzbj plan §7 open-question 1); callers MUST write loader before header.
+func (s *Store) WriteFilePackages(pkgs []index.FilePackage, repoRoot, source string) (err error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { rollbackOnError(tx, &err) }()
+
+	if _, err := tx.Exec(`DELETE FROM file_packages WHERE source = ?`, source); err != nil {
+		return fmt.Errorf("clear file_packages source=%s: %w", source, err)
+	}
+
+	verb := "INSERT OR IGNORE"
+	if source == FilePackageSourceLoader {
+		verb = "INSERT OR REPLACE"
+	}
+	stmt, err := tx.Prepare(verb + ` INTO file_packages (file_path_rel, pkg_path, source) VALUES (?, ?, ?)`) // #nosec G201 -- verb is one of two hardcoded constants, never user input
+	if err != nil {
+		return fmt.Errorf("prepare file_packages insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, p := range pkgs {
+		if p.PkgPath == "" {
+			continue
+		}
+		rel := toRelPath(p.Path, repoRoot)
+		if _, err := stmt.Exec(rel, p.PkgPath, source); err != nil {
+			return fmt.Errorf("insert file_packages %s: %w", rel, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+	return nil
+}
+
 // GetAllFiles retrieves all stored file metadata for change detection.
 func (s *Store) GetAllFiles() (map[string]index.FileInfo, error) {
 	rows, err := s.db.Query(`SELECT path, mtime, COALESCE(hash, '') FROM files`)

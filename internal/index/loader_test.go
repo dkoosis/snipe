@@ -253,3 +253,45 @@ func TestLoad_ExcludesTestBinaryPackages(t *testing.T) {
 		}
 	}
 }
+
+// TestExtractFilePackages_CoversSymbolFreeFile pins the sn-dzbj fix's tier-2
+// source: a doc.go file that go/packages loads but that declares no
+// func/type/const/var (so ExtractSymbols emits zero Symbol rows for it) must
+// still appear in ExtractFilePackages, with the package's canonical import
+// path — the fallback resolveFilePackage (cmd/triage.go) reads via
+// WriteFilePackages/file_packages.
+func TestExtractFilePackages_CoversSymbolFreeFile(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"go.mod":  "module example.com/tarn\n\ngo 1.22\n",
+		"doc.go":  "// Package tarn does a thing.\npackage tarn\n",
+		"real.go": "package tarn\n\nfunc Real() int { return 1 }\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := Load(LoadConfig{Dir: dir})
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	got := ExtractFilePackages(result)
+	byPath := make(map[string]string, len(got))
+	for _, fp := range got {
+		byPath[filepath.Base(fp.Path)] = fp.PkgPath
+	}
+
+	docPkg, ok := byPath["doc.go"]
+	if !ok {
+		t.Fatalf("doc.go missing from ExtractFilePackages result: %+v", got)
+	}
+	if docPkg != "example.com/tarn" {
+		t.Errorf("doc.go package = %q, want example.com/tarn", docPkg)
+	}
+	if realPkg := byPath["real.go"]; realPkg != "example.com/tarn" {
+		t.Errorf("real.go package = %q, want example.com/tarn", realPkg)
+	}
+}

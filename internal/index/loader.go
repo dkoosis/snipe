@@ -224,6 +224,34 @@ func loadPackagesChunked(ctx context.Context, dir string, fset *token.FileSet, p
 	}, nil
 }
 
+// FilePackage maps one source file to the Go package that declares it,
+// derived directly from go/packages — populated even for files that
+// contribute zero *indexed symbols* (e.g. doc.go: package-comment-only, no
+// func/type/const/var declarations for ExtractSymbols to find). Covers the
+// resolveFilePackage tier-2 fallback in cmd/triage.go (sn-dzbj).
+type FilePackage struct {
+	Path    string // absolute path — matches Symbol.FilePath / FileInfo.Path
+	PkgPath string
+}
+
+// ExtractFilePackages walks the same pkg.Syntax/pkg.GoFiles pairing
+// ExtractSymbols uses (symbols.go:ExtractSymbols), but records one row per
+// loaded file unconditionally, regardless of whether it declares any symbols
+// ExtractSymbols would emit. This is the source of the canonical (full
+// import-path) file→package mapping for symbol-less-but-loaded files.
+func ExtractFilePackages(result *LoadResult) []FilePackage {
+	var out []FilePackage
+	for _, pkg := range result.Packages {
+		for i := range pkg.Syntax {
+			if i >= len(pkg.GoFiles) {
+				continue
+			}
+			out = append(out, FilePackage{Path: pkg.GoFiles[i], PkgPath: pkg.PkgPath})
+		}
+	}
+	return out
+}
+
 // dropTestBinaryPackages removes test-binary packages (PkgPath ending in
 // ".test") that go/packages synthesizes when Tests is true. Their only file
 // is a generated _testmain.go in the go-build cache — indexing it pollutes
