@@ -110,7 +110,7 @@ func runDiagramDatastores() error {
 // Datastore packages with no matching schema still get a Store entry (schema
 // unknown, access map populated) so a driver-detected store never vanishes
 // silently just because DetectDBSchemas couldn't find its DDL.
-func buildStores(db *sql.DB, schemas []context.DBSchema, datastores []c4.Datastore, modulePath string) ([]datastoremap.Store, error) {
+func buildStores(db *sql.DB, schemas []context.DBSchema, datastores []datastoremap.Row, modulePath string) ([]datastoremap.Store, error) {
 	matchedPkgs := make(map[string]bool, len(schemas))
 	stores := make([]datastoremap.Store, 0, len(schemas)+len(datastores))
 

@@ -51,62 +51,77 @@ type Store struct {
 	Unclear      int // non-test classifications that were neither Read nor a write role
 }
 
-// FilterTestPackages drops c4 Datastore rows whose importing package is a Go
-// external test package (declared `package foo_test`, compiled only for
-// `go test`). The imports table records these importer packages exactly like
-// any real one, but they exist only to exercise the store — not a real
-// touchpoint of the running program.
-func FilterTestPackages(datastores []c4.Datastore) []c4.Datastore {
-	out := make([]c4.Datastore, 0, len(datastores))
+// Row is one (datastore, importing-package) pair — the per-package view the
+// access map is built around. c4.Datastore groups all importers of a driver
+// technology under Evidence (one row per tech, since sn-igsn); this package
+// flattens that back to one Row per importing package, which is the grain the
+// read/write access map needs.
+type Row struct {
+	Name    string // datastore display name, e.g. "SQLite"
+	Package string // one importing package import path
+	File    string // datastore detection site (representative, per driver)
+	Line    int
+}
+
+// FilterTestPackages flattens c4 Datastore rows (grouped by driver, importers
+// in Evidence) into one Row per importing package, dropping Go external test
+// packages (declared `package foo_test`, compiled only for `go test`). The
+// imports table records those importer packages exactly like any real one,
+// but they exist only to exercise the store — not a real touchpoint of the
+// running program.
+func FilterTestPackages(datastores []c4.Datastore) []Row {
+	var out []Row
 	for _, d := range datastores {
-		if strings.HasSuffix(d.Package, "_test") {
-			continue
+		for _, pkg := range d.Evidence {
+			if strings.HasSuffix(pkg, "_test") {
+				continue
+			}
+			out = append(out, Row{Name: d.Name, Package: pkg, File: d.File, Line: d.Line})
 		}
-		out = append(out, d)
 	}
 	return out
 }
 
-// GroupByPackage collapses multiple Datastore rows for the same importing
-// package into one row per package. A package that imports both a generic
-// driver ("database/sql") and a specific one (e.g. "modernc.org/sqlite")
-// produces two c4 rows for the same package; the specific name is always the
-// more useful label, so it wins over the generic "SQL" fallback.
-func GroupByPackage(datastores []c4.Datastore) []c4.Datastore {
-	best := make(map[string]c4.Datastore, len(datastores))
-	order := make([]string, 0, len(datastores))
-	for _, d := range datastores {
-		cur, ok := best[d.Package]
+// GroupByPackage collapses multiple Rows for the same importing package into
+// one Row per package. A package that imports both a generic driver
+// ("database/sql") and a specific one (e.g. "modernc.org/sqlite") produces two
+// rows for the same package; the specific name is always the more useful
+// label, so it wins over the generic "SQL" fallback.
+func GroupByPackage(rows []Row) []Row {
+	best := make(map[string]Row, len(rows))
+	order := make([]string, 0, len(rows))
+	for _, r := range rows {
+		cur, ok := best[r.Package]
 		if !ok {
-			best[d.Package] = d
-			order = append(order, d.Package)
+			best[r.Package] = r
+			order = append(order, r.Package)
 			continue
 		}
-		if cur.Name == "SQL" && d.Name != "SQL" {
-			best[d.Package] = d
+		if cur.Name == "SQL" && r.Name != "SQL" {
+			best[r.Package] = r
 		}
 	}
 	sort.Strings(order)
-	out := make([]c4.Datastore, 0, len(order))
+	out := make([]Row, 0, len(order))
 	for _, pkg := range order {
 		out = append(out, best[pkg])
 	}
 	return out
 }
 
-// MatchSchema finds the datastore whose package directory (relative to
-// modulePath) equals the DBSchema's source directory — the heuristic that
-// correlates a schema detected by DetectDBSchemas (embedded Go DDL, or a
-// migrations/ directory) with the c4-detected package that owns it. Returns
-// ("", false) when no datastore's package resolves to the schema's
-// directory — e.g. a repo-root schema.sql isn't owned by any one package.
-func MatchSchema(schema context.DBSchema, datastores []c4.Datastore, modulePath string) (string, bool) {
+// MatchSchema finds the row whose package directory (relative to modulePath)
+// equals the DBSchema's source directory — the heuristic that correlates a
+// schema detected by DetectDBSchemas (embedded Go DDL, or a migrations/
+// directory) with the c4-detected package that owns it. Returns ("", false)
+// when no package resolves to the schema's directory — e.g. a repo-root
+// schema.sql isn't owned by any one package.
+func MatchSchema(schema context.DBSchema, rows []Row, modulePath string) (string, bool) {
 	schemaDir := filepath.ToSlash(filepath.Dir(schema.Source))
-	for _, d := range datastores {
-		pkgDir := strings.TrimPrefix(d.Package, modulePath)
+	for _, r := range rows {
+		pkgDir := strings.TrimPrefix(r.Package, modulePath)
 		pkgDir = strings.TrimPrefix(pkgDir, "/")
 		if pkgDir != "" && pkgDir == schemaDir {
-			return d.Package, true
+			return r.Package, true
 		}
 	}
 	return "", false

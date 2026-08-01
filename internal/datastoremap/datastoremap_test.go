@@ -11,22 +11,26 @@ import (
 )
 
 func TestFilterTestPackages(t *testing.T) {
+	// c4.Datastore groups importers under Evidence (one row per driver tech);
+	// FilterTestPackages flattens to one Row per package and drops _test ones.
 	in := []c4.Datastore{
-		{Name: "SQLite", Package: "example.com/repo/internal/store"},
-		{Name: "SQLite", Package: "example.com/repo/internal/query_test"},
-		{Name: "SQL", Package: "example.com/repo/internal/store"},
+		{Name: "SQLite", Evidence: []string{
+			"example.com/repo/internal/store",
+			"example.com/repo/internal/query_test",
+		}},
+		{Name: "SQL", Evidence: []string{"example.com/repo/internal/store"}},
 	}
 	got := FilterTestPackages(in)
-	assert.Len(t, got, 2)
-	for _, d := range got {
-		assert.NotContains(t, d.Package, "_test")
+	assert.Len(t, got, 2) // two non-test rows; query_test dropped
+	for _, r := range got {
+		assert.NotContains(t, r.Package, "_test")
 	}
 }
 
 func TestGroupByPackage_PrefersSpecificDriverOverGenericSQL(t *testing.T) {
-	in := []c4.Datastore{
-		{Name: "SQL", Package: "example.com/repo/internal/store", Driver: "database/sql"},
-		{Name: "SQLite", Package: "example.com/repo/internal/store", Driver: "modernc.org/sqlite"},
+	in := []Row{
+		{Name: "SQL", Package: "example.com/repo/internal/store"},
+		{Name: "SQLite", Package: "example.com/repo/internal/store"},
 	}
 	got := GroupByPackage(in)
 	if assert.Len(t, got, 1) {
@@ -35,7 +39,7 @@ func TestGroupByPackage_PrefersSpecificDriverOverGenericSQL(t *testing.T) {
 }
 
 func TestGroupByPackage_DistinctPackagesKeepBothRows(t *testing.T) {
-	in := []c4.Datastore{
+	in := []Row{
 		{Name: "SQLite", Package: "example.com/repo/internal/store"},
 		{Name: "Redis", Package: "example.com/repo/internal/cache"},
 	}
@@ -45,7 +49,7 @@ func TestGroupByPackage_DistinctPackagesKeepBothRows(t *testing.T) {
 
 func TestMatchSchema(t *testing.T) {
 	modulePath := "example.com/repo"
-	datastores := []c4.Datastore{
+	datastores := []Row{
 		{Name: "SQLite", Package: "example.com/repo/internal/store"},
 	}
 
