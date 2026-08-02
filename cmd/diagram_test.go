@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"sort"
@@ -246,5 +247,41 @@ func TestWriteDiagramDocTo_QualifiedNameStaysFlat(t *testing.T) {
 	wantPath := filepath.Join(diagramsDir, "lifecycle-pkg_path_Symbol.md")
 	if _, err := os.Stat(wantPath); err != nil {
 		t.Errorf("expected flat file %s: %v", wantPath, err)
+	}
+}
+
+// sn-l1kh.8: runDiagramFlow derives the doc filename from displayLabel (the
+// receiver-qualified name), not the bare symbol name. Two methods sharing a
+// name on different receivers ((*Foo).Process vs (*Bar).Process) must yield
+// distinct, non-colliding filenames — otherwise the second `snipe diagram flow
+// Process` run silently clobbers the first (writeDiagramDocTo does an
+// unconditional WriteFile). pickFlowEntry's tiered fallback still returns just
+// one root per run; this guards the filename derivation, not the selection.
+func TestDiagramFlow_FilenameDisambiguatesByReceiver(t *testing.T) {
+	mkRoot := func(recv string) query.SymbolRow {
+		return query.SymbolRow{
+			Name:     "Process",
+			Receiver: sql.NullString{String: recv, Valid: true},
+		}
+	}
+	foo := mkRoot("(*Foo)")
+	bar := mkRoot("(*Bar)")
+
+	nameFor := func(r query.SymbolRow) string {
+		return "flow-" + diagram.SanitizeID(displayLabel(&r))
+	}
+	fooName := nameFor(foo)
+	barName := nameFor(bar)
+
+	if fooName == barName {
+		t.Fatalf("filenames collide for distinct receivers: both %q", fooName)
+	}
+	// Bare name would have collided — confirm the qualifier actually landed.
+	bare := "flow-" + diagram.SanitizeID("Process")
+	if fooName == bare || barName == bare {
+		t.Errorf("filename fell back to bare name %q (foo=%q bar=%q)", bare, fooName, barName)
+	}
+	if strings.ContainsAny(fooName, "./") || strings.ContainsAny(barName, "./") {
+		t.Errorf("sanitized filename still contains path separators: foo=%q bar=%q", fooName, barName)
 	}
 }

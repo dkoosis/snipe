@@ -440,7 +440,12 @@ func runDiagramFlow(args []string) error {
 	written := map[string]bool{}
 	walk(roots, edges, 0, diagramFlowDepth, syMap, &sb, written)
 
-	return emitDoc(fmt.Sprintf("flow-%s", diagram.SanitizeID(root.Name)), sb.String(), b.Render())
+	// Filename derives from the receiver-qualified label, not the bare name, so
+	// two same-named methods on different receivers ((*Foo).Process vs
+	// (*Bar).Process) produce distinct docs instead of silently clobbering each
+	// other (writeDiagramDocTo does an unconditional WriteFile). displayLabel is
+	// the same disambiguator used for node labels above.
+	return emitDoc(fmt.Sprintf("flow-%s", diagram.SanitizeID(displayLabel(&root))), sb.String(), b.Render())
 }
 
 // pickFlowEntry resolves a bare entry name to a single symbol suitable as a
