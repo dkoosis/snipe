@@ -214,7 +214,7 @@ const perSeamImplCap = 6
 func buildSeamMap(seams []Seam, totalInterfaces int) (summary, d2src string) {
 	var b diagram.Builder
 	b.Title = "snipe seam map · pluggable interfaces / extension points"
-	b.Direction = "right"
+	b.Direction = diagramDirRight
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "seam map · %d seams ranked (of %d interfaces scanned) · score = fan_in_pkgs*2 + impl_count\n", len(seams), totalInterfaces)

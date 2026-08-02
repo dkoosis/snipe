@@ -39,10 +39,11 @@ type container struct {
 }
 
 type node struct {
-	Path  string // dot-separated container path; final segment is the node id
-	Label string
-	Shape string
-	Style map[string]string
+	Path    string // dot-separated container path; final segment is the node id
+	Label   string
+	Shape   string
+	Style   map[string]string
+	Members []string // shape:class body lines (fields/methods), quoted verbatim at render time
 }
 
 type edge struct {
@@ -90,6 +91,21 @@ func (b *Builder) AddEdge(from, to, label string, style map[string]string) {
 // AddDashedEdge is a convenience that emits a dashed edge.
 func (b *Builder) AddDashedEdge(from, to, label string) {
 	b.edges = append(b.edges, edge{From: from, To: to, Label: label, Dashed: true})
+}
+
+// AddClassNode adds a shape:class node whose body lists members (fields and
+// methods), one per line. Each member is written as its own quoted D2 string
+// rather than bare class-member syntax ("name: type") because arbitrary Go
+// type text — map[string]int, *sync.Mutex, generic constraints — breaks D2's
+// bare-member grammar (brackets and colons collide with its parser); a quoted
+// line survives untouched while D2 still renders it as a class member,
+// including a leading "+"/"-" visibility glyph when the caller includes one.
+func (b *Builder) AddClassNode(path, label string, members []string, style map[string]string) {
+	if path == "" {
+		return
+	}
+	b.ensureParents(path)
+	b.nodes = append(b.nodes, node{Path: path, Label: label, Shape: "class", Style: style, Members: members})
 }
 
 func (b *Builder) ensureParents(path string) {
@@ -149,7 +165,7 @@ func writeContainer(w *strings.Builder, c *container) {
 }
 
 func writeNode(w *strings.Builder, n node) {
-	if n.Shape == "" && len(n.Style) == 0 {
+	if n.Shape == "" && len(n.Style) == 0 && len(n.Members) == 0 {
 		fmt.Fprintf(w, "%s: %s\n", n.Path, quote(n.Label))
 		return
 	}
@@ -159,6 +175,9 @@ func writeNode(w *strings.Builder, n node) {
 	}
 	for _, kv := range sortedStyle(n.Style) {
 		fmt.Fprintf(w, "  style.%s: %s\n", kv[0], styleValue(kv[1]))
+	}
+	for _, m := range n.Members {
+		fmt.Fprintf(w, "  %s\n", quote(m))
 	}
 	w.WriteString("}\n")
 }

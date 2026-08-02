@@ -79,6 +79,7 @@ const (
 	diagramColorWarn = "#fde68a"
 	diagramTrue      = "true"
 	diagramBold      = "bold"
+	diagramDirRight  = "right"
 )
 
 // Common error message strings.
