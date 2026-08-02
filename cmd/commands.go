@@ -1,5 +1,7 @@
 package cmd
 
+import "fmt"
+
 // This file holds the kong command structs and their Run methods. Each Run
 // copies the struct's flags into the package-global flag vars (which the
 // existing run* functions read) and then calls the existing run* function.
@@ -479,6 +481,9 @@ type DiagramClassMapCmd struct {
 }
 
 func (c *DiagramClassMapCmd) Run() error {
+	if c.Top < 0 {
+		return fmt.Errorf("--top must be >= 0 (0 = no cap), got %d", c.Top)
+	}
 	diagramClassMapTopN = c.Top
 	return runDiagramClassMap()
 }

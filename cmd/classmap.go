@@ -65,7 +65,7 @@ func findClassCandidates(db *sql.DB) ([]query.SymbolRow, error) {
 		FROM symbols
 		WHERE kind IN (?, ?)
 		  AND file_path_rel != ''
-		  AND file_path NOT LIKE '%_test.go'
+		  AND file_path NOT LIKE '%$_test.go' ESCAPE '$'
 		ORDER BY name, file_path_rel
 	`, cmdKindStruct, cmdKindInterface)
 	if err != nil {
@@ -263,7 +263,7 @@ func buildImplementsEdges(db *sql.DB, structs, allInterfaces []*classType) (impl
 			if _, ok := structByID[impl.ID]; !ok {
 				continue // implementer isn't among the rendered structs
 			}
-			implements[impl.ID] = append(implements[impl.ID], iface.Sym.Name)
+			implements[impl.ID] = append(implements[impl.ID], iface.Sym.ID)
 			pulledSet[iface.Sym.ID] = iface
 		}
 	}
@@ -295,8 +295,10 @@ func buildClassMap(types []*classType, implements map[string][]string, totalScan
 	fmt.Fprintf(&sb, "class map · %d types rendered (of %d struct/interface scanned) · ranked by field+method+embed count\n", len(types), totalScanned)
 
 	ids := make(map[string]string, len(types))
+	names := make(map[string]string, len(types))
 	for _, t := range types {
 		ids[t.Sym.ID] = classNodeID(t.Sym)
+		names[t.Sym.ID] = t.Sym.Name
 	}
 
 	for _, t := range types {
@@ -321,8 +323,12 @@ func buildClassMap(types []*classType, implements map[string][]string, totalScan
 			members = append(members, fieldMemberLine(m))
 			fmt.Fprintf(&sb, "  method  %s%s\n", m.Name, m.Type)
 		}
-		if names := implements[t.Sym.ID]; len(names) > 0 {
-			fmt.Fprintf(&sb, "  implements  %s\n", strings.Join(names, ", "))
+		if ifaceIDs := implements[t.Sym.ID]; len(ifaceIDs) > 0 {
+			ifaceNames := make([]string, len(ifaceIDs))
+			for i, ifaceID := range ifaceIDs {
+				ifaceNames[i] = names[ifaceID]
+			}
+			fmt.Fprintf(&sb, "  implements  %s\n", strings.Join(ifaceNames, ", "))
 		}
 
 		style := map[string]string{}
@@ -336,11 +342,9 @@ func buildClassMap(types []*classType, implements map[string][]string, totalScan
 		if t.Sym.Kind == cmdKindInterface {
 			continue
 		}
-		for _, ifaceName := range implements[t.Sym.ID] {
-			for _, cand := range types {
-				if cand.Sym.Kind == cmdKindInterface && cand.Sym.Name == ifaceName {
-					b.AddDashedEdge(ids[t.Sym.ID], ids[cand.Sym.ID], "implements")
-				}
+		for _, ifaceID := range implements[t.Sym.ID] {
+			if ifaceNodeID, ok := ids[ifaceID]; ok {
+				b.AddDashedEdge(ids[t.Sym.ID], ifaceNodeID, "implements")
 			}
 		}
 	}
