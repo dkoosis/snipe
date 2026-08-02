@@ -205,7 +205,7 @@ func BuildFacts(s *store.Store, dir string, level string) (Facts, error) {
 		f.GoVersion = v
 	}
 
-	datastores, err := findDatastores(db)
+	datastores, datastoreImporters, err := findDatastores(db)
 	if err != nil {
 		return Facts{}, fmt.Errorf("find datastores: %w", err)
 	}
@@ -234,7 +234,7 @@ func BuildFacts(s *store.Store, dir string, level string) (Facts, error) {
 	}
 	f.Containers = containers
 
-	flows, err := findFlows(db, datastores, external)
+	flows, err := findFlows(db, datastores, datastoreImporters, external)
 	if err != nil {
 		return Facts{}, fmt.Errorf("find flows: %w", err)
 	}
@@ -330,20 +330,24 @@ func moduleDisplayName(modulePath string) string {
 // list rather than emitted as a repeat row (sn-igsn: per-importer output was
 // noisy relative to D4 and the C4-model's own semantics — a datastore is a
 // container-level element, not a per-caller fact).
-func findDatastores(db *sql.DB) ([]Datastore, error) {
+// findDatastores also returns each datastore's per-importer evidence (real
+// file/line at that importer's own import site), keyed by datastore Name —
+// findFlows uses it instead of the group's single earliest file/line
+// (sn-y7wt) so every datastore flow points at its actual import site.
+func findDatastores(db *sql.DB) ([]Datastore, map[string][]importerEvidence, error) {
 	rows, err := db.Query(`
 		SELECT file_path, pkg_path, COALESCE(importer_pkg,''), line
 		FROM imports
 		ORDER BY pkg_path, file_path, line
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("query imports: %w", err)
+		return nil, nil, fmt.Errorf("query imports: %w", err)
 	}
 	defer rows.Close()
 
 	type group struct {
 		driver    string // representative matched pkg_path (first encountered)
-		importers map[string]bool
+		importers map[string]importerEvidence
 		file      string
 		line      int
 	}
@@ -353,7 +357,7 @@ func findDatastores(db *sql.DB) ([]Datastore, error) {
 		var file, pkgPath, importerPkg string
 		var line int
 		if err := rows.Scan(&file, &pkgPath, &importerPkg, &line); err != nil {
-			return nil, fmt.Errorf("scan import: %w", err)
+			return nil, nil, fmt.Errorf("scan import: %w", err)
 		}
 		for _, d := range driverAllowlist {
 			if !matchesDriverPath(pkgPath, d.match) {
@@ -361,12 +365,15 @@ func findDatastores(db *sql.DB) ([]Datastore, error) {
 			}
 			g, ok := groups[d.name]
 			if !ok {
-				g = &group{driver: pkgPath, importers: make(map[string]bool)}
+				g = &group{driver: pkgPath, importers: make(map[string]importerEvidence)}
 				groups[d.name] = g
 				order = append(order, d.name)
 			}
 			if importerPkg != "" {
-				g.importers[importerPkg] = true
+				cur, ok := g.importers[importerPkg]
+				if !ok || isEarlierEvidence(file, line, cur.file, cur.line) {
+					g.importers[importerPkg] = importerEvidence{pkg: importerPkg, file: file, line: line}
+				}
 			}
 			if isEarlierEvidence(file, line, g.file, g.line) {
 				g.file, g.line = file, line
@@ -375,18 +382,23 @@ func findDatastores(db *sql.DB) ([]Datastore, error) {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	sort.Strings(order)
 	out := make([]Datastore, 0, len(order))
+	importerEvidenceByName := make(map[string][]importerEvidence, len(order))
 	for _, name := range order {
 		g := groups[name]
 		evidence := make([]string, 0, len(g.importers))
-		for pkg := range g.importers {
+		perImporter := make([]importerEvidence, 0, len(g.importers))
+		for pkg, ev := range g.importers {
 			evidence = append(evidence, pkg)
+			perImporter = append(perImporter, ev)
 		}
 		sort.Strings(evidence)
+		sort.Slice(perImporter, func(i, j int) bool { return perImporter[i].pkg < perImporter[j].pkg })
+		importerEvidenceByName[name] = perImporter
 		out = append(out, Datastore{
 			Name:     name,
 			Driver:   g.driver,
@@ -395,7 +407,7 @@ func findDatastores(db *sql.DB) ([]Datastore, error) {
 			Line:     g.line,
 		})
 	}
-	return out, nil
+	return out, importerEvidenceByName, nil
 }
 
 // findExternalSystems combines env-var evidence and third-party-import
@@ -697,14 +709,11 @@ func isEarlierEvidence(file string, line int, bestFile string, bestLine int) boo
 // findFlows builds one deterministic edge per (importer package, datastore or
 // external system) pair already discovered by findDatastores/
 // findExternalSystems, reusing their evidence rather than re-querying.
-func findFlows(db *sql.DB, datastores []Datastore, external []ExternalSystem) ([]Flow, error) {
+func findFlows(db *sql.DB, datastores []Datastore, datastoreImporters map[string][]importerEvidence, external []ExternalSystem) ([]Flow, error) {
 	var out []Flow
 	for _, d := range datastores {
-		for _, pkg := range d.Evidence {
-			if pkg == "" {
-				continue
-			}
-			out = append(out, Flow{From: pkg, To: d.Name, Kind: "datastore", File: d.File, Line: d.Line})
+		for _, ev := range datastoreImporters[d.Name] {
+			out = append(out, Flow{From: ev.pkg, To: d.Name, Kind: "datastore", File: ev.file, Line: ev.line})
 		}
 	}
 

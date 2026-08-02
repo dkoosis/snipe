@@ -176,6 +176,41 @@ func TestBuildFacts_Datastore_GroupsByTechnology(t *testing.T) {
 	}
 }
 
+// TestBuildFacts_Datastore_FlowPerImporterEvidence is the sn-y7wt regression:
+// findFlows used to stamp every datastore flow with the group's single
+// earliest file/line instead of each importer's own import site. With two
+// importers of the same technology at different files, each flow's
+// File/Line must match its own importer, not the group's earliest.
+func TestBuildFacts_Datastore_FlowPerImporterEvidence(t *testing.T) {
+	s, dir := newC4TestRepo(t)
+	addImport(t, s.DB(), filepath.Join(dir, "internal/store/db.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "modernc.org/sqlite", testModule+"/cmd", 42)
+
+	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	byFrom := make(map[string]c4.Flow)
+	for _, fl := range f.Flows {
+		if fl.Kind == "datastore" {
+			byFrom[fl.From] = fl
+		}
+	}
+	if len(byFrom) != 2 {
+		t.Fatalf("want 2 datastore flows (one per importer), got %d: %+v", len(byFrom), f.Flows)
+	}
+
+	storeFlow := byFrom[testModule+"/internal/store"]
+	if storeFlow.File != filepath.Join(dir, "internal/store/db.go") || storeFlow.Line != 3 {
+		t.Errorf("want store's own import site db.go:3, got %s:%d", storeFlow.File, storeFlow.Line)
+	}
+	cmdFlow := byFrom[testModule+"/cmd"]
+	if cmdFlow.File != filepath.Join(dir, "cmd/root.go") || cmdFlow.Line != 42 {
+		t.Errorf("want cmd's own import site root.go:42, got %s:%d", cmdFlow.File, cmdFlow.Line)
+	}
+}
+
 // TestBuildFacts_Datastore_AnchoredMatchExcludesLookalike is a regression
 // for the driverAllowlist's substring-match bug flagged on PR #214: a
 // strings.Contains match on "badger" would misclassify any module merely
