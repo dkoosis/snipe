@@ -1,5 +1,7 @@
 package cmd
 
+import "fmt"
+
 // This file holds the kong command structs and their Run methods. Each Run
 // copies the struct's flags into the package-global flag vars (which the
 // existing run* functions read) and then calls the existing run* function.
@@ -401,6 +403,7 @@ type DiagramCmd struct {
 	Seams      DiagramSeamsCmd      `cmd:"" help:"Rank pluggable interfaces by implementation count and fan-in. Writes docs/diagrams/seam-map.md by default (--format d2/svg for stdout)"`
 	Datastores DiagramDatastoresCmd `cmd:"" name:"datastore-map" help:"Datastore access map: schema + read/write packages per detected store. Writes docs/diagrams/datastore-map.md by default (--format d2/svg for stdout)"`
 	System     DiagramSystemCmd     `cmd:"" name:"system-map" help:"Comprehension view: packages collapsed into a handful of subsystems, only cross-subsystem edges shown. Writes docs/diagrams/system-map.md by default (--format d2/svg for stdout)"`
+	ClassMap   DiagramClassMapCmd   `cmd:"" name:"class-map" help:"D2 class diagram of Go types: fields, methods, embeds, implements edges. Writes docs/diagrams/class-map.md by default (--format d2/svg for stdout)"`
 }
 
 // AfterApply maps the global --format into the diagram package var. Unset
@@ -471,6 +474,18 @@ type DiagramSystemCmd struct {
 func (c *DiagramSystemCmd) Run() error {
 	systemMapTopN = c.Top
 	return runDiagramSystem()
+}
+
+type DiagramClassMapCmd struct {
+	Top int `default:"30" help:"Max types (by field+method+embed count) to render (0 = no cap)"`
+}
+
+func (c *DiagramClassMapCmd) Run() error {
+	if c.Top < 0 {
+		return fmt.Errorf("--top must be >= 0 (0 = no cap), got %d", c.Top)
+	}
+	diagramClassMapTopN = c.Top
+	return runDiagramClassMap()
 }
 
 type LifecycleCmd struct {

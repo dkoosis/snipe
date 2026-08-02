@@ -132,6 +132,25 @@ func TestStyleValueQuoting(t *testing.T) {
 	}
 }
 
+func TestBuilder_ClassNode(t *testing.T) {
+	var b Builder
+	b.AddClassNode("t_Widget", "Widget", []string{
+		"+Label: string",
+		"-count: int",
+		"+Data: map[string]int", // brackets would break bare D2 class-member grammar unquoted
+		"+Close() error",
+	}, map[string]string{"fill": "#ede9fe"})
+
+	out := b.Render()
+	mustContain(t, out, `t_Widget: "Widget" {`)
+	mustContain(t, out, "shape: class")
+	mustContain(t, out, `style.fill: "#ede9fe"`)
+	mustContain(t, out, `"+Label: string"`)
+	mustContain(t, out, `"-count: int"`)
+	mustContain(t, out, `"+Data: map[string]int"`)
+	mustContain(t, out, `"+Close() error"`)
+}
+
 func mustContain(t *testing.T, hay, needle string) {
 	t.Helper()
 	if !strings.Contains(hay, needle) {

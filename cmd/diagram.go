@@ -408,7 +408,7 @@ func runDiagramFlow(args []string) error {
 
 	var b diagram.Builder
 	b.Title = fmt.Sprintf("snipe flow · %s · depth=%d", root.Name, diagramFlowDepth)
-	b.Direction = "right"
+	b.Direction = diagramDirRight
 
 	for id := range visited {
 		label := id // fallback
@@ -690,7 +690,7 @@ func runDiagramLifecycle(args []string) error {
 
 	var b diagram.Builder
 	b.Title = fmt.Sprintf("snipe lifecycle · %s", typeName)
-	b.Direction = "right"
+	b.Direction = diagramDirRight
 
 	// Center node: the type.
 	typeNodeID := "type_" + diagram.SanitizeID(sym.Name)

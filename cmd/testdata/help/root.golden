@@ -168,6 +168,10 @@ Graph & Structure:
     cross-subsystem edges shown. Writes docs/diagrams/system-map.md by default
     (--format d2/svg for stdout)
 
+  diagram class-map [flags]
+    D2 class diagram of Go types: fields, methods, embeds, implements edges.
+    Writes docs/diagrams/class-map.md by default (--format d2/svg for stdout)
+
   lifecycle [<type>] [flags]
     Trace every function creating, mutating, reading, or deleting a type
 

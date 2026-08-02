@@ -285,7 +285,7 @@ const datastorePerRoleCap = 8
 func renderDatastoreDiagram(stores []datastoremap.Store) *diagram.Builder {
 	var b diagram.Builder
 	b.Title = "snipe datastore access map"
-	b.Direction = "right"
+	b.Direction = diagramDirRight
 
 	for _, st := range stores {
 		storeID := diagram.SanitizeID(st.Name + "_" + st.Package)
