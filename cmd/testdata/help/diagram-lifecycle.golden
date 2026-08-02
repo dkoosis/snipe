@@ -1,6 +1,7 @@
 Usage: snipe diagram lifecycle <type>
 
-Render lifecycle CRUD groups for a type as D2
+Render lifecycle CRUD groups for a type as D2. Writes
+docs/diagrams/lifecycle-<name>.md by default (--format d2/svg for stdout)
 
 Arguments:
   <type>    Type name

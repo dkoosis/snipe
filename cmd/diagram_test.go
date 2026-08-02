@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 
+	"github.com/dkoosis/snipe/internal/diagram"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -209,5 +211,77 @@ func TestWriteDiagramDocTo_D2Available(t *testing.T) {
 	}
 	if strings.Contains(doc, "not rendered") {
 		t.Errorf("doc reports degrade despite fake d2 succeeding:\n%s", doc)
+	}
+}
+
+// sn-l1kh.8: runDiagramFlow/runDiagramLifecycle now route through emitDoc
+// (the same default-doc path arch/seams/datastore-map/system-map already
+// use), naming the doc "flow-<name>" / "lifecycle-<name>" with <name> run
+// through diagram.SanitizeID first. A qualified/dotted symbol name (as can
+// arrive from a CLI arg like "pkg/path.Symbol") must never survive
+// un-sanitized into that name — SanitizeID replaces both "." and "/" so the
+// result stays a single flat file under docs/diagrams/, never a
+// subdirectory.
+func TestWriteDiagramDocTo_QualifiedNameStaysFlat(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("PATH", t.TempDir()) // d2 missing: irrelevant to this check
+
+	raw := "pkg/path.Symbol"
+	name := "lifecycle-" + diagram.SanitizeID(raw)
+
+	if err := writeDiagramDocTo(root, name, "diagram lifecycle · type=Symbol", "a -> b\n"); err != nil {
+		t.Fatalf("writeDiagramDocTo: %v", err)
+	}
+
+	diagramsDir := filepath.Join(root, "docs", "diagrams")
+	entries, err := os.ReadDir(diagramsDir)
+	if err != nil {
+		t.Fatalf("read %s: %v", diagramsDir, err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			t.Errorf("unexpected subdirectory %q under docs/diagrams/ from qualified name %q", e.Name(), raw)
+		}
+	}
+
+	wantPath := filepath.Join(diagramsDir, "lifecycle-pkg_path_Symbol.md")
+	if _, err := os.Stat(wantPath); err != nil {
+		t.Errorf("expected flat file %s: %v", wantPath, err)
+	}
+}
+
+// sn-l1kh.8: runDiagramFlow derives the doc filename from displayLabel (the
+// receiver-qualified name), not the bare symbol name. Two methods sharing a
+// name on different receivers ((*Foo).Process vs (*Bar).Process) must yield
+// distinct, non-colliding filenames — otherwise the second `snipe diagram flow
+// Process` run silently clobbers the first (writeDiagramDocTo does an
+// unconditional WriteFile). pickFlowEntry's tiered fallback still returns just
+// one root per run; this guards the filename derivation, not the selection.
+func TestDiagramFlow_FilenameDisambiguatesByReceiver(t *testing.T) {
+	mkRoot := func(recv string) query.SymbolRow {
+		return query.SymbolRow{
+			Name:     "Process",
+			Receiver: sql.NullString{String: recv, Valid: true},
+		}
+	}
+	foo := mkRoot("(*Foo)")
+	bar := mkRoot("(*Bar)")
+
+	nameFor := func(r query.SymbolRow) string {
+		return "flow-" + diagram.SanitizeID(displayLabel(&r))
+	}
+	fooName := nameFor(foo)
+	barName := nameFor(bar)
+
+	if fooName == barName {
+		t.Fatalf("filenames collide for distinct receivers: both %q", fooName)
+	}
+	// Bare name would have collided — confirm the qualifier actually landed.
+	bare := "flow-" + diagram.SanitizeID("Process")
+	if fooName == bare || barName == bare {
+		t.Errorf("filename fell back to bare name %q (foo=%q bar=%q)", bare, fooName, barName)
+	}
+	if strings.ContainsAny(fooName, "./") || strings.ContainsAny(barName, "./") {
+		t.Errorf("sanitized filename still contains path separators: foo=%q bar=%q", fooName, barName)
 	}
 }
