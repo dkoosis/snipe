@@ -74,7 +74,10 @@ Notes:
   Index:         all commands except 'search' need a built index —
                  run 'snipe index' first
   Writes:        only 'edit' modifies files; all other commands are
-                 read-only`
+                 read-only
+  Symbol view:   def=location only < sym=+refs/callers/callees <
+                 pack=+package context < explain=+prose walkthrough;
+                 show <id> expands any id from another command's result`
 
 // Globals holds the persistent flags shared by every command. It is embedded
 // into the root CLI struct so the flags parse in any position, and its

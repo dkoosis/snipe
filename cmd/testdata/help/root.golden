@@ -21,6 +21,9 @@ Notes:
                    run 'snipe index' first
     Writes:        only 'edit' modifies files; all other commands are
                    read-only
+    Symbol view:   def=location only < sym=+refs/callers/callees <
+                   pack=+package context < explain=+prose walkthrough;
+                   show <id> expands any id from another command's result
 
 Flags:
   -h, --help                Show context-sensitive help.
@@ -38,10 +41,6 @@ Flags:
       --timeout=DURATION    Timeout for command (e.g., 30s, 5m)
       --select="all"        Pick top candidates by score: all, best, top3,
                             top5 (applied before --limit)
-
-Commands:
-  version [flags]
-    Print version information
 
 Orient Project:
   context [<path>] [flags]
@@ -70,9 +69,6 @@ Navigate Symbol:
   tests [<symbol>] [flags]
     Find tests that exercise a symbol
 
-  impact [<symbol>] [flags]
-    Show blast radius for changing a symbol
-
 Read Symbol or Package:
   show <id> [flags]
     Show symbol details by ID
@@ -100,6 +96,29 @@ Find by Text:
   trace <value> [flags]
     Trace a string literal through its call context
 
+Assess Change Safety:
+  impact [<symbol>] [flags]
+    Show blast radius for changing a symbol
+
+  risk <base> [<head>] [flags]
+    Assess a diff's risk (base→head): code-graph verdict (roles, centrality,
+    blast, churn)
+
+  verify [flags]
+    Map a diff to the minimal go test set covering changed symbols (structural,
+    not a gate)
+
+  plan [<symbol>] [flags]
+    Ordered edit worklist for a proposed symbol change (def + call sites +
+    tests; structural, not a gate)
+
+  guard [<spec>] [flags]
+    Assert architecture boundary rules; exit non-zero on violation
+
+  sensitive [flags]
+    List files in security-sensitive zones
+    (auth/crypto/migration/secret/payment)
+
 Graph & Structure:
   deps [<package>] [flags]
     Show dependency topology for a package or the full project
@@ -122,22 +141,6 @@ Graph & Structure:
 
   hotspots [flags]
     Rank files by complexity × git change-frequency (Tornhill hotspot model)
-
-  risk <base> [<head>] [flags]
-    Assess a diff's risk (base→head): code-graph verdict (roles, centrality,
-    blast, churn)
-
-  verify [flags]
-    Map a diff to the minimal go test set covering changed symbols (structural,
-    not a gate)
-
-  plan [<symbol>] [flags]
-    Ordered edit worklist for a proposed symbol change (def + call sites +
-    tests; structural, not a gate)
-
-  sensitive [flags]
-    List files in security-sensitive zones
-    (auth/crypto/migration/secret/payment)
 
   diagram arch [flags]
     Package import graph trimmed to the top-N by PageRank, grouped by layer.
@@ -173,9 +176,6 @@ Graph & Structure:
   deadcode [flags]
     Report exported symbols with zero non-test references
 
-  guard [<spec>] [flags]
-    Assert architecture boundary rules; exit non-zero on violation
-
   report [flags]
     Self-contained HTML dashboard for humans: hotspot treemap, cycles, hotspots
     ranking, + D2 diagram placeholder slots
@@ -204,5 +204,8 @@ Index & Health:
 
   doctor [flags]
     Check snipe installation and configuration
+
+  version [flags]
+    Print version information
 
 Run "snipe <command> --help" for more information on a command.

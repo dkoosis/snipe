@@ -21,7 +21,6 @@ type CLI struct {
 	Callees CalleesCmd `cmd:"" group:"Navigate Symbol:" help:"Find functions that a symbol calls"`
 	Impl    ImplCmd    `cmd:"" group:"Navigate Symbol:" help:"Find types implementing an interface"`
 	Tests   TestsCmd   `cmd:"" group:"Navigate Symbol:" help:"Find tests that exercise a symbol"`
-	Impact  ImpactCmd  `cmd:"" group:"Navigate Symbol:" help:"Show blast radius for changing a symbol"`
 
 	// Read
 	Show    ShowCmd    `cmd:"" group:"Read Symbol or Package:" help:"Show symbol details by ID"`
@@ -35,6 +34,14 @@ type CLI struct {
 	Lits   LitsCmd   `cmd:"" group:"Find by Text:" help:"Find all locations of a string literal or env var name"`
 	Trace  TraceCmd  `cmd:"" group:"Find by Text:" help:"Trace a string literal through its call context"`
 
+	// Assess whether a change is safe — the cold-read answer to "can I touch this"
+	Impact    ImpactCmd    `cmd:"" group:"Assess Change Safety:" help:"Show blast radius for changing a symbol"`
+	Risk      RiskCmd      `cmd:"" group:"Assess Change Safety:" help:"Assess a diff's risk (base→head): code-graph verdict (roles, centrality, blast, churn)"`
+	Verify    VerifyCmd    `cmd:"" group:"Assess Change Safety:" help:"Map a diff to the minimal go test set covering changed symbols (structural, not a gate)"`
+	Plan      PlanCmd      `cmd:"" group:"Assess Change Safety:" help:"Ordered edit worklist for a proposed symbol change (def + call sites + tests; structural, not a gate)"`
+	Guard     GuardCmd     `cmd:"" group:"Assess Change Safety:" help:"Assert architecture boundary rules; exit non-zero on violation"`
+	Sensitive SensitiveCmd `cmd:"" group:"Assess Change Safety:" help:"List files in security-sensitive zones (auth/crypto/migration/secret/payment)"`
+
 	// Graph & Structure
 	Deps      DepsCmd      `cmd:"" group:"Graph & Structure:" help:"Show dependency topology for a package or the full project"`
 	Importers ImportersCmd `cmd:"" group:"Graph & Structure:" help:"Find files that import a package"`
@@ -43,15 +50,10 @@ type CLI struct {
 	Boundary  BoundaryCmd  `cmd:"" group:"Graph & Structure:" help:"Show symbols whose refs cross between two package sets"`
 	Metrics   MetricsCmd   `cmd:"" group:"Graph & Structure:" help:"Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph"`
 	Hotspots  HotspotsCmd  `cmd:"" group:"Graph & Structure:" help:"Rank files by complexity × git change-frequency (Tornhill hotspot model)"`
-	Risk      RiskCmd      `cmd:"" group:"Graph & Structure:" help:"Assess a diff's risk (base→head): code-graph verdict (roles, centrality, blast, churn)"`
-	Verify    VerifyCmd    `cmd:"" group:"Graph & Structure:" help:"Map a diff to the minimal go test set covering changed symbols (structural, not a gate)"`
-	Plan      PlanCmd      `cmd:"" group:"Graph & Structure:" help:"Ordered edit worklist for a proposed symbol change (def + call sites + tests; structural, not a gate)"`
-	Sensitive SensitiveCmd `cmd:"" group:"Graph & Structure:" help:"List files in security-sensitive zones (auth/crypto/migration/secret/payment)"`
 	Diagram   DiagramCmd   `cmd:"" group:"Graph & Structure:" help:"Render snipe graphs as D2 diagram source"`
 	Lifecycle LifecycleCmd `cmd:"" group:"Graph & Structure:" help:"Trace every function creating, mutating, reading, or deleting a type"`
 	C4        C4Cmd        `cmd:"" name:"c4" group:"Graph & Structure:" help:"C4 architecture fact inventory: containers, datastores, external systems, flows (facts only, no rendering)"`
 	Deadcode  DeadcodeCmd  `cmd:"" group:"Graph & Structure:" help:"Report exported symbols with zero non-test references"`
-	Guard     GuardCmd     `cmd:"" group:"Graph & Structure:" help:"Assert architecture boundary rules; exit non-zero on violation"`
 	Report    ReportCmd    `cmd:"" group:"Graph & Structure:" help:"Self-contained HTML dashboard for humans: hotspot treemap, cycles, hotspots ranking, + D2 diagram placeholder slots"`
 
 	// Embeddings
@@ -62,13 +64,11 @@ type CLI struct {
 	Edit EditCmd `cmd:"" group:"Edit (modifies files):" help:"AST-aware code editing — modifies files (dry-run unless --apply)"`
 
 	// Index & Health
-	Triage TriageCmd `cmd:"" group:"Index & Health:" help:"Bundle hotspots+package+test-proximity facts for a file set (facts only, no band/route decision)"`
-	Index  IndexCmd  `cmd:"" group:"Index & Health:" help:"Build or update the code index"`
-	Status StatusCmd `cmd:"" default:"withargs" group:"Index & Health:" help:"Show index status and statistics"`
-	Doctor DoctorCmd `cmd:"" group:"Index & Health:" help:"Check snipe installation and configuration"`
-
-	// Misc / utility
-	Version VersionCmd `cmd:"" help:"Print version information"`
+	Triage  TriageCmd  `cmd:"" group:"Index & Health:" help:"Bundle hotspots+package+test-proximity facts for a file set (facts only, no band/route decision)"`
+	Index   IndexCmd   `cmd:"" group:"Index & Health:" help:"Build or update the code index"`
+	Status  StatusCmd  `cmd:"" default:"withargs" group:"Index & Health:" help:"Show index status and statistics"`
+	Doctor  DoctorCmd  `cmd:"" group:"Index & Health:" help:"Check snipe installation and configuration"`
+	Version VersionCmd `cmd:"" group:"Index & Health:" help:"Print version information"`
 
 	// Hidden helpers (kept from cobra; Hidden in help)
 	Baseline BaselineCmd `cmd:"" hidden:"" help:"Capture performance baseline for a codebase"`
