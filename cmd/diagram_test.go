@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dkoosis/snipe/internal/diagram"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -209,5 +210,41 @@ func TestWriteDiagramDocTo_D2Available(t *testing.T) {
 	}
 	if strings.Contains(doc, "not rendered") {
 		t.Errorf("doc reports degrade despite fake d2 succeeding:\n%s", doc)
+	}
+}
+
+// sn-l1kh.8: runDiagramFlow/runDiagramLifecycle now route through emitDoc
+// (the same default-doc path arch/seams/datastore-map/system-map already
+// use), naming the doc "flow-<name>" / "lifecycle-<name>" with <name> run
+// through diagram.SanitizeID first. A qualified/dotted symbol name (as can
+// arrive from a CLI arg like "pkg/path.Symbol") must never survive
+// un-sanitized into that name — SanitizeID replaces both "." and "/" so the
+// result stays a single flat file under docs/diagrams/, never a
+// subdirectory.
+func TestWriteDiagramDocTo_QualifiedNameStaysFlat(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("PATH", t.TempDir()) // d2 missing: irrelevant to this check
+
+	raw := "pkg/path.Symbol"
+	name := "lifecycle-" + diagram.SanitizeID(raw)
+
+	if err := writeDiagramDocTo(root, name, "diagram lifecycle · type=Symbol", "a -> b\n"); err != nil {
+		t.Fatalf("writeDiagramDocTo: %v", err)
+	}
+
+	diagramsDir := filepath.Join(root, "docs", "diagrams")
+	entries, err := os.ReadDir(diagramsDir)
+	if err != nil {
+		t.Fatalf("read %s: %v", diagramsDir, err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			t.Errorf("unexpected subdirectory %q under docs/diagrams/ from qualified name %q", e.Name(), raw)
+		}
+	}
+
+	wantPath := filepath.Join(diagramsDir, "lifecycle-pkg_path_Symbol.md")
+	if _, err := os.Stat(wantPath); err != nil {
+		t.Errorf("expected flat file %s: %v", wantPath, err)
 	}
 }

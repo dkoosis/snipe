@@ -396,8 +396,8 @@ type DiagramCmd struct {
 	// diagram reuses the global --format flag (d2 default, or svg). It cannot
 	// redeclare --format because the global flag is embedded on every command.
 	Arch       DiagramArchCmd       `cmd:"" help:"Package import graph trimmed to the top-N by PageRank, grouped by layer. Writes docs/diagrams/arch.md by default (--format d2/svg for stdout)"`
-	Flow       DiagramFlowCmd       `cmd:"" help:"Depth-limited call graph from an entry symbol"`
-	Lifecycle  DiagramLifecycleCmd  `cmd:"" help:"Render lifecycle CRUD groups for a type as D2"`
+	Flow       DiagramFlowCmd       `cmd:"" help:"Depth-limited call graph from an entry symbol. Writes docs/diagrams/flow-<name>.md by default (--format d2/svg for stdout)"`
+	Lifecycle  DiagramLifecycleCmd  `cmd:"" help:"Render lifecycle CRUD groups for a type as D2. Writes docs/diagrams/lifecycle-<name>.md by default (--format d2/svg for stdout)"`
 	Seams      DiagramSeamsCmd      `cmd:"" help:"Rank pluggable interfaces by implementation count and fan-in. Writes docs/diagrams/seam-map.md by default (--format d2/svg for stdout)"`
 	Datastores DiagramDatastoresCmd `cmd:"" name:"datastore-map" help:"Datastore access map: schema + read/write packages per detected store. Writes docs/diagrams/datastore-map.md by default (--format d2/svg for stdout)"`
 	System     DiagramSystemCmd     `cmd:"" name:"system-map" help:"Comprehension view: packages collapsed into a handful of subsystems, only cross-subsystem edges shown. Writes docs/diagrams/system-map.md by default (--format d2/svg for stdout)"`
