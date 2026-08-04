@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/dkoosis/atomicfile"
+
 	"github.com/dkoosis/snipe/internal/diagram"
 	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/lifecycle"
@@ -150,7 +152,7 @@ func writeDiagramDocTo(root, name, summary, d2src string) error {
 	}
 	b.WriteString("```\n")
 
-	if err := os.WriteFile(outPath, []byte(b.String()), 0o644); err != nil {
+	if err := atomicfile.WriteFile(outPath, []byte(b.String()), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", outPath, err)
 	}
 	fmt.Printf("wrote %s\n", outPath)

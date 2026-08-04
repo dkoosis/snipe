@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/dkoosis/atomicfile"
+
 	"github.com/dkoosis/snipe/internal/metrics"
 	"github.com/dkoosis/snipe/internal/output"
 )
@@ -56,7 +58,17 @@ func runBaseline() error {
 		outputFile = filepath.Join(dir, "BASELINE.json")
 	}
 
-	if err := os.WriteFile(outputFile, jsonData, 0600); err != nil { // #nosec G306 -- baseline is project data, not secrets
+	// atomicfile.WriteFile renames a new inode over outputFile's directory
+	// entry — if outputFile is itself a symlink, that destroys the link
+	// instead of updating its target (os.WriteFile followed the link; CR
+	// review, PR #234). Resolve it first so an explicit --output symlink
+	// still writes through to wherever it points.
+	writeTarget := outputFile
+	if resolved, err := filepath.EvalSymlinks(outputFile); err == nil {
+		writeTarget = resolved
+	}
+
+	if err := atomicfile.WriteFile(writeTarget, jsonData, 0600); err != nil {
 		return w.WriteError("baseline", &output.Error{
 			Code:    output.ErrInternal,
 			Message: "failed to write baseline file: " + err.Error(),

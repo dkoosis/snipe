@@ -3,11 +3,14 @@ package context
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/dkoosis/atomicfile"
 )
 
 // Session tracks recently queried symbols for active work context.
@@ -96,7 +99,10 @@ func SaveSession(session *Session) error {
 		return err
 	}
 
-	return os.WriteFile(sessionPath(session.Project), data, 0600)
+	if err := atomicfile.WriteFile(sessionPath(session.Project), data, 0600); err != nil {
+		return fmt.Errorf("write session file: %w", err)
+	}
+	return nil
 }
 
 // RecordQuery adds a query to the session.

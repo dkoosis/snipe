@@ -10,6 +10,9 @@ github.com/buger/jsonparser
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
+# github.com/dkoosis/atomicfile v0.0.0-20260804145440-ef7d3b3067ae
+## explicit; go 1.26.4
+github.com/dkoosis/atomicfile
 # github.com/dkoosis/keyring v0.2.2
 ## explicit; go 1.26
 github.com/dkoosis/keyring
@@ -27,6 +30,9 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
+# github.com/google/renameio/v2 v2.0.2
+## explicit; go 1.25
+github.com/google/renameio/v2
 # github.com/google/uuid v1.6.0
 ## explicit
 github.com/google/uuid

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dkoosis/snipe/internal/util"
+	"github.com/dkoosis/atomicfile"
 )
 
 // BatchClient handles async batch embedding requests to Voyage AI.
@@ -380,7 +380,7 @@ func (c *BatchClient) SaveState(state *BatchState) error {
 
 	// Atomic write: a SIGKILL mid-write would otherwise leave a truncated
 	// batch_state.json that wedges every subsequent command on unmarshal error.
-	return util.WriteFileAtomic(path, data, 0600)
+	return atomicfile.WriteFile(path, data, 0600)
 }
 
 // LoadState loads the batch state from disk.
@@ -450,7 +450,7 @@ func (c *BatchClient) WriteJSONL(symbols []SymbolText, outputDir string) (string
 		}
 	}
 
-	if err := util.WriteFileAtomic(path, buf.Bytes(), 0o600); err != nil {
+	if err := atomicfile.WriteFile(path, buf.Bytes(), 0o600); err != nil {
 		return "", fmt.Errorf("write jsonl: %w", err)
 	}
 

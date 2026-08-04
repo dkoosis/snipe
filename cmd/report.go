@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/dkoosis/atomicfile"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -132,7 +134,7 @@ func runReport() error {
 		return w.WriteError(cmdNameReport, &output.Error{Code: output.ErrInternal, Message: "mkdir out: " + err.Error()})
 	}
 	htmlPath := filepath.Join(reportOut, "report.html")
-	if err := os.WriteFile(htmlPath, []byte(htmlDoc), 0o644); err != nil { //nolint:gosec // dashboard output, not sensitive
+	if err := atomicfile.WriteFile(htmlPath, []byte(htmlDoc), 0o644); err != nil {
 		return w.WriteError(cmdNameReport, &output.Error{Code: output.ErrInternal, Message: "write report.html: " + err.Error()})
 	}
 	manifestPath := filepath.Join(reportOut, "manifest.json")

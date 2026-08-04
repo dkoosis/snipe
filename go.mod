@@ -1,6 +1,6 @@
 module github.com/dkoosis/snipe
 
-go 1.26
+go 1.26.4
 
 toolchain go1.26.5
 
@@ -17,7 +17,12 @@ require github.com/alecthomas/kong v1.15.0
 
 require github.com/rogpeppe/go-internal v1.15.0
 
-require github.com/dkoosis/keyring v0.2.2
+require (
+	github.com/dkoosis/atomicfile v0.0.0-20260804145440-ef7d3b3067ae
+	github.com/dkoosis/keyring v0.2.2
+)
+
+require github.com/google/renameio/v2 v2.0.2 // indirect
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

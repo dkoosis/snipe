@@ -2,6 +2,7 @@
 package edit
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -13,11 +14,18 @@ import (
 
 	"github.com/pmezard/go-difflib/difflib"
 
-	"github.com/dkoosis/snipe/internal/util"
+	"github.com/dkoosis/atomicfile"
 )
 
 // ErrSymbolNotFound is returned when a symbol cannot be located in the file.
 var ErrSymbolNotFound = errors.New("symbol not found")
+
+// ErrAppliedNotDurable signals that ApplyAndWrite landed the edit on disk
+// (verified by read-back) but atomicfile's post-rename directory fsync failed,
+// so durability of the directory entry is unconfirmed. Callers MUST treat this
+// as applied — the returned Result's Applied field is true — and never retry,
+// or they will double-apply insert_before/insert_after (Codex review, PR #234).
+var ErrAppliedNotDurable = errors.New("applied but not confirmed durable")
 
 // Operation defines the type of edit operation
 type Operation string
@@ -311,9 +319,10 @@ func ApplyAndWrite(req Request) (*Result, error) {
 		return nil, err
 	}
 
-	// Preserve the source file's original permissions: WriteFileAtomic chmods the
-	// temp file to perm before rename, so a hardcoded mode would silently rewrite a
-	// 0644 checked-in file as that mode. Default to 0644 for a new file.
+	// Preserve the source file's original permissions. atomicfile.WriteFile applies
+	// perm only when the target is new and keeps an existing file's mode, so an
+	// existing checked-in file retains its 0644 (or whatever) regardless. perm here
+	// sets the mode for the new-file case; default 0644.
 	perm := os.FileMode(0644)
 	if info, statErr := os.Stat(req.File); statErr == nil {
 		perm = info.Mode().Perm()
@@ -321,7 +330,18 @@ func ApplyAndWrite(req Request) (*Result, error) {
 
 	// Atomic write: a crash mid-write leaves the original file untouched.
 	// os.WriteFile truncates first, which can corrupt user source on disk-full / SIGKILL.
-	if err := util.WriteFileAtomic(req.File, result.formatted, perm); err != nil { // #nosec G306 -- perm is the source file's original mode (os.Stat above)
+	if err := atomicfile.WriteFile(req.File, result.formatted, perm); err != nil {
+		// atomicfile.WriteFile can fail after the rename already landed — the
+		// parent-directory fsync is a separate final step, and it doesn't
+		// expose a sentinel distinguishing "never renamed" from "renamed,
+		// durability of the directory entry unconfirmed". Read the file back:
+		// if it matches, the edit IS on disk, so report Applied=true rather
+		// than let a caller retry and double-apply insert_before/insert_after
+		// (CR review, PR #234).
+		if onDisk, readErr := os.ReadFile(req.File); readErr == nil && bytes.Equal(onDisk, result.formatted) {
+			result.Applied = true
+			return result, fmt.Errorf("%w: %w", ErrAppliedNotDurable, err)
+		}
 		return nil, fmt.Errorf("write file: %w", err)
 	}
 

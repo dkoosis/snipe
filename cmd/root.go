@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -246,6 +247,14 @@ func indexOfHelpCommand(args []string) int {
 // symbol ("snipe Store") with no matching subcommand is rewritten to
 // "snipe sym Store" to preserve the cobra one-command-just-works behavior.
 func Execute() {
+	// Drains recordSessionQuery's async writes before the process exits, but
+	// bounded — a slow HDD/network mount must not hang exit on a best-effort
+	// write (Codex review, PR #234). atomicfile guarantees no torn file if we
+	// bail early: the session.json is either fully the old snapshot or fully
+	// the new one, never partial. Runs only on the normal-return path; the
+	// os.Exit calls below on error paths bypass it, which is fine.
+	defer drainSessionWrites(sessionDrainTimeout)
+
 	cli := &CLI{}
 	parser, err := kong.New(cli,
 		kong.Name("snipe"),
@@ -264,7 +273,7 @@ func Execute() {
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: sessionWG is always empty here — kong construction failed before any command ran
 	}
 
 	// Build the known-subcommand set from the kong grammar so new commands
@@ -304,7 +313,10 @@ func Execute() {
 	if err := ctx.Run(); err != nil {
 		// An internal Go error from a command (rare — most command-level
 		// problems are emitted via WriteError and return nil). Exit 1 directly,
-		// bypassing kong so the usage-error hook can't remap it to 2.
+		// bypassing kong so the usage-error hook can't remap it to 2. This also
+		// skips the deferred sessionWG.Wait() above — acceptable, since session
+		// tracking is best-effort and a failing command is unlikely to have
+		// reached recordSessionQuery anyway.
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -555,13 +567,54 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	return s, root, nil
 }
 
-// recordSessionQuery records a symbol query in the session for active work tracking.
-// This is a best-effort operation - errors are silently ignored to not affect command execution.
-func recordSessionQuery(projectRoot, symbol, file string, line int, kind, command string) {
-	session, err := ctxpkg.LoadSession(projectRoot)
-	if err != nil {
-		return
+// sessionWG tracks in-flight async session writes so Execute can drain them
+// before the process exits (CR review, PR #234: SaveSession now durably
+// fsyncs via atomicfile — including a parent-dir fsync and, on macOS,
+// F_FULLFSYNC — which is too slow to run synchronously on the query path
+// without risking the <50ms budget).
+var sessionWG sync.WaitGroup
+
+// sessionMu serializes the session read-modify-write cycle. A single process
+// can fire recordSessionQuery more than once (e.g. `snipe pack id1 id2 id3`
+// via runPackMulti), and each launches its own goroutine. Without the lock,
+// overlapping Load→RecordQuery→Save cycles read the same snapshot and the last
+// atomic rename wins, silently dropping the other symbols' history — and race
+// on the file itself (CR/Codex review, PR #234).
+var sessionMu sync.Mutex
+
+// sessionDrainTimeout bounds how long process exit waits on best-effort session
+// writes before giving up (see drainSessionWrites).
+const sessionDrainTimeout = 250 * time.Millisecond
+
+// drainSessionWrites waits up to timeout for in-flight session writes to finish,
+// then returns regardless. Bailing early is safe: atomicfile never leaves a torn
+// file, so the worst case is a slightly stale session.json, not a corrupt one.
+func drainSessionWrites(timeout time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		sessionWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
 	}
-	session.RecordQuery(symbol, file, line, kind, command)
-	_ = ctxpkg.SaveSession(session)
+}
+
+// recordSessionQuery records a symbol query in the session for active work tracking.
+// This is a best-effort operation - errors are silently ignored to not affect
+// command execution. The write itself runs off the query path: durability
+// only needs to land before the process exits, not before the response does.
+func recordSessionQuery(projectRoot, symbol, file string, line int, kind, command string) {
+	sessionWG.Go(func() {
+		sessionMu.Lock()
+		defer sessionMu.Unlock()
+
+		session, err := ctxpkg.LoadSession(projectRoot)
+		if err != nil {
+			return
+		}
+		session.RecordQuery(symbol, file, line, kind, command)
+		_ = ctxpkg.SaveSession(session)
+	})
 }
