@@ -87,6 +87,15 @@ func queryOrcaHints(ctx context.Context, orcaPath string, env []string, query st
 	cmd := exec.CommandContext(callCtx, orcaPath, "search_nugs", "--query", query, "--limit", "3", "--format", "oneline")
 	cmd.Env = env
 
+	// A bare exec.CommandContext only kills the direct child on ctx cancel —
+	// if orca (or a test shim) is itself a shell that spawns rather than
+	// exec's into its real work, the child survives and GetHints blocks
+	// until it exits on its own. Kill the whole process group instead, with
+	// WaitDelay as a backstop if even that doesn't land in time (sn-nw0m).
+	setProcGroup(cmd)
+	cmd.Cancel = func() error { return killProcGroup(cmd) }
+	cmd.WaitDelay = orcaQueryTimeout
+
 	output, err := cmd.Output()
 	if err != nil {
 		return nil
