@@ -20,6 +20,13 @@ import (
 // ErrSymbolNotFound is returned when a symbol cannot be located in the file.
 var ErrSymbolNotFound = errors.New("symbol not found")
 
+// ErrAppliedNotDurable signals that ApplyAndWrite landed the edit on disk
+// (verified by read-back) but atomicfile's post-rename directory fsync failed,
+// so durability of the directory entry is unconfirmed. Callers MUST treat this
+// as applied — the returned Result's Applied field is true — and never retry,
+// or they will double-apply insert_before/insert_after (Codex review, PR #234).
+var ErrAppliedNotDurable = errors.New("applied but not confirmed durable")
+
 // Operation defines the type of edit operation
 type Operation string
 
@@ -333,7 +340,7 @@ func ApplyAndWrite(req Request) (*Result, error) {
 		// (CR review, PR #234).
 		if onDisk, readErr := os.ReadFile(req.File); readErr == nil && bytes.Equal(onDisk, result.formatted) {
 			result.Applied = true
-			return result, fmt.Errorf("write file: applied but not confirmed durable: %w", err)
+			return result, fmt.Errorf("%w: %w", ErrAppliedNotDurable, err)
 		}
 		return nil, fmt.Errorf("write file: %w", err)
 	}

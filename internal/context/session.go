@@ -3,6 +3,7 @@ package context
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -98,7 +99,10 @@ func SaveSession(session *Session) error {
 		return err
 	}
 
-	return atomicfile.WriteFile(sessionPath(session.Project), data, 0600)
+	if err := atomicfile.WriteFile(sessionPath(session.Project), data, 0600); err != nil {
+		return fmt.Errorf("write session file: %w", err)
+	}
+	return nil
 }
 
 // RecordQuery adds a query to the session.

@@ -228,11 +228,19 @@ doEdit:
 		result, err = edit.Apply(req)
 	}
 
+	// ErrAppliedNotDurable is NOT a failure: the edit landed on disk, only its
+	// directory-entry fsync is unconfirmed. Surfacing it as an error would let
+	// a client retry and double-apply (Codex review, PR #234). Report success
+	// with a degraded marker so the applied result reaches the caller.
+	var durabilityWarn []string
 	if err != nil {
-		return w.WriteError(cmdNameEdit, &output.Error{
-			Code:    editErrCode(err),
-			Message: err.Error(),
-		})
+		if !errors.Is(err, edit.ErrAppliedNotDurable) {
+			return w.WriteError(cmdNameEdit, &output.Error{
+				Code:    editErrCode(err),
+				Message: err.Error(),
+			})
+		}
+		durabilityWarn = []string{fmt.Sprintf("edit_not_durable:%s", symbolName)}
 	}
 
 	// Build response
@@ -262,6 +270,7 @@ doEdit:
 			Command:  cmdNameEdit,
 			Query:    map[string]string{flagSymbol: symbolName, "operation": editOperation},
 			RepoRoot: dir,
+			Degraded: durabilityWarn,
 			Ms:       time.Since(start).Milliseconds(),
 			Total:    1,
 		},
@@ -348,8 +357,14 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 		}
 
 		if err != nil {
-			degraded = append(degraded, fmt.Sprintf("edit_failed:%s:%s", req.Symbol, err.Error()))
-			continue
+			// ErrAppliedNotDurable: the edit landed; only its fsync is
+			// unconfirmed. Record it as degraded but still emit the applied
+			// result, so a client can't retry and double-apply (Codex, PR #234).
+			if !errors.Is(err, edit.ErrAppliedNotDurable) {
+				degraded = append(degraded, fmt.Sprintf("edit_failed:%s:%s", req.Symbol, err.Error()))
+				continue
+			}
+			degraded = append(degraded, fmt.Sprintf("edit_not_durable:%s", req.Symbol))
 		}
 
 		relPath, _ := filepath.Rel(dir, filePath)
