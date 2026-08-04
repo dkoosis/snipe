@@ -1,0 +1,154 @@
+version: "2"
+
+run:
+  modules-download-mode: readonly
+  tests: true
+
+linters:
+  enable:
+    # Error handling
+    - errorlint
+    - nilerr
+    - nilnesserr
+
+    # Safety — gosec matters most here: this package shells out to `security`
+    # and `secret-tool` with values built from caller input (see quoteToken).
+    - forcetypeassert
+    - gosec
+    - predeclared
+
+    # Complexity
+    - cyclop
+    - funlen
+    - gocognit
+    - gocyclo
+    - nestif
+
+    # Style & correctness
+    - asciicheck
+    - copyloopvar
+    - dupword
+    - durationcheck
+    - errname
+    - fatcontext
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - inamedparam
+    - intrange
+    - misspell
+    - nakedret
+    - nilnil
+    - nolintlint
+    - prealloc
+    - reassign
+    - recvcheck
+    - revive
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+
+    # Performance
+    - perfsprint
+
+    # Testing
+    - thelper
+    - usetesting
+
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+    goconst:
+      min-len: 4
+      min-occurrences: 5
+      ignore-tests: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - commentFormatting
+        - ifElseChain
+        # hugeParam: both hits are cmd/keyring structs (80-140 bytes) passed
+        # by value in a single-invocation CLI, not a hot path — pointer-ifying
+        # them is pure churn for zero runtime benefit (same call trixi-bot
+        # made in its own .golangci.yml).
+        - hugeParam
+    cyclop:
+      max-complexity: 20
+    funlen:
+      lines: 120
+      statements: 70
+    gocognit:
+      min-complexity: 25
+    gocyclo:
+      min-complexity: 20
+    nestif:
+      min-complexity: 6
+    nakedret:
+      max-func-lines: 20
+    revive:
+      severity: warning
+      rules:
+        # exported stays ON (unlike an app repo) — this package's whole
+        # product is its public API, and the existing doc comments are part
+        # of the contract this repo's peers (trixi, trixi-bot, snipe,
+        # ferret, canapay) read to use it correctly.
+        - name: exported
+          disabled: false
+        - name: package-comments
+          disabled: true
+        - name: var-naming
+          disabled: false
+        - name: context-as-argument
+          disabled: false
+        - name: error-return
+          disabled: false
+        - name: dot-imports
+          disabled: false
+    staticcheck:
+      checks:
+        - all
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Test files: relax security, complexity, and context-arg rules — stub
+      # binaries and table-driven cases don't carry the same risk.
+      - linters:
+          - gosec
+          - cyclop
+          - funlen
+          - gocognit
+          - gocyclo
+          - nestif
+          - unparam
+          - forcetypeassert
+        path: _test\.go
+      # G204 (subprocess launched with variable): the whole point of this
+      # package. Every call site pins an absolute binary path (never resolved
+      # through $PATH) and validates/escapes its arguments upstream — see
+      # quoteToken and printableASCIIOnly*. Flagging it here would just noise
+      # up the one place it's a deliberate, reviewed decision, not a bug.
+      - linters:
+          - gosec
+        path: keyring_(darwin|linux)\.go
+        text: "G204"
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
