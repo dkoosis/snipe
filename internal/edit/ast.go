@@ -2,6 +2,7 @@
 package edit
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -323,6 +324,17 @@ func ApplyAndWrite(req Request) (*Result, error) {
 	// Atomic write: a crash mid-write leaves the original file untouched.
 	// os.WriteFile truncates first, which can corrupt user source on disk-full / SIGKILL.
 	if err := atomicfile.WriteFile(req.File, result.formatted, perm); err != nil {
+		// atomicfile.WriteFile can fail after the rename already landed — the
+		// parent-directory fsync is a separate final step, and it doesn't
+		// expose a sentinel distinguishing "never renamed" from "renamed,
+		// durability of the directory entry unconfirmed". Read the file back:
+		// if it matches, the edit IS on disk, so report Applied=true rather
+		// than let a caller retry and double-apply insert_before/insert_after
+		// (CR review, PR #234).
+		if onDisk, readErr := os.ReadFile(req.File); readErr == nil && bytes.Equal(onDisk, result.formatted) {
+			result.Applied = true
+			return result, fmt.Errorf("write file: applied but not confirmed durable: %w", err)
+		}
 		return nil, fmt.Errorf("write file: %w", err)
 	}
 
