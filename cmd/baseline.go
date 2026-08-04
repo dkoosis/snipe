@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/dkoosis/atomicfile"
+
 	"github.com/dkoosis/snipe/internal/metrics"
 	"github.com/dkoosis/snipe/internal/output"
 )
@@ -56,7 +58,7 @@ func runBaseline() error {
 		outputFile = filepath.Join(dir, "BASELINE.json")
 	}
 
-	if err := os.WriteFile(outputFile, jsonData, 0600); err != nil { // #nosec G306 -- baseline is project data, not secrets
+	if err := atomicfile.WriteFile(outputFile, jsonData, 0600); err != nil {
 		return w.WriteError("baseline", &output.Error{
 			Code:    output.ErrInternal,
 			Message: "failed to write baseline file: " + err.Error(),

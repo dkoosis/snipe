@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/dkoosis/atomicfile"
 )
 
 // Session tracks recently queried symbols for active work context.
@@ -96,7 +98,7 @@ func SaveSession(session *Session) error {
 		return err
 	}
 
-	return os.WriteFile(sessionPath(session.Project), data, 0600)
+	return atomicfile.WriteFile(sessionPath(session.Project), data, 0600)
 }
 
 // RecordQuery adds a query to the session.

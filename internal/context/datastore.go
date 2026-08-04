@@ -42,18 +42,22 @@ var dirJoinAssignRe = regexp.MustCompile(`([A-Za-z_]\w*)\s*:?=\s*filepath\.Join\
 var pathJoinAssignRe = regexp.MustCompile(`(\w+)\s*:?=\s*filepath\.Join\(\s*(\w+)\s*,\s*([^,)]+)\)`)
 
 // writeFileVarRe captures the (bare identifier) path argument passed to
-// os.WriteFile.
-var writeFileVarRe = regexp.MustCompile(`os\.WriteFile\(\s*(\w+)\s*,`)
+// os.WriteFile or atomicfile.WriteFile — both are whole-file durable writes,
+// so a store written atomically (github.com/dkoosis/atomicfile) is the same
+// directory-of-documents signal as one written with os.WriteFile.
+var writeFileVarRe = regexp.MustCompile(`(?:os|atomicfile)\.WriteFile\(\s*(\w+)\s*,`)
 
 // writeFileInlineJoinRe captures the inline form
-// os.WriteFile(filepath.Join(dirVar, filenameExpr), ...) where the path is
-// built directly in the call rather than via an intermediate variable.
-var writeFileInlineJoinRe = regexp.MustCompile(`os\.WriteFile\(\s*filepath\.Join\(\s*(\w+)\s*,\s*([^,)]+)\)`)
+// os.WriteFile(filepath.Join(dirVar, filenameExpr), ...) — or the atomicfile
+// equivalent — where the path is built directly in the call rather than via
+// an intermediate variable.
+var writeFileInlineJoinRe = regexp.MustCompile(`(?:os|atomicfile)\.WriteFile\(\s*filepath\.Join\(\s*(\w+)\s*,\s*([^,)]+)\)`)
 
 // DetectDataStores scans .go files under repoRoot for the MkdirAll +
 // WriteFile idiom that signals a directory-of-documents store: a directory
-// created with os.MkdirAll, then written into via os.WriteFile at a path
-// whose filename component is computed (a variable, concatenation, etc.)
+// created with os.MkdirAll, then written into via os.WriteFile (or
+// atomicfile.WriteFile) at a path whose filename component is computed (a
+// variable, concatenation, etc.)
 // rather than a fixed string literal. A fixed literal filename (e.g.
 // "session.json") means the directory holds one file, not a collection —
 // that's a state file, not a data store, and is intentionally excluded.

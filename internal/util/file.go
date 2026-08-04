@@ -3,49 +3,10 @@ package util
 
 import (
 	"bufio"
-	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 )
-
-// WriteFileAtomic writes data to path via tempfile + fsync + rename, so a
-// crash mid-write leaves the original file untouched (vs os.WriteFile, which
-// truncates first). Tempfile is created in the same directory as the target
-// to keep rename atomic on the same filesystem.
-func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
-	if err != nil {
-		return fmt.Errorf("create temp: %w", err)
-	}
-	tmpPath := tmp.Name()
-	defer func() {
-		if err != nil {
-			_ = os.Remove(tmpPath)
-		}
-	}()
-
-	if _, err = tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("write temp: %w", err)
-	}
-	if err = tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("sync temp: %w", err)
-	}
-	if err = tmp.Close(); err != nil {
-		return fmt.Errorf("close temp: %w", err)
-	}
-	if err = os.Chmod(tmpPath, perm); err != nil {
-		return fmt.Errorf("chmod temp: %w", err)
-	}
-	if err = os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("rename temp: %w", err)
-	}
-	return nil
-}
 
 // FileCache provides LRU-cached file line reading.
 type FileCache struct {

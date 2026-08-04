@@ -13,7 +13,7 @@ import (
 
 	"github.com/pmezard/go-difflib/difflib"
 
-	"github.com/dkoosis/snipe/internal/util"
+	"github.com/dkoosis/atomicfile"
 )
 
 // ErrSymbolNotFound is returned when a symbol cannot be located in the file.
@@ -311,9 +311,10 @@ func ApplyAndWrite(req Request) (*Result, error) {
 		return nil, err
 	}
 
-	// Preserve the source file's original permissions: WriteFileAtomic chmods the
-	// temp file to perm before rename, so a hardcoded mode would silently rewrite a
-	// 0644 checked-in file as that mode. Default to 0644 for a new file.
+	// Preserve the source file's original permissions. atomicfile.WriteFile applies
+	// perm only when the target is new and keeps an existing file's mode, so an
+	// existing checked-in file retains its 0644 (or whatever) regardless. perm here
+	// sets the mode for the new-file case; default 0644.
 	perm := os.FileMode(0644)
 	if info, statErr := os.Stat(req.File); statErr == nil {
 		perm = info.Mode().Perm()
@@ -321,7 +322,7 @@ func ApplyAndWrite(req Request) (*Result, error) {
 
 	// Atomic write: a crash mid-write leaves the original file untouched.
 	// os.WriteFile truncates first, which can corrupt user source on disk-full / SIGKILL.
-	if err := util.WriteFileAtomic(req.File, result.formatted, perm); err != nil { // #nosec G306 -- perm is the source file's original mode (os.Stat above)
+	if err := atomicfile.WriteFile(req.File, result.formatted, perm); err != nil {
 		return nil, fmt.Errorf("write file: %w", err)
 	}
 
