@@ -280,7 +280,7 @@ func fileHasGoGenerate(path string) bool {
 		return false
 	}
 	defer f.Close()
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(f) //nolint:gocritic // seeks the "//go:generate" line comment, which is always short; a >64KB line can't carry it, so the default cap can't change the result
 	for scanner.Scan() {
 		if strings.Contains(scanner.Text(), "//go:generate") {
 			return true

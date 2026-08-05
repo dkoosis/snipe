@@ -545,14 +545,14 @@ func (s *Store) WriteIndexIncremental(
 	}
 	incCount++
 
-	conn, err := s.db.Conn(context.Background())
+	conn, err := s.db.Conn(context.Background()) //nolint:forbidigo // WriteIndexIncremental has no ctx param; threading one is the pre-existing noctx debt tracked separately, out of this pack-adoption's scope
 	if err != nil {
 		return nil, fmt.Errorf("acquire connection: %w", err)
 	}
 	defer conn.Close()
 
 	// Disable FK constraints (must be outside transaction in SQLite)
-	if _, err := conn.ExecContext(context.Background(), "PRAGMA foreign_keys=OFF"); err != nil {
+	if _, err := conn.ExecContext(context.Background(), "PRAGMA foreign_keys=OFF"); err != nil { //nolint:forbidigo // WriteIndexIncremental has no ctx param; pre-existing noctx debt tracked separately, out of this pack-adoption's scope
 		return nil, fmt.Errorf("disable FK: %w", err)
 	}
 	defer func() {
@@ -561,12 +561,12 @@ func (s *Store) WriteIndexIncremental(
 		// silently-failed restore would leave FK enforcement off for every
 		// later write/read in the process. Surface the error into the named
 		// return (only when no earlier error already won) so it can't be lost.
-		if _, ferr := conn.ExecContext(context.Background(), "PRAGMA foreign_keys=ON"); ferr != nil && err == nil {
+		if _, ferr := conn.ExecContext(context.Background(), "PRAGMA foreign_keys=ON"); ferr != nil && err == nil { //nolint:forbidigo // WriteIndexIncremental has no ctx param; pre-existing noctx debt tracked separately, out of this pack-adoption's scope
 			err = fmt.Errorf("re-enable FK: %w", ferr)
 		}
 	}()
 
-	tx, err := conn.BeginTx(context.Background(), nil)
+	tx, err := conn.BeginTx(context.Background(), nil) //nolint:forbidigo // WriteIndexIncremental has no ctx param; pre-existing noctx debt tracked separately, out of this pack-adoption's scope
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}

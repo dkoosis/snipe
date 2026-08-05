@@ -60,7 +60,7 @@ func DefaultExclude() []string {
 func Load(cfg LoadConfig) (*LoadResult, error) {
 	ctx := cfg.Context
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = context.Background() //nolint:forbidigo // nil-guard default for the optional cfg.Context; the caller's ctx is threaded when supplied
 	}
 
 	if cfg.Dir == "" {

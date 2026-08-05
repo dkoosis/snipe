@@ -206,7 +206,7 @@ func moduleImportPath(s *store.Store) (string, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(f) //nolint:gocritic // reads go.mod, whose lines are short by format; the 64KB cap is unreachable here
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if strings.HasPrefix(line, "module ") {

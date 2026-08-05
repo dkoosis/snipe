@@ -71,7 +71,7 @@ func Load(repoRoot string) *Classifier {
 	}
 	defer func() { _ = f.Close() }()
 
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(f) //nolint:gocritic // reads the .snipe/sensitive config, one short "glob zone" rule per line; the 64KB cap is unreachable here
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" || strings.HasPrefix(line, "#") {

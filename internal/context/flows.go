@@ -653,7 +653,7 @@ func extractCobraShorts(repoRoot string) map[string]string {
 		}
 
 		var short, runFunc string
-		scanner := bufio.NewScanner(f)
+		scanner := bufio.NewScanner(f) //nolint:gocritic // extracts Short:/RunE: struct-field tokens, which live on short lines; a >64KB line can't carry them, so the default cap can't change the result
 		for scanner.Scan() {
 			line := scanner.Text()
 			if m := shortRe.FindStringSubmatch(line); m != nil && short == "" {

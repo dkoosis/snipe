@@ -20,6 +20,7 @@ require github.com/rogpeppe/go-internal v1.15.0
 require (
 	github.com/dkoosis/atomicfile v0.0.0-20260804145440-ef7d3b3067ae
 	github.com/dkoosis/keyring v0.2.2
+	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 )
 
 require github.com/google/renameio/v2 v2.0.2 // indirect

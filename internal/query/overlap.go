@@ -147,7 +147,7 @@ func FindOverlappingSymbols(db *sql.DB, repoRoot string, changes map[string][]Li
 	// nothing to commit; the deferred Rollback also runs on any early error
 	// return below. This consistency guarantee is structural — verified by
 	// construction, not by a (necessarily flaky) mid-loop-writer timing test.
-	tx, err := db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
+	tx, err := db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true}) //nolint:forbidigo // FindOverlappingSymbols has no ctx param; threading one is the pre-existing noctx debt tracked separately, out of this pack-adoption's scope
 	if err != nil {
 		return nil, fmt.Errorf("query overlapping symbols: %w", err)
 	}

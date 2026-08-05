@@ -50,7 +50,7 @@ type rgSubmatch struct {
 // finishes. A nil ctx is treated as context.Background().
 func Search(ctx context.Context, dir, pattern string, limit, contextLines int, globs ...string) ([]output.Result, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = context.Background() //nolint:forbidigo // nil-guard default for the optional ctx param (documented contract); the caller's ctx bounds rg when supplied
 	}
 
 	if _, err := exec.LookPath("rg"); err != nil {
