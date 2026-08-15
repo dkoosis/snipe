@@ -32,8 +32,6 @@ const (
 	// RuleMergePolicy — squash-only + delete-branch-on-merge, chosen, not
 	// GitHub's everything-on default.
 	RuleMergePolicy = "merge-policy"
-	// RulePRTemplate — .github/pull_request_template.md present.
-	RulePRTemplate = "pr-template"
 )
 
 const fleetOwner = "dkoosis"
@@ -146,7 +144,6 @@ func checkFleetRepo(ctx context.Context, name string) []Finding {
 	findings := protectionFindings(ctx, full, branch)
 	findings = append(findings, labelFindings(ctx, full)...)
 	findings = append(findings, mergePolicyFindings(full, settings)...)
-	findings = append(findings, templateFindings(ctx, full)...)
 
 	return applyExceptions(findings, fleetValues(ctx, full))
 }
@@ -238,20 +235,6 @@ func mergePolicyFindings(full string, s *repoSettings) []Finding {
 	return []Finding{{File: full, Rule: RuleMergePolicy,
 		Msg:    "merge policy is GitHub's accidental default, not the fleet choice (squash-only + delete-branch-on-merge): " + strings.Join(wrong, ", "),
 		Repair: repair}}
-}
-
-func templateFindings(ctx context.Context, full string) []Finding {
-	_, err := ghAPI(ctx, "repos/"+full+"/contents/.github/pull_request_template.md")
-	if errors.Is(err, errNotFound) {
-		return []Finding{{File: full, Rule: RulePRTemplate,
-			Msg:    "no PR template — agent PRs open with free-form bodies",
-			Repair: "add .github/pull_request_template.md (copy the fleet reference from conform)"}}
-	}
-	if err != nil {
-		return []Finding{{File: full, Rule: RulePRTemplate,
-			Msg: fmt.Sprintf("template unreadable: %v", err), Repair: "gh auth status"}}
-	}
-	return nil
 }
 
 // fleetValues fetches a repo's conform.json so its declared exceptions apply
