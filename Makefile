@@ -19,7 +19,7 @@ include .sandbox/lib/Makefile.doctor.mk
 include .sandbox/lib/Makefile.cross.mk
 
 .PHONY: help scan check audit deploy report report-human \
-        vet lint test race blackbox vuln pack-drift \
+        vet lint test race blackbox vuln build selfcheck \
         install clean \
         baseline bench eval eval-setup
 
@@ -51,9 +51,16 @@ help: ## Show this help
 		/^## [^-]/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 4) } \
 		/^[a-zA-Z0-9_-]+:.*?## / { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-check: vet lint test pack-drift ## Full repo: vet + lint + test + drift + build
-	@go build ./...
+check: vet lint test build selfcheck ## Full repo: vet + lint + test + build + conform
 	@echo "=== check pass ==="
+
+build: ## Compile everything
+	go build ./...
+
+# Dogfood the fleet gate (sd-th5.10): conform is pinned as a go.mod tool
+# dependency (go.sum-verified); bumping the pin is a deliberate PR.
+selfcheck: ## Run conform (fleet SDLC checker) against this repo
+	go tool conform
 
 audit: check race blackbox eval vuln ## Exhaustive: +race +blackbox +eval +vuln
 	@echo "=== audit pass ==="
@@ -91,12 +98,6 @@ blackbox: ## Run blackbox integration tests (fo-rendered)
 
 vuln: ## Scan for known vulnerabilities
 	govulncheck ./...
-
-# bugclasses pack (ccp-sbp): fail if .golangci-rules/bugclasses.go has drifted
-# from the upstream cc-plugins pack. Network-soft — an unreachable upstream
-# warns and passes, so this never breaks an offline/private-repo build.
-pack-drift: ## Check bugclasses pack for drift from upstream
-	@scripts/check-pack-drift.sh .golangci-rules/bugclasses.go
 
 ## ---------------------------------------------------------------------
 ## Build

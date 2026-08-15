@@ -1,0 +1,6 @@
+{
+  "profile": "tool",
+  "exceptions": [
+    {"rule": "lint-floor", "reason": "linter-debt burn-down is sd-a32e (deferred): enabling default:standard/errcheck/noctx today drops hundreds of known findings into make check; exception retires when sd-a32e merges the floor"}
+  ]
+}

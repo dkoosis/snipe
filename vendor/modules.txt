@@ -13,6 +13,11 @@ github.com/davecgh/go-spew/spew
 # github.com/dkoosis/atomicfile v0.0.0-20260804145440-ef7d3b3067ae
 ## explicit; go 1.26.4
 github.com/dkoosis/atomicfile
+# github.com/dkoosis/conform v0.1.2
+## explicit; go 1.26.3
+github.com/dkoosis/conform/cmd/conform
+github.com/dkoosis/conform/internal/checks
+github.com/dkoosis/conform/internal/values
 # github.com/dkoosis/keyring v0.2.2
 ## explicit; go 1.26
 github.com/dkoosis/keyring
