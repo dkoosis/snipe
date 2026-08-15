@@ -46,10 +46,21 @@ var noGitOpsFamily = []string{RuleHooksShape, RuleHooksPath, RuleBDHooks, RuleRe
 // trackedHookEvents are the bd hook events shape B tracks in .githooks.
 var trackedHookEvents = []string{"post-checkout", "post-merge", "pre-commit", "pre-push", "prepare-commit-msg"}
 
-// delegationMarker identifies the beads-managed delegation block inside a
-// tracked hook. Checked semantically (marker presence), not byte-wise — the
-// block's body is bd's to version.
-const delegationMarker = "BEADS INTEGRATION"
+// Two delegation shapes are accepted (cfm-wml; the itzy#161 pin surfaced the
+// second): the inline beads-managed block, or a delegating wrapper that
+// exec-chains to bd's shim in .beads/hooks/. Both are checked semantically
+// (marker/path presence), not byte-wise.
+const (
+	delegationMarker = "BEADS INTEGRATION"
+	delegationShim   = ".beads/hooks"
+)
+
+// delegatesToBD reports whether hook content hands the event to bd by either
+// accepted shape.
+func delegatesToBD(data []byte) bool {
+	return bytes.Contains(data, []byte(delegationMarker)) ||
+		bytes.Contains(data, []byte(delegationShim))
+}
 
 const (
 	gitTimeout = 2 * time.Second
@@ -139,12 +150,12 @@ func checkBDHooks(dir string) []Finding {
 			continue
 		}
 		data, err := os.ReadFile(path)
-		if err != nil || !bytes.Contains(data, []byte(delegationMarker)) {
+		if err != nil || !delegatesToBD(data) {
 			findings = append(findings, Finding{
 				File:   rel,
 				Rule:   RuleBDHooks,
-				Msg:    "hook does not carry the beads-managed delegation block — bd events silently skipped",
-				Repair: "bd hooks install (re-emits the managed block; keep custom logic outside the markers)",
+				Msg:    "hook neither carries the beads-managed block nor exec-chains to the .beads/hooks shim — bd events silently skipped",
+				Repair: "bd hooks install (inline block), or wrap: exec \"$repo_root/.beads/hooks/$hook_name\"",
 			})
 		}
 	}
@@ -178,7 +189,7 @@ func checkReviewGate(ctx context.Context, dir string) []Finding {
 	}
 
 	data, readErr := os.ReadFile(filepath.Join(dir, rel))
-	if readErr != nil || !bytes.Contains(data, []byte(delegationMarker)) {
+	if readErr != nil || !delegatesToBD(data) {
 		return []Finding{{
 			File:   rel,
 			Rule:   RuleReviewGate,

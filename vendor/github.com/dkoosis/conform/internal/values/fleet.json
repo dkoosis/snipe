@@ -12,6 +12,7 @@
     {"name": "trixi", "visibility": "private"},
     {"name": "atomicfile", "visibility": "public"},
     {"name": "keyring", "visibility": "private"},
+    {"name": "next", "visibility": "public"},
     {"name": "conform", "visibility": "public"}
   ]
 }
