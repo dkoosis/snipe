@@ -23,7 +23,10 @@ require (
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 )
 
-require github.com/google/renameio/v2 v2.0.2 // indirect
+require (
+	github.com/dkoosis/conform v0.1.2 // indirect
+	github.com/google/renameio/v2 v2.0.2 // indirect
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -50,3 +53,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+tool github.com/dkoosis/conform/cmd/conform
