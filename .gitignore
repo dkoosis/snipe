@@ -72,3 +72,6 @@ sn-l1kh.7/
 sn-l1kh.8/
 # bd worktree
 sn-yhl4/
+
+# bd audit residue: passive re-export, Dolt is source of truth
+.beads/interactions.jsonl
