@@ -25,12 +25,17 @@ import (
 // core.hooksPath there).
 const bdConfigFile = ".beads/config.yaml"
 
-var bdKeys = []struct {
+// bdKey is one required bd config key: its canonical name, the spellings
+// accepted in the tracked file, the repair, and why it matters.
+// checkBDConfig verifies each; the scaffold renderer emits each.
+type bdKey struct {
 	key    string   // canonical name (bd config get spelling)
 	paths  []string // accepted spellings in .beads/config.yaml
 	repair string
 	why    string
-}{
+}
+
+var bdKeys = []bdKey{
 	{
 		key:    "custom.plan_dir",
 		paths:  []string{"custom.plan_dir"},

@@ -3,7 +3,7 @@
 // generically for the whole fleet. Whatever ferret can't state generically
 // becomes a per-repo value, and every value carries a reason.
 //
-// Every dkoosis fleet repo declares a conform.json at its root:
+// Every dkoosis fleet repo declares a docs/conform.json:
 //
 //	{
 //	  "profile": "tool",

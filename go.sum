@@ -17,6 +17,8 @@ github.com/dkoosis/conform v0.1.2 h1:HzE/E/yy94s5FRQyY/GWok9VTCjIvmqHl7v9gAJ5GrM
 github.com/dkoosis/conform v0.1.2/go.mod h1:TP6zWp9VK7MlmHNCHri0EhqZmHY3jAqUrUvSNhnosOk=
 github.com/dkoosis/conform v0.2.0 h1:w8spzU4WwFIA37/qln8zSKJVHZ81afvpU9oplWkkzwY=
 github.com/dkoosis/conform v0.2.0/go.mod h1:Zq32Tf2c7K8O2MPAja+pJfOWmbika4Wn5qCZoUdcKEQ=
+github.com/dkoosis/conform v0.2.1-0.20260905172110-5559869235a1 h1:5daEePJOAHSL8cojK2BszbRUmt/C5HHhSjjFa1WwfSM=
+github.com/dkoosis/conform v0.2.1-0.20260905172110-5559869235a1/go.mod h1:Zq32Tf2c7K8O2MPAja+pJfOWmbika4Wn5qCZoUdcKEQ=
 github.com/dkoosis/keyring v0.2.2 h1:Ob3hY2oSyidlyEWGovtWZcOl9KWY6K+bIZCA6qzkAZc=
 github.com/dkoosis/keyring v0.2.2/go.mod h1:EmEgoJa4a+rjxNdnzD1YerjK8vOE+r5oC5b5UfSL+AY=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=

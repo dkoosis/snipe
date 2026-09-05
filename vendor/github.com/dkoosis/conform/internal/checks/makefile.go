@@ -58,6 +58,21 @@ func parseMakefile(text string) []mkTarget {
 	return targets
 }
 
+// contractVerbs is the human surface: the same words in every repo.
+var contractVerbs = []string{"check", "audit", "help"}
+
+// requiredVerbs is the verb list for a profile — `deploy` is
+// profile-dependent (tools ship it, libs must not have it; no-deploy is what
+// the lib profile means). verbFindings checks against this list and the
+// scaffold renderer emits from it, so the two cannot disagree.
+func requiredVerbs(profile values.Profile) []string {
+	verbs := append([]string{}, contractVerbs...)
+	if profile == values.ProfileTool {
+		verbs = append(verbs, "deploy")
+	}
+	return verbs
+}
+
 // checkMakefile enforces the verb contract (makefile-verbs) and ## doc
 // coverage (makefile-docs) on the top-level Makefile.
 func checkMakefile(dir string, profile values.Profile) []Finding {
@@ -94,11 +109,7 @@ func verbFindings(byName map[string]mkTarget, profile values.Profile) []Finding 
 		findings = append(findings, Finding{File: "Makefile", Rule: RuleMakefileVerb, Msg: msg, Repair: repair})
 	}
 
-	required := []string{"check", "audit", "help"}
-	if profile == values.ProfileTool {
-		required = append(required, "deploy")
-	}
-	for _, verb := range required {
+	for _, verb := range requiredVerbs(profile) {
 		if _, ok := byName[verb]; !ok {
 			add(
 				fmt.Sprintf("verb %q missing — the human surface is four verbs, identical in every repo", verb),

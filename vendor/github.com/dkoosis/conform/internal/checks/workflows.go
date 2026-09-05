@@ -22,6 +22,10 @@ type workflow struct {
 	} `yaml:"jobs"`
 }
 
+// ciGateFile is the workflow that must run `make check`. The rule reads it;
+// the scaffold renderer writes it.
+const ciGateFile = ".github/workflows/check.yml"
+
 // gateInYAML matches a run step re-implementing what a make verb owns. CI =
 // `make check` (+ further make verbs); the sharpest fleet divergence was CI
 // running its own vet/test YAML while never running golangci-lint at all.
@@ -30,7 +34,7 @@ var gateInYAML = regexp.MustCompile(`(?m)^\s*(go (vet|test|build)\b|golangci-lin
 // checkCIGate verifies .github/workflows/check.yml calls make check and
 // re-implements none of the gate in YAML (ci-gate).
 func checkCIGate(dir string) []Finding {
-	const file = ".github/workflows/check.yml"
+	const file = ciGateFile
 	wf, findings := loadWorkflow(dir, file, RuleCIGate,
 		"no check workflow — nothing gates a PR",
 		"add .github/workflows/check.yml with a step running `make check`")
