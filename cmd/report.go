@@ -16,7 +16,7 @@ import (
 
 // report.go — `snipe report`: a self-contained HTML dashboard for HUMANS,
 // aggregating snipe's own metrics (sn-qnq3, spun off sn-fhw8's D1 amendment /
-// D7 in CLAUDE.md). Distinct from sn-l1kh's per-command docs/diagrams/*.md
+// D7 in .claude/rules/CLAUDE.md). Distinct from sn-l1kh's per-command docs/diagrams/*.md
 // living docs: this is snipe's one deliberate multi-artifact human page.
 //
 // v1 layout: native visuals snipe renders directly from indexed data —

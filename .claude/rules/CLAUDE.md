@@ -4,6 +4,19 @@ Make it easier for Claude to work with Go repos. Static indexing, <50ms queries,
 
 ‡ Dogfood: Go symbol questions → `snipe` (def/refs/callers/pack/impact/tests) before rg/Grep. rg = non-symbol text only.
 
+## direction and queue
+
+- Direction: `docs/NORTH_STAR.md` — dk edits it; nothing else is a source.
+  `docs/ROADMAP.md` mirrors its ★ line over the epic inventory.
+- The queue: bd — `bd ready` / `bd show <id>` / `bd update <id> --claim` /
+  `bd close <id>`. Persistent knowledge: `bd remember`, `bd memories <keyword>` —
+  ✗ MEMORY.md files.
+
+*The root CLAUDE.md was deleted 2026-09-05 (sd-mzgy.3): it held a pointer to this
+directory plus bd's managed block, and the root is minimal with `.claude/rules/**`
+as the whole project instruction set (decision d9cd0e20868b). The bd guidance the
+managed block carried is injected by the SessionStart hook.*
+
 ## verify
 
 `make` (vet+lint+test) or `make audit` (full: race, blackbox, govulncheck)

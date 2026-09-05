@@ -19,11 +19,30 @@ import (
 	"github.com/dkoosis/conform/internal/values"
 )
 
+// ValuesFile is the repo's conform.json, under docs/ like every other
+// repo-level declaration: the root is minimal (decision d9cd0e20868b). Only
+// dotfiles a host tool reads at the root by name stay there; conform reads its
+// own file wherever it says, so it says docs/.
+const ValuesFile = "docs/conform.json"
+
+// LegacyValuesFile is where the file sat before ValuesFile moved it, and
+// conform still reads it when docs/ has none. Five of seven fleet repos declare
+// their profile and exceptions at the root today; a cutover that read only
+// ValuesFile would drop every one of those exceptions on the next sweep, so
+// each repo would light up with findings it had already excused — and the
+// values-file finding pointing at the move would be buried in them.
+//
+// Reading it is not blessing it: root-minimal still reports a root conform.json
+// with `git mv` as the repair. Read here, flagged there — that pairing is what
+// lets a repo move on its own schedule instead of all at once. Delete this
+// constant and its fallback once no fleet repo declares at the root.
+const LegacyValuesFile = "conform.json"
+
 // Surface-1 rule ids. Other surfaces reserve their own ids in the same
 // vocabulary (e.g. `no-git-ops`, honored by --local for repos like loto that
 // declare git operations out of scope).
 const (
-	RuleValuesFile   = "values-file"       // conform.json present and valid
+	RuleValuesFile   = "values-file"       // docs/conform.json present and valid
 	RuleMakefileVerb = "makefile-verbs"    // four-verb contract + prereq composition
 	RuleMakefileDocs = "makefile-docs"     // every target carries a ## doc comment
 	RuleLintFloor    = "lint-floor"        // .golangci.yml carries the 6-linter baseline floor
@@ -35,6 +54,9 @@ const (
 	RuleBDConfig     = "bd-config"         // bd config keys present
 	RuleHooksShape   = "hooks-shape"       // shape B: tracked .githooks
 	RulePRTemplate   = "pr-template"       // PR template present + non-empty (Surface 1 since v0.2.0)
+	RuleRoadmap      = "roadmap"           // ROADMAP.md present, carrying a ★ destination line
+	RuleRootMinimal  = "root-minimal"      // no CLAUDE.md / ROADMAP.md / conform.json / NORTH_STAR.md at the root
+	RuleSandboxLib   = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform ships
 )
 
 // Finding is one contract violation: which file, which rule, what to run.
@@ -64,6 +86,9 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkBDConfig(dir)...)
 	findings = append(findings, checkHooksShape(dir)...)
 	findings = append(findings, checkPRTemplate(dir)...)
+	findings = append(findings, checkRoadmap(dir)...)
+	findings = append(findings, checkRootMinimal(dir)...)
+	findings = append(findings, checkSandboxLib(dir)...)
 
 	findings = applyExceptions(findings, vals)
 	sort.SliceStable(findings, func(i, j int) bool {
@@ -75,27 +100,37 @@ func Run(dir string) []Finding {
 	return findings
 }
 
-// loadValues reads conform.json. Absent or invalid, the checks still run —
-// under the default tool profile with no exceptions — and the values problem
-// is reported as a finding of its own.
+// loadValues reads docs/conform.json (ValuesFile), falling back to the root
+// (LegacyValuesFile) while the fleet migrates. Absent or invalid, the checks
+// still run — under the default tool profile with no exceptions — and the
+// values problem is reported as a finding of its own.
+//
+// Only a MISSING docs/ file falls back. An invalid one is reported as it
+// stands: silently preferring the root copy because the canonical file has a
+// typo would hide the typo behind stale values.
 func loadValues(dir string) (values.Values, []Finding) {
 	fallback := values.Values{Profile: values.ProfileTool}
-	path := filepath.Join(dir, "conform.json")
+	path := filepath.Join(dir, ValuesFile)
 	v, err := values.Load(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		if legacy, lerr := values.Load(filepath.Join(dir, LegacyValuesFile)); lerr == nil {
+			return *legacy, nil
+		}
+	}
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return fallback, []Finding{{
-				File:   "conform.json",
+				File:   ValuesFile,
 				Rule:   RuleValuesFile,
 				Msg:    "values file missing — conform needs the repo's profile (tool|lib) and declared exceptions",
-				Repair: `create conform.json: {"profile": "tool", "exceptions": []}`,
+				Repair: `create ` + ValuesFile + `: {"profile": "tool", "exceptions": []}`,
 			}}
 		}
 		return fallback, []Finding{{
-			File:   "conform.json",
+			File:   ValuesFile,
 			Rule:   RuleValuesFile,
 			Msg:    err.Error(),
-			Repair: "fix conform.json: profile tool|lib; every exception needs rule + reason",
+			Repair: "fix " + ValuesFile + ": profile tool|lib; every exception needs rule + reason",
 		}}
 	}
 	return *v, nil
