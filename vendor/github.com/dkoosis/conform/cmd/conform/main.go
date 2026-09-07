@@ -32,6 +32,11 @@ import (
 	"github.com/dkoosis/conform/internal/sandbox"
 )
 
+// version is stamped at build time via -ldflags "-X main.version=<rev>"
+// (see the Makefile's install target). A plain `go build` with no ldflags
+// leaves it at this default.
+var version = "unknown"
+
 // errUsage marks a bad invocation; usage has already been printed.
 var errUsage = errors.New("bad usage")
 
@@ -61,6 +66,9 @@ func parseMode(args []string) (mode string, handled bool, err error) {
 		return "", true, runInit(context.Background(), args[1:])
 	case "sandbox":
 		return "", true, runSandbox(args[1:])
+	case "version":
+		fmt.Println(version)
+		return "", true, nil
 	case "--local", "--fleet", "--fix":
 		return args[0][2:], false, nil
 	case "-h", "--help", "help":
@@ -148,6 +156,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, `usage: conform [--local | --fleet | --fix]
        conform init <repo> [flags]
        conform sandbox sync
+       conform version
 
   (no flag)  check in-repo files against the fleet contract
   --local    check machine-local wiring (hooksPath, hooks, dolt remote)
@@ -159,5 +168,6 @@ func usage() {
              --with-remote is passed; conform init -h for flags.
   sandbox sync
              rewrite .sandbox/lib from the canonical copy conform ships
+  version    print the rev the binary was built from
 `)
 }

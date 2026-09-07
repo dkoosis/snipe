@@ -24,7 +24,7 @@ require (
 )
 
 require (
-	github.com/dkoosis/conform v0.2.1-0.20260905172110-5559869235a1 // indirect
+	github.com/dkoosis/conform v0.2.1-0.20260907030945-a05e4f4bd54a // indirect
 	github.com/google/renameio/v2 v2.0.2 // indirect
 )
 

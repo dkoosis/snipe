@@ -136,6 +136,7 @@ type artifact struct {
 // the matching verify half reads, so a rule that renames its file renames
 // the emitted one too.
 var baseArtifacts = []artifact{
+	{path: ReadmeFile, mode: 0o644, body: renderReadme},
 	{path: ValuesFile, mode: 0o644, body: renderValuesFile},
 	{path: "Makefile", mode: 0o644, body: renderMakefile},
 	{path: ".golangci.yml", mode: 0o644, body: renderGolangci},
@@ -474,6 +475,12 @@ func renderGoMod(spec ScaffoldSpec) string {
 // unwritten (checks.RoadmapScaffold).
 func renderRoadmap(spec ScaffoldSpec) string {
 	return RoadmapScaffold(spec.Repo)
+}
+
+// renderReadme emits the one file the root must carry, through the same
+// renderer the readme rule's --fix half uses (checks.ReadmeScaffold).
+func renderReadme(spec ScaffoldSpec) string {
+	return ReadmeScaffold(spec.Repo)
 }
 
 func renderDoc(spec ScaffoldSpec) string {

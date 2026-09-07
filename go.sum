@@ -13,12 +13,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dkoosis/atomicfile v0.0.0-20260804145440-ef7d3b3067ae h1:STOihlz/k4K63I9S7itOC8FX7TYkvxXk2fwppe7CToc=
 github.com/dkoosis/atomicfile v0.0.0-20260804145440-ef7d3b3067ae/go.mod h1:6wCWesghtzLYJ0IjlbbddyTCU8ZowoiIUzcy4Qi9fDc=
-github.com/dkoosis/conform v0.1.2 h1:HzE/E/yy94s5FRQyY/GWok9VTCjIvmqHl7v9gAJ5GrM=
-github.com/dkoosis/conform v0.1.2/go.mod h1:TP6zWp9VK7MlmHNCHri0EhqZmHY3jAqUrUvSNhnosOk=
-github.com/dkoosis/conform v0.2.0 h1:w8spzU4WwFIA37/qln8zSKJVHZ81afvpU9oplWkkzwY=
-github.com/dkoosis/conform v0.2.0/go.mod h1:Zq32Tf2c7K8O2MPAja+pJfOWmbika4Wn5qCZoUdcKEQ=
-github.com/dkoosis/conform v0.2.1-0.20260905172110-5559869235a1 h1:5daEePJOAHSL8cojK2BszbRUmt/C5HHhSjjFa1WwfSM=
-github.com/dkoosis/conform v0.2.1-0.20260905172110-5559869235a1/go.mod h1:Zq32Tf2c7K8O2MPAja+pJfOWmbika4Wn5qCZoUdcKEQ=
+github.com/dkoosis/conform v0.2.1-0.20260907030945-a05e4f4bd54a h1:a7eoJOP21e3z5P0h4zmnp2BTDVlCWUmlxE3XP+eCsZo=
+github.com/dkoosis/conform v0.2.1-0.20260907030945-a05e4f4bd54a/go.mod h1:Zq32Tf2c7K8O2MPAja+pJfOWmbika4Wn5qCZoUdcKEQ=
 github.com/dkoosis/keyring v0.2.2 h1:Ob3hY2oSyidlyEWGovtWZcOl9KWY6K+bIZCA6qzkAZc=
 github.com/dkoosis/keyring v0.2.2/go.mod h1:EmEgoJa4a+rjxNdnzD1YerjK8vOE+r5oC5b5UfSL+AY=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
