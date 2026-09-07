@@ -21,12 +21,14 @@ import (
 func Fix(dir string) ([]string, error) {
 	var done []string
 
-	created, err := fixRoadmap(dir)
-	if err != nil {
-		return done, err
-	}
-	if created != "" {
-		done = append(done, created)
+	for _, fix := range []func(string) (string, error){fixReadme, fixRoadmap} {
+		created, err := fix(dir)
+		if err != nil {
+			return done, err
+		}
+		if created != "" {
+			done = append(done, created)
+		}
 	}
 
 	return done, nil
@@ -61,4 +63,29 @@ func fixRoadmap(dir string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("created %s — copy the ★ line from the kg's %s, then list the epics", RoadmapFile, NorthStarFile), nil
+}
+
+// fixReadme writes a README.md skeleton when the repo root carries none.
+//
+// The skeleton deliberately does not satisfy the readme rule: its first line
+// with content is a comment, so the repo stays red until a person writes the
+// heading. A --fix that turned the gate green would be reporting that someone
+// had introduced the repo when nobody had.
+func fixReadme(dir string) (string, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(abs, ReadmeFile)
+	if _, err := os.Stat(path); err == nil {
+		return "", nil // present — its heading and prose are a person's business
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	// 0o600 for the same reason fixRoadmap uses it: git makes the file
+	// world-readable the moment it tracks it, so a wider mode buys nothing.
+	if err := os.WriteFile(path, []byte(ReadmeSkeleton(filepath.Base(abs))), 0o600); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("created %s — replace the opening comment with `# %s`, then say what the repo is", ReadmeFile, filepath.Base(abs)), nil
 }

@@ -54,6 +54,7 @@ const (
 	RuleBDConfig     = "bd-config"         // bd config keys present
 	RuleHooksShape   = "hooks-shape"       // shape B: tracked .githooks
 	RulePRTemplate   = "pr-template"       // PR template present + non-empty (Surface 1 since v0.2.0)
+	RuleReadme       = "readme"            // README.md present, non-empty, opening with a heading
 	RuleRoadmap      = "roadmap"           // ROADMAP.md present, carrying a ★ destination line
 	RuleRootMinimal  = "root-minimal"      // no CLAUDE.md / ROADMAP.md / conform.json / NORTH_STAR.md at the root
 	RuleSandboxLib   = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform ships
@@ -86,6 +87,7 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkBDConfig(dir)...)
 	findings = append(findings, checkHooksShape(dir)...)
 	findings = append(findings, checkPRTemplate(dir)...)
+	findings = append(findings, checkReadme(dir)...)
 	findings = append(findings, checkRoadmap(dir)...)
 	findings = append(findings, checkRootMinimal(dir)...)
 	findings = append(findings, checkSandboxLib(dir)...)
