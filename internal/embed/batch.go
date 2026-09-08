@@ -346,13 +346,12 @@ func (c *BatchClient) ParseBatchResults(r io.Reader, fn EmbeddingHandler) error 
 			continue // Skip non-200 responses
 		}
 
-		// Parse the embedding from response body. DisallowUnknownFields turns a
-		// Voyage response-shape drift into a loud decode error instead of a
-		// silent partial parse (sn-sts2, same contract as the sync Embed path).
-		bodyDec := json.NewDecoder(bytes.NewReader(resp.Response.Body))
-		bodyDec.DisallowUnknownFields()
+		// Parse the embedding from response body. Unknown fields are tolerated
+		// for the same reason as the sync Embed path (client.go): Voyage may
+		// add response metadata, and the empty-embedding check below is what
+		// actually catches a harmful shape change (sn-sts2).
 		var embResult EmbeddingResponse
-		if err := bodyDec.Decode(&embResult); err != nil {
+		if err := json.Unmarshal(resp.Response.Body, &embResult); err != nil {
 			return fmt.Errorf("parse embedding result for %s: %w", resp.CustomID, err)
 		}
 

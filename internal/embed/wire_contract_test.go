@@ -13,9 +13,11 @@ import (
 
 // wireFixture reads a raw Voyage response body from testdata/. These are the
 // golden fixtures for the response-shape contract shared by the sync Embed
-// path (client.go) and the batch ParseBatchResults path (batch.go): every
-// case here must be rejected — error, never a save — because each once
-// reached the store as a nil or zero-length embedding (sn-7xp, sn-sts2).
+// path (client.go) and the batch ParseBatchResults path (batch.go): a
+// sparse or zero-length embedding must be rejected — error, never a save —
+// because each once reached the store as a nil or zero-length embedding
+// (sn-7xp, sn-sts2). An unknown field is the deliberate counter-case: Voyage
+// is an external API, so additive drift stays tolerated.
 func wireFixture(t *testing.T, name string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", name))
@@ -36,95 +38,100 @@ func serveFixture(t *testing.T, name string) *httptest.Server {
 	return server
 }
 
-// --- Client.Embed (sync path) ---
-
-func TestEmbed_WireContract_SparseResponse(t *testing.T) {
-	// 2 texts requested, fixture returns data for only 1 (index 0) — must
-	// error rather than return a result with a nil slot at index 1.
-	server := serveFixture(t, "voyage_sparse.json")
-
-	got, err := testClient(server.URL).Embed(context.Background(), []string{"a", "b"}, "document")
-	if err == nil {
-		t.Fatalf("expected error for sparse response, got result: %#v", got)
+// TestEmbed_WireContract drives Client.Embed against each golden fixture.
+func TestEmbed_WireContract(t *testing.T) {
+	cases := []struct {
+		name string
+		// fixture is the raw Voyage 200 body the server returns.
+		fixture string
+		// texts is the request — its length sets how many slots must fill.
+		texts []string
+		// wantErrContains empty means the response must be accepted.
+		wantErrContains string
+		// wantEmbeddings is checked only on the accepted cases.
+		wantEmbeddings [][]float32
+		why            string
+	}{
+		{
+			name:            "sparse response leaves a slot unfilled",
+			fixture:         "voyage_sparse.json",
+			texts:           []string{"a", "b"},
+			wantErrContains: "missing",
+			why:             "2 texts requested, data for index 0 only — must error, not return a nil slot at index 1",
+		},
+		{
+			name:            "present but zero-length embedding",
+			fixture:         "voyage_zero_vec.json",
+			texts:           []string{"a"},
+			wantErrContains: "missing or empty",
+			why:             "an empty vector must be rejected the same as a missing one, never returned as a zero-length success",
+		},
+		{
+			name:            "truncated body",
+			fixture:         "voyage_truncated.json",
+			texts:           []string{"a"},
+			wantErrContains: "decode response",
+			why:             "a body cut off mid-stream must surface a decode error, never a zero-value response read as a valid empty result",
+		},
+		{
+			name:            "missing index defaults to 0 and leaves a slot unfilled",
+			fixture:         "voyage_missing_index.json",
+			texts:           []string{"a", "b"},
+			wantErrContains: "missing",
+			why:             "an omitted index zero-values to 0, so index 1 never fills — the nil-slot check must still catch it",
+		},
+		{
+			name:           "unknown field is tolerated",
+			fixture:        "voyage_unknown_field.json",
+			texts:          []string{"a"},
+			wantEmbeddings: [][]float32{{0.1, 0.2}},
+			why:            "Voyage may add response metadata; strict decoding would turn a harmless addition into a total embedding outage",
+		},
 	}
-	if got != nil {
-		t.Fatalf("expected nil result on sparse-response error, got: %#v", got)
-	}
-	if !strings.Contains(err.Error(), "missing") {
-		t.Fatalf("error does not name the sparse condition: %v", err)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := serveFixture(t, tc.fixture)
+
+			got, err := testClient(server.URL).Embed(context.Background(), tc.texts, "document")
+
+			if tc.wantErrContains == "" {
+				if err != nil {
+					t.Fatalf("expected acceptance (%s), got error: %v", tc.why, err)
+				}
+				if len(got) != len(tc.wantEmbeddings) {
+					t.Fatalf("got %d embeddings, want %d", len(got), len(tc.wantEmbeddings))
+				}
+				for i, want := range tc.wantEmbeddings {
+					if len(got[i]) != len(want) {
+						t.Fatalf("embedding %d: got %#v, want %#v", i, got[i], want)
+					}
+					for j, v := range want {
+						if got[i][j] != v {
+							t.Fatalf("embedding %d: got %#v, want %#v", i, got[i], want)
+						}
+					}
+				}
+				return
+			}
+
+			if err == nil {
+				t.Fatalf("expected error (%s), got result: %#v", tc.why, got)
+			}
+			if got != nil {
+				t.Fatalf("expected nil result on error, got: %#v", got)
+			}
+			if !strings.Contains(err.Error(), tc.wantErrContains) {
+				t.Fatalf("error does not name the condition %q: %v", tc.wantErrContains, err)
+			}
+		})
 	}
 }
 
-func TestEmbed_WireContract_ZeroVectorEmbedding(t *testing.T) {
-	// data is present for the requested index, but embedding is []  — a
-	// present-but-empty vector must be rejected the same as a missing one,
-	// never returned as a zero-length "success".
-	server := serveFixture(t, "voyage_zero_vec.json")
-
-	got, err := testClient(server.URL).Embed(context.Background(), []string{"a"}, "document")
-	if err == nil {
-		t.Fatalf("expected error for zero-length embedding, got result: %#v", got)
-	}
-	if got != nil {
-		t.Fatalf("expected nil result on zero-vector error, got: %#v", got)
-	}
-}
-
-func TestEmbed_WireContract_UnknownField(t *testing.T) {
-	// An extra field on a data item (a Voyage schema addition we don't know
-	// about) must fail loudly via DisallowUnknownFields rather than silently
-	// parse past it.
-	server := serveFixture(t, "voyage_unknown_field.json")
-
-	got, err := testClient(server.URL).Embed(context.Background(), []string{"a"}, "document")
-	if err == nil {
-		t.Fatalf("expected decode error for unknown field, got result: %#v", got)
-	}
-	if got != nil {
-		t.Fatalf("expected nil result on unknown-field error, got: %#v", got)
-	}
-	if !strings.Contains(err.Error(), "decode response") {
-		t.Fatalf("error does not name the decode failure: %v", err)
-	}
-}
-
-func TestEmbed_WireContract_TruncatedBody(t *testing.T) {
-	// Body cut off mid-stream: must surface a decode error, never a
-	// zero-value EmbeddingResponse treated as a valid (empty) result.
-	server := serveFixture(t, "voyage_truncated.json")
-
-	got, err := testClient(server.URL).Embed(context.Background(), []string{"a"}, "document")
-	if err == nil {
-		t.Fatalf("expected decode error for truncated body, got result: %#v", got)
-	}
-	if got != nil {
-		t.Fatalf("expected nil result on truncated-body error, got: %#v", got)
-	}
-}
-
-func TestEmbed_WireContract_MissingIndexRegression(t *testing.T) {
-	// data item omits "index" (defaults to Go's zero value, 0). For a 2-text
-	// request that leaves index 1 unfilled — the existing nil-slot detection
-	// must still catch this rather than silently accept a partial result.
-	server := serveFixture(t, "voyage_missing_index.json")
-
-	got, err := testClient(server.URL).Embed(context.Background(), []string{"a", "b"}, "document")
-	if err == nil {
-		t.Fatalf("expected error for missing index leaving a slot unfilled, got result: %#v", got)
-	}
-	if got != nil {
-		t.Fatalf("expected nil result, got: %#v", got)
-	}
-}
-
-// --- BatchClient.ParseBatchResults (async batch path) ---
-
-// batchLineWithFixtureBody builds one JSONL line whose response.body is the
-// raw bytes of the named fixture, so the same golden fixtures exercise both
-// decode paths against the same wire contract.
-func batchLineWithFixtureBody(t *testing.T, customID string, fixture string) []byte {
+// batchLine builds one JSONL line whose response.body is the given raw bytes,
+// so the same golden fixtures exercise both decode paths.
+func batchLine(t *testing.T, customID string, body []byte) string {
 	t.Helper()
-	body := wireFixture(t, fixture)
 	line, err := json.Marshal(BatchResponse{
 		BatchID:  "batch-1",
 		CustomID: customID,
@@ -133,82 +140,88 @@ func batchLineWithFixtureBody(t *testing.T, customID string, fixture string) []b
 	if err != nil {
 		t.Fatalf("marshal batch line: %v", err)
 	}
-	return append(line, '\n')
+	return string(line) + "\n"
 }
 
-func TestParseBatchResults_WireContract_EmptyDataItems(t *testing.T) {
-	line, err := json.Marshal(BatchResponse{
-		BatchID:  "batch-1",
-		CustomID: "sym1",
-		Response: &BatchRespBody{StatusCode: 200, Body: json.RawMessage(`{"object":"list","data":[],"model":"voyage-code-3","usage":{"total_tokens":0}}`)},
-	})
-	if err != nil {
-		t.Fatalf("marshal batch line: %v", err)
+// TestParseBatchResults_WireContract holds the batch path to the same
+// contract as the sync path above.
+func TestParseBatchResults_WireContract(t *testing.T) {
+	cases := []struct {
+		name string
+		// line is built per-case because the truncated case cannot go
+		// through json.Marshal — it would fail at construction rather than
+		// at parse time.
+		line func(t *testing.T) string
+		// wantHandled empty means the row must be rejected before fn runs.
+		wantHandled []float32
+		why         string
+	}{
+		{
+			name: "zero data items",
+			line: func(t *testing.T) string {
+				return batchLine(t, "sym1", []byte(`{"object":"list","data":[],"model":"voyage-code-3","usage":{"total_tokens":0}}`))
+			},
+			why: "a 200 row carrying no data item must error rather than silently skip the symbol",
+		},
+		{
+			name: "present but zero-length embedding",
+			line: func(t *testing.T) string {
+				return batchLine(t, "sym1", wireFixture(t, "voyage_zero_vec.json"))
+			},
+			why: "an empty vector must never reach the handler, which would save it",
+		},
+		{
+			name: "truncated body",
+			line: func(t *testing.T) string {
+				return `{"batch_id":"batch-1","custom_id":"sym1","response":{"status_code":200,"body":` +
+					string(wireFixture(t, "voyage_truncated.json")) + `}}` + "\n"
+			},
+			why: "an unbalanced line must fail to decode rather than yield a zero-value row",
+		},
+		{
+			name: "unknown field is tolerated",
+			line: func(t *testing.T) string {
+				return batchLine(t, "sym1", wireFixture(t, "voyage_unknown_field.json"))
+			},
+			wantHandled: []float32{0.1, 0.2},
+			why:         "additive Voyage drift must not block importing a completed batch",
+		},
 	}
 
-	called := false
-	err = testBatchClient("").ParseBatchResults(strings.NewReader(string(line)+"\n"), func(string, []float32) error {
-		called = true
-		return nil
-	})
-	if err == nil {
-		t.Fatal("expected error for zero data items in a 200 batch row")
-	}
-	if called {
-		t.Fatal("EmbeddingHandler must not be called when data is empty")
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var handled []float32
+			called := false
+			err := testBatchClient("").ParseBatchResults(strings.NewReader(tc.line(t)), func(_ string, v []float32) error {
+				called = true
+				handled = v
+				return nil
+			})
 
-func TestParseBatchResults_WireContract_ZeroVectorEmbedding(t *testing.T) {
-	line := batchLineWithFixtureBody(t, "sym1", "voyage_zero_vec.json")
+			if tc.wantHandled != nil {
+				if err != nil {
+					t.Fatalf("expected acceptance (%s), got error: %v", tc.why, err)
+				}
+				if !called {
+					t.Fatalf("EmbeddingHandler was not called (%s)", tc.why)
+				}
+				if len(handled) != len(tc.wantHandled) {
+					t.Fatalf("handler got %#v, want %#v", handled, tc.wantHandled)
+				}
+				for i, want := range tc.wantHandled {
+					if handled[i] != want {
+						t.Fatalf("handler got %#v, want %#v", handled, tc.wantHandled)
+					}
+				}
+				return
+			}
 
-	called := false
-	err := testBatchClient("").ParseBatchResults(strings.NewReader(string(line)), func(string, []float32) error {
-		called = true
-		return nil
-	})
-	if err == nil {
-		t.Fatal("expected error for zero-length embedding in a batch row")
-	}
-	if called {
-		t.Fatal("EmbeddingHandler must not be called with a zero-length embedding")
-	}
-}
-
-func TestParseBatchResults_WireContract_UnknownField(t *testing.T) {
-	line := batchLineWithFixtureBody(t, "sym1", "voyage_unknown_field.json")
-
-	called := false
-	err := testBatchClient("").ParseBatchResults(strings.NewReader(string(line)), func(string, []float32) error {
-		called = true
-		return nil
-	})
-	if err == nil {
-		t.Fatal("expected decode error for unknown field in a batch embedding body")
-	}
-	if called {
-		t.Fatal("EmbeddingHandler must not be called when the body fails to decode")
-	}
-}
-
-func TestParseBatchResults_WireContract_TruncatedBody(t *testing.T) {
-	// The truncated fixture is not valid JSON on its own, so it can't be
-	// embedded via json.Marshal(json.RawMessage(...)) — that would compact-
-	// validate and fail at construction time instead of at parse time. Splice
-	// it into the envelope as raw text, the way a genuinely truncated stream
-	// would arrive: the whole line ends up unbalanced JSON.
-	line := `{"batch_id":"batch-1","custom_id":"sym1","response":{"status_code":200,"body":` +
-		string(wireFixture(t, "voyage_truncated.json")) + `}}` + "\n"
-
-	called := false
-	err := testBatchClient("").ParseBatchResults(strings.NewReader(line), func(string, []float32) error {
-		called = true
-		return nil
-	})
-	if err == nil {
-		t.Fatal("expected decode error for truncated batch line")
-	}
-	if called {
-		t.Fatal("EmbeddingHandler must not be called when the line fails to decode")
+			if err == nil {
+				t.Fatalf("expected error (%s)", tc.why)
+			}
+			if called {
+				t.Fatalf("EmbeddingHandler must not be called (%s)", tc.why)
+			}
+		})
 	}
 }

@@ -238,13 +238,14 @@ func (c *Client) Embed(ctx context.Context, texts []string, inputType string) ([
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 
-	// DisallowUnknownFields turns a Voyage response-shape drift into a loud
-	// decode error instead of a silent partial parse — this decoder is the
-	// wire contract under test (sn-sts2).
-	dec := json.NewDecoder(resp.Body)
-	dec.DisallowUnknownFields()
+	// Decoding stays tolerant of unknown fields on purpose: Voyage is an
+	// external API that may add response metadata, and strict decoding would
+	// turn a harmless addition into a total embedding outage. The dangerous
+	// drift — a renamed or absent embedding field — is caught by the
+	// missing/empty check below, not by the decoder (sn-sts2; the documented
+	// forward-compat exception in docs/feedback/review/json-shape-repo.md F7).
 	var embResp EmbeddingResponse
-	if err := dec.Decode(&embResp); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&embResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
