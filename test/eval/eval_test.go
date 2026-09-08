@@ -98,6 +98,21 @@ func TestEval(t *testing.T) {
 	// Print console report
 	fmt.Print(formatReport(report))
 
+	writeAndEnforce(t, report)
+}
+
+// writeAndEnforce writes the result files and enforces gates, unless zero
+// tasks were scored (e.g. the eval corpus isn't cloned). Writing "no data"
+// would overwrite previously recorded real results in the tracked output
+// files, so the skip must happen before any write, not just before gate
+// enforcement (sn-9gwk).
+func writeAndEnforce(t *testing.T, report EvalReport) {
+	t.Helper()
+
+	if scoredTaskCount(report) == 0 {
+		t.Skip("no eval tasks ran (all repos skipped) — run 'mage EvalSetup' to enable gate enforcement")
+	}
+
 	// Write outputs
 	writeReportJSON(t, report)
 	appendReportJSONL(t, report)
@@ -105,6 +120,25 @@ func TestEval(t *testing.T) {
 
 	// Enforce gates — the report labels above are cosmetic; these fail the build.
 	enforceGates(t, report)
+}
+
+// scoredTaskCount returns how many tasks across all (non-skipped) repos
+// produced a scored result, i.e. weren't a known_gap. Zero means nothing
+// was actually run this pass — either every repo was skipped (no corpus)
+// or every task in the benchmark is a known gap.
+func scoredTaskCount(report EvalReport) int {
+	scored := 0
+	for _, repo := range report.Repos {
+		if repo.Skipped {
+			continue
+		}
+		for _, tr := range repo.Tasks {
+			if !tr.KnownGap {
+				scored++
+			}
+		}
+	}
+	return scored
 }
 
 // countEmbeddings reports how many vector embeddings the repo's index holds,
@@ -130,19 +164,10 @@ func enforceGates(t *testing.T, report EvalReport) {
 	// When every repo is skipped (e.g. .eval-repos absent — run 'mage EvalSetup'),
 	// aggregateReport leaves all metrics at zero. Enforcing gates on zeros would
 	// emit four bogus GATE FAILs and break `make audit` on a fresh checkout, so
-	// skip enforcement when nothing was actually scored.
-	scored := 0
-	for _, repo := range report.Repos {
-		if repo.Skipped {
-			continue
-		}
-		for _, tr := range repo.Tasks {
-			if !tr.KnownGap {
-				scored++
-			}
-		}
-	}
-	if scored == 0 {
+	// skip enforcement when nothing was actually scored. writeAndEnforce already
+	// skips before this is reached, but keep the guard here too: enforceGates
+	// must never trust a caller to have checked first.
+	if scoredTaskCount(report) == 0 {
 		t.Skip("no eval tasks ran (all repos skipped) — run 'mage EvalSetup' to enable gate enforcement")
 	}
 
@@ -353,4 +378,148 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// TestSkipPathPerformsNoWrite is the sn-9gwk regression: a report where
+// every repo was skipped (the no-corpus case) must not touch the tracked
+// result files at all, even though a fresh checkout has no corpus and hits
+// this path on every `make audit`. Runs against the real repoRoot output
+// paths — the exact files the bug blanked — rather than a fake tree, so a
+// reintroduced write is caught where it would actually do damage.
+func TestSkipPathPerformsNoWrite(t *testing.T) {
+	statusPath := filepath.Join(repoRoot, "docs", "eval", "task_status.txt")
+	resultsPath := filepath.Join(repoRoot, "docs", "eval", "EVAL_RESULTS.json")
+	jsonlPath := filepath.Join(repoRoot, ".snipe", "eval.jsonl")
+
+	before := snapshotFile(t, statusPath)
+	beforeResults := snapshotFile(t, resultsPath)
+	beforeJSONL := snapshotFile(t, jsonlPath)
+
+	allSkipped := EvalReport{
+		Repos: []RepoResult{
+			{Name: "chi", Skipped: true},
+			{Name: "cobra", Skipped: true},
+			{Name: "bbolt", Skipped: true},
+			{Name: "fzf", Skipped: true},
+			{Name: "orca", Skipped: true},
+		},
+	}
+
+	t.Run("skip", func(t *testing.T) {
+		writeAndEnforce(t, allSkipped)
+	})
+
+	if got := snapshotFile(t, statusPath); got != before {
+		t.Errorf("skip path modified %s:\n--- before ---\n%s\n--- after ---\n%s", statusPath, before, got)
+	}
+	if got := snapshotFile(t, resultsPath); got != beforeResults {
+		t.Errorf("skip path modified %s:\n--- before ---\n%s\n--- after ---\n%s", resultsPath, beforeResults, got)
+	}
+	if got := snapshotFile(t, jsonlPath); got != beforeJSONL {
+		t.Errorf("skip path modified %s:\n--- before ---\n%s\n--- after ---\n%s", jsonlPath, beforeJSONL, got)
+	}
+}
+
+// TestScoredTaskCount pins the counting rule writeAndEnforce and
+// enforceGates both gate on: a skipped repo contributes nothing, and a
+// known-gap task doesn't count as scored even in a repo that ran.
+func TestScoredTaskCount(t *testing.T) {
+	cases := []struct {
+		name   string
+		report EvalReport
+		want   int
+	}{
+		{"no repos", EvalReport{}, 0},
+		{"all skipped", EvalReport{Repos: []RepoResult{{Name: "chi", Skipped: true}}}, 0},
+		{
+			"skipped repo carries stale tasks, still doesn't count",
+			EvalReport{Repos: []RepoResult{{
+				Name:    "chi",
+				Skipped: true,
+				Tasks:   []TaskResult{{ID: "t1"}},
+			}}},
+			0,
+		},
+		{
+			"ran repo, all known gaps",
+			EvalReport{Repos: []RepoResult{{
+				Name:  "chi",
+				Tasks: []TaskResult{{ID: "t1", KnownGap: true}, {ID: "t2", KnownGap: true}},
+			}}},
+			0,
+		},
+		{
+			"ran repo, mixed",
+			EvalReport{Repos: []RepoResult{{
+				Name:  "chi",
+				Tasks: []TaskResult{{ID: "t1", KnownGap: true}, {ID: "t2"}, {ID: "t3"}},
+			}}},
+			2,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := scoredTaskCount(tc.report); got != tc.want {
+				t.Errorf("scoredTaskCount() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestWriteAndEnforce_WritesWhenScored covers the AC leg "the write path
+// still works when the corpus is present" without needing the real corpus
+// cloned: it points repoRoot at a scratch dir and asserts a report with a
+// real scored task does get written, so the sn-9gwk fix didn't turn the
+// skip guard into a global no-write.
+func TestWriteAndEnforce_WritesWhenScored(t *testing.T) {
+	orig := repoRoot
+	repoRoot = t.TempDir()
+	t.Cleanup(func() { repoRoot = orig })
+
+	report := EvalReport{
+		Repos: []RepoResult{{
+			Name:  "chi",
+			Tasks: []TaskResult{{ID: "t1", FileAccuracy: true, SymbolAccuracy: true}},
+		}},
+		FileAcc:    100,
+		SymbolAcc:  100,
+		Efficiency: 100,
+		MeanMRR:    1.0,
+		ByCategory: map[string]CategoryScore{},
+	}
+
+	writeAndEnforce(t, report)
+
+	statusPath := filepath.Join(repoRoot, "docs", "eval", "task_status.txt")
+	status, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatalf("expected %s to be written: %v", statusPath, err)
+	}
+	if !strings.Contains(string(status), "t1") {
+		t.Errorf("%s missing task id, got: %q", statusPath, status)
+	}
+
+	resultsPath := filepath.Join(repoRoot, "docs", "eval", "EVAL_RESULTS.json")
+	if _, err := os.ReadFile(resultsPath); err != nil {
+		t.Fatalf("expected %s to be written: %v", resultsPath, err)
+	}
+
+	jsonlPath := filepath.Join(repoRoot, ".snipe", "eval.jsonl")
+	if _, err := os.ReadFile(jsonlPath); err != nil {
+		t.Fatalf("expected %s to be written: %v", jsonlPath, err)
+	}
+}
+
+// snapshotFile returns a file's content, or a sentinel if it doesn't exist.
+func snapshotFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "<absent>"
+		}
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return string(data)
 }
