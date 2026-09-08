@@ -66,7 +66,7 @@ audit: check race blackbox eval vuln ## Exhaustive: +race +blackbox +eval +vuln
 	@echo "=== audit pass ==="
 
 deploy: install ## Build, install, and verify
-	@echo "=== deployed ($$(snipe version 2>/dev/null || echo unknown)) ==="
+	@echo "deployed /usr/local/bin/snipe ($$(/usr/local/bin/snipe version 2>&1 | head -1))"
 
 report: ## Structured QA output for agents/tools (always exits 0)
 	@( $(REPORT_CMD) ) | fo --format llm --state-file .fo/report.json || true
@@ -103,8 +103,11 @@ vuln: ## Scan for known vulnerabilities
 ## Build
 ## ---------------------------------------------------------------------
 
-install: ## Build and install snipe to $GOPATH/bin
-	go install -ldflags '$(LDFLAGS)' .
+install: ## Build and install snipe to /usr/local/bin
+	@mkdir -p /usr/local/bin 2>/dev/null || true
+	@go build -ldflags '$(LDFLAGS)' -o /usr/local/bin/snipe .
+	@rm -f $$(go env GOPATH)/bin/snipe 2>/dev/null || true
+	@echo "installed /usr/local/bin/snipe ($$(/usr/local/bin/snipe version 2>&1 | head -1))"
 
 clean: ## Remove build artifacts
 	rm -rf .bin bin .snipe .sandbox/bin/linux-amd64 .sandbox/bin/linux-arm64 .sandbox/cache
