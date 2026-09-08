@@ -138,7 +138,10 @@ eval-setup: ## Clone and index benchmark repos
 	done
 
 eval: ## Run localization benchmark
-	go test -v -tags=eval -run TestEval -timeout=10m ./test/eval/
+	# No -run filter: the `eval` build tag already scopes this to the eval
+	# package, and a name filter silently excludes its regression tests
+	# (sn-9gwk) from the merge gate.
+	go test -v -tags=eval -timeout=10m ./test/eval/
 
 ## ---------------------------------------------------------------------
 ## Utilities
