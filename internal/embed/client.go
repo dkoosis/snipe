@@ -238,6 +238,12 @@ func (c *Client) Embed(ctx context.Context, texts []string, inputType string) ([
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 
+	// Decoding stays tolerant of unknown fields on purpose: Voyage is an
+	// external API that may add response metadata, and strict decoding would
+	// turn a harmless addition into a total embedding outage. The dangerous
+	// drift — a renamed or absent embedding field — is caught by the
+	// missing/empty check below, not by the decoder (sn-sts2; the documented
+	// forward-compat exception in docs/feedback/review/json-shape-repo.md F7).
 	var embResp EmbeddingResponse
 	if err := json.NewDecoder(resp.Body).Decode(&embResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
@@ -250,16 +256,19 @@ func (c *Client) Embed(ctx context.Context, texts []string, inputType string) ([
 		}
 	}
 
-	// Detect sparse responses — Voyage can return fewer items than requested
-	// with no top-level error, which would silently write nil embeddings.
+	// Detect sparse/zero-vector responses — Voyage can return fewer items
+	// than requested, or an item with a present-but-empty embedding array,
+	// with no top-level error. Either would silently write a nil or
+	// zero-length embedding to the store (sn-7xp) if not caught here;
+	// len(v) == 0 catches both the never-filled (nil) and empty-array cases.
 	missing := 0
 	for _, v := range result {
-		if v == nil {
+		if len(v) == 0 {
 			missing++
 		}
 	}
 	if missing > 0 {
-		return nil, fmt.Errorf("embed: %d of %d responses missing from API", missing, len(texts))
+		return nil, fmt.Errorf("embed: %d of %d responses missing or empty from API", missing, len(texts))
 	}
 
 	return result, nil
