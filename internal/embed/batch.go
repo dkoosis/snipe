@@ -346,16 +346,26 @@ func (c *BatchClient) ParseBatchResults(r io.Reader, fn EmbeddingHandler) error 
 			continue // Skip non-200 responses
 		}
 
-		// Parse the embedding from response body
+		// Parse the embedding from response body. DisallowUnknownFields turns a
+		// Voyage response-shape drift into a loud decode error instead of a
+		// silent partial parse (sn-sts2, same contract as the sync Embed path).
+		bodyDec := json.NewDecoder(bytes.NewReader(resp.Response.Body))
+		bodyDec.DisallowUnknownFields()
 		var embResult EmbeddingResponse
-		if err := json.Unmarshal(resp.Response.Body, &embResult); err != nil {
+		if err := bodyDec.Decode(&embResult); err != nil {
 			return fmt.Errorf("parse embedding result for %s: %w", resp.CustomID, err)
 		}
 
-		if len(embResult.Data) > 0 {
-			if err := fn(resp.CustomID, embResult.Data[0].Embedding); err != nil {
-				return fmt.Errorf("process embedding for %s: %w", resp.CustomID, err)
-			}
+		// A 200 batch row with zero data items, or a data item whose embedding
+		// is present but zero-length, is a sparse/zero-vector response
+		// (sn-7xp) — error instead of forwarding an empty vector to fn, which
+		// would otherwise be saved as a zero embedding.
+		if len(embResult.Data) == 0 || len(embResult.Data[0].Embedding) == 0 {
+			return fmt.Errorf("embed: empty or missing embedding for %s in batch response", resp.CustomID)
+		}
+
+		if err := fn(resp.CustomID, embResult.Data[0].Embedding); err != nil {
+			return fmt.Errorf("process embedding for %s: %w", resp.CustomID, err)
 		}
 	}
 

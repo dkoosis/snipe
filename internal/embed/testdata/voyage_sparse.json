@@ -1,0 +1,8 @@
+{
+  "object": "list",
+  "data": [
+    {"object": "embedding", "embedding": [0.1, 0.2], "index": 0}
+  ],
+  "model": "voyage-code-3",
+  "usage": {"total_tokens": 10}
+}
