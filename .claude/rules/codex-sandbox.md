@@ -41,7 +41,7 @@ snipe search "pattern"            # text search (uses rg, no index needed)
 
 ## Conventions the code does not state
 
-- **Error handling:** wrap with context via `fmt.Errorf("context: %w", err)`.
+- **Error handling:** wrap with a descriptive context string via `fmt.Errorf("<description>: %w", err)`.
 - **Testing:** table-driven, in-memory SQLite for query tests (see `resolve_test.go`).
 
 *Dropped in the move, as derivable: the project-structure tree (`dtree -d 2`), the QA table (the Makefile is the build doc), and the generic task-execution and output rules (`session-protocol.md`, `guard-rails.md`).*
