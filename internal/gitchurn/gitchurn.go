@@ -36,6 +36,12 @@ const halfLifeDays = 180.0
 // — one person, several emails — coalesces on repos that maintain one.
 const commitSentinel = "\x01"
 
+// trailerSeparator (STX) joins a commit's repeated Bead-Type values onto the
+// single header line. ADR 0002 rule 4 forbids comma-joining the trailers in
+// the commit message itself; this only affects how git renders them here, and
+// a control character can never appear inside a trailer value.
+const trailerSeparator = "\x02"
+
 // FileChurn is the git change-frequency record for one file, keyed by a
 // repo-relative path so it joins directly against the symbols table.
 type FileChurn struct {
@@ -45,6 +51,59 @@ type FileChurn struct {
 	FirstSeen   string  // YYYY-MM-DD of the earliest touching commit
 	LastChanged string  // YYYY-MM-DD of the latest touching commit
 	Score       float64 // recency-weighted churn (see halfLifeDays)
+
+	// Per-type commit counts, classified from each commit's Bead-Type
+	// trailer (sdlc ADR 0002). Every touching commit lands in exactly one
+	// bucket, so Bug+Feature+Chore+Other+Untyped == Commits.
+	BugCommits     int // Bead-Type: bug — the defect-density signal
+	FeatureCommits int // Bead-Type: feature
+	ChoreCommits   int // Bead-Type: chore
+	OtherCommits   int // Bead-Type: task|epic|spike — typed, but not one of the three above
+	UntypedCommits int // no Bead-Type trailer, or a value outside the six known types
+}
+
+// beadType is a commit's classified Bead-Type bucket.
+type beadType int
+
+// Declared in ascending precedence order: classifyBeadTypes keeps the
+// largest value it sees, so bug wins over every other type on a commit that
+// serves several beads.
+const (
+	typeUntyped beadType = iota
+	typeOther
+	typeChore
+	typeFeature
+	typeBug
+)
+
+// classifyBeadTypes reduces a commit's Bead-Type values to one bucket.
+// A commit serving several beads repeats the trailer (ADR 0002 rule 4), so
+// several values can arrive at once; precedence is bug > feature > chore >
+// other, making BugCommits read as "commits that fixed at least one bug" —
+// the per-file defect count Tornhill approximates by grepping for "fix".
+// An unrecognized value (including ADR 0002 rule 5's `Bead-ID: none` commits,
+// which carry no type) is untyped: never guessed into a named bucket.
+func classifyBeadTypes(values string) beadType {
+	best := typeUntyped
+	for _, v := range strings.Split(values, trailerSeparator) {
+		var t beadType
+		switch strings.TrimSpace(v) {
+		case "bug":
+			t = typeBug
+		case "feature":
+			t = typeFeature
+		case "chore":
+			t = typeChore
+		case "task", "epic", "spike":
+			t = typeOther
+		default:
+			continue
+		}
+		if t > best {
+			best = t
+		}
+	}
+	return best
 }
 
 // Walk returns the change-frequency of every tracked *.go file in repoRoot,
@@ -67,7 +126,8 @@ func Walk(repoRoot string) ([]FileChurn, error) {
 	// to Go sources, which is all snipe indexes.
 	cmd := exec.Command("git", "-C", repoRoot, "log",
 		"--no-merges", "--no-renames",
-		"--pretty=tformat:"+commitSentinel+"%aI\t%aE",
+		"--pretty=tformat:"+commitSentinel+"%aI\t%aE\t"+
+			"%(trailers:key=Bead-Type,valueonly,separator=%x02)",
 		"--name-only", "--", "*.go")
 	out, err := cmd.Output()
 	if err != nil {
@@ -122,12 +182,14 @@ func parseLog(stream string) []FileChurn {
 		authors     map[string]struct{}
 		first, last time.Time
 		score       float64
+		byType      [typeBug + 1]int
 	}
 	byPath := make(map[string]*acc)
 
 	var (
 		curDate  time.Time
 		curEmail string
+		curType  beadType
 		haveCur  bool
 		refDate  time.Time // newest commit date, set from the first header
 	)
@@ -138,13 +200,22 @@ func parseLog(stream string) []FileChurn {
 		line := sc.Text()
 		if strings.HasPrefix(line, commitSentinel) {
 			rest := line[len(commitSentinel):]
-			iso, email, _ := strings.Cut(rest, "\t")
+			fields := strings.SplitN(rest, "\t", 3)
+			iso := fields[0]
+			var email, trailers string
+			if len(fields) > 1 {
+				email = fields[1]
+			}
+			if len(fields) > 2 {
+				trailers = fields[2]
+			}
 			t, err := time.Parse(time.RFC3339, iso)
 			if err != nil {
 				haveCur = false
 				continue
 			}
 			curDate, curEmail, haveCur = t, email, true
+			curType = classifyBeadTypes(trailers)
 			if refDate.IsZero() {
 				refDate = t
 			}
@@ -161,6 +232,7 @@ func parseLog(stream string) []FileChurn {
 		}
 		a.commits++
 		a.authors[curEmail] = struct{}{}
+		a.byType[curType]++
 		if curDate.Before(a.first) {
 			a.first = curDate
 		}
@@ -180,6 +252,12 @@ func parseLog(stream string) []FileChurn {
 			FirstSeen:   a.first.Format("2006-01-02"),
 			LastChanged: a.last.Format("2006-01-02"),
 			Score:       a.score,
+
+			BugCommits:     a.byType[typeBug],
+			FeatureCommits: a.byType[typeFeature],
+			ChoreCommits:   a.byType[typeChore],
+			OtherCommits:   a.byType[typeOther],
+			UntypedCommits: a.byType[typeUntyped],
 		})
 	}
 	sortByCommits(out)

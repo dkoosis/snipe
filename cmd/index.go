@@ -1315,6 +1315,12 @@ func computeChurn(s *store.Store) error {
 			FirstSeen:   r.FirstSeen,
 			LastChanged: r.LastChanged,
 			Score:       r.Score,
+
+			BugCommits:     r.BugCommits,
+			FeatureCommits: r.FeatureCommits,
+			ChoreCommits:   r.ChoreCommits,
+			OtherCommits:   r.OtherCommits,
+			UntypedCommits: r.UntypedCommits,
 		}
 	}
 	if err := s.WriteFileChurn(churn); err != nil {

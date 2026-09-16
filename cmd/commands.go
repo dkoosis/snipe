@@ -329,6 +329,7 @@ type MetricsCmd struct {
 	Kind  string `default:"pagerank" help:"Metric kind (or comma-separated list for a merged table): pagerank|hub|authority|in_degree|out_degree|eigenvector|betweenness|cycles|topo|ca|ce|coupling|instability|abstractness|distance|lcom4|cyclo|cognitive|churn|usage"`
 	Graph string `default:"imports" help:"Graph kind ('imports' or 'calls')"`
 	Pkg   string `help:"Filter to a single package (suffix-matches package import path)"`
+	By    string `default:"commits" help:"Rank churn rows by: commits|bug|feature|chore|score (--kind=churn only)"`
 }
 
 func (c *MetricsCmd) Run() error {
@@ -336,6 +337,7 @@ func (c *MetricsCmd) Run() error {
 	metricsKind = c.Kind
 	metricsGraph = c.Graph
 	metricsPkg = c.Pkg
+	metricsBy = c.By
 	return runMetrics()
 }
 

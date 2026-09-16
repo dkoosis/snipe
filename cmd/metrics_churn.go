@@ -19,7 +19,17 @@ const kindChurn = "churn"
 // (Tornhill, Your Code as a Crime Scene; Nagappan & Ball, ICSE 2005). An
 // empty table means a non-git checkout or an un-indexed repo, not an error.
 func runChurnMetrics(s *store.Store, dir string, startedAt time.Time) error {
-	rows, err := s.ReadFileChurnTopN(0) // read all; filter/truncate below
+	by := store.ChurnRankBy(metricsBy)
+	if metricsBy == "" {
+		by = store.ChurnRankCommits
+	}
+	if !store.ValidChurnRankBy(by) {
+		return output.NewWriter(os.Stdout, GetOutputFormat()).WriteError(cmdNameMetrics, &output.Error{
+			Code:    output.ErrInternal,
+			Message: fmt.Sprintf("unknown --by %q (want commits|bug|feature|chore|score)", metricsBy),
+		})
+	}
+	rows, err := s.ReadFileChurnRanked(by, 0) // read all; filter/truncate below
 	if err != nil {
 		return fmt.Errorf("read file churn: %w", err)
 	}
@@ -43,7 +53,7 @@ func runChurnMetrics(s *store.Store, dir string, startedAt time.Time) error {
 			Results:  rows,
 			Meta: output.Meta{
 				Command:  cmdNameMetrics,
-				Query:    map[string]string{jsonKeyKind: kindChurn, flagPkg: metricsPkg},
+				Query:    map[string]string{jsonKeyKind: kindChurn, flagPkg: metricsPkg, "by": string(by)},
 				RepoRoot: dir,
 				Ms:       time.Since(startedAt).Milliseconds(),
 				Total:    len(rows),
@@ -60,10 +70,14 @@ func runChurnMetrics(s *store.Store, dir string, startedAt time.Time) error {
 		_, err = os.Stdout.WriteString(b.String())
 		return err
 	}
-	fmt.Fprintf(&b, "git history · churn · %d files (commits = revisions; authors = distinct committers / bus factor)\n", len(rows))
-	fmt.Fprintf(&b, "  %7s %7s  %-12s  %s\n", "commits", "authors", "last-changed", "path")
+	fmt.Fprintf(&b, "git history · churn · %d files by %s "+
+		"(commits = revisions; bug/feat/chore from Bead-Type trailers, untyped = no trailer)\n", len(rows), by)
+	fmt.Fprintf(&b, "  %7s %5s %5s %5s %5s %7s  %-12s  %s\n",
+		"commits", "bug", "feat", "chore", "other", "untyped", "last-changed", "path")
 	for _, r := range rows {
-		fmt.Fprintf(&b, "  %7d %7d  %-12s  %s\n", r.Commits, r.Authors, r.LastChanged, r.Path)
+		fmt.Fprintf(&b, "  %7d %5d %5d %5d %5d %7d  %-12s  %s\n",
+			r.Commits, r.BugCommits, r.FeatureCommits, r.ChoreCommits, r.OtherCommits,
+			r.UntypedCommits, r.LastChanged, r.Path)
 	}
 	_, err = os.Stdout.WriteString(b.String())
 	return err
