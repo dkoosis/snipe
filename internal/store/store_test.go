@@ -120,8 +120,11 @@ func TestSchemaCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetMeta(schema_version) failed: %v", err)
 	}
-	if version != "20" {
-		t.Errorf("schema_version = %q, want %q", version, "20")
+	// Compare against the constant, not a literal: every migration would
+	// otherwise fail this test for no reason.
+	want := fmt.Sprintf("%d", schemaVersion)
+	if version != want {
+		t.Errorf("schema_version = %q, want %q", version, want)
 	}
 }
 

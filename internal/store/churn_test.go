@@ -81,3 +81,70 @@ func TestWriteFileChurnReplaces(t *testing.T) {
 		t.Errorf("empty write should clear table, got %+v", got)
 	}
 }
+
+// The per-type counts written by `snipe index` must survive a round trip
+// unchanged — they are the Bead-Type breakdown hotspot ranking reads.
+func TestFileChurnBeadTypeRoundTrip(t *testing.T) {
+	s := churnTestStore(t)
+	want := FileChurn{
+		Path: "internal/a.go", Commits: 10, Authors: 2,
+		FirstSeen: "2026-01-01", LastChanged: "2026-06-01", Score: 4.5,
+		BugCommits: 4, FeatureCommits: 3, ChoreCommits: 1, OtherCommits: 1, UntypedCommits: 1,
+	}
+	if err := s.WriteFileChurn([]FileChurn{want}); err != nil {
+		t.Fatalf("WriteFileChurn: %v", err)
+	}
+	got, err := s.ReadFileChurnTopN(0)
+	if err != nil {
+		t.Fatalf("ReadFileChurnTopN: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d rows, want 1", len(got))
+	}
+	if got[0] != want {
+		t.Errorf("round trip mismatch:\n got %+v\nwant %+v", got[0], want)
+	}
+}
+
+// Ranking by bug_commits surfaces a quiet file that keeps attracting defects
+// over a noisy one that never does — the whole point of the Bead-Type split.
+func TestReadFileChurnRankedByBug(t *testing.T) {
+	s := churnTestStore(t)
+	rows := []FileChurn{
+		{Path: "busy.go", Commits: 50, BugCommits: 1, FirstSeen: "2026-01-01", LastChanged: "2026-06-01"},
+		{Path: "buggy.go", Commits: 5, BugCommits: 4, FirstSeen: "2026-01-01", LastChanged: "2026-06-01"},
+		{Path: "calm.go", Commits: 3, BugCommits: 0, FirstSeen: "2026-01-01", LastChanged: "2026-06-01"},
+	}
+	if err := s.WriteFileChurn(rows); err != nil {
+		t.Fatalf("WriteFileChurn: %v", err)
+	}
+
+	byCommits, err := s.ReadFileChurnRanked(ChurnRankCommits, 0)
+	if err != nil {
+		t.Fatalf("ranked by commits: %v", err)
+	}
+	if byCommits[0].Path != "busy.go" {
+		t.Errorf("by commits: first = %q, want busy.go", byCommits[0].Path)
+	}
+
+	byBug, err := s.ReadFileChurnRanked(ChurnRankBug, 0)
+	if err != nil {
+		t.Fatalf("ranked by bug: %v", err)
+	}
+	for i, want := range []string{"buggy.go", "busy.go", "calm.go"} {
+		if byBug[i].Path != want {
+			t.Errorf("by bug: row %d = %q, want %q", i, byBug[i].Path, want)
+		}
+	}
+}
+
+func TestValidChurnRankBy(t *testing.T) {
+	for _, by := range []ChurnRankBy{ChurnRankCommits, ChurnRankBug, ChurnRankFeature, ChurnRankChore, ChurnRankScore} {
+		if !ValidChurnRankBy(by) {
+			t.Errorf("%q should be valid", by)
+		}
+	}
+	if ValidChurnRankBy("authors") {
+		t.Error(`"authors" should not be valid`)
+	}
+}

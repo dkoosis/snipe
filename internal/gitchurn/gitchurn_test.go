@@ -31,6 +31,13 @@ func gitRepo(t *testing.T) string {
 // commit writes files then commits them with a fixed date and author.
 func commit(t *testing.T, dir, date, author string, files map[string]string) {
 	t.Helper()
+	commitMsg(t, dir, date, author, "c", files)
+}
+
+// commitMsg is commit with an explicit message, so a test can attach
+// Bead-Type trailers (sdlc ADR 0002).
+func commitMsg(t *testing.T, dir, date, author, msg string, files map[string]string) {
+	t.Helper()
 	for name, body := range files {
 		p := filepath.Join(dir, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -53,7 +60,7 @@ func commit(t *testing.T, dir, date, author string, files map[string]string) {
 		"GIT_COMMITTER_NAME=" + author,
 		"GIT_COMMITTER_EMAIL=" + author + "@example.com",
 	}
-	c := exec.Command("git", "commit", "-q", "-m", "c")
+	c := exec.Command("git", "commit", "-q", "-m", msg)
 	c.Dir = dir
 	c.Env = append(os.Environ(), env...)
 	if out, err := c.CombinedOutput(); err != nil {
@@ -267,5 +274,111 @@ func TestWalkEmptyRepoIsNoOp(t *testing.T) {
 	}
 	if len(rows) != 0 {
 		t.Errorf("empty repo should yield no churn, got %+v", rows)
+	}
+}
+
+func TestWalkClassifiesBeadTypeTrailers(t *testing.T) {
+	dir := gitRepo(t)
+	// Every commit touches hot.go, so one file carries all four classes.
+	commitMsg(t, dir, "2026-01-01T00:00:00Z", "alice",
+		"seed\n\nBead-ID: sn-1\nBead-Type: bug\n",
+		map[string]string{"hot.go": "package p\nvar A int\n"})
+	commitMsg(t, dir, "2026-02-01T00:00:00Z", "alice",
+		"add\n\nBead-ID: sn-2\nBead-Type: feature\n",
+		map[string]string{"hot.go": "package p\nvar A, B int\n"})
+	commitMsg(t, dir, "2026-03-01T00:00:00Z", "alice",
+		"tidy\n\nBead-ID: sn-3\nBead-Type: chore\n",
+		map[string]string{"hot.go": "package p\nvar A, B, C int\n"})
+	commitMsg(t, dir, "2026-04-01T00:00:00Z", "alice",
+		"work\n\nBead-ID: sn-4\nBead-Type: task\n",
+		map[string]string{"hot.go": "package p\nvar A, B, C, D int\n"})
+	commit(t, dir, "2026-05-01T00:00:00Z", "alice",
+		map[string]string{"hot.go": "package p\nvar A, B, C, D, E int\n"})
+
+	rows, err := Walk(dir)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	got := byPath(rows)["hot.go"]
+	if got.Commits != 5 {
+		t.Fatalf("commits = %d, want 5", got.Commits)
+	}
+	for _, c := range []struct {
+		name string
+		got  int
+	}{
+		{"bug", got.BugCommits},
+		{"feature", got.FeatureCommits},
+		{"chore", got.ChoreCommits},
+		{"other", got.OtherCommits},
+		{"untyped", got.UntypedCommits},
+	} {
+		if c.got != 1 {
+			t.Errorf("%s_commits = %d, want 1", c.name, c.got)
+		}
+	}
+	sum := got.BugCommits + got.FeatureCommits + got.ChoreCommits + got.OtherCommits + got.UntypedCommits
+	if sum != got.Commits {
+		t.Errorf("per-type sum = %d, want commits = %d", sum, got.Commits)
+	}
+}
+
+func TestWalkUntypedWhenNoTrailers(t *testing.T) {
+	dir := gitRepo(t)
+	commit(t, dir, "2026-01-01T00:00:00Z", "alice",
+		map[string]string{"a.go": "package p\n"})
+	commit(t, dir, "2026-02-01T00:00:00Z", "bob",
+		map[string]string{"a.go": "package p\nvar X int\n"})
+
+	rows, err := Walk(dir)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if len(rows) == 0 {
+		t.Fatal("no churn rows")
+	}
+	for _, r := range rows {
+		if r.UntypedCommits != r.Commits {
+			t.Errorf("%s: untyped = %d, want commits = %d", r.Path, r.UntypedCommits, r.Commits)
+		}
+		if r.BugCommits+r.FeatureCommits+r.ChoreCommits+r.OtherCommits != 0 {
+			t.Errorf("%s: typed buckets non-zero on a trailer-free repo", r.Path)
+		}
+	}
+}
+
+// A commit serving several beads repeats the trailer (ADR 0002 rule 4); it
+// counts once, in the highest-precedence bucket.
+func TestWalkMultiBeadCommitCountsOnceAsBug(t *testing.T) {
+	dir := gitRepo(t)
+	commitMsg(t, dir, "2026-01-01T00:00:00Z", "alice",
+		"two beads\n\nBead-ID: sn-1\nBead-Type: feature\nBead-ID: sn-2\nBead-Type: bug\n",
+		map[string]string{"a.go": "package p\n"})
+
+	rows, err := Walk(dir)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	got := byPath(rows)["a.go"]
+	if got.Commits != 1 || got.BugCommits != 1 || got.FeatureCommits != 0 {
+		t.Errorf("commits=%d bug=%d feature=%d, want 1/1/0",
+			got.Commits, got.BugCommits, got.FeatureCommits)
+	}
+}
+
+// ADR 0002 rule 5: a bead-less commit carries `Bead-ID: none` and no type.
+func TestWalkBeadlessCommitIsUntyped(t *testing.T) {
+	dir := gitRepo(t)
+	commitMsg(t, dir, "2026-01-01T00:00:00Z", "alice",
+		"no bead\n\nBead-ID: none\n",
+		map[string]string{"a.go": "package p\n"})
+
+	rows, err := Walk(dir)
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	got := byPath(rows)["a.go"]
+	if got.UntypedCommits != 1 {
+		t.Errorf("untyped = %d, want 1", got.UntypedCommits)
 	}
 }

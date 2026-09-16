@@ -27,3 +27,5 @@ Flags:
       --graph="imports"     Graph kind ('imports' or 'calls')
       --pkg=STRING          Filter to a single package (suffix-matches package
                             import path)
+      --by="commits"        Rank churn rows by: commits|bug|feature|chore|score
+                            (--kind=churn only)

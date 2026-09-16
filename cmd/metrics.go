@@ -20,6 +20,7 @@ var (
 	metricsKind  string
 	metricsGraph string
 	metricsPkg   string
+	metricsBy    string
 )
 
 func runMetrics() error {

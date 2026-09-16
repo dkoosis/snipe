@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 20
+const schemaVersion = 21
 
 // migration represents a database migration.
 type migration struct {
@@ -295,6 +295,18 @@ var migrations = []migration{
 			source        TEXT NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_file_packages_pkg ON file_packages(pkg_path);
+		`,
+	},
+	{
+		version: 21,
+		name:    "file_churn_bead_types",
+		up: `
+		ALTER TABLE file_churn ADD COLUMN bug_commits     INT NOT NULL DEFAULT 0;
+		ALTER TABLE file_churn ADD COLUMN feature_commits INT NOT NULL DEFAULT 0;
+		ALTER TABLE file_churn ADD COLUMN chore_commits   INT NOT NULL DEFAULT 0;
+		ALTER TABLE file_churn ADD COLUMN other_commits   INT NOT NULL DEFAULT 0;
+		ALTER TABLE file_churn ADD COLUMN untyped_commits INT NOT NULL DEFAULT 0;
+		CREATE INDEX IF NOT EXISTS idx_file_churn_bug ON file_churn(bug_commits);
 		`,
 	},
 }
