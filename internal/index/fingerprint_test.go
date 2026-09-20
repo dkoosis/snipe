@@ -1,8 +1,11 @@
 package index
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -76,6 +79,16 @@ func TestFingerprintChangesWithGoMod(t *testing.T) {
 
 	if fp1.Combined == fp2.Combined {
 		t.Error("Different go.mod contents should produce different fingerprints")
+	}
+}
+
+// An index fingerprinted before embedInputGen existed must not match the
+// current one, or trySkipIndex keeps vectors built from the old embedding text.
+func TestCombinedHashInvalidatesPreEmbedInputGenIndexes(t *testing.T) {
+	fp := &Fingerprint{GoMod: "m", GoSum: "s", GoWork: "w", GoEnv: "e"}
+	legacy := sha256.Sum256([]byte(strings.Join([]string{"m", "s", "w", "e"}, "|")))
+	if got := computeCombinedHash(fp); got == hex.EncodeToString(legacy[:8]) {
+		t.Errorf("combined hash %s equals the pre-embedInputGen hash; existing indexes would not rebuild", got)
 	}
 }
 

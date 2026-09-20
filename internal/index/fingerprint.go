@@ -66,15 +66,23 @@ func getGoEnvHash() string {
 	return hex.EncodeToString(h[:8])
 }
 
+// embedInputGen versions the text each symbol is embedded from. Bump it when
+// that text changes shape, so existing indexes rebuild once and re-embed
+// instead of keeping vectors built from the old text (sn-6wv: "2" added the
+// package narrative and caller names).
+const embedInputGen = "2"
+
 func computeCombinedHash(fp *Fingerprint) string {
 	// Version intentionally excluded — a snipe rebuild should not
 	// invalidate the index of every target repo.  Only dependency
-	// and toolchain changes (go.mod, go.sum, go.work, go env) matter.
+	// and toolchain changes (go.mod, go.sum, go.work, go env) matter,
+	// plus embedInputGen, which is bumped by hand when embedding input changes.
 	data := strings.Join([]string{
 		fp.GoMod,
 		fp.GoSum,
 		fp.GoWork,
 		fp.GoEnv,
+		embedInputGen,
 	}, "|")
 
 	h := sha256.Sum256([]byte(data))

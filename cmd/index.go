@@ -336,13 +336,14 @@ func runIndex(args []string) error {
 
 	// Generate embeddings based on mode. Each symbol is embedded with its
 	// package narrative and caller names, not just its signature (sn-6wv).
-	ec := buildEmbedContext(symbols, edges, pkgDocs)
+	// The context is built per case so embedModeOff pays nothing for it.
 	var embedCount int
 	var embedStatus string
 	switch effectiveMode {
 	case embedModeOff:
 		embedStatus = "disabled"
 	case embedModeBatch:
+		ec := buildEmbedContext(symbols, edges, pkgDocs)
 		status, err := startBatchEmbeddings(GetContext(), s, absDir, symbols, ec, fp.Combined)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: batch embedding failed: %v\n", err)
@@ -351,12 +352,13 @@ func runIndex(args []string) error {
 			embedStatus = status
 		}
 	case embedModeRealtime:
-		ec, err := generateEmbeddings(GetContext(), s, symbols, ec)
+		ec := buildEmbedContext(symbols, edges, pkgDocs)
+		count, err := generateEmbeddings(GetContext(), s, symbols, ec)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: embedding generation failed: %v\n", err)
 			embedStatus = batchStatusFailed
 		} else {
-			embedCount = ec
+			embedCount = count
 			embedStatus = "completed"
 		}
 	}

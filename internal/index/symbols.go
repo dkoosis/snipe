@@ -498,11 +498,17 @@ func ExtractPackageDocs(result *LoadResult) []PackageDoc {
 
 // extractPackageDoc returns the best package-level doc comment for a package.
 // Prioritizes doc.go, then falls back to first file with a non-empty File.Doc.
+// _test.go files are skipped: their package comments describe verification,
+// not what the package does.
 func extractPackageDoc(pkg *packages.Package) string {
 	var fallback string
 
 	for i, file := range pkg.Syntax {
 		if i >= len(pkg.GoFiles) {
+			continue
+		}
+		filePath := pkg.GoFiles[i]
+		if strings.HasSuffix(filePath, "_test.go") {
 			continue
 		}
 		if file.Doc == nil {
@@ -513,7 +519,6 @@ func extractPackageDoc(pkg *packages.Package) string {
 			continue
 		}
 
-		filePath := pkg.GoFiles[i]
 		if filepath.Base(filePath) == "doc.go" {
 			return doc
 		}
