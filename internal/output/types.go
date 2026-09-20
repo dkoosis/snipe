@@ -151,6 +151,14 @@ type Error struct {
 	Next        *NextAction  `json:"next,omitempty"`
 	Candidates  []Candidate  `json:"candidates,omitempty"`
 	Suggestions []Suggestion `json:"suggestions,omitempty"`
+
+	// query and hintCount are telemetry-only (sn-r1do.3): the symbol the
+	// caller asked for and how many alternatives the error offered. The miss
+	// constructors set them so Writer.WriteError can fill usage.jsonl's arg
+	// and candidate_count without every call site switching to
+	// WriteErrorWithMeta. Unexported, so never serialized.
+	query     string
+	hintCount int
 }
 
 // NextAction suggests the next command to run
@@ -364,6 +372,8 @@ func NewNotFoundError(symbol string, suggestions ...string) *Error {
 			Command:     "snipe search \"" + symbol + "\"",
 			Description: "Fuzzy + semantic search; rg for non-symbol text",
 		},
+		query:     symbol,
+		hintCount: len(suggestions),
 	}
 }
 
@@ -424,6 +434,8 @@ func NewAmbiguousError(symbol string, candidates []Candidate) *Error {
 		Message:     "Multiple definitions found for '" + symbol + "'",
 		Candidates:  candidates,
 		Suggestions: SuggestionsForAmbiguous(candidates),
+		query:       symbol,
+		hintCount:   len(candidates),
 	}
 }
 

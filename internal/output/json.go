@@ -957,14 +957,16 @@ func shortPkg(p string) string {
 	return p
 }
 
-// WriteError writes an error response. It carries no query arg or
-// decision-path — callers that have one in scope at the error site (def, sym,
-// pack per sn-r1do.1's verify line) should call WriteErrorWithMeta instead so
-// usage.jsonl's NOT_FOUND/AMBIGUOUS_SYMBOL rows aren't arg-blind. This stays
-// a thin wrapper so the dozens of call sites elsewhere keep compiling
-// unchanged (additive migration, not a forced repo-wide edit).
+// WriteError writes an error response. It carries no decision-path or index
+// state — callers that have them in scope at the error site (def, sym, pack)
+// call WriteErrorWithMeta instead. The query arg and alternative count are
+// recovered from the error itself (NewNotFoundError / NewAmbiguousError
+// remember them, sn-r1do.3), so usage.jsonl's NOT_FOUND/AMBIGUOUS_SYMBOL rows
+// from refs, callers, callees, tests, impact, impl, explain, types and
+// lifecycle are not arg-blind. This stays a thin wrapper so the dozens of call
+// sites elsewhere keep compiling unchanged.
 func (w *Writer) WriteError(command string, err *Error) error {
-	return w.WriteErrorWithMeta(command, "", nil, "", 0, err)
+	return w.WriteErrorWithMeta(command, err.query, nil, "", err.hintCount, err)
 }
 
 // WriteErrorWithMeta writes an error response, enriching usage.jsonl with the
