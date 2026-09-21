@@ -729,6 +729,8 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 		}
 	}
 
+	embedBefore, refreshEmbed := beginEmbedRefresh(s)
+
 	// Extract refs ONLY for changed files (main savings)
 	fmt.Fprintf(os.Stderr, "Extracting references for %d changed files...\n", len(changedFiles))
 	fileCache := util.NewFileCache(util.DefaultMaxCachedFiles)
@@ -807,6 +809,10 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 		return fmt.Errorf("store timestamp: %w", err)
 	}
 
+	if refreshEmbed {
+		finishEmbedRefresh(s, embedBefore, changedSymbols)
+	}
+
 	// Build summary
 	nMod := len(changes.Modified)
 	nAdd := len(changes.Added)
@@ -824,6 +830,10 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 	nDel := len(changes.Deleted)
 	fmt.Fprintf(os.Stderr, "Delete-only: removing %d files (skipping package load)\n", nDel)
 
+	// A deleted file can hold the only caller of a symbol elsewhere; that
+	// callee's embedded text ("called by: …") goes stale (sn-1ewy).
+	embedBefore, refreshEmbed := beginEmbedRefresh(s)
+
 	// Remove symbols, refs, edges, imports, string_refs, embeddings, purposes,
 	// and file entries for deleted files — all within a single transaction in
 	// WriteIndexIncremental (nil literals + deleted files prunes string_refs).
@@ -835,6 +845,10 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 	// Update metadata
 	if err := s.SetMeta("indexed_at", time.Now().Format(time.RFC3339)); err != nil {
 		return fmt.Errorf("store timestamp: %w", err)
+	}
+
+	if refreshEmbed {
+		finishEmbedRefresh(s, embedBefore, nil)
 	}
 
 	fmt.Fprintf(os.Stderr, "Deleted %d files\n", nDel)
