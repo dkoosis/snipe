@@ -70,13 +70,13 @@ func warnUnreadableOnce(account string, err error) {
 	}
 	warnedAccounts[account] = true
 	fmt.Fprintf(os.Stderr,
-		"WARNING: keychain item %s/%s is unreadable (keychain locked or access denied): %v — falling back to SNIPE_VOYAGE_API_KEY\n",
+		"WARNING: keychain item %s/%s is unreadable (keychain locked or access denied): %v — falling back to VOYAGE_API_KEY\n",
 		keyringService, account, err)
 }
 
-// envAPIKey is the single os.Getenv call site for SNIPE_VOYAGE_API_KEY in
+// envAPIKey is the single os.Getenv call site for VOYAGE_API_KEY in
 // this package (the blackbox literals test counts exactly one).
-func envAPIKey() string { return os.Getenv("SNIPE_VOYAGE_API_KEY") }
+func envAPIKey() string { return os.Getenv("VOYAGE_API_KEY") }
 
 // Client handles embedding requests to Voyage AI.
 type Client struct {
@@ -108,7 +108,7 @@ type EmbeddingResponse struct {
 }
 
 // HasCredentials checks if embedding credentials are available.
-// Returns true if the SNIPE_VOYAGE_API_KEY env var is set or the keychain holds
+// Returns true if the VOYAGE_API_KEY env var is set or the keychain holds
 // a voyage key. The env var is checked FIRST so an env-provisioned process never
 // touches the keychain (AXI #6: never prompt — a `security` read can pop an OS
 // unlock/allow dialog). An unreadable keychain (locked/denied — ErrUnreadable)
@@ -134,7 +134,7 @@ func HasCredentials() bool {
 	return false
 }
 
-// resolveCredentials reads the API key env-first (SNIPE_VOYAGE_API_KEY), then
+// resolveCredentials reads the API key env-first (VOYAGE_API_KEY), then
 // the keychain. Env-first means an env-provisioned process — agents, CI, orca —
 // never execs `security`, so it can never trigger an OS keychain prompt (AXI #6:
 // never prompt for interactive input). The keychain is consulted only as a
@@ -172,7 +172,7 @@ func resolveCredentials() (string, string, string, error) {
 	endpoint := os.Getenv("VOYAGE_API_URL")
 
 	if apiKey == "" {
-		return "", "", "", fmt.Errorf("no API key: set SNIPE_VOYAGE_API_KEY or store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY)")
+		return "", "", "", fmt.Errorf("no API key: set VOYAGE_API_KEY or store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY)")
 	}
 	if model == "" {
 		model = "voyage-code-3"
@@ -181,7 +181,7 @@ func resolveCredentials() (string, string, string, error) {
 }
 
 // NewClient creates a new embedding client.
-// It reads the API key env-first (SNIPE_VOYAGE_API_KEY), falling back to the keychain.
+// It reads the API key env-first (VOYAGE_API_KEY), falling back to the keychain.
 func NewClient() (*Client, error) {
 	apiKey, model, endpoint, err := resolveCredentials()
 	if err != nil {

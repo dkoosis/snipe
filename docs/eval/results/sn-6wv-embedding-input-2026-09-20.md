@@ -10,7 +10,7 @@ method-by-name) and the search/sim code are untouched.
 
 ## Setup
 
-- Embedder: real Voyage `voyage-code-3` via `SNIPE_VOYAGE_API_KEY` (status-checked HTTP 200 before the run).
+- Embedder: real Voyage `voyage-code-3` via `VOYAGE_API_KEY` (status-checked HTTP 200 before the run).
 - Before binary: `git archive origin/main` (8342b74; the only commit past the PR's merge base d6e900b is an output/telemetry-only change, #251, which cannot affect embedding text or `sim`). After binary: this PR branch at 89736b4.
 - Corpus (`--depth 1` clones, 2026-09-20): chi 3d1777a, cobra adbc881, bbolt 4dc08f7, fzf b1be3a8. One copy of each repo per binary, each indexed with `snipe index --force --embed-mode=realtime`. Embedded symbols: chi 615, cobra 905, bbolt 1466, fzf 1825 (4,811 per binary, identical symbol set both sides; only the text differs). Test-file symbols are in the index and compete for ranks.
 - Probe: `docs/eval/sn-6wv-probe.tsv` — 30 vague-intent queries (8 chi, 8 cobra, 8 bbolt, 6 fzf), each with the expected symbol short name(s), authored by reading the corpus source before any Voyage result was seen and not edited afterwards. Same queries both sides. Run and score with `docs/eval/sn-6wv-probe.py`; raw ranks in `sn-6wv-probe-results-2026-09-20.json`.
@@ -75,7 +75,7 @@ Not re-run here. The builder ran `go test -tags eval ./test/eval/` over the same
 
 ```
 # build base (git archive origin/main) and change binaries; one copy of each corpus repo per binary
-export KEYRING_DISABLE=1   # SNIPE_VOYAGE_API_KEY from your environment
+export KEYRING_DISABLE=1   # VOYAGE_API_KEY from your environment
 snipe index --force --embed-mode=realtime      # in each corpus repo, each binary
 python3 docs/eval/sn-6wv-probe.py run <snipe-base> <base-corpus-dir> before.json
 python3 docs/eval/sn-6wv-probe.py run <snipe-new>  <new-corpus-dir>  after.json

@@ -296,7 +296,7 @@ func checkEmbeddings(probe bool) DoctorCheck {
 			liveProbeEmbeddings(&check)
 		}
 	case has && probeErr != nil:
-		// Keychain is locked/unreadable but the SNIPE_VOYAGE_API_KEY env var
+		// Keychain is locked/unreadable but the VOYAGE_API_KEY env var
 		// covers it — say so instead of a false "credentials available".
 		check.OK = true
 		check.Message = "keychain locked or unreadable — using env credentials"
@@ -310,7 +310,7 @@ func checkEmbeddings(probe bool) DoctorCheck {
 		check.Code = DoctorEmbedAuthMissing
 		check.Message = "keychain locked or unreadable and no env credentials (embeddings disabled)"
 		check.Details = probeErr.Error()
-		check.Remediation = "security unlock-keychain; or export SNIPE_VOYAGE_API_KEY=your-key"
+		check.Remediation = "security unlock-keychain; or export VOYAGE_API_KEY=your-key"
 	default:
 		check.OK = true // Not a failure, just informational
 		check.Code = DoctorEmbedAuthMissing
@@ -345,9 +345,9 @@ func liveProbeEmbeddings(check *DoctorCheck) {
 // backend, so the env-var recipe is the only one.
 func embedAuthRemediation() string {
 	if runtime.GOOS == "darwin" {
-		return "store the key in the macOS keychain: security add-generic-password -U -s snipe -a voyage -w YOUR-KEY (preferred); or export SNIPE_VOYAGE_API_KEY=your-key"
+		return "store the key in the macOS keychain: security add-generic-password -U -s snipe -a voyage -w YOUR-KEY (preferred); or export VOYAGE_API_KEY=your-key"
 	}
-	return "export SNIPE_VOYAGE_API_KEY=your-key (no keychain backend on this platform)"
+	return "export VOYAGE_API_KEY=your-key (no keychain backend on this platform)"
 }
 
 func checkOrphans() DoctorCheck {

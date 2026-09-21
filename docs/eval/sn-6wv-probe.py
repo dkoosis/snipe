@@ -11,7 +11,7 @@
         (markdown) and the improved / worse / unchanged counts.
 
 A result matches when its symbol short name (text after the last '.') equals one
-of the expected names. Needs SNIPE_VOYAGE_API_KEY in the environment (never
+of the expected names. Needs VOYAGE_API_KEY in the environment (never
 written anywhere) and KEYRING_DISABLE=1.
 """
 import json

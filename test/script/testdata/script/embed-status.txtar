@@ -3,7 +3,7 @@
 # no-batch state makes NO network call. A dummy key satisfies the constructor;
 # with --embed-mode=off there is no saved batch state, so LoadState returns nil
 # and the command short-circuits to no_batch without ever calling Voyage.
-env SNIPE_VOYAGE_API_KEY=test-dummy-no-network
+env VOYAGE_API_KEY=test-dummy-no-network
 cd $FIXTURE
 exec snipe embed-status
 stdout 'no_batch'
