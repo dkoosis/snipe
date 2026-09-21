@@ -1,0 +1,34 @@
+# sn-6wv semantic-search probe: 30 vague-intent queries, authored by reading
+# the corpus source BEFORE any Voyage results were seen. Not tuned afterwards.
+# columns (tab-separated): repo <TAB> query <TAB> expected symbol short names (comma-separated; best rank among them counts)
+# corpus repos: go-chi/chi, spf13/cobra, etcd-io/bbolt, junegunn/fzf (shallow clones, 2026-09-20)
+chi	stop requests that take too long to finish	Timeout
+chi	limit how many requests are handled at the same time	Throttle,ThrottleBacklog,ThrottleWithOpts
+chi	work out the real address of the caller when behind a proxy	RealIP,ClientIPFromXFF,ClientIPFromHeader,GetClientIP
+chi	recover from a crash inside a handler and return an error page	Recoverer
+chi	tag every incoming request with a unique identifier	RequestID,NextRequestID
+chi	make a trailing slash in the URL not matter	StripSlashes,RedirectSlashes
+chi	shrink the response body for clients that support it	Compress,NewCompressor
+chi	attach a separate sub-application under a URL path prefix	Mount
+cobra	force the user to supply a certain option before the command runs	MarkFlagRequired,MarkPersistentFlagRequired,ValidateRequiredFlags
+cobra	reject the invocation when the wrong number of positional arguments is given	ExactArgs,RangeArgs,MinimumNArgs,MaximumNArgs
+cobra	propose similar command names when the user mistypes one	SuggestionsFor,findSuggestions
+cobra	let users press tab to fill in the values of an option	RegisterFlagCompletionFunc
+cobra	produce reference documentation pages for every command	GenMarkdownTree,GenManTree,GenYamlTree,GenReSTTree
+cobra	prevent two options from being used at the same time	MarkFlagsMutuallyExclusive
+cobra	figure out which nested command the user typed	Find,Traverse
+cobra	run some setup code before any command executes	OnInitialize
+bbolt	walk the whole file looking for inconsistencies	Check,checkFunc
+bbolt	shrink the file by rewriting live data into a fresh database	Compact
+bbolt	run a read-only operation against a consistent snapshot	View
+bbolt	combine several small writes from many goroutines into one transaction	Batch
+bbolt	jump to the first entry at or after a given key	Seek
+bbolt	hand out an ever-increasing number for numbering records	NextSequence
+bbolt	make a backup copy of the data while it is in use	CopyFile,Copy,WriteTo
+bbolt	make sure only one process can use the data file at a time	flock
+fzf	score how well a candidate matches the typed characters, favouring word boundaries	FuzzyMatchV2,FuzzyMatchV1,bonusFor
+fzf	turn the command line arguments into a configuration	ParseOptions,parseOptions
+fzf	read candidate lines from standard input or by walking a directory tree	ReadSource,readFiles
+fzf	remember previously typed queries between sessions	NewHistory
+fzf	avoid rescanning everything when one more character is typed	ChunkCache,NewChunkCache,Lookup
+fzf	split each line into fields using a separator	Tokenize,awkTokenizer

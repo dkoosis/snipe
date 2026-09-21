@@ -1,0 +1,963 @@
+{
+  "note": "sn-6wv probe results, voyage-code-3, 2026-09-20; rank = best-ranked expected symbol in sim top 20, null = miss",
+  "before": [
+    {
+      "repo": "chi",
+      "query": "stop requests that take too long to finish",
+      "expected": [
+        "Timeout"
+      ],
+      "rank": 4,
+      "top5": [
+        "TestThrottleTriggerGatewayTimeout",
+        "throttler",
+        "TestThrottleClientTimeout",
+        "Timeout",
+        "maintainDefaultRequestID"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "limit how many requests are handled at the same time",
+      "expected": [
+        "Throttle",
+        "ThrottleBacklog",
+        "ThrottleWithOpts"
+      ],
+      "rank": 2,
+      "top5": [
+        "throttler",
+        "Throttle",
+        "TestThrottleMaximum",
+        "ThrottleBacklog",
+        "BenchmarkThrottle"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "work out the real address of the caller when behind a proxy",
+      "expected": [
+        "RealIP",
+        "ClientIPFromXFF",
+        "ClientIPFromHeader",
+        "GetClientIP"
+      ],
+      "rank": 9,
+      "top5": [
+        "realIP",
+        "TestClientIPFromRemoteAddr",
+        "TestClientIPFromXFFTrustedProxies",
+        "TestClientIPFromHeader",
+        "Example_clientIP"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "recover from a crash inside a handler and return an error page",
+      "expected": [
+        "Recoverer"
+      ],
+      "rank": 4,
+      "top5": [
+        "TestRecovererAbortHandler",
+        "panickingHandler",
+        "TestRecoverer",
+        "Recoverer",
+        "TestRecovererNoColor"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "tag every incoming request with a unique identifier",
+      "expected": [
+        "RequestID",
+        "NextRequestID"
+      ],
+      "rank": 1,
+      "top5": [
+        "RequestID",
+        "TestRequestID",
+        "ctxKeyRequestID",
+        "maintainDefaultRequestID",
+        "token"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "make a trailing slash in the URL not matter",
+      "expected": [
+        "StripSlashes",
+        "RedirectSlashes"
+      ],
+      "rank": 5,
+      "top5": [
+        "TestStripSlashesInRoute",
+        "TestMuxTrailingSlash",
+        "TestStripSlashes",
+        "TestRedirectSlashes",
+        "StripSlashes"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "shrink the response body for clients that support it",
+      "expected": [
+        "Compress",
+        "NewCompressor"
+      ],
+      "rank": null,
+      "top5": [
+        "isCompressible",
+        "compressResponseWriter",
+        "compressFlusher",
+        "TestContentEncodingMiddleware",
+        "TestContentEncoding"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "attach a separate sub-application under a URL path prefix",
+      "expected": [
+        "Mount"
+      ],
+      "rank": 5,
+      "top5": [
+        "TestMuxSubroutes",
+        "TestURLFormatInSubRouter",
+        "TestMuxSubroutesBasic",
+        "bigMux",
+        "Mount"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "force the user to supply a certain option before the command runs",
+      "expected": [
+        "MarkFlagRequired",
+        "MarkPersistentFlagRequired",
+        "ValidateRequiredFlags"
+      ],
+      "rank": 6,
+      "top5": [
+        "MarkFlagsOneRequired",
+        "preRun",
+        "writeRequiredFlag",
+        "completeRequireFlags",
+        "cmdOption"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "reject the invocation when the wrong number of positional arguments is given",
+      "expected": [
+        "ExactArgs",
+        "RangeArgs",
+        "MinimumNArgs",
+        "MaximumNArgs"
+      ],
+      "rank": 7,
+      "top5": [
+        "exactArgsWithInvalidCount",
+        "TestExactArgs_WithInvalidCount_WithValidOnly_WithInvalidArgs",
+        "TestExactArgs_WithInvalidCount",
+        "TestExactValidArgs_WithInvalidCount_WithInvalidArgs",
+        "TestExactValidArgs_WithInvalidCount"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "propose similar command names when the user mistypes one",
+      "expected": [
+        "SuggestionsFor",
+        "findSuggestions"
+      ],
+      "rank": 1,
+      "top5": [
+        "SuggestionsFor",
+        "findSuggestions",
+        "TestCmdNameCompletionInGo",
+        "hasNameOrAliasPrefix",
+        "UserCompletionTypeAliasHelper"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "let users press tab to fill in the values of an option",
+      "expected": [
+        "RegisterFlagCompletionFunc"
+      ],
+      "rank": null,
+      "top5": [
+        "CompletionWithDesc",
+        "UserCompletionTypeAliasHelper",
+        "UserCompletionTypeHelper",
+        "initCompleteCmd",
+        "CompletionOptions"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "produce reference documentation pages for every command",
+      "expected": [
+        "GenMarkdownTree",
+        "GenManTree",
+        "GenYamlTree",
+        "GenReSTTree"
+      ],
+      "rank": 3,
+      "top5": [
+        "cmdDoc",
+        "writeCommands",
+        "GenYamlTree",
+        "TestCommandsAreSorted",
+        "cmdOption"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "prevent two options from being used at the same time",
+      "expected": [
+        "MarkFlagsMutuallyExclusive"
+      ],
+      "rank": 1,
+      "top5": [
+        "MarkFlagsMutuallyExclusive",
+        "TestCompletionForMutuallyExclusiveFlags",
+        "TestUsageIsNotPrintedTwice",
+        "validateExclusiveFlagGroups",
+        "TestFParseErrWhitelistSameCommand"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "figure out which nested command the user typed",
+      "expected": [
+        "Find",
+        "Traverse"
+      ],
+      "rank": 3,
+      "top5": [
+        "findNext",
+        "getCommand",
+        "Find",
+        "TestCommandsAreSorted",
+        "Traverse"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "run some setup code before any command executes",
+      "expected": [
+        "OnInitialize"
+      ],
+      "rank": 3,
+      "top5": [
+        "preRun",
+        "TestSetContextPreRun",
+        "OnInitialize",
+        "TestSetContextPersistentPreRun",
+        "postRun"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "walk the whole file looking for inconsistencies",
+      "expected": [
+        "Check",
+        "checkFunc"
+      ],
+      "rank": 11,
+      "top5": [
+        "checkConsistency",
+        "TestDB_Consistency",
+        "TestOpen_ErrChecksum",
+        "TestOpen_ErrVersionMismatch",
+        "validateSequential"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "shrink the file by rewriting live data into a fresh database",
+      "expected": [
+        "Compact"
+      ],
+      "rank": null,
+      "top5": [
+        "mrelock",
+        "surgeryFreelistRebuildFunc",
+        "surgeryFreelistAbandonFunc",
+        "newSurgeryFreelistRebuildCommand",
+        "grow"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "run a read-only operation against a consistent snapshot",
+      "expected": [
+        "View"
+      ],
+      "rank": 2,
+      "top5": [
+        "TestTx_Check_ReadOnly",
+        "View",
+        "executeLongRunningRead",
+        "runReadsSequential",
+        "safelyCall"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "combine several small writes from many goroutines into one transaction",
+      "expected": [
+        "Batch"
+      ],
+      "rank": null,
+      "top5": [
+        "batch",
+        "run",
+        "runWrites",
+        "TestBucket_Put_Single",
+        "runWritesSequential"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "jump to the first entry at or after a given key",
+      "expected": [
+        "Seek"
+      ],
+      "rank": 4,
+      "top5": [
+        "seek",
+        "search",
+        "first",
+        "Seek",
+        "nsearch"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "hand out an ever-increasing number for numbering records",
+      "expected": [
+        "NextSequence"
+      ],
+      "rank": 1,
+      "top5": [
+        "NextSequence",
+        "TestBucket_NextSequence",
+        "Sequence",
+        "IncTxid",
+        "validateIncrementalTxid"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "make a backup copy of the data while it is in use",
+      "expected": [
+        "CopyFile",
+        "Copy",
+        "WriteTo"
+      ],
+      "rank": 3,
+      "top5": [
+        "backupDB",
+        "copy",
+        "Copy",
+        "prepareData",
+        "saveDataIfFailed"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "make sure only one process can use the data file at a time",
+      "expected": [
+        "flock"
+      ],
+      "rank": 1,
+      "top5": [
+        "flock",
+        "mlock",
+        "mlock",
+        "mrelock",
+        "munlock"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "score how well a candidate matches the typed characters, favouring word boundaries",
+      "expected": [
+        "FuzzyMatchV2",
+        "FuzzyMatchV1",
+        "bonusFor"
+      ],
+      "rank": null,
+      "top5": [
+        "calculateScore",
+        "fuzzyMatchV2Single",
+        "ExactMatchBoundary",
+        "impl",
+        "impl"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "turn the command line arguments into a configuration",
+      "expected": [
+        "ParseOptions",
+        "parseOptions"
+      ],
+      "rank": 1,
+      "top5": [
+        "parseOptions",
+        "ParseOptions",
+        "Options",
+        "parseTmuxOptions",
+        "getParams"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "read candidate lines from standard input or by walking a directory tree",
+      "expected": [
+        "ReadSource",
+        "readFiles"
+      ],
+      "rank": 2,
+      "top5": [
+        "Reader",
+        "ReadSource",
+        "eachLine",
+        "readFiles",
+        "walkerOpts"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "remember previously typed queries between sessions",
+      "expected": [
+        "NewHistory"
+      ],
+      "rank": null,
+      "top5": [
+        "queryCache",
+        "History",
+        "termQuery",
+        "Input",
+        "previous"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "avoid rescanning everything when one more character is typed",
+      "expected": [
+        "ChunkCache",
+        "NewChunkCache",
+        "Lookup"
+      ],
+      "rank": 12,
+      "top5": [
+        "waitFeedback",
+        "queryCache",
+        "fuzzyMatchV2Single",
+        "searchRequest",
+        "partialResult"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "split each line into fields using a separator",
+      "expected": [
+        "Tokenize",
+        "awkTokenizer"
+      ],
+      "rank": 3,
+      "top5": [
+        "Delimiter",
+        "eachLine",
+        "awkTokenizer",
+        "noSeparatorLine",
+        "NthParts"
+      ]
+    }
+  ],
+  "after": [
+    {
+      "repo": "chi",
+      "query": "stop requests that take too long to finish",
+      "expected": [
+        "Timeout"
+      ],
+      "rank": 2,
+      "top5": [
+        "TestThrottleTriggerGatewayTimeout",
+        "Timeout",
+        "TestThrottleClientTimeout",
+        "throttler",
+        "ThrottleBacklog"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "limit how many requests are handled at the same time",
+      "expected": [
+        "Throttle",
+        "ThrottleBacklog",
+        "ThrottleWithOpts"
+      ],
+      "rank": 2,
+      "top5": [
+        "throttler",
+        "Throttle",
+        "ThrottleBacklog",
+        "TestThrottleMaximum",
+        "TestThrottleBacklog"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "work out the real address of the caller when behind a proxy",
+      "expected": [
+        "RealIP",
+        "ClientIPFromXFF",
+        "ClientIPFromHeader",
+        "GetClientIP"
+      ],
+      "rank": 3,
+      "top5": [
+        "realIP",
+        "TestClientIPFromRemoteAddr",
+        "RealIP",
+        "TestXForwardForIP",
+        "Example_clientIP"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "recover from a crash inside a handler and return an error page",
+      "expected": [
+        "Recoverer"
+      ],
+      "rank": 3,
+      "top5": [
+        "panickingHandler",
+        "TestRecovererAbortHandler",
+        "Recoverer",
+        "PrintPrettyStack",
+        "TestRecoverer"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "tag every incoming request with a unique identifier",
+      "expected": [
+        "RequestID",
+        "NextRequestID"
+      ],
+      "rank": 1,
+      "top5": [
+        "RequestID",
+        "maintainDefaultRequestID",
+        "TestRequestID",
+        "ctxKeyRequestID",
+        "NextRequestID"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "make a trailing slash in the URL not matter",
+      "expected": [
+        "StripSlashes",
+        "RedirectSlashes"
+      ],
+      "rank": 6,
+      "top5": [
+        "TestStripSlashesInRoute",
+        "TestStripSlashes",
+        "TestMuxTrailingSlash",
+        "TestRedirectSlashes",
+        "TestURLFormatInSubRouter"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "shrink the response body for clients that support it",
+      "expected": [
+        "Compress",
+        "NewCompressor"
+      ],
+      "rank": null,
+      "top5": [
+        "isCompressible",
+        "compressResponseWriter",
+        "Write",
+        "TestContentEncoding",
+        "Flush"
+      ]
+    },
+    {
+      "repo": "chi",
+      "query": "attach a separate sub-application under a URL path prefix",
+      "expected": [
+        "Mount"
+      ],
+      "rank": 3,
+      "top5": [
+        "TestURLFormatInSubRouter",
+        "TestMountingExistingPath",
+        "Mount",
+        "TestMuxSubroutes",
+        "TestMuxMounts"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "force the user to supply a certain option before the command runs",
+      "expected": [
+        "MarkFlagRequired",
+        "MarkPersistentFlagRequired",
+        "ValidateRequiredFlags"
+      ],
+      "rank": 1,
+      "top5": [
+        "MarkFlagRequired",
+        "MarkPersistentFlagRequired",
+        "MarkFlagsOneRequired",
+        "MarkFlagRequired",
+        "TestRequiredFlags"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "reject the invocation when the wrong number of positional arguments is given",
+      "expected": [
+        "ExactArgs",
+        "RangeArgs",
+        "MinimumNArgs",
+        "MaximumNArgs"
+      ],
+      "rank": 7,
+      "top5": [
+        "TestExactArgs_WithInvalidCount_WithValidOnly_WithInvalidArgs",
+        "exactArgsWithInvalidCount",
+        "TestExactArgs_WithInvalidCount_WithValid_WithInvalidArgs",
+        "TestExactValidArgs_WithInvalidCount_WithInvalidArgs",
+        "TestExactArgs_WithInvalidCount"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "propose similar command names when the user mistypes one",
+      "expected": [
+        "SuggestionsFor",
+        "findSuggestions"
+      ],
+      "rank": 1,
+      "top5": [
+        "findSuggestions",
+        "SuggestionsFor",
+        "TestSuggestions",
+        "TestLevenshteinDistance",
+        "UserCompletionTypeAliasHelper"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "let users press tab to fill in the values of an option",
+      "expected": [
+        "RegisterFlagCompletionFunc"
+      ],
+      "rank": null,
+      "top5": [
+        "CompletionWithDesc",
+        "TestFixedCompletionsWithCompletionHelpers",
+        "Completion",
+        "TestArgAliasesCompletionInGo",
+        "TestFixedCompletions"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "produce reference documentation pages for every command",
+      "expected": [
+        "GenMarkdownTree",
+        "GenManTree",
+        "GenYamlTree",
+        "GenReSTTree"
+      ],
+      "rank": 6,
+      "top5": [
+        "writeCommands",
+        "cmdDoc",
+        "init",
+        "GenManTreeFromOpts",
+        "genMan"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "prevent two options from being used at the same time",
+      "expected": [
+        "MarkFlagsMutuallyExclusive"
+      ],
+      "rank": 1,
+      "top5": [
+        "MarkFlagsMutuallyExclusive",
+        "TestCompletionForMutuallyExclusiveFlags",
+        "TestFParseErrWhitelistSameCommand",
+        "TestNoDuplicateArgs_WithValidOnly_WithInvalidArgs",
+        "TestNoDuplicateArgs_WithDuplicateArgs"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "figure out which nested command the user typed",
+      "expected": [
+        "Find",
+        "Traverse"
+      ],
+      "rank": 4,
+      "top5": [
+        "getCommand",
+        "findNext",
+        "TestWrongGroupNestedLevel",
+        "Find",
+        "TestHelpCommandExecutedOnChild"
+      ]
+    },
+    {
+      "repo": "cobra",
+      "query": "run some setup code before any command executes",
+      "expected": [
+        "OnInitialize"
+      ],
+      "rank": 2,
+      "top5": [
+        "preRun",
+        "OnInitialize",
+        "TestSetContextPreRun",
+        "TestSetContextPersistentPreRun",
+        "TestFlagBeforeCommand"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "walk the whole file looking for inconsistencies",
+      "expected": [
+        "Check",
+        "checkFunc"
+      ],
+      "rank": 15,
+      "top5": [
+        "checkConsistency",
+        "TestDB_Consistency",
+        "validateSequential",
+        "TestOpen_ErrChecksum",
+        "TestOpen_Check"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "shrink the file by rewriting live data into a fresh database",
+      "expected": [
+        "Compact"
+      ],
+      "rank": 11,
+      "top5": [
+        "surgeryFreelistRebuildFunc",
+        "surgeryFreelistAbandonFunc",
+        "mrelock",
+        "newSurgeryFreelistRebuildCommand",
+        "TestSurgery_Freelist_Rebuild"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "run a read-only operation against a consistent snapshot",
+      "expected": [
+        "View"
+      ],
+      "rank": 1,
+      "top5": [
+        "View",
+        "TestTx_Check_ReadOnly",
+        "executeRead",
+        "executeLongRunningRead",
+        "safelyCall"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "combine several small writes from many goroutines into one transaction",
+      "expected": [
+        "Batch"
+      ],
+      "rank": null,
+      "top5": [
+        "run",
+        "TestBucket_Put_Single",
+        "runWrites",
+        "runWritesSequential",
+        "executeWrite"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "jump to the first entry at or after a given key",
+      "expected": [
+        "Seek"
+      ],
+      "rank": 4,
+      "top5": [
+        "seek",
+        "search",
+        "nsearch",
+        "Seek",
+        "searchPage"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "hand out an ever-increasing number for numbering records",
+      "expected": [
+        "NextSequence"
+      ],
+      "rank": 1,
+      "top5": [
+        "NextSequence",
+        "TestBucket_NextSequence",
+        "Sequence",
+        "IncSequence",
+        "validateIncrementalTxid"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "make a backup copy of the data while it is in use",
+      "expected": [
+        "CopyFile",
+        "Copy",
+        "WriteTo"
+      ],
+      "rank": 3,
+      "top5": [
+        "copy",
+        "backupDB",
+        "Copy",
+        "saveDataIfFailed",
+        "prepareData"
+      ]
+    },
+    {
+      "repo": "bbolt",
+      "query": "make sure only one process can use the data file at a time",
+      "expected": [
+        "flock"
+      ],
+      "rank": 1,
+      "top5": [
+        "flock",
+        "mlock",
+        "TestMlock_DbOpen",
+        "TestFailpoint_UnmapFail_DbClose",
+        "mlock"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "score how well a candidate matches the typed characters, favouring word boundaries",
+      "expected": [
+        "FuzzyMatchV2",
+        "FuzzyMatchV1",
+        "bonusFor"
+      ],
+      "rank": null,
+      "top5": [
+        "calculateScore",
+        "bonusAt",
+        "TestResultRank",
+        "scan",
+        "fuzzyMatchV2Single"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "turn the command line arguments into a configuration",
+      "expected": [
+        "ParseOptions",
+        "parseOptions"
+      ],
+      "rank": 1,
+      "top5": [
+        "ParseOptions",
+        "parseOptions",
+        "defaultOptions",
+        "Options",
+        "parseTmuxOptions"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "read candidate lines from standard input or by walking a directory tree",
+      "expected": [
+        "ReadSource",
+        "readFiles"
+      ],
+      "rank": 1,
+      "top5": [
+        "ReadSource",
+        "feed",
+        "readFiles",
+        "readFromStdin",
+        "Reader"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "remember previously typed queries between sessions",
+      "expected": [
+        "NewHistory"
+      ],
+      "rank": 18,
+      "top5": [
+        "TestHistory",
+        "previous",
+        "override",
+        "TestQueryStartup",
+        "History"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "avoid rescanning everything when one more character is typed",
+      "expected": [
+        "ChunkCache",
+        "NewChunkCache",
+        "Lookup"
+      ],
+      "rank": null,
+      "top5": [
+        "truncateQuery",
+        "scan",
+        "filterSelected",
+        "trySkip",
+        "trimQuery"
+      ]
+    },
+    {
+      "repo": "fzf",
+      "query": "split each line into fields using a separator",
+      "expected": [
+        "Tokenize",
+        "awkTokenizer"
+      ],
+      "rank": 3,
+      "top5": [
+        "strLines",
+        "Delimiter",
+        "awkTokenizer",
+        "noSeparatorLine",
+        "noSeparatorLine"
+      ]
+    }
+  ]
+}
