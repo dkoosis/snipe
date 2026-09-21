@@ -13,8 +13,13 @@ import (
 // The root is minimal and a root entry earns its place (decision d9cd0e20868b,
 // dk 2026-09-02): README.md is the one file the root must carry, direction
 // documents live under docs/, and .claude/rules/** is the whole project
-// instruction set — there is no CLAUDE.md. A dotfile stays at the root only
-// when its host tool reads it there by name (AGENTS.md, .golangci.yml, go.mod).
+// instruction set — there is no CLAUDE.md. A file stays at the root only when
+// some tool reads it there by name and nothing else can serve it
+// (.golangci.yml, go.mod). AGENTS.md is on that list for Codex and the other
+// harnesses that read nothing else — NOT for Claude Code, which reads
+// CLAUDE.md and never AGENTS.md (code.claude.com/docs/en/memory.md). Which
+// harness reads it matters, because it is the whole reason the file is a stub
+// pointer rather than content: see the agents-stub rule.
 //
 // This is a deny-list, not an allowlist
 // of everything a root may hold — the latter is a judgment nobody has made, and

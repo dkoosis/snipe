@@ -1,5 +1,5 @@
 // Package checks implements Surface 1: the in-repo file checks that run bare
-// (`conform`) inside a repository, every `make check`, hard-fail.
+// (`conform-to-sdlc`) inside a repository, every `make check`, hard-fail.
 //
 // Every finding names the file, the rule id, and a repair command. There is no
 // soft-fail: a rule too noisy to hard-fail gets deleted, not warned.
@@ -16,17 +16,17 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/dkoosis/conform/internal/values"
+	"github.com/dkoosis/conform-to-sdlc/internal/values"
 )
 
 // ValuesFile is the repo's conform.json, under docs/ like every other
 // repo-level declaration: the root is minimal (decision d9cd0e20868b). Only
-// dotfiles a host tool reads at the root by name stay there; conform reads its
+// dotfiles a host tool reads at the root by name stay there; conform-to-sdlc reads its
 // own file wherever it says, so it says docs/.
 const ValuesFile = "docs/conform.json"
 
 // LegacyValuesFile is where the file sat before ValuesFile moved it, and
-// conform still reads it when docs/ has none. Five of seven fleet repos declare
+// conform-to-sdlc still reads it when docs/ has none. Five of seven fleet repos declare
 // their profile and exceptions at the root today; a cutover that read only
 // ValuesFile would drop every one of those exceptions on the next sweep, so
 // each repo would light up with findings it had already excused — and the
@@ -50,14 +50,16 @@ const (
 	RuleLintPin      = "lint-pin"          // exactly one golangci-lint pin location
 	RuleCIGate       = "ci-gate"           // CI calls make check; no gate re-implemented in YAML
 	RuleCodexShape   = "codex-workflow"    // codex-review fires on issue_comment, never pull_request
-	RuleRetiredFiles = "retired-files"     // files folded into conform are gone
+	RuleRetiredFiles = "retired-files"     // files folded into conform-to-sdlc are gone
 	RuleBDConfig     = "bd-config"         // bd config keys present
 	RuleHooksShape   = "hooks-shape"       // shape B: tracked .githooks
 	RulePRTemplate   = "pr-template"       // PR template present + non-empty (Surface 1 since v0.2.0)
 	RuleReadme       = "readme"            // README.md present, non-empty, opening with a heading
 	RuleRoadmap      = "roadmap"           // ROADMAP.md present, carrying a ★ destination line
 	RuleRootMinimal  = "root-minimal"      // no CLAUDE.md / ROADMAP.md / conform.json / NORTH_STAR.md at the root
-	RuleSandboxLib   = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform ships
+	RuleSandboxLib   = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform-to-sdlc ships
+	RuleAgentsStub   = "agents-stub"       // root AGENTS.md stays a pointer, never content
+	RuleCIDocsSkip   = "ci-docs-skip"      // a detect job lets a docs-only PR skip make check, context kept
 )
 
 // Finding is one contract violation: which file, which rule, what to run.
@@ -82,6 +84,7 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkLintFloor(dir)...)
 	findings = append(findings, checkLintPin(dir)...)
 	findings = append(findings, checkCIGate(dir)...)
+	findings = append(findings, checkCIDocsSkip(dir)...)
 	findings = append(findings, checkCodexShape(dir)...)
 	findings = append(findings, checkRetiredFiles(dir)...)
 	findings = append(findings, checkBDConfig(dir)...)
@@ -90,6 +93,7 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkReadme(dir)...)
 	findings = append(findings, checkRoadmap(dir)...)
 	findings = append(findings, checkRootMinimal(dir)...)
+	findings = append(findings, checkAgentsStub(dir)...)
 	findings = append(findings, checkSandboxLib(dir)...)
 
 	findings = applyExceptions(findings, vals)
@@ -124,7 +128,7 @@ func loadValues(dir string) (values.Values, []Finding) {
 			return fallback, []Finding{{
 				File:   ValuesFile,
 				Rule:   RuleValuesFile,
-				Msg:    "values file missing — conform needs the repo's profile (tool|lib) and declared exceptions",
+				Msg:    "values file missing — conform-to-sdlc needs the repo's profile (tool|lib) and declared exceptions",
 				Repair: `create ` + ValuesFile + `: {"profile": "tool", "exceptions": []}`,
 			}}
 		}

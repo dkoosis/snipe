@@ -1,7 +1,7 @@
 package checks
 
-// Bootstrap is the L2 half of `conform init`: the machine and GitHub state a
-// scaffolded repo needs before `conform --local` and `conform --fleet` go
+// Bootstrap is the L2 half of `conform-to-sdlc init`: the machine and GitHub state a
+// scaffolded repo needs before `conform-to-sdlc --local` and `conform-to-sdlc --fleet` go
 // green. Surface 1 is files, and Scaffold writes them; this file writes what
 // no file can carry.
 //
@@ -16,7 +16,7 @@ package checks
 // Every command below is the repair string of the rule it satisfies —
 // checkHooksPath's `git config core.hooksPath`, labelFindings' `gh label
 // create`, protectionFindings' protection PUT, mergePolicyFindings' PATCH.
-// One vocabulary, whether conform is reporting a gap or closing it.
+// One vocabulary, whether conform-to-sdlc is reporting a gap or closing it.
 
 import (
 	"context"

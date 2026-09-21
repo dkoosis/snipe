@@ -24,7 +24,7 @@ type Repo struct {
 	Visibility Visibility `json:"visibility"`
 }
 
-// Fleet is the roster of every repo conform's --fleet surface checks.
+// Fleet is the roster of every repo conform-to-sdlc's --fleet surface checks.
 type Fleet struct {
 	Repos []Repo `json:"repos"`
 }
@@ -43,8 +43,8 @@ var (
 //go:embed fleet.json
 var fleetJSON embed.FS
 
-// DefaultFleet loads and validates the fleet roster embedded in the conform
-// binary, so `conform --fleet` runs without a checkout of every repo.
+// DefaultFleet loads and validates the fleet roster embedded in the conform-to-sdlc
+// binary, so `conform-to-sdlc --fleet` runs without a checkout of every repo.
 func DefaultFleet() (*Fleet, error) {
 	data, err := fleetJSON.ReadFile("fleet.json")
 	if err != nil {

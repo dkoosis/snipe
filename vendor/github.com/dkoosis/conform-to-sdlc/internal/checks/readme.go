@@ -41,7 +41,7 @@ func checkReadme(dir string) []Finding {
 			File:   ReadmeFile,
 			Rule:   RuleReadme,
 			Msg:    "no README.md — the one file the root must carry, and the first thing GitHub renders",
-			Repair: "conform --fix (writes a " + ReadmeFile + " skeleton to fill in)",
+			Repair: "conform-to-sdlc --fix (writes a " + ReadmeFile + " skeleton to fill in)",
 		}}
 	}
 	body := string(data)
@@ -79,7 +79,7 @@ func hasOpeningHeading(body string) bool {
 	return false
 }
 
-// ReadmeSkeleton renders a starting README.md for `conform --fix` to drop into
+// ReadmeSkeleton renders a starting README.md for `conform-to-sdlc --fix` to drop into
 // an existing repo. Its opening line is a prompt and NOT a heading, so a repo
 // that runs --fix and stops still fails the readme rule and says why, rather
 // than passing with a page nobody wrote. Same bargain as RoadmapSkeleton.
@@ -87,9 +87,9 @@ func ReadmeSkeleton(repo string) string {
 	return readmeDoc(repo, readmeFixOpening(repo))
 }
 
-// ReadmeScaffold renders the same page for `conform init`, which promises a
+// ReadmeScaffold renders the same page for `conform-to-sdlc init`, which promises a
 // repo that passes the checker unedited — so this one opens with a real
-// heading. The person running init is at the keyboard watching conform list
+// heading. The person running init is at the keyboard watching conform-to-sdlc list
 // what it emitted; the body it gets is visibly unfinished, which is the honest
 // state of a repo one command old.
 //
@@ -103,7 +103,7 @@ func ReadmeScaffold(repo string) string {
 // content is a comment, not a heading.
 func readmeFixOpening(repo string) string {
 	return "<!-- Replace this comment with `# " + repo + "` on the first line.\n" +
-		"     Until you do, `conform` stays red on the readme rule — a page that\n" +
+		"     Until you do, `conform-to-sdlc` stays red on the readme rule — a page that\n" +
 		"     passed the gate would read as an introduction and carry none. -->"
 }
 

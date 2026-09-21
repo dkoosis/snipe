@@ -9,20 +9,20 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dkoosis/conform/internal/checks"
-	"github.com/dkoosis/conform/internal/values"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/values"
 )
 
 // runInit scaffolds a new repo and wires it up.
 //
 // The skeleton comes from the checker's own renderer (internal/checks), so a
-// scaffolded repo passes `conform` unedited — that shared renderer is the
+// scaffolded repo passes `conform-to-sdlc` unedited — that shared renderer is the
 // reason this exists as a built command rather than a copier template
-// (decision conform-init-build-thin).
+// (decision conform-to-sdlc-init-build-thin).
 //
 // Remote state is opt-in. --with-remote is the only path that runs a gh
 // command; without it the GitHub steps are printed for the operator.
-// initFlags is one parsed `conform init` invocation.
+// initFlags is one parsed `conform-to-sdlc init` invocation.
 type initFlags struct {
 	spec       checks.ScaffoldSpec
 	target     string
@@ -34,7 +34,7 @@ type initFlags struct {
 // parseInitFlags reads the command line into an initFlags, printing usage on
 // anything it cannot accept.
 func parseInitFlags(args []string) (initFlags, error) {
-	fs := flag.NewFlagSet("conform init", flag.ContinueOnError)
+	fs := flag.NewFlagSet("conform-to-sdlc init", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	var (
 		dir        = fs.String("dir", "", "target directory (default: ./<repo>)")
@@ -42,16 +42,16 @@ func parseInitFlags(args []string) (initFlags, error) {
 		module     = fs.String("module", "", "go module path (default: github.com/<owner>/<repo>)")
 		prefix     = fs.String("prefix", "", "bd issue prefix, 2-3 letters (default: first three letters of <repo>)")
 		planDir    = fs.String("plan-dir", "", "bd custom.plan_dir")
-		profile    = fs.String("profile", string(values.ProfileTool), "conform profile: tool | lib")
+		profile    = fs.String("profile", string(values.ProfileTool), "conform-to-sdlc profile: tool | lib")
 		lintPin    = fs.String("lint-pin", "", "golangci-lint version for the single pin file")
 		filesOnly  = fs.Bool("files-only", false, "emit the skeleton and skip machine bootstrap entirely")
 		dryRun     = fs.Bool("dry-run", false, "print what would be written and run; change nothing")
 		withRemote = fs.Bool("with-remote", false, "ALSO run the GitHub steps (labels, merge policy, branch protection) against a real account")
 	)
 	fs.Usage = func() {
-		fmt.Fprint(os.Stderr, `usage: conform init <repo> [flags]
+		fmt.Fprint(os.Stderr, `usage: conform-to-sdlc init <repo> [flags]
 
-Scaffolds a repo that passes `+"`conform`"+` unedited, then wires the machine
+Scaffolds a repo that passes `+"`conform-to-sdlc`"+` unedited, then wires the machine
 half (git hooksPath, bd init, bd config). GitHub state is NOT touched unless
 --with-remote is passed.
 
@@ -60,7 +60,7 @@ flags:
 		fs.PrintDefaults()
 	}
 	// Go's flag package stops at the first non-flag argument, so pull the
-	// repo name out first — `conform init widget --dry-run` must work in the
+	// repo name out first — `conform-to-sdlc init widget --dry-run` must work in the
 	// order a human types it.
 	repo, rest := splitPositional(args)
 	if err := fs.Parse(rest); err != nil {
@@ -115,7 +115,7 @@ func runInit(ctx context.Context, args []string) error {
 // initDryRun prints the skeleton and the bootstrap plan without writing or
 // running anything.
 func initDryRun(ctx context.Context, opts initFlags) error {
-	fmt.Printf("conform init %s → %s (dry run)\n", opts.spec.Repo, opts.target)
+	fmt.Printf("conform-to-sdlc init %s → %s (dry run)\n", opts.spec.Repo, opts.target)
 	for _, p := range checks.ScaffoldPaths(opts.spec) {
 		fmt.Printf("  · would write: %s\n", p)
 	}
@@ -138,7 +138,7 @@ func writeSkeleton(opts initFlags) error {
 		}
 		return err
 	}
-	fmt.Printf("conform init %s → %s\n", opts.spec.Repo, opts.target)
+	fmt.Printf("conform-to-sdlc init %s → %s\n", opts.spec.Repo, opts.target)
 	for _, p := range checks.ScaffoldPaths(opts.spec) {
 		fmt.Printf("  ✓ %s\n", p)
 	}
@@ -154,9 +154,9 @@ func reportInitResult(opts initFlags) error {
 		for _, f := range findings {
 			fmt.Println(f)
 		}
-		return fmt.Errorf("%w: the scaffolded repo does not pass conform — this is a conform bug, not a repo problem", errFindings)
+		return fmt.Errorf("%w: the scaffolded repo does not pass conform-to-sdlc — this is a conform-to-sdlc bug, not a repo problem", errFindings)
 	}
-	fmt.Println("conform: ok (scaffolded repo passes unedited)")
+	fmt.Println("conform-to-sdlc: ok (scaffolded repo passes unedited)")
 	if !opts.withRemote && !opts.filesOnly {
 		fmt.Println("note: GitHub state untouched — rerun with --with-remote once the repo exists on GitHub")
 	}

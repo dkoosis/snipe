@@ -1,22 +1,22 @@
-// Command conform checks a repo against the dkoosis fleet SDLC contract.
+// Command conform-to-sdlc checks a repo against the dkoosis fleet SDLC contract.
 //
 // Three surfaces, because the three kinds of state live in three places:
 //
-//	conform          in-repo files (Makefile verbs, lint core, CI shape, bd config)
-//	conform --local  machine wiring CI can't see (hooksPath, hooks, dolt remote)
-//	conform --fleet  GitHub-side settings (protection, labels, merge policy)
-//	conform --fix    make the Surface-1 repairs that need no judgment, then check
+//	conform-to-sdlc          in-repo files (Makefile verbs, lint core, CI shape, bd config)
+//	conform-to-sdlc --local  machine wiring CI can't see (hooksPath, hooks, dolt remote)
+//	conform-to-sdlc --fleet  GitHub-side settings (protection, labels, merge policy)
+//	conform-to-sdlc --fix    make the Surface-1 repairs that need no judgment, then check
 //
 // A fourth verb runs the contract backwards:
 //
-//	conform init <repo>  scaffold a repo that passes the checks above unedited
+//	conform-to-sdlc init <repo>  scaffold a repo that passes the checks above unedited
 //
 // init emits the skeleton from the SAME renderer the checks read, so a rule
 // change moves both halves at once.
 //
 // One subcommand writes rather than reports:
 //
-//	conform sandbox sync   rewrite .sandbox/lib from the canonical copy
+//	conform-to-sdlc sandbox sync   rewrite .sandbox/lib from the canonical copy
 //
 // Failures name file, rule, and repair command. There is no soft-fail: a rule
 // too noisy to hard-fail gets deleted, not warned.
@@ -28,8 +28,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dkoosis/conform/internal/checks"
-	"github.com/dkoosis/conform/internal/sandbox"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/sandbox"
 )
 
 // version is stamped at build time via -ldflags "-X main.version=<rev>"
@@ -41,13 +41,13 @@ var version = "unknown"
 var errUsage = errors.New("bad usage")
 
 // errFindings marks a completed run that found contract violations — the
-// hard-fail exit, distinct from conform itself breaking.
+// hard-fail exit, distinct from conform-to-sdlc itself breaking.
 var errFindings = errors.New("contract violations")
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		if !errors.Is(err, errFindings) {
-			fmt.Fprintln(os.Stderr, "conform:", err)
+			fmt.Fprintln(os.Stderr, "conform-to-sdlc:", err)
 		}
 		os.Exit(1)
 	}
@@ -95,7 +95,7 @@ func run(args []string) error {
 	if mode == "fix" {
 		done, ferr := checks.Fix(dir)
 		for _, line := range done {
-			fmt.Println("conform: fixed:", line)
+			fmt.Println("conform-to-sdlc: fixed:", line)
 		}
 		if ferr != nil {
 			return ferr
@@ -115,23 +115,23 @@ func run(args []string) error {
 		findings = checks.Run(dir)
 	}
 	if len(findings) == 0 {
-		fmt.Println("conform: ok")
+		fmt.Println("conform-to-sdlc: ok")
 		return nil
 	}
 	for _, f := range findings {
 		fmt.Println(f)
 	}
-	fmt.Printf("conform: %d finding(s)\n", len(findings))
+	fmt.Printf("conform-to-sdlc: %d finding(s)\n", len(findings))
 	return errFindings
 }
 
-// runSandbox implements the one write conform performs: rewriting a repo's
+// runSandbox implements the one write conform-to-sdlc performs: rewriting a repo's
 // .sandbox/lib from the canonical copy. Checking reports drift; this repairs
 // it, so the repair command a finding prints is a command that exists.
 func runSandbox(args []string) error {
 	if len(args) != 1 || args[0] != "sync" {
 		usage()
-		return fmt.Errorf("%w: conform sandbox takes exactly one subcommand, sync", errUsage)
+		return fmt.Errorf("%w: conform-to-sdlc sandbox takes exactly one subcommand, sync", errUsage)
 	}
 	dir, err := os.Getwd()
 	if err != nil {
@@ -142,21 +142,21 @@ func runSandbox(args []string) error {
 		return err
 	}
 	if len(changed) == 0 {
-		fmt.Println("conform: sandbox library already canonical")
+		fmt.Println("conform-to-sdlc: sandbox library already canonical")
 		return nil
 	}
 	for _, name := range changed {
-		fmt.Println("conform: synced", sandbox.LibDir+"/"+name)
+		fmt.Println("conform-to-sdlc: synced", sandbox.LibDir+"/"+name)
 	}
-	fmt.Printf("conform: %d file(s) synced\n", len(changed))
+	fmt.Printf("conform-to-sdlc: %d file(s) synced\n", len(changed))
 	return nil
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `usage: conform [--local | --fleet | --fix]
-       conform init <repo> [flags]
-       conform sandbox sync
-       conform version
+	fmt.Fprint(os.Stderr, `usage: conform-to-sdlc [--local | --fleet | --fix]
+       conform-to-sdlc init <repo> [flags]
+       conform-to-sdlc sandbox sync
+       conform-to-sdlc version
 
   (no flag)  check in-repo files against the fleet contract
   --local    check machine-local wiring (hooksPath, hooks, dolt remote)
@@ -165,9 +165,9 @@ func usage() {
              Only ever creates what is absent; never rewrites your prose.
   init       scaffold a new repo that passes the in-repo checks unedited,
              then wire the machine half. GitHub state untouched unless
-             --with-remote is passed; conform init -h for flags.
+             --with-remote is passed; conform-to-sdlc init -h for flags.
   sandbox sync
-             rewrite .sandbox/lib from the canonical copy conform ships
+             rewrite .sandbox/lib from the canonical copy conform-to-sdlc ships
   version    print the rev the binary was built from
 `)
 }

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dkoosis/conform/internal/values"
+	"github.com/dkoosis/conform-to-sdlc/internal/values"
 )
 
 // The four-verb contract: check · audit · deploy · help, identical in every
@@ -20,12 +20,31 @@ var (
 	// per-repo freedom.
 	checkFloor = []string{"vet", "lint", "test", "build"}
 
+	// targetFloor is every target a Go repo carries, whatever `check`
+	// composes — the Makefile floor ratified on sd-dtxs.1 (2026-09-07). The
+	// contract verbs check · audit · help · deploy are enforced separately.
+	targetFloor = []string{"build", "test", "lint", "vet", "vuln", "selfcheck", "race", "clean"}
+
+	// toolTargets extend the floor for the tool profile only: a lib has no
+	// binary to install or cross-compile, the same reason it carries no deploy.
+	toolTargets = []string{"install", "cross"}
+
+	// crossInclude: `cross` comes from the shared .sandbox include in most of
+	// the fleet, so including it satisfies the floor without a top-level
+	// target.
+	crossInclude = regexp.MustCompile(`(?m)^-?include\s+\S*\.sandbox/lib/Makefile\.cross\.mk\s*$`)
+
 	// targetLine matches a rule head at column 0: name, colon, and NOT an
 	// assignment (`X := y`) or a double-colon assignment. Dot-targets
 	// (.PHONY, .DEFAULT_GOAL) and pattern rules (%) are not contract
 	// targets.
 	targetLine = regexp.MustCompile(`^([A-Za-z0-9_][A-Za-z0-9_.-]*)\s*:($|[^=].*)`)
 )
+
+// makefileFile is the top-level Makefile every check and repair in this file
+// (and the pin and scaffold rules) names — one constant so a rename can't
+// leave a stray literal behind.
+const makefileFile = "Makefile"
 
 type mkTarget struct {
 	name    string
@@ -76,11 +95,10 @@ func requiredVerbs(profile values.Profile) []string {
 // checkMakefile enforces the verb contract (makefile-verbs) and ## doc
 // coverage (makefile-docs) on the top-level Makefile.
 func checkMakefile(dir string, profile values.Profile) []Finding {
-	const file = "Makefile"
-	data, err := os.ReadFile(filepath.Join(dir, file))
+	data, err := os.ReadFile(filepath.Join(dir, makefileFile))
 	if err != nil {
 		return []Finding{{
-			File:   file,
+			File:   makefileFile,
 			Rule:   RuleMakefileVerb,
 			Msg:    "no top-level Makefile — the four-verb contract (check · audit · deploy · help) has no home",
 			Repair: "copy the reference Makefile from ferret and adapt targets",
@@ -96,7 +114,50 @@ func checkMakefile(dir string, profile values.Profile) []Finding {
 	}
 
 	findings := verbFindings(byName, profile)
+	findings = append(findings, floorFindings(byName, profile, crossInclude.Match(data))...)
 	findings = append(findings, docFindings(targets)...)
+	return findings
+}
+
+// floorTargets is the target floor for a profile.
+func floorTargets(profile values.Profile) []string {
+	floor := append([]string{}, targetFloor...)
+	if profile == values.ProfileTool {
+		floor = append(floor, toolTargets...)
+	}
+	return floor
+}
+
+// floorFindings enforces the target floor (makefile-verbs): every floor
+// target exists, and `check` runs selfcheck last so conform-to-sdlc grades the tree
+// the rest of the gate just passed.
+func floorFindings(byName map[string]mkTarget, profile values.Profile, crossIncluded bool) []Finding {
+	var missing []string
+	for _, name := range floorTargets(profile) {
+		if _, ok := byName[name]; ok || (name == "cross" && crossIncluded) {
+			continue
+		}
+		missing = append(missing, name)
+	}
+	var findings []Finding
+	if len(missing) > 0 {
+		findings = append(findings, Finding{
+			File:   makefileFile,
+			Rule:   RuleMakefileVerb,
+			Msg:    "floor targets missing: " + strings.Join(missing, ", ") + " — every Go repo answers the same targets (sd-dtxs.1 floor)",
+			Repair: "add a documented target for each (cross may come from `include .sandbox/lib/Makefile.cross.mk`)",
+		})
+	}
+	if check, ok := byName["check"]; ok {
+		if n := len(check.prereqs); n == 0 || check.prereqs[n-1] != "selfcheck" {
+			findings = append(findings, Finding{
+				File:   makefileFile,
+				Rule:   RuleMakefileVerb,
+				Msg:    "check does not run selfcheck last — conform-to-sdlc must grade the tree the rest of the gate passed",
+				Repair: "make selfcheck the last prerequisite of check",
+			})
+		}
+	}
 	return findings
 }
 
@@ -106,7 +167,7 @@ func checkMakefile(dir string, profile values.Profile) []Finding {
 func verbFindings(byName map[string]mkTarget, profile values.Profile) []Finding {
 	var findings []Finding
 	add := func(msg, repair string) {
-		findings = append(findings, Finding{File: "Makefile", Rule: RuleMakefileVerb, Msg: msg, Repair: repair})
+		findings = append(findings, Finding{File: makefileFile, Rule: RuleMakefileVerb, Msg: msg, Repair: repair})
 	}
 
 	for _, verb := range requiredVerbs(profile) {
@@ -158,7 +219,7 @@ func docFindings(targets []mkTarget) []Finding {
 	}
 	sort.Strings(undocumented)
 	return []Finding{{
-		File:   "Makefile",
+		File:   makefileFile,
 		Rule:   RuleMakefileDocs,
 		Msg:    "targets without a ## doc comment: " + strings.Join(undocumented, ", ") + " — they vanish from make help",
 		Repair: `append "## <one-line purpose>" to each target line`,
