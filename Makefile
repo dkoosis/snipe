@@ -103,10 +103,13 @@ vuln: ## Scan for known vulnerabilities
 ## Build
 ## ---------------------------------------------------------------------
 
-install: ## Build and install snipe to $GOPATH/bin (or $GOBIN)
+install: ## Build and install snipe to $GOBIN (or $GOPATH/bin)
 	@go install -ldflags '$(LDFLAGS)' .
-	@rm -f /usr/local/bin/snipe ~/.local/bin/snipe 2>/dev/null || true
-	@echo "installed $$(go env GOPATH)/bin/snipe ($$(snipe version 2>&1 | head -1))"
+	@dest="$$(go env GOBIN)"; dest="$${dest:-$$(go env GOPATH)/bin}"; \
+	for dir in /usr/local/bin $$HOME/.local/bin; do \
+		[ "$$dir" = "$$dest" ] || rm -f "$$dir/snipe" 2>/dev/null || true; \
+	done; \
+	echo "installed $$dest/snipe ($$("$$dest/snipe" version 2>&1 | head -1))"
 
 clean: ## Remove build artifacts
 	rm -rf .bin bin .snipe .sandbox/bin/linux-amd64 .sandbox/bin/linux-arm64 .sandbox/cache
