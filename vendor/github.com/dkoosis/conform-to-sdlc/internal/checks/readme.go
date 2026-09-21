@@ -64,13 +64,14 @@ func checkReadme(dir string) []Finding {
 	return nil
 }
 
-// hasOpeningHeading reports whether the first non-blank line is a level-1
+// hasOpeningHeading reports whether the first non-blank line (ignoring
+// one-line HTML comments, which render as nothing) is a level-1
 // ATX heading carrying text. Leading blank lines are skipped because Markdown
 // renders identically with or without them; a heading further down the page is
 // not the opening one, so scanning stops at the first line with content.
 func hasOpeningHeading(body string) bool {
 	for line := range strings.SplitSeq(body, "\n") {
-		if strings.TrimSpace(line) == "" {
+		if strings.TrimSpace(line) == "" || isHTMLComment(line) {
 			continue
 		}
 		rest, ok := strings.CutPrefix(line, "# ")
@@ -134,4 +135,12 @@ make check
 
 Direction lives in ` + RoadmapFile + `; the work lives in bd (` + "`bd ready`" + `).
 `
+}
+
+// isHTMLComment reports whether line is a whole one-line HTML comment. It
+// renders as nothing, so trixi's KG-publish banner on line 1 does not hide the
+// heading under it.
+func isHTMLComment(line string) bool {
+	s := strings.TrimSpace(line)
+	return strings.HasPrefix(s, "<!--") && strings.HasSuffix(s, "-->")
 }

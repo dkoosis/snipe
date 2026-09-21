@@ -41,7 +41,7 @@ const (
 )
 
 // noGitOpsFamily is what a no-git-ops exception expands to.
-var noGitOpsFamily = []string{RuleHooksShape, RuleHooksPath, RuleBDHooks, RuleReviewGate}
+var noGitOpsFamily = []string{RuleHooksShape, RuleHookExitDiscard, RuleHooksPath, RuleBDHooks, RuleReviewGate}
 
 // trackedHookEvents are the bd hook events shape B tracks in .githooks.
 var trackedHookEvents = []string{"post-checkout", "post-merge", "pre-commit", "pre-push", "prepare-commit-msg"}

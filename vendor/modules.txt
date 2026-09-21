@@ -13,7 +13,7 @@ github.com/davecgh/go-spew/spew
 # github.com/dkoosis/atomicfile v0.0.0-20260804145440-ef7d3b3067ae
 ## explicit; go 1.26.4
 github.com/dkoosis/atomicfile
-# github.com/dkoosis/conform-to-sdlc v0.3.0
+# github.com/dkoosis/conform-to-sdlc v0.3.2
 ## explicit; go 1.26.3
 github.com/dkoosis/conform-to-sdlc/cmd/conform-to-sdlc
 github.com/dkoosis/conform-to-sdlc/internal/checks

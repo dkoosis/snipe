@@ -42,24 +42,26 @@ const LegacyValuesFile = "conform.json"
 // vocabulary (e.g. `no-git-ops`, honored by --local for repos like loto that
 // declare git operations out of scope).
 const (
-	RuleValuesFile   = "values-file"       // docs/conform.json present and valid
-	RuleMakefileVerb = "makefile-verbs"    // four-verb contract + prereq composition
-	RuleMakefileDocs = "makefile-docs"     // every target carries a ## doc comment
-	RuleLintFloor    = "lint-floor"        // .golangci.yml carries the 6-linter baseline floor
-	RuleLintContext  = "lint-contextcheck" // contextcheck must stay demoted
-	RuleLintPin      = "lint-pin"          // exactly one golangci-lint pin location
-	RuleCIGate       = "ci-gate"           // CI calls make check; no gate re-implemented in YAML
-	RuleCodexShape   = "codex-workflow"    // codex-review fires on issue_comment, never pull_request
-	RuleRetiredFiles = "retired-files"     // files folded into conform-to-sdlc are gone
-	RuleBDConfig     = "bd-config"         // bd config keys present
-	RuleHooksShape   = "hooks-shape"       // shape B: tracked .githooks
-	RulePRTemplate   = "pr-template"       // PR template present + non-empty (Surface 1 since v0.2.0)
-	RuleReadme       = "readme"            // README.md present, non-empty, opening with a heading
-	RuleRoadmap      = "roadmap"           // ROADMAP.md present, carrying a ★ destination line
-	RuleRootMinimal  = "root-minimal"      // no CLAUDE.md / ROADMAP.md / conform.json / NORTH_STAR.md at the root
-	RuleSandboxLib   = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform-to-sdlc ships
-	RuleAgentsStub   = "agents-stub"       // root AGENTS.md stays a pointer, never content
-	RuleCIDocsSkip   = "ci-docs-skip"      // a detect job lets a docs-only PR skip make check, context kept
+	RuleValuesFile      = "values-file"       // docs/conform.json present and valid
+	RuleMakefileVerb    = "makefile-verbs"    // four-verb contract + prereq composition
+	RuleMakefileDocs    = "makefile-docs"     // every target carries a ## doc comment
+	RuleLintFloor       = "lint-floor"        // .golangci.yml carries the 6-linter baseline floor
+	RuleLintContext     = "lint-contextcheck" // contextcheck must stay demoted
+	RuleLintPin         = "lint-pin"          // exactly one golangci-lint pin location
+	RuleCIGate          = "ci-gate"           // CI calls make check; no gate re-implemented in YAML
+	RuleCodexShape      = "codex-workflow"    // codex-review fires on issue_comment, never pull_request
+	RuleRetiredFiles    = "retired-files"     // files folded into conform-to-sdlc are gone
+	RuleBDConfig        = "bd-config"         // bd config keys present
+	RuleHooksShape      = "hooks-shape"       // shape B: tracked .githooks
+	RulePRTemplate      = "pr-template"       // PR template present + non-empty (Surface 1 since v0.2.0)
+	RuleReadme          = "readme"            // README.md present, non-empty, opening with a heading
+	RuleRoadmap         = "roadmap"           // ROADMAP.md present, carrying a ★ destination line
+	RuleRootMinimal     = "root-minimal"      // no CLAUDE.md / ROADMAP.md / conform.json / NORTH_STAR.md at the root
+	RuleSandboxLib      = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform-to-sdlc ships
+	RuleAgentsStub      = "agents-stub"       // root AGENTS.md stays a pointer, never content
+	RuleCIDocsSkip      = "ci-docs-skip"      // a detect job lets a docs-only PR skip make check, context kept
+	RuleHookExitDiscard = "hook-exit-discard" // a hook swallows a tool's exit status with nothing that surfaces the failure
+	RuleVocabulary      = "vocabulary-file"   // .claude/rules/vocabulary.md present; content unchecked
 )
 
 // Finding is one contract violation: which file, which rule, what to run.
@@ -89,12 +91,14 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkRetiredFiles(dir)...)
 	findings = append(findings, checkBDConfig(dir)...)
 	findings = append(findings, checkHooksShape(dir)...)
+	findings = append(findings, checkHookExitDiscard(dir)...)
 	findings = append(findings, checkPRTemplate(dir)...)
 	findings = append(findings, checkReadme(dir)...)
 	findings = append(findings, checkRoadmap(dir)...)
 	findings = append(findings, checkRootMinimal(dir)...)
 	findings = append(findings, checkAgentsStub(dir)...)
 	findings = append(findings, checkSandboxLib(dir)...)
+	findings = append(findings, checkVocabulary(dir)...)
 
 	findings = applyExceptions(findings, vals)
 	sort.SliceStable(findings, func(i, j int) bool {
