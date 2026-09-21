@@ -43,12 +43,12 @@
 //
 // # Fleet roster
 //
-// fleet.json is the one central roster, go:embed'ed so `conform --fleet`
+// fleet.json is the one central roster, go:embed'ed so `conform-to-sdlc --fleet`
 // runs from the installed binary without a checkout of every repo. It owns
 // fleet-level facts only — a repo's name and its GitHub visibility (the
 // public/private split) — never profile or exceptions, which stay per-repo.
 //
 // cc-plugins is deliberately absent from the roster: it is markdown-only,
-// outside the Go contract conform enforces. The roster is the authority on
+// outside the Go contract conform-to-sdlc enforces. The roster is the authority on
 // fleet membership, so the omission is the decision, not an oversight.
 package values

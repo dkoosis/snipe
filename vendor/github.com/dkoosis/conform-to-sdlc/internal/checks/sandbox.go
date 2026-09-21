@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dkoosis/conform/internal/sandbox"
+	"github.com/dkoosis/conform-to-sdlc/internal/sandbox"
 )
 
-// checkSandboxLib compares .sandbox/lib against the canonical copy conform
+// checkSandboxLib compares .sandbox/lib against the canonical copy conform-to-sdlc
 // embeds. Only repos that already have a sandbox are checked — a repo without
 // .sandbox/ has opted out, and this rule does not opt it back in.
 //
@@ -22,13 +22,13 @@ func checkSandboxLib(dir string) []Finding {
 
 	want, err := sandbox.Files()
 	if err != nil {
-		// An unreadable embed is conform breaking, not the repo violating a
-		// rule; report it against conform itself rather than blaming the repo.
+		// An unreadable embed is conform-to-sdlc breaking, not the repo violating a
+		// rule; report it against conform-to-sdlc itself rather than blaming the repo.
 		return []Finding{{
 			File:   sandbox.LibDir,
 			Rule:   RuleSandboxLib,
-			Msg:    "conform cannot read its embedded sandbox library: " + err.Error(),
-			Repair: "file a bug against conform — the repo is not at fault",
+			Msg:    "conform-to-sdlc cannot read its embedded sandbox library: " + err.Error(),
+			Repair: "file a bug against conform-to-sdlc — the repo is not at fault",
 		}}
 	}
 
@@ -47,14 +47,14 @@ func checkSandboxLib(dir string) []Finding {
 				File:   rel,
 				Rule:   RuleSandboxLib,
 				Msg:    "missing from the sandbox library",
-				Repair: "go tool conform sandbox sync",
+				Repair: "go tool conform-to-sdlc sandbox sync",
 			})
 		case !bytes.Equal(have, want[name]):
 			findings = append(findings, Finding{
 				File:   rel,
 				Rule:   RuleSandboxLib,
-				Msg:    "drifted from the canonical sandbox library conform ships",
-				Repair: "go tool conform sandbox sync (repo-specific env belongs in .sandbox/local-activate.sh)",
+				Msg:    "drifted from the canonical sandbox library conform-to-sdlc ships",
+				Repair: "go tool conform-to-sdlc sandbox sync (repo-specific env belongs in .sandbox/local-activate.sh)",
 			})
 		}
 	}

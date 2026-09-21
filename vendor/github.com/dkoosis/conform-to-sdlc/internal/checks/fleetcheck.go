@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dkoosis/conform/internal/values"
+	"github.com/dkoosis/conform-to-sdlc/internal/values"
 )
 
 // Surface 3 (--fleet): GitHub-side settings, swept over every repo in the

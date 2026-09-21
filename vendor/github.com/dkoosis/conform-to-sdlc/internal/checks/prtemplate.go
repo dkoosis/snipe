@@ -32,7 +32,7 @@ func checkPRTemplate(dir string) []Finding {
 				File:   rel,
 				Rule:   RulePRTemplate,
 				Msg:    "PR template is empty — it structures nothing",
-				Repair: "fill " + rel + " (copy the fleet reference from conform)",
+				Repair: "fill " + rel + " (copy the fleet reference from conform-to-sdlc)",
 			}}
 		}
 		return nil
@@ -41,6 +41,6 @@ func checkPRTemplate(dir string) []Finding {
 		File:   prTemplatePaths[0],
 		Rule:   RulePRTemplate,
 		Msg:    "no PR template — agent PRs open with free-form bodies",
-		Repair: "add " + prTemplatePaths[0] + " (copy the fleet reference from conform)",
+		Repair: "add " + prTemplatePaths[0] + " (copy the fleet reference from conform-to-sdlc)",
 	}}
 }

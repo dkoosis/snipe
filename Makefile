@@ -51,16 +51,16 @@ help: ## Show this help
 		/^## [^-]/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 4) } \
 		/^[a-zA-Z0-9_-]+:.*?## / { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-check: vet lint test build selfcheck ## Full repo: vet + lint + test + build + conform
+check: vet lint test build selfcheck ## Full repo: vet + lint + test + build + conform-to-sdlc
 	@echo "=== check pass ==="
 
 build: ## Compile everything
 	go build ./...
 
-# Dogfood the fleet gate (sd-th5.10): conform is pinned as a go.mod tool
+# Dogfood the fleet gate (sd-th5.10): conform-to-sdlc is pinned as a go.mod tool
 # dependency (go.sum-verified); bumping the pin is a deliberate PR.
-selfcheck: ## Run conform (fleet SDLC checker) against this repo
-	go tool conform
+selfcheck: ## Run conform-to-sdlc (fleet SDLC checker) against this repo
+	go tool conform-to-sdlc
 
 audit: check race blackbox eval vuln ## Exhaustive: +race +blackbox +eval +vuln
 	@echo "=== audit pass ==="

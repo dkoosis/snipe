@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 )
 
-// Fix applies the Surface-1 repairs conform can make without judgment, and
+// Fix applies the Surface-1 repairs conform-to-sdlc can make without judgment, and
 // returns one line per action taken. A clean repo returns nothing.
 //
 // The bar for living here is narrow on purpose: the repair must be the ONLY
 // correct one, and it must never destroy work. Creating a file that is absent
-// qualifies. Rewriting one that exists does not — conform would be guessing at
+// qualifies. Rewriting one that exists does not — conform-to-sdlc would be guessing at
 // content a human wrote, and a checker that edits your prose stops being
 // trusted long before it stops being right. Everything else stays a Repair
 // string on the finding, for a person to run.
@@ -21,7 +21,7 @@ import (
 func Fix(dir string) ([]string, error) {
 	var done []string
 
-	for _, fix := range []func(string) (string, error){fixReadme, fixRoadmap} {
+	for _, fix := range []func(string) (string, error){fixReadme, fixRoadmap, fixCheckWorkflow} {
 		created, err := fix(dir)
 		if err != nil {
 			return done, err
@@ -88,4 +88,29 @@ func fixReadme(dir string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("created %s — replace the opening comment with `# %s`, then say what the repo is", ReadmeFile, filepath.Base(abs)), nil
+}
+
+// fixCheckWorkflow writes .github/workflows/check.yml when the repo has none:
+// make check behind the docs-only detect job, the shape ci-gate and
+// ci-docs-skip read. An existing workflow is never touched — its extra steps
+// are a person's to port.
+//
+// Unlike the README and ROADMAP skeletons this file is not left red: a CI
+// workflow carries no prose a person must still write, and the rendered file
+// is the whole repair.
+func fixCheckWorkflow(dir string) (string, error) {
+	path := filepath.Join(dir, ciGateFile)
+	if _, err := os.Stat(path); err == nil {
+		return "", nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return "", err
+	}
+	// 0o600 for the same reason fixRoadmap uses it.
+	if err := os.WriteFile(path, []byte(renderCheckWorkflow(ScaffoldSpec{})), 0o600); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("created %s — make check behind the docs-only detect job", ciGateFile), nil
 }

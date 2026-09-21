@@ -43,7 +43,7 @@ func checkLintPin(dir string) []Finding {
 // recursing the whole tree would blow the <1s budget for no additional
 // coverage — and reports any golangci version literal outside the pin file.
 func strayPinFindings(dir string) []Finding {
-	candidates := []string{"Makefile", "tools.go"}
+	candidates := []string{makefileFile, "tools.go"}
 	for _, glob := range []string{".github/workflows/*.yml", ".github/workflows/*.yaml", "scripts/*"} {
 		matches, _ := filepath.Glob(filepath.Join(dir, glob))
 		for _, m := range matches {

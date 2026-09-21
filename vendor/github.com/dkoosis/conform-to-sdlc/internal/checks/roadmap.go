@@ -89,12 +89,12 @@ func hasStarLine(body string) bool {
 // other.
 func roadmapRepair(dir string) string {
 	if _, err := os.Stat(filepath.Join(dir, NorthStarFile)); err == nil {
-		return "conform --fix, then copy the ★ line from " + NorthStarFile + " into " + RoadmapFile
+		return "conform-to-sdlc --fix, then copy the ★ line from " + NorthStarFile + " into " + RoadmapFile
 	}
-	return "conform --fix (writes a " + RoadmapFile + " skeleton to fill in)"
+	return "conform-to-sdlc --fix (writes a " + RoadmapFile + " skeleton to fill in)"
 }
 
-// RoadmapSkeleton renders a starting ROADMAP.md for `conform --fix` to drop
+// RoadmapSkeleton renders a starting ROADMAP.md for `conform-to-sdlc --fix` to drop
 // into an existing repo. Every line is a prompt, and the ★ placeholder is
 // deliberately unusable as-is, so a repo that runs --fix and stops still fails
 // the ★ check and says why, rather than passing with a file nobody wrote.
@@ -102,13 +102,13 @@ func RoadmapSkeleton(repo string) string {
 	return roadmapDoc(repo, roadmapFixDestination)
 }
 
-// RoadmapScaffold renders the same page for `conform init`, which promises a
+// RoadmapScaffold renders the same page for `conform-to-sdlc init`, which promises a
 // repo that passes the checker unedited — so this one carries a real ★ line.
 //
 // The two differ on exactly one block, and the difference is who is standing
 // there. --fix repairs a repo that already exists and may be unattended, so a
 // green gate would be a lie about a page nobody wrote. init is a person naming
-// a new repo at the keyboard, watching conform list what it emitted; the ★
+// a new repo at the keyboard, watching conform-to-sdlc list what it emitted; the ★
 // line it gets is visibly a prompt, and the promise it keeps — scaffold, run
 // the gate, see green — is what makes the scaffold trustworthy at all.
 //
@@ -121,7 +121,7 @@ func RoadmapScaffold(repo string) string {
 // roadmapFixDestination refuses to satisfy hasStarLine: no line starts with ★.
 const roadmapFixDestination = "<!-- Replace this comment with the ★ line from the kg's\n" +
 	"     Project/<repo>/NORTH_STAR.md, copied verbatim, at the start of a line.\n" +
-	"     Until you do, `conform` stays red on the roadmap rule — a skeleton\n" +
+	"     Until you do, `conform-to-sdlc` stays red on the roadmap rule — a skeleton\n" +
 	"     that passed the gate would read as direction and carry none. -->"
 
 // roadmapInitDestination satisfies hasStarLine and reads as unfinished, which
