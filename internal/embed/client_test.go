@@ -164,13 +164,13 @@ func TestCredentials_IgnoresPlaintextFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("KEYRING_DISABLE", "1")
-	t.Setenv("SNIPE_VOYAGE_API_KEY", "")
+	t.Setenv("VOYAGE_API_KEY", "")
 
 	credDir := filepath.Join(home, ".config", "snipe")
 	if err := os.MkdirAll(credDir, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(credDir, "credentials"), []byte("SNIPE_VOYAGE_API_KEY=planted-key\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(credDir, "credentials"), []byte("VOYAGE_API_KEY=planted-key\n"), 0o600); err != nil {
 		t.Fatalf("write credentials: %v", err)
 	}
 
@@ -182,8 +182,26 @@ func TestCredentials_IgnoresPlaintextFile(t *testing.T) {
 	}
 }
 
+// TestCredentials_IgnoresLegacyEnvName guards sn-9zsy: snipe reads the shared
+// VOYAGE_API_KEY, not its old private SNIPE_VOYAGE_API_KEY. Keeping a second
+// accepted name is how two copies of one secret drifted apart (one went dead
+// and returned 401), so the old name alone must not satisfy credentials.
+func TestCredentials_IgnoresLegacyEnvName(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("KEYRING_DISABLE", "1")
+	t.Setenv("VOYAGE_API_KEY", "")
+	t.Setenv("SNIPE_VOYAGE_API_KEY", "legacy-named-key")
+
+	if HasCredentials() {
+		t.Error("HasCredentials returned true from SNIPE_VOYAGE_API_KEY — only VOYAGE_API_KEY may satisfy it")
+	}
+	if _, _, _, err := resolveCredentials(); err == nil {
+		t.Error("resolveCredentials succeeded from SNIPE_VOYAGE_API_KEY — only VOYAGE_API_KEY may satisfy it")
+	}
+}
+
 // TestCredentials_EnvFirst locks the env-first ordering (AXI #6: never prompt).
-// When SNIPE_VOYAGE_API_KEY is set, resolveCredentials returns it and
+// When VOYAGE_API_KEY is set, resolveCredentials returns it and
 // HasCredentials reports true WITHOUT consulting the keychain — so an
 // env-provisioned process (agent, CI, orca) never execs `security` and can never
 // trip an OS unlock/allow dialog. KEYRING_DISABLE is left UNSET to prove the env
@@ -192,7 +210,7 @@ func TestCredentials_IgnoresPlaintextFile(t *testing.T) {
 func TestCredentials_EnvFirst(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("KEYRING_DISABLE", "")
-	t.Setenv("SNIPE_VOYAGE_API_KEY", "env-provided-key")
+	t.Setenv("VOYAGE_API_KEY", "env-provided-key")
 
 	// The no-prompt contract is not "env wins" but "the keychain is never
 	// opened": opening it is what execs `security` and can hang a headless
@@ -200,7 +218,7 @@ func TestCredentials_EnvFirst(t *testing.T) {
 	orig := credStore
 	t.Cleanup(func() { credStore = orig })
 	credStore = func() (*keyring.Store, error) {
-		t.Error("credStore opened despite SNIPE_VOYAGE_API_KEY being set — this can exec `security` and hang headless agents")
+		t.Error("credStore opened despite VOYAGE_API_KEY being set — this can exec `security` and hang headless agents")
 		return nil, errors.New("credStore must not be opened when the env key is set")
 	}
 
@@ -255,7 +273,7 @@ func TestLiveProbe(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			t.Setenv("KEYRING_DISABLE", "1")
-			t.Setenv("SNIPE_VOYAGE_API_KEY", "test-key")
+			t.Setenv("VOYAGE_API_KEY", "test-key")
 			t.Setenv("VOYAGE_API_URL", server.URL)
 
 			err := LiveProbe(context.Background())

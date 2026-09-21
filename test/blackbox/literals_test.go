@@ -10,13 +10,13 @@ import (
 
 func TestLits_EnvVarCallSites(t *testing.T) {
 	// Index the snipe repo itself, then query for a known env var.
-	// SNIPE_VOYAGE_API_KEY has 1 os.Getenv call in internal/embed/client.go
+	// VOYAGE_API_KEY has 1 os.Getenv call in internal/embed/client.go
 	// (the envAPIKey helper, shared by HasCredentials and the ErrUnreadable
 	// downgrade in resolveCredentials); keyring.GetOrEnv also reads it, but
 	// lits does not classify that as an env call site.
 	indexRepo(t, repoRoot)
 
-	stdout, stderr, exitCode := run(t, repoRoot, "lits", "SNIPE_VOYAGE_API_KEY")
+	stdout, stderr, exitCode := run(t, repoRoot, "lits", "VOYAGE_API_KEY")
 	if exitCode != 0 {
 		t.Fatalf("lits exit %d stderr=%s stdout=%s", exitCode, string(stderr), string(stdout))
 	}
@@ -25,7 +25,7 @@ func TestLits_EnvVarCallSites(t *testing.T) {
 
 	results := requireSlice(t, resp["results"], "results")
 	if len(results) == 0 {
-		t.Fatal("expected at least 1 result for SNIPE_VOYAGE_API_KEY")
+		t.Fatal("expected at least 1 result for VOYAGE_API_KEY")
 	}
 
 	// All results should be env kind
@@ -46,10 +46,10 @@ func TestLits_EnvVarCallSites(t *testing.T) {
 		}
 	}
 
-	// Exactly 1 os.Getenv("SNIPE_VOYAGE_API_KEY") call exists in the codebase
+	// Exactly 1 os.Getenv("VOYAGE_API_KEY") call exists in the codebase
 	meta := requireMap(t, resp["meta"], "meta")
 	total := int(getFloat(t, meta["total"], "total"))
 	if total != 1 {
-		t.Errorf("want 1 ref for SNIPE_VOYAGE_API_KEY, got %d", total)
+		t.Errorf("want 1 ref for VOYAGE_API_KEY, got %d", total)
 	}
 }
