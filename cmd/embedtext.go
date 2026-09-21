@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"sort"
 	"strings"
 
 	snipectx "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/index"
+	"github.com/dkoosis/snipe/internal/store"
 )
 
 // embedMaxCallers caps how many caller names are folded into a symbol's
@@ -99,6 +102,51 @@ func composeEmbedText(sym *index.Symbol, ec embedContext) string {
 		text += "\ncalled by: " + strings.Join(callers, ", ")
 	}
 	return text
+}
+
+// storedEmbedState composes every embeddable symbol's text from the stored
+// index. The incremental path calls it before and after its write; the two
+// snapshots differ exactly where a symbol's embedded text (signature, doc,
+// package narrative, caller names) changed.
+func storedEmbedState(s *store.Store) (texts map[string]string, symbols []index.Symbol, ec embedContext, err error) {
+	symbols, edges, docs, err := s.LoadEmbedInputs()
+	if err != nil {
+		return nil, nil, embedContext{}, err
+	}
+	ec = buildEmbedContext(symbols, edges, docs)
+	embeddable := filterEmbeddableSymbols(symbols, ec)
+	texts = make(map[string]string, len(embeddable))
+	for _, st := range embeddable {
+		texts[st.ID] = st.Text
+	}
+	return texts, symbols, ec, nil
+}
+
+// refreshEmbeddings re-embeds what an incremental update made stale (sn-1ewy):
+// every symbol in a changed file (the incremental write drops those vectors)
+// plus any symbol elsewhere whose embedded text moved — a callee whose caller
+// set changed, or a package member whose narrative changed. before is the
+// storedEmbedState texts taken ahead of the write.
+func refreshEmbeddings(ctx context.Context, s *store.Store, before map[string]string, changed []index.Symbol) (int, error) {
+	after, symbols, ec, err := storedEmbedState(s)
+	if err != nil {
+		return 0, fmt.Errorf("load embed state: %w", err)
+	}
+	inChangedFile := make(map[string]bool, len(changed))
+	for i := range changed {
+		inChangedFile[changed[i].ID] = true
+	}
+	var stale []index.Symbol
+	for i := range symbols {
+		id := symbols[i].ID
+		if inChangedFile[id] || after[id] != before[id] {
+			stale = append(stale, symbols[i])
+		}
+	}
+	if len(filterEmbeddableSymbols(stale, ec)) == 0 {
+		return 0, nil
+	}
+	return generateEmbeddings(ctx, s, stale, ec)
 }
 
 // filterEmbeddableSymbols returns symbols suitable for embedding (functions, methods,

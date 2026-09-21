@@ -729,6 +729,23 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 		}
 	}
 
+	// Embeddings refresh only when the index already holds a set to keep
+	// current: auto resolves to realtime exactly then, and an explicit
+	// realtime asks for it. Batch (no embeddings yet, or asked for) stays a
+	// full-index job — seeding a partial set here would flip auto to realtime
+	// for good and lose the batch path. Off pays nothing: no probe, no
+	// snapshot, no context (sn-1ewy).
+	var embedBefore map[string]string
+	refreshEmbed := resolveEmbedMode(embedMode, withEmbed, s) == embedModeRealtime
+	if refreshEmbed {
+		var snapErr error
+		embedBefore, _, _, snapErr = storedEmbedState(s)
+		if snapErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: embedding refresh skipped: %v\n", snapErr)
+			refreshEmbed = false
+		}
+	}
+
 	// Extract refs ONLY for changed files (main savings)
 	fmt.Fprintf(os.Stderr, "Extracting references for %d changed files...\n", len(changedFiles))
 	fileCache := util.NewFileCache(util.DefaultMaxCachedFiles)
@@ -805,6 +822,16 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 	// Update metadata
 	if err := s.SetMeta("indexed_at", time.Now().Format(time.RFC3339)); err != nil {
 		return fmt.Errorf("store timestamp: %w", err)
+	}
+
+	// Warn-only, like the full path: the index is already consistent without it.
+	if refreshEmbed {
+		count, err := refreshEmbeddings(GetContext(), s, embedBefore, changedSymbols)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: embedding refresh failed: %v\n", err)
+		} else if count > 0 {
+			fmt.Fprintf(os.Stderr, "Refreshed %d embeddings\n", count)
+		}
 	}
 
 	// Build summary

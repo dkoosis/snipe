@@ -5,8 +5,72 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/vector"
 )
+
+// LoadEmbedInputs returns the stored symbols, call edges and package docs an
+// embedded symbol's text is composed from. Reading both the before and after
+// state of an incremental update through this one path keeps the two texts
+// comparable: a round-trip difference cannot look like a change.
+func (s *Store) LoadEmbedInputs() ([]index.Symbol, []index.CallEdge, []index.PackageDoc, error) {
+	symRows, err := s.db.Query(`
+		SELECT id, name, kind, file_path, COALESCE(pkg_path, ''), COALESCE(signature, ''), COALESCE(doc, '')
+		FROM symbols
+	`)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("query symbols for embed inputs: %w", err)
+	}
+	defer symRows.Close()
+	var symbols []index.Symbol
+	for symRows.Next() {
+		var sym index.Symbol
+		var kind string
+		if err := symRows.Scan(&sym.ID, &sym.Name, &kind, &sym.FilePath, &sym.PkgPath, &sym.Signature, &sym.Doc); err != nil {
+			return nil, nil, nil, fmt.Errorf("scan symbol for embed inputs: %w", err)
+		}
+		sym.Kind = index.SymbolKind(kind)
+		symbols = append(symbols, sym)
+	}
+	if err := symRows.Err(); err != nil {
+		return nil, nil, nil, fmt.Errorf("iterate symbols for embed inputs: %w", err)
+	}
+
+	edgeRows, err := s.db.Query(`SELECT DISTINCT caller_id, callee_id FROM call_graph`)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("query call edges for embed inputs: %w", err)
+	}
+	defer edgeRows.Close()
+	var edges []index.CallEdge
+	for edgeRows.Next() {
+		var e index.CallEdge
+		if err := edgeRows.Scan(&e.CallerID, &e.CalleeID); err != nil {
+			return nil, nil, nil, fmt.Errorf("scan call edge for embed inputs: %w", err)
+		}
+		edges = append(edges, e)
+	}
+	if err := edgeRows.Err(); err != nil {
+		return nil, nil, nil, fmt.Errorf("iterate call edges for embed inputs: %w", err)
+	}
+
+	docRows, err := s.db.Query(`SELECT pkg_path, doc FROM package_docs`)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("query package docs for embed inputs: %w", err)
+	}
+	defer docRows.Close()
+	var docs []index.PackageDoc
+	for docRows.Next() {
+		var d index.PackageDoc
+		if err := docRows.Scan(&d.PkgPath, &d.Doc); err != nil {
+			return nil, nil, nil, fmt.Errorf("scan package doc for embed inputs: %w", err)
+		}
+		docs = append(docs, d)
+	}
+	if err := docRows.Err(); err != nil {
+		return nil, nil, nil, fmt.Errorf("iterate package docs for embed inputs: %w", err)
+	}
+	return symbols, edges, docs, nil
+}
 
 // ErrCorruptEmbedding signals that a stored embedding BLOB could not be
 // deserialized — its length is not a multiple of 4 bytes. Callers must treat
