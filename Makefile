@@ -65,8 +65,7 @@ selfcheck: ## Run conform (fleet SDLC checker) against this repo
 audit: check race blackbox eval vuln ## Exhaustive: +race +blackbox +eval +vuln
 	@echo "=== audit pass ==="
 
-deploy: install ## Build, install, and verify
-	@echo "deployed $$(go env GOPATH)/bin/snipe ($$(snipe version 2>&1 | head -1))"
+deploy: install ## Build, install, and verify (install reports the path and version)
 
 report: ## Structured QA output for agents/tools (always exits 0)
 	@( $(REPORT_CMD) ) | fo --format llm --state-file .fo/report.json || true
