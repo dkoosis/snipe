@@ -77,51 +77,82 @@ func checkCIDocsSkip(dir string) []Finding {
 		})
 	}
 
-	guarded, widened := docsSkipGuard(wf)
-	for _, w := range widened {
-		findings = append(findings, Finding{
-			File:   file,
-			Rule:   RuleCIDocsSkip,
-			Msg:    fmt.Sprintf("detect job %q widens the docs-only set with %q — a repo may narrow conform-to-sdlc's set, never widen it", w.job, w.alt),
-			Repair: fmt.Sprintf("remove %q from the job's awk regex; conform-to-sdlc's set is %s", w.alt, renderDocsOnlyRegex()),
-		})
+	findings = append(findings, docsSkipFindings(wf, file)...)
+	return findings
+}
+
+// docsSkipFindings is checkCIDocsSkip's core: it names the gate job (the one
+// running `make check`) whenever the wiring between it and a detect job's
+// output cannot actually gate anything — an ungated condition, a missing
+// needs:, or a detect job whose output never varies with the diff are each a
+// skip that would let code through unexamined.
+func docsSkipFindings(wf *workflow, file string) []Finding {
+	guards := gateGuards(wf)
+	if len(guards) == 0 {
+		jobs := makeCheckJobs(wf)
+		findings := make([]Finding, 0, len(jobs))
+		for _, job := range jobs {
+			findings = append(findings, Finding{
+				File:   file,
+				Rule:   RuleCIDocsSkip,
+				Msg:    fmt.Sprintf("job %q's make check step is not gated on a needs output (missing needs:, or an if that never names it) — no job decides docs-only before make check runs — a docs-only PR pays the full gate", job),
+				Repair: "mv " + file + " check.yml.old && conform-to-sdlc --fix, then port the old file's extra steps behind the detect guard",
+			})
+		}
+		return findings
 	}
-	if !guarded {
-		findings = append(findings, Finding{
-			File:   file,
-			Rule:   RuleCIDocsSkip,
-			Msg:    "no job decides docs-only before make check runs — a docs-only PR pays the full gate",
-			Repair: "mv " + file + " check.yml.old && conform-to-sdlc --fix, then port the old file's extra steps behind the detect guard",
-		})
+
+	var findings []Finding
+	seen := map[string]bool{}
+	for _, g := range guards {
+		if seen[g.detectJob] {
+			continue
+		}
+		seen[g.detectJob] = true
+
+		detectJob := wf.Jobs[g.detectJob]
+		alts := detectSets(detectJob)
+		if len(alts) == 0 {
+			findings = append(findings, Finding{
+				File:   file,
+				Rule:   RuleCIDocsSkip,
+				Msg:    fmt.Sprintf("job %q's make check step waits on %q, but %q carries no docs-only regex — no job decides docs-only before make check runs — a docs-only PR pays the full gate", g.gateJob, g.detectJob, g.detectJob),
+				Repair: "mv " + file + " check.yml.old && conform-to-sdlc --fix, then port the old file's extra steps behind the detect guard",
+			})
+			continue
+		}
+		for _, alt := range alts {
+			if !slices.Contains(docsOnlyPaths, alt) {
+				findings = append(findings, Finding{
+					File:   file,
+					Rule:   RuleCIDocsSkip,
+					Msg:    fmt.Sprintf("detect job %q widens the docs-only set with %q — a repo may narrow conform-to-sdlc's set, never widen it", g.detectJob, alt),
+					Repair: fmt.Sprintf("remove %q from the job's awk regex; conform-to-sdlc's set is %s", alt, renderDocsOnlyRegex()),
+				})
+			}
+		}
+		if !outputIsDynamic(detectJob) {
+			findings = append(findings, Finding{
+				File:   file,
+				Rule:   RuleCIDocsSkip,
+				Msg:    fmt.Sprintf("detect job %q's run_check output is a fixed value that never varies with the diff — a non-docs change can never flip it true, so make check never runs", g.detectJob),
+				Repair: `write run_check from the match's own result (see trixi's check.yml: run_check="$(... | awk ...)"; echo "run_check=${run_check:-false}"), not a literal`,
+			})
+		}
 	}
 	return findings
 }
 
-type widening struct{ job, alt string }
+// gateGuard pairs a gate job (one whose make check step is conditioned on a
+// needed job's output) with the detect job it names.
+type gateGuard struct{ gateJob, detectJob string }
 
-// docsSkipGuard reports whether some make check step waits on a needed job
-// that carries a docs-only regex, and every alternative in such a regex that
-// conform-to-sdlc's docsOnlyPaths does not list.
-func docsSkipGuard(wf *workflow) (guarded bool, widened []widening) {
-	for _, need := range gateGuards(wf) {
-		alts := detectSets(wf.Jobs[need])
-		if len(alts) > 0 {
-			guarded = true
-		}
-		for _, alt := range alts {
-			if !slices.Contains(docsOnlyPaths, alt) {
-				widened = append(widened, widening{need, alt})
-			}
-		}
-	}
-	return guarded, widened
-}
-
-// gateGuards names each needed job whose output a make check step (or its
-// job) waits on.
-func gateGuards(wf *workflow) []string {
-	var names []string
-	for _, job := range wf.Jobs {
+// gateGuards names each (gate job, detect job) pair where a make check step
+// (or its job) waits on the named job's output — the job must both appear in
+// needs: and be referenced by the if condition; either alone can never gate.
+func gateGuards(wf *workflow) []gateGuard {
+	var pairs []gateGuard
+	for name, job := range wf.Jobs {
 		for _, step := range job.Steps {
 			if !strings.Contains(step.Run, "make check") {
 				continue
@@ -129,12 +160,66 @@ func gateGuards(wf *workflow) []string {
 			for _, need := range nodeStrings(&job.Needs) {
 				ref := "needs." + need + ".outputs."
 				if strings.Contains(step.If, ref) || strings.Contains(job.If, ref) {
-					names = append(names, need)
+					pairs = append(pairs, gateGuard{name, need})
 				}
 			}
 		}
 	}
+	return pairs
+}
+
+// makeCheckJobs names every job carrying a `make check` step, gated or not —
+// used to name the gate job in a finding when no job guards it at all.
+func makeCheckJobs(wf *workflow) []string {
+	var names []string
+	for name, job := range wf.Jobs {
+		for _, step := range job.Steps {
+			if strings.Contains(step.Run, "make check") {
+				names = append(names, name)
+				break
+			}
+		}
+	}
+	slices.Sort(names)
 	return names
+}
+
+// runCheckOutput captures the value a line assigns to the run_check
+// $GITHUB_OUTPUT key, up to the next quote or whitespace.
+var runCheckOutput = regexp.MustCompile(`run_check=([^"\s]*)`)
+
+// outputIsDynamic reports whether some run_check write in job's steps derives
+// its value from a shell expansion (the diff's match result) rather than a
+// fixed literal. A job may legitimately hard-code one branch true (an
+// unknown base — trixi's shape) as long as another line ties the ordinary
+// case to the actual match; a job that only ever writes a literal can never
+// flip the gate on for a non-docs change.
+func outputIsDynamic(job *workflowJob) bool {
+	if job == nil {
+		return false
+	}
+	for _, step := range job.Steps {
+		if strings.Contains(step.Run, "GITHUB_OUTPUT") && runCheckLineIsDynamic(step.Run) {
+			return true
+		}
+	}
+	return false
+}
+
+// runCheckLineIsDynamic reports whether some line of a run script both
+// writes to $GITHUB_OUTPUT and assigns run_check a value containing a shell
+// expansion, rather than a fixed literal.
+func runCheckLineIsDynamic(run string) bool {
+	for line := range strings.SplitSeq(run, "\n") {
+		if !strings.Contains(line, "GITHUB_OUTPUT") || !strings.Contains(line, "run_check=") {
+			continue
+		}
+		m := runCheckOutput.FindStringSubmatch(line)
+		if len(m) >= 2 && strings.Contains(m[1], "$") {
+			return true
+		}
+	}
+	return false
 }
 
 // detectSets returns every docs-only alternative a job's run steps test

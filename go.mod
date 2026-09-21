@@ -24,7 +24,7 @@ require (
 )
 
 require (
-	github.com/dkoosis/conform-to-sdlc v0.3.0 // indirect
+	github.com/dkoosis/conform-to-sdlc v0.3.2 // indirect
 	github.com/google/renameio/v2 v2.0.2 // indirect
 )
 

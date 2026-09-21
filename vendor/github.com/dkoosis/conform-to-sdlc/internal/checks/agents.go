@@ -11,8 +11,8 @@ import (
 // else. Claude Code reads CLAUDE.md and never AGENTS.md
 // (code.claude.com/docs/en/memory.md), so this file is a pointer for Codex and
 // its kin and carries no instructions of its own (decision, dk 2026-09-08,
-// recorded in home/rules/standard-sdlc.md, which quotes the permitted body
-// verbatim).
+// recorded in sdlc plugins/sdlc/references/reference-repo-layout.md, which
+// quotes the permitted body verbatim).
 const AgentsFile = "AGENTS.md"
 
 // agentsLineCap is the ceiling on AGENTS.md's body. The permitted stub is
@@ -67,7 +67,7 @@ func checkAgentsStub(dir string) []Finding {
 				File:   AgentsFile,
 				Rule:   RuleAgentsStub,
 				Msg:    "a tool-managed block in " + AgentsFile + " — the root pointer carries no instructions, and a marked block regenerates after any hand cleanup",
-				Repair: "delete the block and its END marker (do not fold it into .claude/rules/); the permitted body is quoted verbatim in home/rules/standard-sdlc.md",
+				Repair: "delete the block and its END marker (do not fold it into .claude/rules/); the permitted body is quoted verbatim in sdlc plugins/sdlc/references/reference-repo-layout.md",
 			}}
 		}
 	}
@@ -77,7 +77,7 @@ func checkAgentsStub(dir string) []Finding {
 			File:   AgentsFile,
 			Rule:   RuleAgentsStub,
 			Msg:    AgentsFile + " is " + strconv.Itoa(n) + " lines — past the " + strconv.Itoa(agentsLineCap) + "-line cap, so the file nobody reads is becoming a second instruction set",
-			Repair: "reduce it to the stub pointer quoted verbatim in home/rules/standard-sdlc.md; the instructions belong in .claude/rules/",
+			Repair: "reduce it to the stub pointer quoted verbatim in sdlc plugins/sdlc/references/reference-repo-layout.md; the instructions belong in .claude/rules/",
 		}}
 	}
 	return nil

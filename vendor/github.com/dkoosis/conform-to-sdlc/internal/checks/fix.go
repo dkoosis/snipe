@@ -3,7 +3,9 @@ package checks
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 )
 
 // Fix applies the Surface-1 repairs conform-to-sdlc can make without judgment, and
@@ -51,7 +53,7 @@ func fixRoadmap(dir string) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	body := RoadmapSkeleton(filepath.Base(abs))
+	body := RoadmapSkeleton(repoName(abs))
 	// docs/ may not exist yet in a repo that never had a direction home.
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return "", err
@@ -84,10 +86,10 @@ func fixReadme(dir string) (string, error) {
 	}
 	// 0o600 for the same reason fixRoadmap uses it: git makes the file
 	// world-readable the moment it tracks it, so a wider mode buys nothing.
-	if err := os.WriteFile(path, []byte(ReadmeSkeleton(filepath.Base(abs))), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(ReadmeSkeleton(repoName(abs))), 0o600); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("created %s — replace the opening comment with `# %s`, then say what the repo is", ReadmeFile, filepath.Base(abs)), nil
+	return fmt.Sprintf("created %s — replace the opening comment with `# %s`, then say what the repo is", ReadmeFile, repoName(abs)), nil
 }
 
 // fixCheckWorkflow writes .github/workflows/check.yml when the repo has none:
@@ -113,4 +115,19 @@ func fixCheckWorkflow(dir string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("created %s — make check behind the docs-only detect job", ciGateFile), nil
+}
+
+// repoName is the last element of the module path in dir's go.mod, falling
+// back to the directory name. The directory alone is wrong in a worktree:
+// --fix run there titled trixi's roadmap after the worktree.
+func repoName(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err == nil {
+		for line := range strings.SplitSeq(string(data), "\n") {
+			if mod, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
+				return path.Base(strings.Trim(strings.TrimSpace(mod), `"`))
+			}
+		}
+	}
+	return filepath.Base(dir)
 }
