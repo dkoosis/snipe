@@ -334,14 +334,17 @@ func runIndex(args []string) error {
 	// Determine effective embedding mode
 	effectiveMode := resolveEmbedMode(embedMode, withEmbed, s)
 
-	// Generate embeddings based on mode
+	// Generate embeddings based on mode. Each symbol is embedded with its
+	// package narrative and caller names, not just its signature (sn-6wv).
+	// The context is built per case so embedModeOff pays nothing for it.
 	var embedCount int
 	var embedStatus string
 	switch effectiveMode {
 	case embedModeOff:
 		embedStatus = "disabled"
 	case embedModeBatch:
-		status, err := startBatchEmbeddings(GetContext(), s, absDir, symbols, fp.Combined)
+		ec := buildEmbedContext(symbols, edges, pkgDocs)
+		status, err := startBatchEmbeddings(GetContext(), s, absDir, symbols, ec, fp.Combined)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: batch embedding failed: %v\n", err)
 			embedStatus = batchStatusFailed
@@ -349,12 +352,13 @@ func runIndex(args []string) error {
 			embedStatus = status
 		}
 	case embedModeRealtime:
-		ec, err := generateEmbeddings(GetContext(), s, symbols)
+		ec := buildEmbedContext(symbols, edges, pkgDocs)
+		count, err := generateEmbeddings(GetContext(), s, symbols, ec)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: embedding generation failed: %v\n", err)
 			embedStatus = batchStatusFailed
 		} else {
-			embedCount = ec
+			embedCount = count
 			embedStatus = "completed"
 		}
 	}
@@ -368,36 +372,8 @@ func runIndex(args []string) error {
 	return emitIndex(w, indexResponse(absDir, start, len(symbols), nil))
 }
 
-// filterEmbeddableSymbols returns symbols suitable for embedding (functions, methods,
-// types with signatures or docs) as SymbolText with combined text for the embedding model.
-func filterEmbeddableSymbols(symbols []index.Symbol) []embed.SymbolText {
-	var result []embed.SymbolText
-	for i := range symbols {
-		sym := &symbols[i]
-		switch sym.Kind {
-		case index.KindFunc, index.KindMethod, index.KindType, index.KindInterface, index.KindStruct:
-			if sym.Signature != "" || sym.Doc != "" {
-				text := sym.Name
-				if sym.Signature != "" {
-					text += " " + sym.Signature
-				}
-				if sym.Doc != "" {
-					text += " " + sym.Doc
-				}
-				result = append(result, embed.SymbolText{
-					ID:   sym.ID,
-					Text: text,
-				})
-			}
-		case index.KindVar, index.KindConst, index.KindField:
-			// Skip - these typically don't have meaningful signatures for embedding
-		}
-	}
-	return result
-}
-
 // generateEmbeddings creates embeddings for symbols with signatures.
-func generateEmbeddings(ctx context.Context, s *store.Store, symbols []index.Symbol) (int, error) {
+func generateEmbeddings(ctx context.Context, s *store.Store, symbols []index.Symbol, ec embedContext) (int, error) {
 	client, err := embed.NewClient()
 	if err != nil {
 		return 0, err
@@ -405,7 +381,7 @@ func generateEmbeddings(ctx context.Context, s *store.Store, symbols []index.Sym
 
 	fmt.Fprintf(os.Stderr, "Generating embeddings with %s...\n", client.Model())
 
-	toEmbed := filterEmbeddableSymbols(symbols)
+	toEmbed := filterEmbeddableSymbols(symbols, ec)
 	if len(toEmbed) == 0 {
 		return 0, nil
 	}
@@ -545,7 +521,7 @@ func recoverCompletedBatch(ctx context.Context, client *embed.BatchClient, state
 // s is the caller's already-open store; the recovery branch reuses it so a
 // recovered batch writes through ONE connection pool instead of opening a
 // second handle that contends on the SQLite WAL lock (snipe-apz).
-func startBatchEmbeddings(ctx context.Context, s *store.Store, repoRoot string, symbols []index.Symbol, fingerprint string) (string, error) {
+func startBatchEmbeddings(ctx context.Context, s *store.Store, repoRoot string, symbols []index.Symbol, ec embedContext, fingerprint string) (string, error) {
 	snipeDir := filepath.Join(repoRoot, ".snipe")
 	client, err := embed.NewBatchClient(snipeDir)
 	if err != nil {
@@ -657,7 +633,7 @@ func startBatchEmbeddings(ctx context.Context, s *store.Store, repoRoot string, 
 	}
 
 	// Filter symbols worth embedding
-	toEmbed := filterEmbeddableSymbols(symbols)
+	toEmbed := filterEmbeddableSymbols(symbols, ec)
 	if len(toEmbed) == 0 {
 		return "no_symbols", nil
 	}
