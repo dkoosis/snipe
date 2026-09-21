@@ -7,10 +7,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -126,6 +129,27 @@ func mustIndex(t *testing.T, dir string, env []string, args ...string) string {
 	return string(stderr)
 }
 
+// editSeq hands every edit a distinct mtime. Change detection short-circuits on
+// a whole-second mtime match, so an edit landing in the same second as the
+// previous index would be skipped and the test would flake.
+var editSeq atomic.Int64
+
+// writeEdit writes path and stamps an mtime no earlier write shares.
+func writeEdit(t *testing.T, path, content string) {
+	t.Helper()
+	writeFile(t, path, content)
+	ts := time.Now().Add(time.Duration(editSeq.Add(1)) * time.Minute)
+	if err := os.Chtimes(path, ts, ts); err != nil {
+		t.Fatalf("chtimes %s: %v", path, err)
+	}
+}
+
+const callerSrc = `package emb
+
+// Caller uses Helper.
+func Caller() int { return Helper() }
+`
+
 // An incremental update embeds a new symbol, refreshes the callee whose caller
 // set changed in an untouched file, re-embeds the untouched-by-text siblings of
 // an edited file (the incremental write drops their vectors), and leaves
@@ -145,11 +169,7 @@ func TestIncrementalIndex_Reembeds(t *testing.T) {
 	v.drain()
 
 	// New file: adds a symbol and a caller of Helper (helper.go untouched).
-	writeFile(t, filepath.Join(dir, "caller.go"), `package emb
-
-// Caller uses Helper.
-func Caller() int { return Helper() }
-`)
+	writeEdit(t, filepath.Join(dir, "caller.go"), callerSrc)
 	mustIndex(t, dir, env)
 	got := v.drain()
 	if len(textFor(got, "Caller")) == 0 {
@@ -171,7 +191,7 @@ func Caller() int { return Helper() }
 
 	// Edit a file: its symbols lose their stored vectors in the incremental
 	// write, so all of them must come back.
-	writeFile(t, filepath.Join(dir, "helper.go"), `package emb
+	writeEdit(t, filepath.Join(dir, "helper.go"), `package emb
 
 // Helper does the shared work.
 func Helper() int { return 1 }
@@ -206,11 +226,7 @@ func TestIncrementalIndex_EmbedOffMakesNoCalls(t *testing.T) {
 	mustIndex(t, dir, env, "--embed-mode=realtime")
 	v.drain()
 
-	writeFile(t, filepath.Join(dir, "caller.go"), `package emb
-
-// Caller uses Helper.
-func Caller() int { return Helper() }
-`)
+	writeEdit(t, filepath.Join(dir, "caller.go"), callerSrc)
 	mustIndex(t, dir, env, "--embed-mode=off")
 	if got := v.drain(); len(got) != 0 {
 		t.Errorf("--embed-mode=off sent %d texts on the incremental path: %q", len(got), got)
@@ -225,14 +241,48 @@ func TestIncrementalIndex_NoCredentialsMakesNoCalls(t *testing.T) {
 	mustIndex(t, dir, v.env(), "--embed-mode=realtime")
 	v.drain()
 
-	writeFile(t, filepath.Join(dir, "caller.go"), `package emb
-
-// Caller uses Helper.
-func Caller() int { return Helper() }
-`)
+	writeEdit(t, filepath.Join(dir, "caller.go"), callerSrc)
 	bare := append(envWithout("VOYAGE_API_KEY", "VOYAGE_MODEL", "VOYAGE_API_URL"), "HOME="+t.TempDir())
 	mustIndex(t, dir, bare)
 	if got := v.drain(); len(got) != 0 {
 		t.Errorf("no-credentials incremental run sent %d texts: %q", len(got), got)
+	}
+}
+
+// Removing a caller refreshes the callee it used to point at, whether the file
+// is edited (main incremental path) or deleted (delete-only path).
+func TestIncrementalIndex_RemovedCallerRefreshesCallee(t *testing.T) {
+	tests := []struct {
+		name   string
+		remove func(t *testing.T, dir string)
+	}{
+		{"edited", func(t *testing.T, dir string) {
+			writeEdit(t, filepath.Join(dir, "caller.go"), "package emb\n\n// Caller no longer calls anything.\nfunc Caller() int { return 0 }\n")
+		}},
+		{"deleted", func(t *testing.T, dir string) {
+			if err := os.Remove(filepath.Join(dir, "caller.go")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := newFakeVoyage(t)
+			dir := writeEmbedFixture(t)
+			env := v.env()
+			writeEdit(t, filepath.Join(dir, "caller.go"), callerSrc)
+			mustIndex(t, dir, env, "--embed-mode=realtime")
+			v.drain()
+
+			tt.remove(t, dir)
+			mustIndex(t, dir, env)
+			helper := textFor(v.drain(), "Helper")
+			if len(helper) == 0 {
+				t.Fatal("Helper lost its caller but was not re-embedded")
+			}
+			if strings.Contains(helper[0], "called by") {
+				t.Errorf("Helper's refreshed text still names a caller: %q", helper[0])
+			}
+		})
 	}
 }
