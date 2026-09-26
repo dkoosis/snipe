@@ -25,6 +25,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -411,7 +412,7 @@ func runDiagramClassMap() error {
 	if err != nil {
 		return err
 	}
-	rendered := append(append([]*classType{}, rankedStructs...), pulledInterfaces...)
+	rendered := slices.Concat(rankedStructs, pulledInterfaces)
 
 	summary, d2src := buildClassMap(rendered, implements, len(all))
 	return emitDoc("class-map", summary, d2src)

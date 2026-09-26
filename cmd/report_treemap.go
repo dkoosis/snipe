@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"math"
+	"slices"
 	"sort"
 )
 
@@ -86,7 +87,7 @@ func squarify(items []treemapItem, w, h float64) []treemapBox {
 		best := worstRatio(row, shortSide)
 		i := 1
 		for i < len(remaining) {
-			candidate := append(append([]treemapItem{}, row...), remaining[i])
+			candidate := append(slices.Clone(row), remaining[i])
 			ratio := worstRatio(candidate, shortSide)
 			if ratio > best {
 				break

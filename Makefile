@@ -18,7 +18,7 @@ SHELL := /bin/bash
 include .sandbox/lib/Makefile.doctor.mk
 include .sandbox/lib/Makefile.cross.mk
 
-.PHONY: help scan check audit deploy report report-human \
+.PHONY: help scan check audit deploy report report-human pack-drift \
         vet lint test race blackbox vuln build selfcheck \
         install clean \
         baseline bench eval eval-setup
@@ -51,7 +51,7 @@ help: ## Show this help
 		/^## [^-]/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 4) } \
 		/^[a-zA-Z0-9_-]+:.*?## / { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-check: vet lint test build selfcheck ## Full repo: vet + lint + test + build + conform-to-sdlc
+check: vet lint test build pack-drift selfcheck ## Full repo: vet + lint + test + build + pack-drift + conform-to-sdlc
 	@echo "=== check pass ==="
 
 build: ## Compile everything
@@ -160,3 +160,6 @@ scan: ## Vet + lint + test changed packages only (fast inner loop)
 		go test -count=1 -cover $$PKGS && \
 		echo "=== scan pass ==="; \
 	fi
+
+pack-drift: ## Fail if the copied lintbrush pack rules drifted from upstream (network-soft)
+	@.golangci-rules/check-pack-drift.sh
