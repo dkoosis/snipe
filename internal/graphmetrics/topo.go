@@ -1,5 +1,7 @@
 package graphmetrics
 
+import "slices"
+
 // TopoSort returns a Kahn topological order of g's nodes. If g has a cycle,
 // order is nil and cycleWitness contains nodes from one cycle in DFS-traversal
 // order (not necessarily minimal).
@@ -47,7 +49,7 @@ func TopoSort(g *Graph) (order []string, cycleWitness []string) {
 	var dfs func(u string) []string
 	dfs = func(u string) []string {
 		if idx, ok := onStack[u]; ok {
-			return append([]string{}, path[idx:]...)
+			return slices.Clone(path[idx:])
 		}
 		if !remaining[u] {
 			return nil

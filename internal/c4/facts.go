@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -466,7 +467,7 @@ func externalFromEnv(db *sql.DB, modulePath string) ([]ExternalSystem, error) {
 	out := make([]ExternalSystem, 0, len(order))
 	for _, key := range order {
 		g := groups[key]
-		evidence := append([]string{}, g.names...)
+		evidence := slices.Clone(g.names)
 		sort.Strings(evidence)
 		out = append(out, ExternalSystem{
 			Name:     key,
@@ -657,7 +658,7 @@ func mergeExternalSystems(envSystems, importSystems []ExternalSystem) []External
 
 		combined := e
 		combined.Kind = "env+import"
-		combined.Evidence = append(append([]string{}, e.Evidence...), im.Evidence...)
+		combined.Evidence = slices.Concat(e.Evidence, im.Evidence)
 		if isEarlierEvidence(im.File, im.Line, combined.File, combined.Line) {
 			combined.File, combined.Line = im.File, im.Line
 		}
