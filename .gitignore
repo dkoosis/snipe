@@ -40,6 +40,7 @@ docs/eval/EVAL_RESULTS.json
 .dolt/
 *.db
 .beads-credential-key
+*.gate.lock*
 
 # Local tool output
 .claude/tmp/
@@ -70,8 +71,5 @@ sn-t0ge/
 sn-l1kh.7/
 # bd worktree
 sn-l1kh.8/
-# bd worktree
-sn-yhl4/
-
 # bd audit residue: passive re-export, Dolt is source of truth
 .beads/interactions.jsonl
