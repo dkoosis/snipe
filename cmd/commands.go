@@ -1,6 +1,9 @@
 package cmd
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // This file holds the kong command structs and their Run methods. Each Run
 // copies the struct's flags into the package-global flag vars (which the
@@ -24,15 +27,20 @@ type ContextCmd struct {
 	// context reuses the global --format flag (json/yaml structured output;
 	// default claudish text). It cannot redeclare --format because the global
 	// flag is embedded and visible on every subcommand.
-	Full          bool `help:"Full architecture dump (all components, flows, boundaries)"`
-	Orient        bool `help:"Claude-optimized orientation (default)"`
-	OutputNug     bool `name:"output-nug" help:"Output as nugget YAML (for save_nug)"`
-	Conventions   bool `help:"Detect coding conventions"`
-	SchemaVersion bool `name:"schema-version" help:"Print the context output schema version and exit"`
-	KeySymbols    int  `name:"key-symbols" default:"15" help:"Cap ranked key symbols in boot output (orient mode)"`
+	Full          bool   `help:"Full architecture dump (all components, flows, boundaries)"`
+	Orient        bool   `help:"Claude-optimized orientation (default)"`
+	OutputNug     bool   `name:"output-nug" help:"Output as nugget YAML (for save_nug)"`
+	Conventions   bool   `help:"Detect coding conventions"`
+	SchemaVersion bool   `name:"schema-version" help:"Print the context output schema version and exit"`
+	KeySymbols    int    `name:"key-symbols" default:"15" help:"Cap ranked key symbols in boot output (orient mode)"`
+	Out           string `help:"Write the full orient bundle to this directory (created if missing)"`
 }
 
 func (c *ContextCmd) Run() error {
+	if c.Out != "" {
+		orientOut = c.Out
+		return runOrient()
+	}
 	// Mirror the prior cobra behavior: context's --format selects structured
 	// output (json/yaml) and defaults to claudish text. Read the global flag,
 	// treating its "concise" default as unset.
@@ -49,13 +57,15 @@ func (c *ContextCmd) Run() error {
 	return runContext(argsOf(c.Path))
 }
 
+// OrientCmd is a hidden alias of `context --out`.
 type OrientCmd struct {
 	Out string `help:"Output directory (created if missing)"`
 }
 
 func (c *OrientCmd) Run() error {
-	orientOut = c.Out
-	return runOrient()
+	aliasNudge(os.Stderr, "orient", "context --out")
+	ctx := ContextCmd{Out: c.Out, KeySymbols: 15}
+	return ctx.Run()
 }
 
 // --- Navigate ---

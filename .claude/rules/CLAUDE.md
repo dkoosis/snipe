@@ -48,6 +48,7 @@ snipe show <hex-id>          # expand by 16-char ID
 snipe search "pattern"       # ripgrep fallback
 snipe context                # Claude-optimized orientation (entry points, flows, boundaries)
 snipe context --full         # Full architecture dump
+snipe context --out DIR      # Write the full orient bundle (context, deps, metrics, manifest) to DIR
 snipe lifecycle <Type>       # CRUD trace: Create/Mutate/Read/Delete funcs + caller chains
 snipe lifecycle T --include-tests  # fold _test.go refs into role buckets (default: separate)
 ```

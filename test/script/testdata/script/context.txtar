@@ -5,3 +5,9 @@ cd $FIXTURE
 exec snipe context
 stdout '## build'
 stdout '## key symbols'
+
+# context --out writes the orient bundle with no nudge.
+exec snipe context --out $WORK/cbundle
+stdout 'orient bundle · \d+ files'
+! stderr 'is now'
+exists $WORK/cbundle/manifest.json
