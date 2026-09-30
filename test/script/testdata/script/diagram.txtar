@@ -14,7 +14,7 @@ exists $FIXTURE/docs/diagrams/arch.md
 grep 'diagram arch ·' $FIXTURE/docs/diagrams/arch.md
 grep '```d2' $FIXTURE/docs/diagrams/arch.md
 
-# Explicit --format d2: unchanged stdout dump (orca/tooling still rely on this).
+# Explicit --format d2: unchanged stdout dump (tooling still relies on this).
 exec snipe diagram arch --format d2
 stdout 'diagram arch ·'
 stdout '```d2'

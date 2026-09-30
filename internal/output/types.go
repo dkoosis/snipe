@@ -76,8 +76,6 @@ type Meta struct {
 	RepoRoot      string            `json:"repo_root,omitempty"`
 	IndexState    IndexState        `json:"index_state"`
 	Degraded      []string          `json:"degraded,omitempty"`
-	Caller        string            `json:"caller,omitempty"`
-	RequestID     string            `json:"request_id,omitempty"`
 	Ms            int64             `json:"ms"`
 	Total         int               `json:"total"`
 	Offset        int               `json:"offset"`
@@ -196,7 +194,6 @@ type Result struct {
 	Hints          []string        `json:"hints,omitempty"`           // Static analysis hints: deprecated, unused, etc.
 	CallersPreview []CallerPreview `json:"callers_preview,omitempty"` // Top callers for func/method
 	Analysis       *FuncAnalysis   `json:"analysis,omitempty"`        // Function/method analysis (for func/method kinds)
-	KGHints        []KGHint        `json:"kg_hints,omitempty"`        // Knowledge graph hints from Orca
 	Enclosing      *Enclosing      `json:"enclosing,omitempty"`
 	Context        *Context        `json:"context,omitempty"`
 	Siblings       []Sibling       `json:"siblings,omitempty"`
@@ -220,14 +217,6 @@ type CallerPreview struct {
 	Name string `json:"name"`
 	File string `json:"file"`
 	Line int    `json:"line"`
-}
-
-// KGHint represents a hint from the Orca knowledge graph
-type KGHint struct {
-	ID       string `json:"id"`
-	Kind     string `json:"kind"`               // trap, pattern, etc.
-	Severity string `json:"severity,omitempty"` // h, m, l for traps
-	Summary  string `json:"summary"`
 }
 
 // Hint constants for static analysis

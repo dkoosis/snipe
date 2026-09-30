@@ -28,7 +28,6 @@ func TestEval(t *testing.T) {
 	}
 
 	repoTasks := map[string][]Task{
-		"orca":  bench.Orca,
 		"chi":   bench.Chi,
 		"cobra": bench.Cobra,
 		"bbolt": bench.Bbolt,
@@ -36,7 +35,7 @@ func TestEval(t *testing.T) {
 	}
 
 	var results []RepoResult
-	repoOrder := []string{"chi", "cobra", "bbolt", "fzf", "orca"}
+	repoOrder := []string{"chi", "cobra", "bbolt", "fzf"}
 
 	for _, repoName := range repoOrder {
 		tasks := repoTasks[repoName]
@@ -401,7 +400,6 @@ func TestSkipPathPerformsNoWrite(t *testing.T) {
 			{Name: "cobra", Skipped: true},
 			{Name: "bbolt", Skipped: true},
 			{Name: "fzf", Skipped: true},
-			{Name: "orca", Skipped: true},
 		},
 	}
 

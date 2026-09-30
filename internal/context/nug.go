@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Nugget represents an Orca knowledge graph nugget for save_nug.
+// Nugget represents a knowledge graph nugget for save_nug.
 type Nugget struct {
 	ID   string   `yaml:"id"`
 	Kind string   `yaml:"k"`
@@ -14,7 +14,7 @@ type Nugget struct {
 	Tags []string `yaml:"tags,omitempty"`
 }
 
-// ToNuggets converts BootContext to Orca nuggets.
+// ToNuggets converts BootContext to nuggets.
 func (b *BootContext) ToNuggets() []Nugget {
 	projectSlug := slugify(b.Project)
 
@@ -54,7 +54,7 @@ func (b *BootContext) ToNuggets() []Nugget {
 	}
 }
 
-// ToNuggets converts ProjectContext to Orca nuggets.
+// ToNuggets converts ProjectContext to nuggets.
 func (p *ProjectContext) ToNuggets() []Nugget {
 	projectSlug := slugify(p.Project.Name)
 	var nugs []Nugget

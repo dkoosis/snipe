@@ -135,7 +135,7 @@ func HasCredentials() bool {
 }
 
 // resolveCredentials reads the API key env-first (VOYAGE_API_KEY), then
-// the keychain. Env-first means an env-provisioned process — agents, CI, orca —
+// the keychain. Env-first means an env-provisioned process — agents, CI —
 // never execs `security`, so it can never trigger an OS keychain prompt (AXI #6:
 // never prompt for interactive input). The keychain is consulted only as a
 // fallback for humans who stored the key there. Model and endpoint are config,

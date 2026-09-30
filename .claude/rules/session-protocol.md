@@ -32,7 +32,6 @@ How to work on snipe. Stable — only update when the workflow itself changes.
 
 - Prefix: `feat:`, `fix:`, `refactor:`, `chore:`, `test:`, `docs:`
 - One logical change per commit
-- If touching orca: separate commit, separate verification
 
 ## Shutdown
 
@@ -42,16 +41,9 @@ How to work on snipe. Stable — only update when the workflow itself changes.
 4. If eval was affected: run eval, record score in progress.md
 5. Commit the PM file updates: `chore: wrap session — <what changed>`
 
-## Integration with orca
-
-- snipe is a subprocess dependency of orca's `go_symbol()` MCP tool
-- Changes to snipe's JSON envelope or command interface require orca-side verification
-- `--caller`/`--request-id` flags are reserved for orca telemetry — don't delete
-- Test integration: `test/bench/orca_test.go` (requires orca at `../orca`)
-
 ## Constraints
 
 - Do NOT optimize eval score until telemetry provides ground truth
 - Do NOT touch enrichment phases without user approval (see `docs/PLAN-context-enrichment.md`)
 - `make audit` is the merge gate — no exceptions
-- Output: Claude-optimized by default (D1, D4). JSON envelope available via `--format json` for orca integration
+- Output: Claude-optimized by default (D1, D4). JSON envelope available via `--format json` for toolchain integration

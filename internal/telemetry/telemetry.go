@@ -18,7 +18,6 @@ import (
 var (
 	mu         sync.Mutex
 	path       string
-	caller     string
 	sessionKey string
 )
 
@@ -47,7 +46,6 @@ type Record struct {
 	Command        string   `json:"cmd"`
 	Outcome        string   `json:"outcome"`
 	Ms             int64    `json:"ms"`
-	Caller         string   `json:"caller,omitempty"`
 	Arg            string   `json:"arg,omitempty"`
 	Rung           string   `json:"rung,omitempty"`
 	CandidateCount int      `json:"candidate_count,omitempty"`
@@ -75,13 +73,6 @@ func SetRoot(root string) {
 	mu.Lock()
 	defer mu.Unlock()
 	path = filepath.Join(root, ".snipe", "usage.jsonl")
-}
-
-// SetCaller tags subsequent events with a caller id (--caller flag).
-func SetCaller(c string) {
-	mu.Lock()
-	defer mu.Unlock()
-	caller = c
 }
 
 // SetSessionKey tags subsequent events with a session join-key, so an
@@ -157,7 +148,7 @@ func Emit(f Fields) {
 		return
 	}
 	mu.Lock()
-	p, c, sk := path, caller, sessionKey
+	p, sk := path, sessionKey
 	mu.Unlock()
 	if p == "" {
 		return
@@ -168,7 +159,6 @@ func Emit(f Fields) {
 		Command:        f.Command,
 		Outcome:        f.Outcome,
 		Ms:             f.Ms,
-		Caller:         c,
 		Arg:            f.Arg,
 		Rung:           f.Rung,
 		CandidateCount: f.CandidateCount,

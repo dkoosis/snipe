@@ -1,5 +1,5 @@
 # fo dashboard configuration for snipe
-# Overrides default Orca-specific subsystems with snipe's package structure
+# Overrides default subsystems with snipe's package structure
 
 dashboard:
   title:

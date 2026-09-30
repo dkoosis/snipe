@@ -11,7 +11,7 @@ alwaysApply: true
 snipe exists to make it easier for Claude to work with Go repos. Every output format decision, every field included or excluded, every token spent — measured against: "does this help Claude understand the code?"
 
 - Default output = what Claude reads directly. Terse, structured prose. No JSON envelope noise.
-- `--format json` = orca/toolchain integration. Full envelope with protocol, meta, suggestions.
+- `--format json` = toolchain integration. Full envelope with protocol, meta, suggestions.
 - If a field doesn't help Claude answer a question about the code, it doesn't belong in default output.
 
 ## ‡ D2: One command should "just work"

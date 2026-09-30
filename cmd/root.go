@@ -35,17 +35,11 @@ var (
 	// response_format mode: concise, detailed, or summary
 	responseFormat string
 
-	// KG integration
-	withKGHints bool
-
 	// Opt-in suggestion output (off by default in Claude mode)
 	showSuggestions bool
 
 	// Selection mode for multi-result commands
 	selectMode string
-
-	// Caller passthrough for correlation
-	caller string
 
 	// Internal: auto-compact when piped
 	autoCompact bool
@@ -81,13 +75,9 @@ type Globals struct {
 	SignatureOnly bool          `name:"signature-only" help:"Return only signature (no body, no context)"`
 	MaxTokens     int           `name:"max-tokens" help:"Token budget (0 = unlimited)" default:"0"`
 	Format        string        `help:"concise (LLM default) | detailed | summary | json (stable, for tooling) | human (TTY)" default:"concise"`
-	KGHints       bool          `name:"kg-hints" help:"Include Orca KG hints"`
 	NoSuggestions bool          `name:"no-suggestions" help:"Suppress next-step suggestions in Claude output"`
 	Timeout       time.Duration `help:"Timeout for command (e.g., 30s, 5m)"`
 	Select        string        `help:"Pick top candidates by score: all, best, top3, top5 (applied before --limit)" default:"all" enum:"all,best,top3,top5"`
-	// Reserved for orca telemetry — hidden until persistToolCall is wired.
-	Caller    string `help:"Caller identifier (e.g., 'orca')" hidden:""`
-	RequestID string `name:"request-id" help:"Request correlation ID" hidden:""`
 }
 
 // AfterApply copies parsed globals into the package vars and runs the
@@ -102,11 +92,9 @@ func (g *Globals) AfterApply() error {
 	signatureOnly = g.SignatureOnly
 	maxTokens = g.MaxTokens
 	responseFormat = g.Format
-	withKGHints = g.KGHints
 	showSuggestions = !g.NoSuggestions
 	timeout = g.Timeout
 	selectMode = g.Select
-	caller = g.Caller
 
 	// Set up context with signal handling for graceful cancellation
 	ctx := context.Background()
@@ -203,7 +191,6 @@ func isKnownSubcommandOrFlag(arg string) bool {
 var globalValueFlags = map[string]bool{
 	"--limit": true, "--offset": true, "--context": true, "--max-tokens": true,
 	"--format": true, "--timeout": true, "--select": true,
-	"--caller": true, "--request-id": true,
 }
 
 // indexOfHelpCommand returns the index of the first positional token that
@@ -278,7 +265,7 @@ func Execute() {
 
 	// "snipe help [cmd...]" -> "snipe [cmd...] --help" (cobra had a help
 	// subcommand; kong uses the --help flag). The "help" token may follow
-	// leading global flags (e.g. orca prepends --format json).
+	// leading global flags (e.g. a toolchain wrapper prepends --format json).
 	if i := indexOfHelpCommand(args); i >= 0 {
 		rest := make([]string, 0, len(args))
 		rest = append(rest, args[:i]...)
@@ -394,11 +381,6 @@ func ApplyFormatOverrides(format ResponseFormat, baseBody, baseSiblings bool, ba
 	return baseBody, baseSiblings, baseContext
 }
 
-// GetWithKGHints returns whether KG hints should be included.
-func GetWithKGHints() bool {
-	return withKGHints
-}
-
 // GetMaxTokens returns the max-tokens flag value (0 = unlimited)
 func GetMaxTokens() int {
 	return maxTokens
@@ -485,7 +467,6 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	root := util.FindProjectRoot(cwd)
 	if root != "" {
 		telemetry.SetRoot(root)
-		telemetry.SetCaller(caller)
 		telemetry.SetSessionKey(telemetry.ResolveSessionKey(root))
 	}
 	if root == "" {

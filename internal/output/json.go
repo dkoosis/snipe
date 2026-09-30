@@ -23,7 +23,7 @@ type OutputFormat string
 const (
 	// OutputClaude renders terse, structured text optimized for Claude (default).
 	OutputClaude OutputFormat = ""
-	// OutputJSON renders the full JSON envelope (for orca/toolchain integration).
+	// OutputJSON renders the full JSON envelope (for toolchain integration).
 	OutputJSON OutputFormat = "json"
 )
 
@@ -106,8 +106,8 @@ func (w *Writer) WriteResponse(resp any) error {
 	return w.writeClaude(resp)
 }
 
-// writeJSON writes the full JSON envelope (legacy/orca format) as compact,
-// single-line JSON — the shape orca's go_symbol subprocess already consumes.
+// writeJSON writes the full JSON envelope (legacy format) as compact,
+// single-line JSON — the shape toolchain subprocesses already consume.
 func (w *Writer) writeJSON(resp any) error {
 	return json.NewEncoder(w.out).Encode(resp)
 }

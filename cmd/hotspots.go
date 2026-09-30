@@ -94,7 +94,7 @@ func runHotspots(top int, pkg, file string) error {
 		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
 	}
 	if rows == nil {
-		// Preserve the JSON envelope for API/orca consumers in the common
+		// Preserve the JSON envelope for API consumers in the common
 		// "index not populated yet" case; plain text is for humans only.
 		if GetOutputFormat() == output.OutputJSON {
 			return writeHotspotsJSON(nil, dir, start)

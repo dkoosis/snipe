@@ -60,7 +60,7 @@ func TestResponseMarshal(t *testing.T) {
 
 // TestMetaEmitsZeroOffsetLimit guards that Offset and Limit serialize even at
 // their zero values. Page-0 results report Offset:0; dropping it (via omitempty)
-// breaks pagination disambiguation for the orca/Claude toolchain (D4, snipe-0xt).
+// breaks pagination disambiguation for the Claude toolchain (D4, snipe-0xt).
 func TestMetaEmitsZeroOffsetLimit(t *testing.T) {
 	data, err := json.Marshal(Meta{Command: "def", IndexState: IndexFresh})
 	if err != nil {

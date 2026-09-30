@@ -21,13 +21,12 @@ var (
 
 // RepoConfig describes how to locate a benchmark repo.
 type RepoConfig struct {
-	EnvVar  string // environment variable override (e.g., ORCA_DIR)
+	EnvVar  string // environment variable override
 	Default string // default relative path from snipe root
 	Repo    string // git clone URL for public repos
 }
 
 var repos = map[string]RepoConfig{
-	"orca":  {EnvVar: "ORCA_DIR", Default: "../orca", Repo: ""},
 	"chi":   {Default: "../chi", Repo: "https://github.com/go-chi/chi"},
 	"cobra": {Default: "../cobra", Repo: "https://github.com/spf13/cobra"},
 	"bbolt": {Default: "../bbolt", Repo: "https://github.com/etcd-io/bbolt"},

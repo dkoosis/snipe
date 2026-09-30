@@ -148,7 +148,7 @@ snipe sim --at file:line        # Find similar code
 snipe sim -q "error handling"   # Natural language search
 ```
 
-### Context Generation (orca#1685)
+### Context Generation (#1685)
 
 ```
 snipe context [path]          # Generate Claude-optimized project context
@@ -463,4 +463,4 @@ Mitigation:
 ## Related
 
 - Companion edit tool (future, separate binary)
-- Orca integration (MCP wrapper if needed for Claude Desktop)
+- MCP wrapper (if needed for Claude Desktop)

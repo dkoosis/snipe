@@ -23,7 +23,6 @@ func TestSubsystemOf(t *testing.T) {
 		{"internal/lifecycle", subsystemIndexing},
 		{"internal/store", subsystemPersistence},
 		{"internal/vector", subsystemPersistence},
-		{"internal/kg", subsystemPersistence},
 		{"internal/query", subsystemQuery},
 		{"internal/search", subsystemQuery},
 		{"internal/diagram", subsystemPresentation},
