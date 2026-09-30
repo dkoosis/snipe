@@ -2,8 +2,8 @@
 
 ★ Maps a Go codebase for LLMs orientation and navigation: symbols, callers, hotspots, metrics, in structured JSON.
 
-(mirrors `docs/NORTH_STAR.md`, which owns the line — dk edits that file and nothing
-else is a source.)
+(mirrors the nugbase's `projects/dk/snipe/NORTH_STAR.md`, which owns the line — dk
+edits that file and nothing else is a source.)
 
 snipe is the navigator: it answers "where is this symbol, who calls it, what does it
 touch" over a Go tree, in a shape an LLM can read. This file owns the epic inventory
@@ -24,6 +24,6 @@ from the bd DAG joined against these ids.
 
 ## Resources
 
-- Direction: `docs/NORTH_STAR.md`
+- Direction: nugbase `projects/dk/snipe/NORTH_STAR.md`
 - The queue: bd — `bd ready`, `bd show <id>`
 - Conventions: `.claude/rules/`
