@@ -13,7 +13,7 @@ type CLI struct {
 	Globals
 
 	Context ContextCmd `cmd:"" group:"Orient:" help:"Start here — repo map: entry points, flows, boundaries"`
-	Orient  OrientCmd  `cmd:"" group:"Orient:" help:"Write the full orient bundle to a directory"`
+	Orient  OrientCmd  `cmd:"" hidden:"" help:"Alias of context --out"`
 
 	Def     DefCmd     `cmd:"" group:"Navigate:" help:"Where a symbol is defined"`
 	Refs    RefsCmd    `cmd:"" group:"Navigate:" help:"Every reference to a symbol"`

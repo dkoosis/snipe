@@ -28,3 +28,5 @@ Flags:
       --conventions         Detect coding conventions
       --schema-version      Print the context output schema version and exit
       --key-symbols=15      Cap ranked key symbols in boot output (orient mode)
+      --out=STRING          Write the full orient bundle to this directory
+                            (created if missing)
