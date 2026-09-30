@@ -6,7 +6,7 @@ Make it easier for Claude to work with Go repos. Static indexing, <50ms queries,
 
 ## direction and queue
 
-- Direction: `docs/NORTH_STAR.md` — dk edits it; nothing else is a source.
+- Direction: nugbase `projects/dk/snipe/NORTH_STAR.md` — dk edits it; nothing else is a source.
   `docs/ROADMAP.md` mirrors its ★ line over the epic inventory.
 - The queue: bd — `bd ready` / `bd show <id>` / `bd update <id> --claim` /
   `bd close <id>`. Persistent knowledge: `bd remember`, `bd memories <keyword>` —
