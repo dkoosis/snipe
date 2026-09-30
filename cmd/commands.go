@@ -26,7 +26,7 @@ type ContextCmd struct {
 	// flag is embedded and visible on every subcommand.
 	Full          bool `help:"Full architecture dump (all components, flows, boundaries)"`
 	Orient        bool `help:"Claude-optimized orientation (default)"`
-	OutputNug     bool `name:"output-nug" help:"Output as Orca nugget YAML (for save_nug)"`
+	OutputNug     bool `name:"output-nug" help:"Output as nugget YAML (for save_nug)"`
 	Conventions   bool `help:"Detect coding conventions"`
 	SchemaVersion bool `name:"schema-version" help:"Print the context output schema version and exit"`
 	KeySymbols    int  `name:"key-symbols" default:"15" help:"Cap ranked key symbols in boot output (orient mode)"`

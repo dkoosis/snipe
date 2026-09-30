@@ -56,7 +56,7 @@ snipe lifecycle T --include-tests  # fold _test.go refs into role buckets (defau
 
 Replace go_symbol + Explore agents with snipe.
 
-streams: A=feature parity, B=boot context #1685, C=reliability, D=kg_hints
+streams: A=feature parity, B=boot context #1685, C=reliability
 
 deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 
@@ -88,7 +88,6 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 - New `snipe metrics --kind=X` → register in switch in `cmd/metrics.go` + run `go test ./cmd -run TestHelpGolden -update`
 - Index metrics only run on `--force` or full reindex; incremental skips them
 - Lifecycle R1/R2 classification reads `refs.ast_ctx` (schema v18); pre-v18 index → NULL ctx → no Create signals until reindex
-- `BASELINE_ORCA.json` timestamp drifts on every run; ✗ stage it
 - ORDER BY guard test (`internal/store/orderby_guard_test.go`) fails any embedded SQL whose final sort key isn't a plain column — append a stable tiebreaker
 - httptest blocking handlers: observe a stop chan, not just `r.Context().Done()` — `server.Close()` WaitGroups on the handler
 - Ranking SQL/sort with non-unique keys (e.g. same name across pkgs): always include `file_path` (or equivalent) as tiebreaker — golden tests will flake otherwise

@@ -192,7 +192,6 @@ func inferPackagePurpose(pkg string) string {
 		pkgInternalContext: "Boot context and LLM summaries",
 		pkgInternalAnalyze: "Function analysis and diagnostics",
 		"internal/edit":    "AST-safe code editing operations",
-		"internal/kg":      "Knowledge graph integration (orca)",
 		"internal/metrics": "Index and query metrics collection",
 		"internal/util":    "Shared utility functions (project root, caching)",
 		"internal/vector":  "Vector math for embedding similarity",

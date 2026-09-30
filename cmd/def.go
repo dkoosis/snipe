@@ -9,7 +9,6 @@ import (
 	"time"
 
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
-	"github.com/dkoosis/snipe/internal/kg"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 )
@@ -249,34 +248,6 @@ lookup:
 			degraded = append(degraded, "callers_preview_failed")
 		} else if len(callers) > 0 {
 			result.CallersPreview = callers
-		}
-	}
-
-	// Add KG hints if requested. When the user explicitly opts in with
-	// --kg-hints, surface whether the KG bridge was actually reachable —
-	// otherwise the flag silently does nothing, which was the F7 complaint.
-	if GetWithKGHints() {
-		if !kg.IsAvailable() {
-			degraded = append(degraded, "kg_unavailable")
-		} else {
-			hints := kg.GetHints(GetContext(), kg.Config{
-				File:    sym.FilePathRel,
-				Symbol:  sym.Name,
-				Package: sym.PkgPath,
-			})
-			if len(hints) == 0 {
-				degraded = append(degraded, "kg_no_hints")
-			} else {
-				result.KGHints = make([]output.KGHint, len(hints))
-				for i, h := range hints {
-					result.KGHints[i] = output.KGHint{
-						ID:       h.ID,
-						Kind:     h.Kind,
-						Severity: h.Severity,
-						Summary:  h.Summary,
-					}
-				}
-			}
 		}
 	}
 

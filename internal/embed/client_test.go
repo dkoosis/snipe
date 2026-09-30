@@ -203,7 +203,7 @@ func TestCredentials_IgnoresLegacyEnvName(t *testing.T) {
 // TestCredentials_EnvFirst locks the env-first ordering (AXI #6: never prompt).
 // When VOYAGE_API_KEY is set, resolveCredentials returns it and
 // HasCredentials reports true WITHOUT consulting the keychain — so an
-// env-provisioned process (agent, CI, orca) never execs `security` and can never
+// env-provisioned process (agent, CI) never execs `security` and can never
 // trip an OS unlock/allow dialog. KEYRING_DISABLE is left UNSET to prove the env
 // var alone short-circuits even with a keychain backend available; that
 // short-circuit is also what keeps this test hermetic across platforms.

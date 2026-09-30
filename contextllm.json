@@ -548,7 +548,7 @@
     },
     {
       "name": "internal/kg",
-      "purpose": "Package kg provides integration with Orca knowledge graph for contextual hints."
+      "purpose": "Package kg provides knowledge graph hints."
     },
     {
       "name": "internal/metrics",

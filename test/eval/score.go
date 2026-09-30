@@ -12,7 +12,6 @@ import (
 
 // BenchmarkFile is the top-level YAML structure.
 type BenchmarkFile struct {
-	Orca    []Task             `yaml:"orca"`
 	Chi     []Task             `yaml:"chi"`
 	Cobra   []Task             `yaml:"cobra"`
 	Bbolt   []Task             `yaml:"bbolt"`

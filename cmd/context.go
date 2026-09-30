@@ -112,7 +112,7 @@ func runContext(args []string) error {
 	}
 
 	// Claudish text is the default for orient mode (D1: Claude is the consumer).
-	// --format json/yaml overrides for orca/toolchain integration.
+	// --format json/yaml overrides for toolchain integration.
 	if !flagPassed("format") {
 		fmt.Print(context.FormatText(orientCtx))
 		return nil

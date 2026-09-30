@@ -12,9 +12,8 @@ func TestEmitAndReadAll_RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	SetRoot(root)
-	SetCaller("test")
 	SetSessionKey("sess-abc")
-	t.Cleanup(func() { SetRoot(""); SetCaller(""); SetSessionKey("") })
+	t.Cleanup(func() { SetRoot(""); SetSessionKey("") })
 
 	Emit(Fields{Command: "def", Outcome: "ok", Ms: 12, Arg: "Foo", Rung: RungExact, IndexState: "fresh"})
 	Emit(Fields{Command: "def", Outcome: "NOT_FOUND", Ms: 3, Arg: "Fooo", Rung: RungNotFound, CandidateCount: 2, TriedRungs: []string{"lookup:name"}})
@@ -27,7 +26,7 @@ func TestEmitAndReadAll_RoundTrip(t *testing.T) {
 	if len(recs) != 3 {
 		t.Fatalf("got %d records, want 3", len(recs))
 	}
-	if recs[0].Command != "def" || recs[0].Outcome != "ok" || recs[0].Caller != "test" {
+	if recs[0].Command != "def" || recs[0].Outcome != "ok" {
 		t.Errorf("first record = %+v", recs[0])
 	}
 	if recs[0].Arg != "Foo" {
@@ -89,7 +88,7 @@ func TestReadAll_BackwardCompat_PreEnrichmentLines(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	content := `{"ts":"2026-06-12T10:00:00Z","cmd":"def","outcome":"ok","ms":5,"caller":"orca"}
+	content := `{"ts":"2026-06-12T10:00:00Z","cmd":"def","outcome":"ok","ms":5}
 `
 	if err := os.WriteFile(filepath.Join(dir, "usage.jsonl"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -102,7 +101,7 @@ func TestReadAll_BackwardCompat_PreEnrichmentLines(t *testing.T) {
 		t.Fatalf("got %d records, want 1", len(recs))
 	}
 	r := recs[0]
-	if r.Command != "def" || r.Outcome != "ok" || r.Ms != 5 || r.Caller != "orca" {
+	if r.Command != "def" || r.Outcome != "ok" || r.Ms != 5 {
 		t.Errorf("pre-enrichment fields not preserved: %+v", r)
 	}
 	if r.Arg != "" || r.Rung != "" || r.CandidateCount != 0 || r.IndexState != "" || r.SessionKey != "" || r.TriedRungs != nil {
