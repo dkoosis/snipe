@@ -15,8 +15,10 @@ edit it unprompted.
 Ordered, one line per epic. Progress is never written here — it derives at read time
 from the bd DAG joined against these ids.
 
-1. [in progress] Instrument snipe queries → mine friction → improve resolver → sn-r1do
-2. [deferred] Ship snipe via Homebrew → sn-b4b
+1. [next] snipe is the scorer a PR review-routing function reads → sn-qtjl
+2. [next] Every snipe verb is one an agent picks right the first time → sn-lvub
+3. [in progress] Instrument snipe queries → mine friction → improve resolver → sn-r1do
+4. [deferred] Ship snipe via Homebrew → sn-b4b
 
 ## Non-goals
 
