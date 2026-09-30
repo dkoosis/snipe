@@ -1,6 +1,6 @@
 Usage: snipe sym [<symbol>] [flags]
 
-Symbol-only — def+refs+callers+callees, no package context (lighter than pack)
+def + refs, callers, callees
 
 Arguments:
   [<symbol>]    Symbol name

@@ -1,7 +1,6 @@
 Usage: snipe diagram flow <entry> [flags]
 
-Depth-limited call graph from an entry symbol. Writes
-docs/diagrams/flow-<name>.md by default (--format d2/svg for stdout)
+Call graph from an entry symbol
 
 Arguments:
   <entry>    Entry symbol

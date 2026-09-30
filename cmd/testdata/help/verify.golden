@@ -1,7 +1,6 @@
 Usage: snipe verify [flags]
 
-Map a diff to the minimal go test set covering changed symbols (structural,
-not a gate)
+Minimal go test set for a diff
 
 Flags:
   -h, --help                Show context-sensitive help.

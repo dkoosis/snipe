@@ -5,4 +5,4 @@
 # it prints usage naming the required <base> argument and exits 0.
 exec snipe risk --help
 stdout 'Usage: snipe risk <base>'
-stdout 'code-graph verdict'
+stdout 'Risk verdict for a diff'

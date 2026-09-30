@@ -1,6 +1,6 @@
 Usage: snipe tests [<symbol>] [flags]
 
-Find tests that exercise a symbol
+Tests that exercise a symbol
 
 Arguments:
   [<symbol>]    Symbol name or id

@@ -399,13 +399,19 @@ func (c *SensitiveCmd) Run() error {
 type DiagramCmd struct {
 	// diagram reuses the global --format flag (d2 default, or svg). It cannot
 	// redeclare --format because the global flag is embedded on every command.
-	Arch       DiagramArchCmd       `cmd:"" help:"Package import graph trimmed to the top-N by PageRank, grouped by layer. Writes docs/diagrams/arch.md by default (--format d2/svg for stdout)"`
-	Flow       DiagramFlowCmd       `cmd:"" help:"Depth-limited call graph from an entry symbol. Writes docs/diagrams/flow-<name>.md by default (--format d2/svg for stdout)"`
-	Lifecycle  DiagramLifecycleCmd  `cmd:"" help:"Render lifecycle CRUD groups for a type as D2. Writes docs/diagrams/lifecycle-<name>.md by default (--format d2/svg for stdout)"`
-	Seams      DiagramSeamsCmd      `cmd:"" help:"Rank pluggable interfaces by implementation count and fan-in. Writes docs/diagrams/seam-map.md by default (--format d2/svg for stdout)"`
-	Datastores DiagramDatastoresCmd `cmd:"" name:"datastore-map" help:"Datastore access map: schema + read/write packages per detected store. Writes docs/diagrams/datastore-map.md by default (--format d2/svg for stdout)"`
-	System     DiagramSystemCmd     `cmd:"" name:"system-map" help:"Comprehension view: packages collapsed into a handful of subsystems, only cross-subsystem edges shown. Writes docs/diagrams/system-map.md by default (--format d2/svg for stdout)"`
-	ClassMap   DiagramClassMapCmd   `cmd:"" name:"class-map" help:"D2 class diagram of Go types: fields, methods, embeds, implements edges. Writes docs/diagrams/class-map.md by default (--format d2/svg for stdout)"`
+	Arch       DiagramArchCmd       `cmd:"" help:"Top packages by PageRank, grouped by layer"`
+	Flow       DiagramFlowCmd       `cmd:"" help:"Call graph from an entry symbol"`
+	Lifecycle  DiagramLifecycleCmd  `cmd:"" help:"CRUD groups for a type"`
+	Seams      DiagramSeamsCmd      `cmd:"" help:"Interfaces ranked by implementations and fan-in"`
+	Datastores DiagramDatastoresCmd `cmd:"" name:"datastore-map" help:"Each datastore's schema and reader/writer packages"`
+	System     DiagramSystemCmd     `cmd:"" name:"system-map" help:"Subsystems and the edges between them"`
+	ClassMap   DiagramClassMapCmd   `cmd:"" name:"class-map" help:"Go types: fields, methods, embeds, implements"`
+}
+
+// Help is the detail shown by `snipe diagram --help`: where every kind writes.
+func (c *DiagramCmd) Help() string {
+	return "Each kind writes a doc under docs/diagrams/ (arch.md, flow-<name>.md, ...).\n" +
+		"--format d2 or --format svg prints to stdout instead."
 }
 
 // AfterApply maps the global --format into the diagram package var. Unset

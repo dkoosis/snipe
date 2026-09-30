@@ -2,28 +2,13 @@ Usage: snipe <command> [flags]
 
 snipe: Go code navigation for Claude.
 
-    snipe index              Build index (run first)
-    snipe def ProcessOrder   Jump to definition
-    snipe refs ProcessOrder  Find all references
-    snipe callers Handler    Who calls this?
-    snipe pack ProcessOrder  Everything about a symbol
-    snipe search "TODO"      Text search (no index needed)
-
-    snipe doctor             Check index health
-    snipe context            Claude-optimized orientation
-    snipe context --full     Full architecture dump
-
 Notes:
 
-    Typical flow:  context → pack <symbol> → callers/callees → tests <symbol>
-    IDs chain:     every result's 'id' field is valid input to the next command
-    Index:         all commands except 'search' need a built index —
-                   run 'snipe index' first
-    Writes:        only 'edit' modifies files; all other commands are
-                   read-only
-    Symbol view:   def=location only < sym=+refs/callers/callees <
-                   pack=+package context < explain=+prose walkthrough;
-                   show <id> expands any id from another command's result
+    Start:      snipe index, then snipe context
+    Flow:       context → pack <symbol> → callers/callees → tests <symbol>
+    IDs chain:  every result's 'id' is valid input to the next command
+    Index:      every command except search needs one
+    Writes:     only edit modifies files; the rest are read-only
 
 Flags:
   -h, --help                Show context-sensitive help.
@@ -42,176 +27,70 @@ Flags:
       --select="all"        Pick top candidates by score: all, best, top3,
                             top5 (applied before --limit)
 
-Orient Project:
-  context [<path>] [flags]
-    Start here — Claude-optimized project orientation
+Orient:
+  context    Start here — repo map: entry points, flows, boundaries
+  orient     Write the full orient bundle to a directory
 
-  orient [flags]
-    Write a full orient bundle (context-full, deps-tree, all metrics, manifest)
-    into a directory
+Navigate:
+  def        Where a symbol is defined
+  refs       Every reference to a symbol
+  callers    Functions that call a symbol
+  callees    Functions a symbol calls
+  impl       Types that implement an interface
+  tests      Tests that exercise a symbol
 
-Navigate Symbol:
-  def [<symbol>] [flags]
-    Jump to symbol definition
+Read:
+  show       Expand an id from any result
+  sym        def + refs, callers, callees
+  pack       sym + package role and purpose
+  explain    pack + prose walkthrough and warnings
+  pkg        Package overview and exported symbols
 
-  refs [<symbol>] [flags]
-    Find all references to a symbol
+Find:
+  search    Text search via ripgrep (no index needed)
+  lits      Every location of a string literal or env var
+  trace     A string literal with its call context
+  sim       Semantic search (needs embeddings)
 
-  callers [<symbol>] [flags]
-    Find functions that call a symbol
+Change:
+  impact       Blast radius of changing a symbol
+  plan         Ordered edit worklist for changing a symbol
+  risk         Risk verdict for a diff (base→head)
+  verify       Minimal go test set for a diff
+  triage       Facts for a file set: hotspots, package, tests
+  sensitive    Files in security zones (auth, crypto, secrets)
+  guard        Check architecture rules; exit non-zero on violation
 
-  callees [<symbol>] [flags]
-    Find functions that a symbol calls
+Structure:
+  deps         Package dependency graph
+  importers    Files that import a package
+  imports      Packages a file imports
+  types        Type relationships
+  boundary     Symbols whose refs cross two package sets
+  lifecycle    Functions that create, mutate, read or delete a type
+  hotspots     Files ranked by complexity × churn
+  metrics      Graph metrics: PageRank, coupling, HITS
+  deadcode     Exported symbols with no non-test refs
+  c4           C4 facts: containers, datastores, flows
 
-  impl [<interface>] [flags]
-    Find types implementing an interface
+Views:
+  diagram arch             Top packages by PageRank, grouped by layer
+  diagram flow             Call graph from an entry symbol
+  diagram lifecycle        CRUD groups for a type
+  diagram seams            Interfaces ranked by implementations and fan-in
+  diagram datastore-map    Each datastore's schema and reader/writer packages
+  diagram system-map       Subsystems and the edges between them
+  diagram class-map        Go types: fields, methods, embeds, implements
+  report                   HTML dashboard for humans
 
-  tests [<symbol>] [flags]
-    Find tests that exercise a symbol
+Write:
+  edit    AST-aware edit; dry-run unless --apply
 
-Read Symbol or Package:
-  show <id> [flags]
-    Show symbol details by ID
-
-  pack [<symbols> ...] [flags]
-    Deep dive on one symbol or package (def+refs+callers+callees+role+purpose)
-
-  sym [<symbol>] [flags]
-    Symbol-only — def+refs+callers+callees, no package context (lighter than
-    pack)
-
-  explain [<symbol>] [flags]
-    Structured function walkthrough — purpose, mechanism, callers, warnings
-
-  pkg <name> [flags]
-    Show package overview with exported symbols
-
-Find by Text:
-  search <pattern> [flags]
-    Text search via ripgrep
-
-  lits <value> [flags]
-    Find all locations of a string literal or env var name
-
-  trace <value> [flags]
-    Trace a string literal through its call context
-
-Assess Change Safety:
-  impact [<symbol>] [flags]
-    Show blast radius for changing a symbol
-
-  risk <base> [<head>] [flags]
-    Assess a diff's risk (base→head): code-graph verdict (roles, centrality,
-    blast, churn)
-
-  verify [flags]
-    Map a diff to the minimal go test set covering changed symbols (structural,
-    not a gate)
-
-  plan [<symbol>] [flags]
-    Ordered edit worklist for a proposed symbol change (def + call sites +
-    tests; structural, not a gate)
-
-  guard [<spec>] [flags]
-    Assert architecture boundary rules; exit non-zero on violation
-
-  sensitive [flags]
-    List files in security-sensitive zones
-    (auth/crypto/migration/secret/payment)
-
-Graph & Structure:
-  deps [<package>] [flags]
-    Show dependency topology for a package or the full project
-
-  importers <package> [flags]
-    Find files that import a package
-
-  imports <file> [flags]
-    Show packages imported by a file
-
-  types [<type>] [flags]
-    Show type relationships
-
-  boundary [<pkgset-a> [<pkgset-b>]] [flags]
-    Show symbols whose refs cross between two package sets
-
-  metrics [flags]
-    Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call
-    graph
-
-  hotspots [flags]
-    Rank files by complexity × git change-frequency (Tornhill hotspot model)
-
-  diagram arch [flags]
-    Package import graph trimmed to the top-N by PageRank, grouped by layer.
-    Writes docs/diagrams/arch.md by default (--format d2/svg for stdout)
-
-  diagram flow <entry> [flags]
-    Depth-limited call graph from an entry symbol. Writes
-    docs/diagrams/flow-<name>.md by default (--format d2/svg for stdout)
-
-  diagram lifecycle <type>
-    Render lifecycle CRUD groups for a type as D2. Writes
-    docs/diagrams/lifecycle-<name>.md by default (--format d2/svg for stdout)
-
-  diagram seams [flags]
-    Rank pluggable interfaces by implementation count and fan-in. Writes
-    docs/diagrams/seam-map.md by default (--format d2/svg for stdout)
-
-  diagram datastore-map
-    Datastore access map: schema + read/write packages per detected store.
-    Writes docs/diagrams/datastore-map.md by default (--format d2/svg for
-    stdout)
-
-  diagram system-map [flags]
-    Comprehension view: packages collapsed into a handful of subsystems, only
-    cross-subsystem edges shown. Writes docs/diagrams/system-map.md by default
-    (--format d2/svg for stdout)
-
-  diagram class-map [flags]
-    D2 class diagram of Go types: fields, methods, embeds, implements edges.
-    Writes docs/diagrams/class-map.md by default (--format d2/svg for stdout)
-
-  lifecycle [<type>] [flags]
-    Trace every function creating, mutating, reading, or deleting a type
-
-  c4 [flags]
-    C4 architecture fact inventory: containers, datastores, external systems,
-    flows (facts only, no rendering)
-
-  deadcode [flags]
-    Report exported symbols with zero non-test references
-
-  report [flags]
-    Self-contained HTML dashboard for humans: hotspot treemap, cycles, hotspots
-    ranking, + D2 diagram placeholder slots
-
-Embeddings:
-  sim [<query>] [flags]
-    Semantic similarity search
-
-  embed-status [flags]
-    Check status of batch embedding job
-
-Edit (modifies files):
-  edit [<symbol>] [flags]
-    AST-aware code editing — modifies files (dry-run unless --apply)
-
-Index & Health:
-  triage [<files> ...] [flags]
-    Bundle hotspots+package+test-proximity facts for a file set (facts only,
-    no band/route decision)
-
-  index [<path>] [flags]
-    Build or update the code index
-
-  status [flags]
-    Show index status and statistics
-
-  doctor [flags]
-    Check snipe installation and configuration
-
-  version [flags]
-    Print version information
+System:
+  index           Build or update the index
+  status          Index freshness and counts (bare snipe)
+  doctor          Diagnose install, config and index
+  embed-status    Batch embedding job status
+  version         Print version
 
 Run "snipe <command> --help" for more information on a command.

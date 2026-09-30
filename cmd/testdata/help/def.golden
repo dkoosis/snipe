@@ -1,6 +1,6 @@
 Usage: snipe def [<symbol>] [flags]
 
-Jump to symbol definition
+Where a symbol is defined
 
 Arguments:
   [<symbol>]    Symbol name

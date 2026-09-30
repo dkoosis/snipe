@@ -1,6 +1,6 @@
 Usage: snipe pkg <name> [flags]
 
-Show package overview with exported symbols
+Package overview and exported symbols
 
 Arguments:
   <name>    Package name

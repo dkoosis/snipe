@@ -54,6 +54,7 @@ func captureHelp(t *testing.T, args []string) string {
 	parser, err := kong.New(cli,
 		kong.Name("snipe"),
 		kong.Description(rootHelp),
+		rootHelpOptions,
 		kong.Writers(&buf, &buf),
 		kong.Exit(func(int) {}),
 	)

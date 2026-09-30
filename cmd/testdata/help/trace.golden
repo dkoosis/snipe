@@ -1,6 +1,6 @@
 Usage: snipe trace <value> [flags]
 
-Trace a string literal through its call context
+A string literal with its call context
 
 Arguments:
   <value>    String literal value

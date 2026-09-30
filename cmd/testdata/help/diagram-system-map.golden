@@ -1,8 +1,6 @@
 Usage: snipe diagram system-map [flags]
 
-Comprehension view: packages collapsed into a handful of subsystems,
-only cross-subsystem edges shown. Writes docs/diagrams/system-map.md by default
-(--format d2/svg for stdout)
+Subsystems and the edges between them
 
 Flags:
   -h, --help                Show context-sensitive help.

@@ -1,6 +1,6 @@
 Usage: snipe pack [<symbols> ...] [flags]
 
-Deep dive on one symbol or package (def+refs+callers+callees+role+purpose)
+sym + package role and purpose
 
 Arguments:
   [<symbols> ...]    Symbol name(s), package, or hex ID(s)

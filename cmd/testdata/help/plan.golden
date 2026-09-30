@@ -1,7 +1,6 @@
 Usage: snipe plan [<symbol>] [flags]
 
-Ordered edit worklist for a proposed symbol change (def + call sites + tests;
-structural, not a gate)
+Ordered edit worklist for changing a symbol
 
 Arguments:
   [<symbol>]    Symbol name or id

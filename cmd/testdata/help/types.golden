@@ -1,6 +1,6 @@
 Usage: snipe types [<type>] [flags]
 
-Show type relationships
+Type relationships
 
 Arguments:
   [<type>]    Type name

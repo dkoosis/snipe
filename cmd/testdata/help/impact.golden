@@ -1,6 +1,6 @@
 Usage: snipe impact [<symbol>] [flags]
 
-Show blast radius for changing a symbol
+Blast radius of changing a symbol
 
 Arguments:
   [<symbol>]    Symbol name or id

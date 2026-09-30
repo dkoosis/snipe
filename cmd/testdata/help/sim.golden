@@ -1,6 +1,6 @@
 Usage: snipe sim [<query>] [flags]
 
-Semantic similarity search
+Semantic search (needs embeddings)
 
 Arguments:
   [<query>]    Query text

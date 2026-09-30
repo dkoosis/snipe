@@ -1,6 +1,6 @@
 Usage: snipe search <pattern> [flags]
 
-Text search via ripgrep
+Text search via ripgrep (no index needed)
 
 Arguments:
   <pattern>    Search pattern

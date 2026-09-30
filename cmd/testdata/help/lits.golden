@@ -1,6 +1,6 @@
 Usage: snipe lits <value> [flags]
 
-Find all locations of a string literal or env var name
+Every location of a string literal or env var
 
 Arguments:
   <value>    String literal or env var name

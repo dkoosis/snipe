@@ -1,6 +1,6 @@
 Usage: snipe lifecycle [<type>] [flags]
 
-Trace every function creating, mutating, reading, or deleting a type
+Functions that create, mutate, read or delete a type
 
 Arguments:
   [<type>]    Type name
