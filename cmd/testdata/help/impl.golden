@@ -1,6 +1,6 @@
 Usage: snipe impl [<interface>] [flags]
 
-Find types implementing an interface
+Types that implement an interface
 
 Arguments:
   [<interface>]    Interface name

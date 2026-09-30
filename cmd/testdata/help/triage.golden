@@ -1,7 +1,6 @@
 Usage: snipe triage [<files> ...] [flags]
 
-Bundle hotspots+package+test-proximity facts for a file set (facts only,
-no band/route decision)
+Facts for a file set: hotspots, package, tests
 
 Arguments:
   [<files> ...]    Files to triage (repo-relative or absolute)

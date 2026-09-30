@@ -1,6 +1,6 @@
 Usage: snipe doctor [flags]
 
-Check snipe installation and configuration
+Diagnose install, config and index
 
 Flags:
   -h, --help                Show context-sensitive help.

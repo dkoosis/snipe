@@ -1,7 +1,6 @@
 Usage: snipe orient [flags]
 
-Write a full orient bundle (context-full, deps-tree, all metrics, manifest) into
-a directory
+Write the full orient bundle to a directory
 
 Flags:
   -h, --help                Show context-sensitive help.

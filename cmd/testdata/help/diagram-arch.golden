@@ -1,7 +1,6 @@
 Usage: snipe diagram arch [flags]
 
-Package import graph trimmed to the top-N by PageRank, grouped by layer.
-Writes docs/diagrams/arch.md by default (--format d2/svg for stdout)
+Top packages by PageRank, grouped by layer
 
 Flags:
   -h, --help                Show context-sensitive help.

@@ -1,6 +1,6 @@
 Usage: snipe version [flags]
 
-Print version information
+Print version
 
 Flags:
   -h, --help                Show context-sensitive help.

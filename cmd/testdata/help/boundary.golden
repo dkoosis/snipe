@@ -1,6 +1,6 @@
 Usage: snipe boundary [<pkgset-a> [<pkgset-b>]] [flags]
 
-Show symbols whose refs cross between two package sets
+Symbols whose refs cross two package sets
 
 Arguments:
   [<pkgset-a>]    First package set

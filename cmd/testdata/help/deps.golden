@@ -1,6 +1,6 @@
 Usage: snipe deps [<package>] [flags]
 
-Show dependency topology for a package or the full project
+Package dependency graph
 
 Arguments:
   [<package>]    Package path

@@ -1,6 +1,6 @@
 Usage: snipe guard [<spec>] [flags]
 
-Assert architecture boundary rules; exit non-zero on violation
+Check architecture rules; exit non-zero on violation
 
 Arguments:
   [<spec>]    Spec file path

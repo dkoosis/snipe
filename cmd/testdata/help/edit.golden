@@ -1,6 +1,6 @@
 Usage: snipe edit [<symbol>] [flags]
 
-AST-aware code editing — modifies files (dry-run unless --apply)
+AST-aware edit; dry-run unless --apply
 
 Arguments:
   [<symbol>]    Symbol name

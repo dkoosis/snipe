@@ -1,6 +1,6 @@
 Usage: snipe explain [<symbol>] [flags]
 
-Structured function walkthrough — purpose, mechanism, callers, warnings
+pack + prose walkthrough and warnings
 
 Arguments:
   [<symbol>]    Symbol name

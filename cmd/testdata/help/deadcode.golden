@@ -1,6 +1,6 @@
 Usage: snipe deadcode [flags]
 
-Report exported symbols with zero non-test references
+Exported symbols with no non-test refs
 
 Flags:
   -h, --help                Show context-sensitive help.

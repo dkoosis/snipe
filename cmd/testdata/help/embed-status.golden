@@ -1,6 +1,6 @@
 Usage: snipe embed-status [flags]
 
-Check status of batch embedding job
+Batch embedding job status
 
 Flags:
   -h, --help                Show context-sensitive help.

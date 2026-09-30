@@ -1,6 +1,6 @@
 Usage: snipe index [<path>] [flags]
 
-Build or update the code index
+Build or update the index
 
 Arguments:
   [<path>]    Project path (default: current dir)

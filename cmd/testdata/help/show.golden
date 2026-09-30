@@ -1,6 +1,6 @@
 Usage: snipe show <id> [flags]
 
-Show symbol details by ID
+Expand an id from any result
 
 Arguments:
   <id>    Symbol ID

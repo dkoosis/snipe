@@ -1,7 +1,6 @@
 Usage: snipe risk <base> [<head>] [flags]
 
-Assess a diff's risk (base→head): code-graph verdict (roles, centrality, blast,
-churn)
+Risk verdict for a diff (base→head)
 
 Arguments:
   <base>      Base git ref (e.g. main, origin/main, a SHA)

@@ -5,70 +5,65 @@ package cmd
 // method copies its flags into the package-global flag vars and calls the
 // existing run* function unchanged.
 //
-// Help groups mirror the former cobra categories. The default command (bare
-// "snipe") runs status.
+// Help groups follow the order Claude works in: orient, navigate, read, find,
+// change, structure, views, write, system. Each help string is one short line
+// so compact help fits a screen. The default command (bare "snipe") runs
+// status.
 type CLI struct {
 	Globals
 
-	// Orient
-	Context ContextCmd `cmd:"" group:"Orient Project:" help:"Start here — Claude-optimized project orientation"`
-	Orient  OrientCmd  `cmd:"" group:"Orient Project:" help:"Write a full orient bundle (context-full, deps-tree, all metrics, manifest) into a directory"`
+	Context ContextCmd `cmd:"" group:"Orient:" help:"Start here — repo map: entry points, flows, boundaries"`
+	Orient  OrientCmd  `cmd:"" group:"Orient:" help:"Write the full orient bundle to a directory"`
 
-	// Navigate
-	Def     DefCmd     `cmd:"" group:"Navigate Symbol:" help:"Jump to symbol definition"`
-	Refs    RefsCmd    `cmd:"" group:"Navigate Symbol:" help:"Find all references to a symbol"`
-	Callers CallersCmd `cmd:"" group:"Navigate Symbol:" help:"Find functions that call a symbol"`
-	Callees CalleesCmd `cmd:"" group:"Navigate Symbol:" help:"Find functions that a symbol calls"`
-	Impl    ImplCmd    `cmd:"" group:"Navigate Symbol:" help:"Find types implementing an interface"`
-	Tests   TestsCmd   `cmd:"" group:"Navigate Symbol:" help:"Find tests that exercise a symbol"`
+	Def     DefCmd     `cmd:"" group:"Navigate:" help:"Where a symbol is defined"`
+	Refs    RefsCmd    `cmd:"" group:"Navigate:" help:"Every reference to a symbol"`
+	Callers CallersCmd `cmd:"" group:"Navigate:" help:"Functions that call a symbol"`
+	Callees CalleesCmd `cmd:"" group:"Navigate:" help:"Functions a symbol calls"`
+	Impl    ImplCmd    `cmd:"" group:"Navigate:" help:"Types that implement an interface"`
+	Tests   TestsCmd   `cmd:"" group:"Navigate:" help:"Tests that exercise a symbol"`
 
-	// Read
-	Show    ShowCmd    `cmd:"" group:"Read Symbol or Package:" help:"Show symbol details by ID"`
-	Pack    PackCmd    `cmd:"" group:"Read Symbol or Package:" help:"Deep dive on one symbol or package (def+refs+callers+callees+role+purpose)"`
-	Sym     SymCmd     `cmd:"" group:"Read Symbol or Package:" help:"Symbol-only — def+refs+callers+callees, no package context (lighter than pack)"`
-	Explain ExplainCmd `cmd:"" group:"Read Symbol or Package:" help:"Structured function walkthrough — purpose, mechanism, callers, warnings"`
-	Pkg     PkgCmd     `cmd:"" group:"Read Symbol or Package:" help:"Show package overview with exported symbols"`
+	// Read: each step adds to the one before (def < sym < pack < explain).
+	Show    ShowCmd    `cmd:"" group:"Read:" help:"Expand an id from any result"`
+	Sym     SymCmd     `cmd:"" group:"Read:" help:"def + refs, callers, callees"`
+	Pack    PackCmd    `cmd:"" group:"Read:" help:"sym + package role and purpose"`
+	Explain ExplainCmd `cmd:"" group:"Read:" help:"pack + prose walkthrough and warnings"`
+	Pkg     PkgCmd     `cmd:"" group:"Read:" help:"Package overview and exported symbols"`
 
-	// Find
-	Search SearchCmd `cmd:"" group:"Find by Text:" help:"Text search via ripgrep"`
-	Lits   LitsCmd   `cmd:"" group:"Find by Text:" help:"Find all locations of a string literal or env var name"`
-	Trace  TraceCmd  `cmd:"" group:"Find by Text:" help:"Trace a string literal through its call context"`
+	Search SearchCmd `cmd:"" group:"Find:" help:"Text search via ripgrep (no index needed)"`
+	Lits   LitsCmd   `cmd:"" group:"Find:" help:"Every location of a string literal or env var"`
+	Trace  TraceCmd  `cmd:"" group:"Find:" help:"A string literal with its call context"`
+	Sim    SimCmd    `cmd:"" group:"Find:" help:"Semantic search (needs embeddings)"`
 
-	// Assess whether a change is safe — the cold-read answer to "can I touch this"
-	Impact    ImpactCmd    `cmd:"" group:"Assess Change Safety:" help:"Show blast radius for changing a symbol"`
-	Risk      RiskCmd      `cmd:"" group:"Assess Change Safety:" help:"Assess a diff's risk (base→head): code-graph verdict (roles, centrality, blast, churn)"`
-	Verify    VerifyCmd    `cmd:"" group:"Assess Change Safety:" help:"Map a diff to the minimal go test set covering changed symbols (structural, not a gate)"`
-	Plan      PlanCmd      `cmd:"" group:"Assess Change Safety:" help:"Ordered edit worklist for a proposed symbol change (def + call sites + tests; structural, not a gate)"`
-	Guard     GuardCmd     `cmd:"" group:"Assess Change Safety:" help:"Assert architecture boundary rules; exit non-zero on violation"`
-	Sensitive SensitiveCmd `cmd:"" group:"Assess Change Safety:" help:"List files in security-sensitive zones (auth/crypto/migration/secret/payment)"`
+	// Change: symbol-scoped first, then diff-scoped, then file-scoped.
+	Impact    ImpactCmd    `cmd:"" group:"Change:" help:"Blast radius of changing a symbol"`
+	Plan      PlanCmd      `cmd:"" group:"Change:" help:"Ordered edit worklist for changing a symbol"`
+	Risk      RiskCmd      `cmd:"" group:"Change:" help:"Risk verdict for a diff (base→head)"`
+	Verify    VerifyCmd    `cmd:"" group:"Change:" help:"Minimal go test set for a diff"`
+	Triage    TriageCmd    `cmd:"" group:"Change:" help:"Facts for a file set: hotspots, package, tests"`
+	Sensitive SensitiveCmd `cmd:"" group:"Change:" help:"Files in security zones (auth, crypto, secrets)"`
+	Guard     GuardCmd     `cmd:"" group:"Change:" help:"Check architecture rules; exit non-zero on violation"`
 
-	// Graph & Structure
-	Deps      DepsCmd      `cmd:"" group:"Graph & Structure:" help:"Show dependency topology for a package or the full project"`
-	Importers ImportersCmd `cmd:"" group:"Graph & Structure:" help:"Find files that import a package"`
-	Imports   ImportsCmd   `cmd:"" group:"Graph & Structure:" help:"Show packages imported by a file"`
-	Types     TypesCmd     `cmd:"" group:"Graph & Structure:" help:"Show type relationships"`
-	Boundary  BoundaryCmd  `cmd:"" group:"Graph & Structure:" help:"Show symbols whose refs cross between two package sets"`
-	Metrics   MetricsCmd   `cmd:"" group:"Graph & Structure:" help:"Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call graph"`
-	Hotspots  HotspotsCmd  `cmd:"" group:"Graph & Structure:" help:"Rank files by complexity × git change-frequency (Tornhill hotspot model)"`
-	Diagram   DiagramCmd   `cmd:"" group:"Graph & Structure:" help:"Render snipe graphs as D2 diagram source"`
-	Lifecycle LifecycleCmd `cmd:"" group:"Graph & Structure:" help:"Trace every function creating, mutating, reading, or deleting a type"`
-	C4        C4Cmd        `cmd:"" name:"c4" group:"Graph & Structure:" help:"C4 architecture fact inventory: containers, datastores, external systems, flows (facts only, no rendering)"`
-	Deadcode  DeadcodeCmd  `cmd:"" group:"Graph & Structure:" help:"Report exported symbols with zero non-test references"`
-	Report    ReportCmd    `cmd:"" group:"Graph & Structure:" help:"Self-contained HTML dashboard for humans: hotspot treemap, cycles, hotspots ranking, + D2 diagram placeholder slots"`
+	Deps      DepsCmd      `cmd:"" group:"Structure:" help:"Package dependency graph"`
+	Importers ImportersCmd `cmd:"" group:"Structure:" help:"Files that import a package"`
+	Imports   ImportsCmd   `cmd:"" group:"Structure:" help:"Packages a file imports"`
+	Types     TypesCmd     `cmd:"" group:"Structure:" help:"Type relationships"`
+	Boundary  BoundaryCmd  `cmd:"" group:"Structure:" help:"Symbols whose refs cross two package sets"`
+	Lifecycle LifecycleCmd `cmd:"" group:"Structure:" help:"Functions that create, mutate, read or delete a type"`
+	Hotspots  HotspotsCmd  `cmd:"" group:"Structure:" help:"Files ranked by complexity × churn"`
+	Metrics   MetricsCmd   `cmd:"" group:"Structure:" help:"Graph metrics: PageRank, coupling, HITS"`
+	Deadcode  DeadcodeCmd  `cmd:"" group:"Structure:" help:"Exported symbols with no non-test refs"`
+	C4        C4Cmd        `cmd:"" name:"c4" group:"Structure:" help:"C4 facts: containers, datastores, flows"`
 
-	// Embeddings
-	Sim         SimCmd   `cmd:"" group:"Embeddings:" help:"Semantic similarity search"`
-	EmbedStatus EmbedCmd `cmd:"" name:"embed-status" group:"Embeddings:" help:"Check status of batch embedding job"`
+	Diagram DiagramCmd `cmd:"" group:"Views:" help:"D2 diagram source for snipe graphs"`
+	Report  ReportCmd  `cmd:"" group:"Views:" help:"HTML dashboard for humans"`
 
-	// Edit
-	Edit EditCmd `cmd:"" group:"Edit (modifies files):" help:"AST-aware code editing — modifies files (dry-run unless --apply)"`
+	Edit EditCmd `cmd:"" group:"Write:" help:"AST-aware edit; dry-run unless --apply"`
 
-	// Index & Health
-	Triage  TriageCmd  `cmd:"" group:"Index & Health:" help:"Bundle hotspots+package+test-proximity facts for a file set (facts only, no band/route decision)"`
-	Index   IndexCmd   `cmd:"" group:"Index & Health:" help:"Build or update the code index"`
-	Status  StatusCmd  `cmd:"" default:"withargs" group:"Index & Health:" help:"Show index status and statistics"`
-	Doctor  DoctorCmd  `cmd:"" group:"Index & Health:" help:"Check snipe installation and configuration"`
-	Version VersionCmd `cmd:"" group:"Index & Health:" help:"Print version information"`
+	Index       IndexCmd   `cmd:"" group:"System:" help:"Build or update the index"`
+	Status      StatusCmd  `cmd:"" default:"withargs" group:"System:" help:"Index freshness and counts (bare snipe)"`
+	Doctor      DoctorCmd  `cmd:"" group:"System:" help:"Diagnose install, config and index"`
+	EmbedStatus EmbedCmd   `cmd:"" name:"embed-status" group:"System:" help:"Batch embedding job status"`
+	Version     VersionCmd `cmd:"" group:"System:" help:"Print version"`
 
 	// Hidden helpers (kept from cobra; Hidden in help)
 	Baseline BaselineCmd `cmd:"" hidden:"" help:"Capture performance baseline for a codebase"`

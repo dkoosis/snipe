@@ -1,7 +1,6 @@
 Usage: snipe metrics [flags]
 
-Show graph metrics (PageRank, coupling, HITS, etc.) over the import or call
-graph
+Graph metrics: PageRank, coupling, HITS
 
 Flags:
   -h, --help                Show context-sensitive help.

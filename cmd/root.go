@@ -58,27 +58,15 @@ var (
 // rootHelp is the long description shown in `snipe --help`.
 const rootHelp = `snipe: Go code navigation for Claude.
 
-  snipe index              Build index (run first)
-  snipe def ProcessOrder   Jump to definition
-  snipe refs ProcessOrder  Find all references
-  snipe callers Handler    Who calls this?
-  snipe pack ProcessOrder  Everything about a symbol
-  snipe search "TODO"      Text search (no index needed)
-
-  snipe doctor             Check index health
-  snipe context            Claude-optimized orientation
-  snipe context --full     Full architecture dump
-
 Notes:
-  Typical flow:  context → pack <symbol> → callers/callees → tests <symbol>
-  IDs chain:     every result's 'id' field is valid input to the next command
-  Index:         all commands except 'search' need a built index —
-                 run 'snipe index' first
-  Writes:        only 'edit' modifies files; all other commands are
-                 read-only
-  Symbol view:   def=location only < sym=+refs/callers/callees <
-                 pack=+package context < explain=+prose walkthrough;
-                 show <id> expands any id from another command's result`
+  Start:      snipe index, then snipe context
+  Flow:       context → pack <symbol> → callers/callees → tests <symbol>
+  IDs chain:  every result's 'id' is valid input to the next command
+  Index:      every command except search needs one
+  Writes:     only edit modifies files; the rest are read-only`
+
+// rootHelpOptions prints one line per command so the root help fits a screen.
+var rootHelpOptions = kong.ConfigureHelp(kong.HelpOptions{Compact: true})
 
 // Globals holds the persistent flags shared by every command. It is embedded
 // into the root CLI struct so the flags parse in any position, and its
@@ -260,7 +248,7 @@ func Execute() {
 		kong.Name("snipe"),
 		kong.Description(rootHelp),
 		kong.UsageOnError(),
-		kong.ConfigureHelp(kong.HelpOptions{Compact: false}),
+		rootHelpOptions,
 		// Own the exit code (AXI #6): --help still exits 0, but a flag/usage
 		// error exits a deliberate 2 instead of kong's default. Run and
 		// error-envelope exits (1) are handled below, bypassing kong.

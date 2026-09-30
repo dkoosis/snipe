@@ -1,7 +1,6 @@
 Usage: snipe diagram datastore-map
 
-Datastore access map: schema + read/write packages per detected store. Writes
-docs/diagrams/datastore-map.md by default (--format d2/svg for stdout)
+Each datastore's schema and reader/writer packages
 
 Flags:
   -h, --help                Show context-sensitive help.

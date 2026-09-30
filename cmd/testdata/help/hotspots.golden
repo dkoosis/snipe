@@ -1,6 +1,6 @@
 Usage: snipe hotspots [flags]
 
-Rank files by complexity × git change-frequency (Tornhill hotspot model)
+Files ranked by complexity × churn
 
 Flags:
   -h, --help                Show context-sensitive help.

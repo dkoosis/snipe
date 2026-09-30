@@ -1,6 +1,6 @@
 Usage: snipe imports <file> [flags]
 
-Show packages imported by a file
+Packages a file imports
 
 Arguments:
   <file>    File path

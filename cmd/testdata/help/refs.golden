@@ -1,6 +1,6 @@
 Usage: snipe refs [<symbol>] [flags]
 
-Find all references to a symbol
+Every reference to a symbol
 
 Arguments:
   [<symbol>]    Symbol name

@@ -1,6 +1,6 @@
 Usage: snipe context [<path>] [flags]
 
-Start here — Claude-optimized project orientation
+Start here — repo map: entry points, flows, boundaries
 
 Arguments:
   [<path>]    Project path (default: current dir)

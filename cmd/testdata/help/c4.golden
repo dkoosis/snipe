@@ -1,7 +1,6 @@
 Usage: snipe c4 [flags]
 
-C4 architecture fact inventory: containers, datastores, external systems,
-flows (facts only, no rendering)
+C4 facts: containers, datastores, flows
 
 Flags:
   -h, --help                 Show context-sensitive help.

@@ -7,4 +7,4 @@
 # smoke the --help fast-exit: usage naming the required <file> arg, exit 0.
 exec snipe imports --help
 stdout 'Usage: snipe imports <file>'
-stdout 'Show packages imported by a file'
+stdout 'Packages a file imports'

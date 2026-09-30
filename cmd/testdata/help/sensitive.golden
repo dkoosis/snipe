@@ -1,6 +1,6 @@
 Usage: snipe sensitive [flags]
 
-List files in security-sensitive zones (auth/crypto/migration/secret/payment)
+Files in security zones (auth, crypto, secrets)
 
 Flags:
   -h, --help                Show context-sensitive help.

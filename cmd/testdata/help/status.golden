@@ -1,6 +1,6 @@
 Usage: snipe status [flags]
 
-Show index status and statistics
+Index freshness and counts (bare snipe)
 
 Flags:
   -h, --help                Show context-sensitive help.

@@ -1,6 +1,6 @@
 Usage: snipe callees [<symbol>] [flags]
 
-Find functions that a symbol calls
+Functions a symbol calls
 
 Arguments:
   [<symbol>]    Symbol name or id

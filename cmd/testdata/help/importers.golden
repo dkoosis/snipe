@@ -1,6 +1,6 @@
 Usage: snipe importers <package> [flags]
 
-Find files that import a package
+Files that import a package
 
 Arguments:
   <package>    Package path

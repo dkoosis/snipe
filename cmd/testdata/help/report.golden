@@ -1,7 +1,6 @@
 Usage: snipe report [flags]
 
-Self-contained HTML dashboard for humans: hotspot treemap, cycles, hotspots
-ranking, + D2 diagram placeholder slots
+HTML dashboard for humans
 
 Flags:
   -h, --help                   Show context-sensitive help.
