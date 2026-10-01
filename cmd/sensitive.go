@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/sensitive"
 )
 
@@ -35,7 +36,7 @@ func runSensitive() error {
 
 	files, err := s.GetAllFiles()
 	if err != nil {
-		return w.WriteError(cmdNameSensitive, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNameSensitive, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 	cls := sensitive.Load(dir)
 
@@ -55,11 +56,11 @@ func runSensitive() error {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Path < rows[j].Path })
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[sensitiveRow]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[sensitiveRow]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  rows,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  cmdNameSensitive,
 				RepoRoot: dir,
 				Ms:       time.Since(start).Milliseconds(),

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // TestRow represents a test function that exercises a target symbol.
@@ -211,16 +211,16 @@ func scanTestRows(rows *sql.Rows) ([]TestRow, error) {
 }
 
 // ToResult converts a TestRow to an output.Result.
-func (r *TestRow) ToResult() output.Result {
+func (r *TestRow) ToResult() protocol.Result {
 	filePath := r.FilePathRel
 	if filePath == "" {
 		filePath = r.FilePath
 	}
-	defRange := output.Range{
-		Start: output.Position{Line: r.LineStart, Col: r.ColStart},
-		End:   output.Position{Line: r.LineEnd, Col: r.ColEnd},
+	defRange := protocol.Range{
+		Start: protocol.Position{Line: r.LineStart, Col: r.ColStart},
+		End:   protocol.Position{Line: r.LineEnd, Col: r.ColEnd},
 	}
-	return output.Result{
+	return protocol.Result{
 		ID:         r.ID,
 		File:       filePath,
 		FileAbs:    r.FilePath,
@@ -230,6 +230,6 @@ func (r *TestRow) ToResult() output.Result {
 		Receiver:   r.Receiver.String,
 		Package:    r.PkgPath,
 		Match:      r.Signature.String,
-		EditTarget: output.FormatEditTargetWithHash(filePath, r.FilePath, defRange),
+		EditTarget: protocol.FormatEditTargetWithHash(filePath, r.FilePath, defRange),
 	}
 }

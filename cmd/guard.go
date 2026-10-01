@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -27,7 +28,7 @@ const defaultGuardSpec = ".snipe/boundaries.yml"
 // guardFail writes a structured operator error and returns the sentinel so the
 // process exits non-zero (a gate must fail closed on spec/index problems).
 func guardFail(w *output.Writer, msg string) error {
-	_ = w.WriteError("guard", &output.Error{Code: output.ErrInternal, Message: msg})
+	_ = w.WriteError("guard", &protocol.Error{Code: protocol.ErrInternal, Message: msg})
 	return errGuardFailed
 }
 
@@ -209,11 +210,11 @@ func allowed(allow []string, file string) bool {
 
 func writeGuard(dir, specPath string, rules []guardRule, v []guardViolation, start time.Time) error {
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[guardViolation]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[guardViolation]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       len(v) == 0,
 			Results:  v,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  "guard",
 				Query:    map[string]string{"spec": specPath},
 				RepoRoot: dir,

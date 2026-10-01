@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -22,8 +23,8 @@ func runTypes(args []string) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && typesAt == "" {
-		return w.WriteError(cmdNameTypes, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameTypes, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "provide a type name or --at position",
 		})
 	}
@@ -49,8 +50,8 @@ func runTypes(args []string) error {
 	if typesAt != "" {
 		pos, err := query.ParsePosition(typesAt)
 		if err != nil {
-			return w.WriteError(cmdNameTypes, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameTypes, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -61,8 +62,8 @@ func runTypes(args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError(cmdNameTypes, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError(cmdNameTypes, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: err.Error(),
 			})
 		}
@@ -86,8 +87,8 @@ func runTypes(args []string) error {
 			if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteError(cmdNameTypes, &output.Error{
-						Code:    output.ErrInternal,
+					return w.WriteError(cmdNameTypes, &protocol.Error{
+						Code:    protocol.ErrInternal,
 						Message: err.Error(),
 					})
 				}
@@ -96,12 +97,12 @@ func runTypes(args []string) error {
 					queryInfo = map[string]string{flagSymbol: symbolPart, flagFile: filePart}
 					goto getTypes
 				} else if len(symbols) > 1 {
-					candidates := make([]output.Candidate, len(symbols))
+					candidates := make([]protocol.Candidate, len(symbols))
 					for i := range symbols {
 						sym := &symbols[i]
 						candidates[i] = sym.ToCandidate()
 					}
-					return w.WriteError(cmdNameTypes, output.NewAmbiguousError(name, candidates))
+					return w.WriteError(cmdNameTypes, protocol.NewAmbiguousError(name, candidates))
 				}
 			}
 		}
@@ -109,8 +110,8 @@ func runTypes(args []string) error {
 		// Regular lookup
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameTypes, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameTypes, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -119,9 +120,9 @@ func runTypes(args []string) error {
 			maxDist := query.DefaultMaxDistance(name)
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
-				return w.WriteError(cmdNameTypes, output.NewNotFoundError(name))
+				return w.WriteError(cmdNameTypes, protocol.NewNotFoundError(name))
 			}
-			return w.WriteError(cmdNameTypes, output.NewNotFoundError(name, suggestions...))
+			return w.WriteError(cmdNameTypes, protocol.NewNotFoundError(name, suggestions...))
 		}
 
 		// Filter to type-like symbols
@@ -134,18 +135,18 @@ func runTypes(args []string) error {
 		}
 
 		if len(typeSymbols) == 0 {
-			return w.WriteError(cmdNameTypes, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError(cmdNameTypes, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: "'" + name + "' is not a type (found " + symbols[0].Kind + ")",
 			})
 		}
 
 		if len(typeSymbols) > 1 {
-			candidates := make([]output.Candidate, len(typeSymbols))
+			candidates := make([]protocol.Candidate, len(typeSymbols))
 			for i := range typeSymbols {
 				candidates[i] = typeSymbols[i].ToCandidate()
 			}
-			return w.WriteError(cmdNameTypes, output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameTypes, protocol.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = typeSymbols[0].ID
@@ -155,20 +156,20 @@ func runTypes(args []string) error {
 getTypes:
 	typeInfo, err := query.GetTypeInfo(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteError(cmdNameTypes, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameTypes, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	// Build response
-	result := output.TypesResult{
+	result := protocol.TypesResult{
 		Symbol:    typeInfo.Symbol.Name,
 		Kind:      typeInfo.Symbol.Kind,
 		File:      typeInfo.Symbol.FilePathRel,
 		Signature: typeInfo.Symbol.Signature.String,
 		Doc:       typeInfo.Symbol.Doc.String,
-		Implements: output.TypesImplementsOut{
+		Implements: protocol.TypesImplementsOut{
 			Status: typeInfo.Implements.Status,
 			Note:   typeInfo.Implements.Note,
 		},
@@ -176,7 +177,7 @@ getTypes:
 
 	// Add methods
 	for _, m := range typeInfo.Methods {
-		result.Methods = append(result.Methods, output.TypesMethodOut{
+		result.Methods = append(result.Methods, protocol.TypesMethodOut{
 			Name:      m.Name,
 			Signature: m.Signature,
 			File:      m.File,
@@ -186,7 +187,7 @@ getTypes:
 
 	// Add embeds
 	for _, e := range typeInfo.Embeds {
-		result.Embeds = append(result.Embeds, output.TypesEmbedOut{
+		result.Embeds = append(result.Embeds, protocol.TypesEmbedOut{
 			TypeName:  e.TypeName,
 			FieldName: e.FieldName,
 			File:      e.File,
@@ -195,7 +196,7 @@ getTypes:
 
 	// Add fields
 	for _, f := range typeInfo.Fields {
-		result.Fields = append(result.Fields, output.TypesFieldOut{
+		result.Fields = append(result.Fields, protocol.TypesFieldOut{
 			Name:     f.Name,
 			TypeExpr: f.TypeExpr,
 			Tag:      f.Tag,
@@ -204,11 +205,11 @@ getTypes:
 
 	staleFiles := query.CheckPathStaleness(s.DB(), dir, []string{typeInfo.Symbol.FilePath})
 
-	resp := output.Response[output.TypesResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.TypesResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.TypesResult{result},
-		Meta: output.Meta{
+		Results:  []protocol.TypesResult{result},
+		Meta: protocol.Meta{
 			Command:    cmdNameTypes,
 			Query:      queryInfo,
 			RepoRoot:   dir,
@@ -262,7 +263,7 @@ func runTypesForPackage(w *output.Writer, s interface {
 		return false, nil
 	}
 
-	results := make([]output.TypesResult, 0, len(typeSymbols))
+	results := make([]protocol.TypesResult, 0, len(typeSymbols))
 	for i := range typeSymbols {
 		sym := &typeSymbols[i]
 		// sym is already loaded from FindPackageSymbols above, so use the
@@ -275,11 +276,11 @@ func runTypesForPackage(w *output.Writer, s interface {
 		results = append(results, buildTypesResult(info))
 	}
 
-	resp := output.Response[output.TypesResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.TypesResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:    cmdNameTypes,
 			Query:      map[string]string{flagPkg: pkgPath},
 			RepoRoot:   dir,
@@ -293,20 +294,20 @@ func runTypesForPackage(w *output.Writer, s interface {
 }
 
 // buildTypesResult converts a query.TypeInfo into the output rendering form.
-func buildTypesResult(info *query.TypeInfo) output.TypesResult {
-	r := output.TypesResult{
+func buildTypesResult(info *query.TypeInfo) protocol.TypesResult {
+	r := protocol.TypesResult{
 		Symbol:    info.Symbol.Name,
 		Kind:      info.Symbol.Kind,
 		File:      info.Symbol.FilePathRel,
 		Signature: info.Symbol.Signature.String,
 		Doc:       info.Symbol.Doc.String,
-		Implements: output.TypesImplementsOut{
+		Implements: protocol.TypesImplementsOut{
 			Status: info.Implements.Status,
 			Note:   info.Implements.Note,
 		},
 	}
 	for _, m := range info.Methods {
-		r.Methods = append(r.Methods, output.TypesMethodOut{
+		r.Methods = append(r.Methods, protocol.TypesMethodOut{
 			Name:      m.Name,
 			Signature: m.Signature,
 			File:      m.File,
@@ -314,14 +315,14 @@ func buildTypesResult(info *query.TypeInfo) output.TypesResult {
 		})
 	}
 	for _, e := range info.Embeds {
-		r.Embeds = append(r.Embeds, output.TypesEmbedOut{
+		r.Embeds = append(r.Embeds, protocol.TypesEmbedOut{
 			TypeName:  e.TypeName,
 			FieldName: e.FieldName,
 			File:      e.File,
 		})
 	}
 	for _, f := range info.Fields {
-		r.Fields = append(r.Fields, output.TypesFieldOut{
+		r.Fields = append(r.Fields, protocol.TypesFieldOut{
 			Name:     f.Name,
 			TypeExpr: f.TypeExpr,
 			Tag:      f.Tag,

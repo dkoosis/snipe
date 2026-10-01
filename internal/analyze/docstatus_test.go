@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 func TestCheckDocStatus(t *testing.T) {
@@ -17,7 +17,7 @@ func TestCheckDocStatus(t *testing.T) {
 		name       string
 		code       string
 		doc        string
-		wantStatus output.DocStatusCode
+		wantStatus protocol.DocStatusCode
 		wantReason bool
 	}{
 		{
@@ -27,7 +27,7 @@ func Process(ctx context.Context, data []byte) error {
 	return nil
 }`,
 			doc:        "Process handles incoming requests and validates them.",
-			wantStatus: output.DocFresh,
+			wantStatus: protocol.DocFresh,
 			wantReason: false,
 		},
 		{
@@ -35,7 +35,7 @@ func Process(ctx context.Context, data []byte) error {
 			code: `package test
 func NoDoc() {}`,
 			doc:        "",
-			wantStatus: output.DocMissing,
+			wantStatus: protocol.DocMissing,
 			wantReason: false,
 		},
 		{
@@ -43,7 +43,7 @@ func NoDoc() {}`,
 			code: `package test
 func Updated(newParam string) {}`,
 			doc:        "Updated uses the `oldParam` parameter to process data.",
-			wantStatus: output.DocStale,
+			wantStatus: protocol.DocStale,
 			wantReason: true,
 		},
 		{
@@ -53,7 +53,7 @@ func WithParam(config Config) error {
 	return nil
 }`,
 			doc:        "WithParam uses `config` to configure the operation.",
-			wantStatus: output.DocFresh,
+			wantStatus: protocol.DocFresh,
 			wantReason: false,
 		},
 	}
@@ -88,7 +88,7 @@ func TestExtractPurpose(t *testing.T) {
 		name         string
 		code         string
 		doc          string
-		wantSource   output.PurposeSource
+		wantSource   protocol.PurposeSource
 		wantNonEmpty bool
 	}{
 		{
@@ -96,7 +96,7 @@ func TestExtractPurpose(t *testing.T) {
 			code: `package test
 func Calculate(x int) int { return x * 2 }`,
 			doc:          "Calculate doubles the input value.",
-			wantSource:   output.PurposeFromDoc,
+			wantSource:   protocol.PurposeFromDoc,
 			wantNonEmpty: true,
 		},
 		{
@@ -104,7 +104,7 @@ func Calculate(x int) int { return x * 2 }`,
 			code: `package test
 func NewServer(config Config) *Server { return nil }`,
 			doc:          "",
-			wantSource:   output.PurposeFromTemplate,
+			wantSource:   protocol.PurposeFromTemplate,
 			wantNonEmpty: true,
 		},
 		{
@@ -112,7 +112,7 @@ func NewServer(config Config) *Server { return nil }`,
 			code: `package test
 func GetUser(id string) *User { return nil }`,
 			doc:          "",
-			wantSource:   output.PurposeFromTemplate,
+			wantSource:   protocol.PurposeFromTemplate,
 			wantNonEmpty: true,
 		},
 		{
@@ -120,7 +120,7 @@ func GetUser(id string) *User { return nil }`,
 			code: `package test
 func (s *Server) Shutdown() {}`,
 			doc:          "",
-			wantSource:   output.PurposeFromTemplate,
+			wantSource:   protocol.PurposeFromTemplate,
 			wantNonEmpty: true,
 		},
 		{
@@ -128,7 +128,7 @@ func (s *Server) Shutdown() {}`,
 			code: `package test
 func xyz() {}`,
 			doc:          "",
-			wantSource:   output.PurposeMissing,
+			wantSource:   protocol.PurposeMissing,
 			wantNonEmpty: false,
 		},
 	}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -23,8 +24,8 @@ func runTrace(args []string) error {
 
 	refs, err := query.TraceString(s.DB(), value)
 	if err != nil {
-		return w.WriteError("trace", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("trace", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
@@ -38,8 +39,8 @@ func runTrace(args []string) error {
 	}
 
 	if len(refs) == 0 {
-		return w.WriteError("trace", &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteError("trace", &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: "no string refs found for " + value,
 		})
 	}
@@ -54,14 +55,14 @@ func runTrace(args []string) error {
 		refs = refs[:lim]
 	}
 
-	results := make([]output.TraceResult, 0, len(refs))
+	results := make([]protocol.TraceResult, 0, len(refs))
 	for i := range refs {
 		r := &refs[i]
 		displayPath := r.FilePathRel
 		if displayPath == "" {
 			displayPath = r.FilePath
 		}
-		tr := output.TraceResult{
+		tr := protocol.TraceResult{
 			ID:        r.ID,
 			Value:     r.Value,
 			File:      displayPath,
@@ -75,11 +76,11 @@ func runTrace(args []string) error {
 		results = append(results, tr)
 	}
 
-	resp := output.Response[output.TraceResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.TraceResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:    "trace",
 			Query:      map[string]string{"value": value},
 			RepoRoot:   dir,

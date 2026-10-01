@@ -7,6 +7,7 @@ import (
 
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -20,14 +21,14 @@ func runShow(args []string) error {
 
 	// Validate symbol ID format (16-char hex string)
 	if len(symbolID) != 16 {
-		return w.WriteError(cmdNameShow, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameShow, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "invalid symbol ID: must be 16 characters",
 		})
 	}
 	if _, err := hex.DecodeString(symbolID); err != nil {
-		return w.WriteError(cmdNameShow, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameShow, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "invalid symbol ID: must be hexadecimal",
 		})
 	}
@@ -41,15 +42,15 @@ func runShow(args []string) error {
 	// Look up by ID
 	sym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteError(cmdNameShow, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameShow, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if sym == nil {
-		return w.WriteError(cmdNameShow, &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteError(cmdNameShow, &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: "symbol not found: " + symbolID,
 		})
 	}
@@ -59,14 +60,14 @@ func runShow(args []string) error {
 
 	// Add full body if requested
 	if withBody {
-		if err := output.AddBody(&result); err != nil {
+		if err := protocol.AddBody(&result); err != nil {
 			degraded = append(degraded, "body_extraction_failed")
 		}
 	}
 
 	// Add context lines if requested (only if not showing full body)
 	if contextLines > 0 && !withBody {
-		if err := output.AddContext(&result, contextLines); err != nil {
+		if err := protocol.AddContext(&result, contextLines); err != nil {
 			degraded = append(degraded, "context_extraction_failed")
 		}
 	}
@@ -88,32 +89,32 @@ func runShow(args []string) error {
 		}
 	}
 
-	tokenEstimate := output.EstimateTokens(result.Match)
+	tokenEstimate := protocol.EstimateTokens(result.Match)
 	if result.Body != "" {
-		tokenEstimate = output.EstimateTokens(result.Body)
+		tokenEstimate = protocol.EstimateTokens(result.Body)
 	}
 
-	results := []output.Result{result}
+	results := []protocol.Result{result}
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 		tokenEstimate = 0
 		for i := range results {
-			tokenEstimate += output.EstimateResultTokens(&results[i])
+			tokenEstimate += protocol.EstimateResultTokens(&results[i])
 		}
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
-	resp := output.Response[output.Result]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
 		Results:     results,
-		Suggestions: output.SuggestionsForDef(&result),
-		Meta: output.Meta{
+		Suggestions: protocol.SuggestionsForDef(&result),
+		Meta: protocol.Meta{
 			Command:       cmdNameShow,
 			Query:         map[string]string{"id": symbolID},
 			RepoRoot:      dir,

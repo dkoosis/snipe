@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -28,8 +29,8 @@ func runTests(args []string) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && testsAt == "" && testsID == "" {
-		return w.WriteError(cmdNameTests, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameTests, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "provide a symbol name, --at position, or --id",
 		})
 	}
@@ -51,8 +52,8 @@ func runTests(args []string) error {
 	case testsAt != "":
 		pos, err := query.ParsePosition(testsAt)
 		if err != nil {
-			return w.WriteError(cmdNameTests, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameTests, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -66,8 +67,8 @@ func runTests(args []string) error {
 		}
 		sym := query.FindSymbolAtPosition(s.DB(), filePath, pos.Line)
 		if sym == nil {
-			return w.WriteError(cmdNameTests, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError(cmdNameTests, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: "no symbol found at " + testsAt,
 			})
 		}
@@ -88,21 +89,21 @@ func runTests(args []string) error {
 
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameTests, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameTests, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 		if len(symbols) == 0 {
-			return w.WriteError(cmdNameTests, output.NewNotFoundError(name))
+			return w.WriteError(cmdNameTests, protocol.NewNotFoundError(name))
 		}
 		if len(symbols) > 1 {
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				sym := &symbols[i]
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError(cmdNameTests, output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameTests, protocol.NewAmbiguousError(name, candidates))
 		}
 		symbolID = symbols[0].ID
 		queryInfo = map[string]string{flagSymbol: name}
@@ -118,14 +119,14 @@ func runTests(args []string) error {
 	// Find tests
 	testRows, err := query.FindTests(s.DB(), symbolID, testsDirect, lim, off)
 	if err != nil {
-		return w.WriteError(cmdNameTests, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameTests, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	// Convert to results with hints
-	results := make([]output.Result, len(testRows))
+	results := make([]protocol.Result, len(testRows))
 	var degraded []string
 
 	// Batch fetch for bodies
@@ -158,7 +159,7 @@ func runTests(args []string) error {
 		if withBody {
 			if sym, ok := testSymbols[tr.ID]; ok && sym != nil {
 				symResult := sym.ToResult()
-				if err := output.AddBody(&symResult); err != nil {
+				if err := protocol.AddBody(&symResult); err != nil {
 					degraded = append(degraded, "body_extraction_failed")
 				}
 				result.Body = symResult.Body
@@ -166,7 +167,7 @@ func runTests(args []string) error {
 		}
 
 		if contextLines > 0 && !withBody {
-			if err := output.AddContext(&result, contextLines); err != nil {
+			if err := protocol.AddContext(&result, contextLines); err != nil {
 				degraded = append(degraded, "context_extraction_failed")
 			}
 		}
@@ -176,24 +177,24 @@ func runTests(args []string) error {
 
 	degraded = uniqueStrings(degraded)
 
-	output.ScoreAndSort(results, symName)
+	protocol.ScoreAndSort(results, symName)
 	results = ApplySelection(results)
 
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
 	if summary {
-		summaryData := output.BuildSummary(results)
-		return w.WriteResponse(output.Response[output.Summary]{
-			Protocol: output.ProtocolVersion,
+		summaryData := protocol.BuildSummary(results)
+		return w.WriteResponse(protocol.Response[protocol.Summary]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
-			Results:  []output.Summary{summaryData},
-			Meta: output.Meta{
+			Results:  []protocol.Summary{summaryData},
+			Meta: protocol.Meta{
 				Command:    cmdNameTests,
 				Query:      queryInfo,
 				RepoRoot:   dir,
@@ -212,7 +213,7 @@ func runTests(args []string) error {
 	// Token estimate
 	tokenEstimate := 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
 	// Suggested test file for zero-coverage
@@ -221,12 +222,12 @@ func runTests(args []string) error {
 		suggestedFile = strings.TrimSuffix(symFileRel, ".go") + "_test.go"
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
 		Results:     results,
-		Suggestions: output.SuggestionsForTests(symName, len(results), suggestedFile),
-		Meta: output.Meta{
+		Suggestions: protocol.SuggestionsForTests(symName, len(results), suggestedFile),
+		Meta: protocol.Meta{
 			Command:       cmdNameTests,
 			Query:         queryInfo,
 			RepoRoot:      dir,

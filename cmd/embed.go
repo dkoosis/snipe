@@ -11,6 +11,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -203,11 +204,11 @@ func runEmbedStatus() error {
 // emitEmbedStatus renders one embed-status result. Default (Claude) surface is
 // a terse one-liner; --format json emits the full envelope (D1).
 func emitEmbedStatus(w *output.Writer, result EmbedStatusResult) error {
-	resp := output.Response[EmbedStatusResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[EmbedStatusResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  []EmbedStatusResult{result},
-		Meta:     output.Meta{Command: cmdNameEmbedStatus},
+		Meta:     protocol.Meta{Command: cmdNameEmbedStatus},
 	}
 	if GetOutputFormat() == output.OutputJSON {
 		return w.WriteResponse(resp)

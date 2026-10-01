@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/mattn/go-isatty"
+
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // OutputHuman renders one-line-per-result plain text for direct CLI use.
@@ -39,13 +41,13 @@ func (w *Writer) writeHuman(resp any) error {
 	var b strings.Builder
 
 	switch r := resp.(type) {
-	case Response[Result]:
+	case protocol.Response[protocol.Result]:
 		if r.Error != nil {
 			writeHumanError(&b, r.Error)
 		} else {
 			writeHumanResults(&b, r.Results, tty)
 		}
-	case Response[Summary]:
+	case protocol.Response[protocol.Summary]:
 		writeHumanSummary(&b, r.Results)
 	default:
 		// Fallback: Claude-text format for composite result shapes.
@@ -56,7 +58,7 @@ func (w *Writer) writeHuman(resp any) error {
 	return err
 }
 
-func writeHumanResults(b *strings.Builder, results []Result, color bool) {
+func writeHumanResults(b *strings.Builder, results []protocol.Result, color bool) {
 	if len(results) == 0 {
 		b.WriteString("no results\n")
 		return
@@ -66,7 +68,7 @@ func writeHumanResults(b *strings.Builder, results []Result, color bool) {
 	}
 }
 
-func writeHumanResultLine(b *strings.Builder, r *Result, color bool) {
+func writeHumanResultLine(b *strings.Builder, r *protocol.Result, color bool) {
 	// <symbol>  <file>:<line>  <kind>
 	name := r.Name
 	if name == "" {
@@ -108,7 +110,7 @@ func writeHumanResultLine(b *strings.Builder, r *Result, color bool) {
 	b.WriteString("\n")
 }
 
-func writeHumanSummary(b *strings.Builder, results []Summary) {
+func writeHumanSummary(b *strings.Builder, results []protocol.Summary) {
 	for _, s := range results {
 		fmt.Fprintf(b, "%d results\n", s.Total)
 		for _, f := range s.Files {
@@ -117,7 +119,7 @@ func writeHumanSummary(b *strings.Builder, results []Summary) {
 	}
 }
 
-func writeHumanError(b *strings.Builder, err *Error) {
+func writeHumanError(b *strings.Builder, err *protocol.Error) {
 	fmt.Fprintf(b, "error: %s\n", err.Message)
 	for _, c := range err.Candidates {
 		name := c.Name

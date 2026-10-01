@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // MatchTier records which rung of the lookup ladder produced a row, but only
@@ -518,10 +518,10 @@ type RefRow struct {
 }
 
 // ToResult converts a SymbolRow to an output.Result
-func (s *SymbolRow) ToResult() output.Result {
-	r := output.Range{
-		Start: output.Position{Line: s.LineStart, Col: s.ColStart},
-		End:   output.Position{Line: s.LineEnd, Col: s.ColEnd},
+func (s *SymbolRow) ToResult() protocol.Result {
+	r := protocol.Range{
+		Start: protocol.Position{Line: s.LineStart, Col: s.ColStart},
+		End:   protocol.Position{Line: s.LineEnd, Col: s.ColEnd},
 	}
 	// Use relative path for output, absolute path for file operations
 	filePath := s.FilePathRel
@@ -532,7 +532,7 @@ func (s *SymbolRow) ToResult() output.Result {
 	// Compute static analysis hints
 	hints := s.computeHints()
 
-	result := output.Result{
+	result := protocol.Result{
 		ID:         s.ID,
 		File:       filePath,
 		FileAbs:    s.FilePath,
@@ -542,7 +542,7 @@ func (s *SymbolRow) ToResult() output.Result {
 		Match:      s.Signature.String,
 		Doc:        docFirstSentence(s.Doc.String),
 		Hints:      hints,
-		EditTarget: output.FormatEditTargetWithHash(filePath, s.FilePath, r),
+		EditTarget: protocol.FormatEditTargetWithHash(filePath, s.FilePath, r),
 	}
 
 	// Add receiver for methods
@@ -589,13 +589,13 @@ func (s *SymbolRow) computeHints() []string {
 	if s.Doc.Valid && s.Doc.String != "" {
 		docLower := strings.ToLower(s.Doc.String)
 		if strings.Contains(docLower, "deprecated") {
-			hints = append(hints, output.HintDeprecated)
+			hints = append(hints, protocol.HintDeprecated)
 		}
 	}
 
 	// Check for pointer receiver (method can be called on nil)
 	if s.Receiver.Valid && strings.HasPrefix(s.Receiver.String, "(*") {
-		hints = append(hints, output.HintPointerRecv)
+		hints = append(hints, protocol.HintPointerRecv)
 	}
 
 	return hints
@@ -604,7 +604,7 @@ func (s *SymbolRow) computeHints() []string {
 // ToResultWithHints converts a SymbolRow to an output.Result with ref count and unused detection.
 // If db is provided, includes reference count and checks if exported symbols are unused.
 // RefCount is set to -1 if the query fails.
-func (s *SymbolRow) ToResultWithHints(db *sql.DB) output.Result {
+func (s *SymbolRow) ToResultWithHints(db *sql.DB) protocol.Result {
 	result := s.ToResult()
 
 	// Get reference count (always included when db is available)
@@ -616,7 +616,7 @@ func (s *SymbolRow) ToResultWithHints(db *sql.DB) output.Result {
 			result.RefCount = refCount
 			// Check for unused exported symbols
 			if isExported(s.Name) && refCount == 0 {
-				result.Hints = append(result.Hints, output.HintUnused)
+				result.Hints = append(result.Hints, protocol.HintUnused)
 			}
 		}
 	}
@@ -630,8 +630,8 @@ func (s *SymbolRow) ToResultWithHints(db *sql.DB) output.Result {
 }
 
 // ComputeFuncAnalysis computes function metrics from symbol data.
-func (s *SymbolRow) ComputeFuncAnalysis() *output.FuncAnalysis {
-	analysis := &output.FuncAnalysis{
+func (s *SymbolRow) ComputeFuncAnalysis() *protocol.FuncAnalysis {
+	analysis := &protocol.FuncAnalysis{
 		LineCount:  s.LineEnd - s.LineStart + 1,
 		IsExported: isExported(s.Name),
 	}
@@ -781,7 +781,7 @@ func isExported(name string) bool {
 }
 
 // ToCandidate converts a SymbolRow to an output.Candidate
-func (s *SymbolRow) ToCandidate() output.Candidate {
+func (s *SymbolRow) ToCandidate() protocol.Candidate {
 	// Use relative path for output
 	filePath := s.FilePathRel
 	if filePath == "" {
@@ -802,7 +802,7 @@ func (s *SymbolRow) ToCandidate() output.Candidate {
 	if s.Receiver.Valid {
 		receiver = s.Receiver.String
 	}
-	return output.Candidate{
+	return protocol.Candidate{
 		ID:       s.ID,
 		Name:     s.Name,
 		File:     filePath,
@@ -813,7 +813,7 @@ func (s *SymbolRow) ToCandidate() output.Candidate {
 }
 
 // FindSiblings finds other symbols of the same kind in the same file
-func FindSiblings(db *sql.DB, filePath, kind, excludeID string, limit int) ([]output.Sibling, error) {
+func FindSiblings(db *sql.DB, filePath, kind, excludeID string, limit int) ([]protocol.Sibling, error) {
 	rows, err := db.Query(`
 		SELECT id, name, kind, line_start
 		FROM symbols
@@ -826,9 +826,9 @@ func FindSiblings(db *sql.DB, filePath, kind, excludeID string, limit int) ([]ou
 	}
 	defer rows.Close()
 
-	var siblings []output.Sibling
+	var siblings []protocol.Sibling
 	for rows.Next() {
-		var s output.Sibling
+		var s protocol.Sibling
 		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.Line); err != nil {
 			return nil, err
 		}
@@ -1012,16 +1012,16 @@ func CountCalleesForType(db *sql.DB, typeName string) (int, error) {
 
 // ToCalleeResult converts a CallRow to an output.Result describing the callee's definition.
 // ID, file, range, and edit_target all point to where the callee is defined.
-func (c *CallRow) ToCalleeResult() output.Result {
-	calleeRange := output.Range{
-		Start: output.Position{Line: c.CalleeLineStart, Col: c.CalleeColStart},
-		End:   output.Position{Line: c.CalleeLineEnd, Col: c.CalleeColEnd},
+func (c *CallRow) ToCalleeResult() protocol.Result {
+	calleeRange := protocol.Range{
+		Start: protocol.Position{Line: c.CalleeLineStart, Col: c.CalleeColStart},
+		End:   protocol.Position{Line: c.CalleeLineEnd, Col: c.CalleeColEnd},
 	}
 	filePath := c.CalleeFileRel
 	if filePath == "" {
 		filePath = c.CalleeFile
 	}
-	return output.Result{
+	return protocol.Result{
 		ID:         c.CalleeID,
 		File:       filePath,
 		FileAbs:    c.CalleeFile,
@@ -1030,26 +1030,26 @@ func (c *CallRow) ToCalleeResult() output.Result {
 		Name:       c.CalleeName,
 		Receiver:   c.CalleeReceiver,
 		Match:      c.CalleeSignature.String,
-		EditTarget: output.FormatEditTargetWithHash(filePath, c.CalleeFile, calleeRange),
+		EditTarget: protocol.FormatEditTargetWithHash(filePath, c.CalleeFile, calleeRange),
 	}
 }
 
 // ToCallerResult converts a CallRow to an output.Result describing the caller at the call site.
 // ID, name, kind describe the caller; range points to the call expression location.
-func (c *CallRow) ToCallerResult() output.Result {
+func (c *CallRow) ToCallerResult() protocol.Result {
 	nameLen := len(c.CalleeName)
 	if nameLen == 0 {
 		nameLen = 1
 	}
-	callRange := output.Range{
-		Start: output.Position{Line: c.CallLine, Col: c.CallCol},
-		End:   output.Position{Line: c.CallLine, Col: c.CallCol + nameLen},
+	callRange := protocol.Range{
+		Start: protocol.Position{Line: c.CallLine, Col: c.CallCol},
+		End:   protocol.Position{Line: c.CallLine, Col: c.CallCol + nameLen},
 	}
 	filePath := c.CallerFileRel
 	if filePath == "" {
 		filePath = c.CallerFile
 	}
-	return output.Result{
+	return protocol.Result{
 		ID:         c.CallerID,
 		File:       filePath,
 		FileAbs:    c.CallerFile,
@@ -1058,7 +1058,7 @@ func (c *CallRow) ToCallerResult() output.Result {
 		Name:       c.CallerName,
 		Receiver:   c.CallerReceiver,
 		Match:      c.CallerSignature.String,
-		EditTarget: output.FormatEditTargetWithHash(filePath, c.CallerFile, callRange),
+		EditTarget: protocol.FormatEditTargetWithHash(filePath, c.CallerFile, callRange),
 	}
 }
 
@@ -1492,7 +1492,7 @@ func FindEnclosingSymbol(db *sql.DB, filePathRel string, line int) *SymbolRow {
 
 // GetCallersPreview returns a preview of top N callers for a symbol.
 // Used for quick caller context without full call graph traversal.
-func GetCallersPreview(db *sql.DB, symbolID string, limit int) ([]output.CallerPreview, error) {
+func GetCallersPreview(db *sql.DB, symbolID string, limit int) ([]protocol.CallerPreview, error) {
 	rows, err := db.Query(`
 		SELECT caller.id, caller.name, caller.file_path_rel, cg.line
 		FROM call_graph cg
@@ -1506,9 +1506,9 @@ func GetCallersPreview(db *sql.DB, symbolID string, limit int) ([]output.CallerP
 	}
 	defer rows.Close()
 
-	var callers []output.CallerPreview
+	var callers []protocol.CallerPreview
 	for rows.Next() {
-		var c output.CallerPreview
+		var c protocol.CallerPreview
 		var fileRel sql.NullString
 		if err := rows.Scan(&c.ID, &c.Name, &fileRel, &c.Line); err != nil {
 			return nil, fmt.Errorf("scan caller preview: %w", err)

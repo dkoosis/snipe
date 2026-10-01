@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -28,24 +29,24 @@ func runLits(args []string) error {
 	}
 
 	if len(refs) == 0 {
-		return w.WriteError("lits", &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteError("lits", &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: fmt.Sprintf("no string refs found for %q", value),
 		})
 	}
 
-	results := make([]output.Result, 0, len(refs))
+	results := make([]protocol.Result, 0, len(refs))
 	for i := range refs {
 		r := &refs[i]
 		displayPath := r.FilePathRel
 		if displayPath == "" {
 			displayPath = r.FilePath
 		}
-		refRange := output.Range{
-			Start: output.Position{Line: r.Line, Col: r.Col},
-			End:   output.Position{Line: r.Line, Col: r.Col},
+		refRange := protocol.Range{
+			Start: protocol.Position{Line: r.Line, Col: r.Col},
+			End:   protocol.Position{Line: r.Line, Col: r.Col},
 		}
-		res := output.Result{
+		res := protocol.Result{
 			ID:      r.ID,
 			File:    displayPath,
 			FileAbs: r.FilePath,
@@ -58,7 +59,7 @@ func runLits(args []string) error {
 			res.Name = r.Name
 		}
 		if r.EnclosingID != "" {
-			res.Enclosing = &output.Enclosing{ID: r.EnclosingID}
+			res.Enclosing = &protocol.Enclosing{ID: r.EnclosingID}
 		}
 		results = append(results, res)
 	}
@@ -73,11 +74,11 @@ func runLits(args []string) error {
 		results = results[:lim]
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:    "lits",
 			Query:      map[string]string{"value": value},
 			RepoRoot:   dir,

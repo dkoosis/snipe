@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -52,11 +53,11 @@ func runCyclesMetrics(s *store.Store, dir string, start time.Time) error {
 	}
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[cyclesPayload]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[cyclesPayload]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  []cyclesPayload{{SCCs: groups}},
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  cmdNameMetrics,
 				Query:    map[string]string{"graph": metricsGraph, jsonKeyKind: cmdKindCycles},
 				RepoRoot: dir,

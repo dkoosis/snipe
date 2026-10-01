@@ -10,6 +10,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/lifecycle"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -26,8 +27,8 @@ func runLifecycle(args []string) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && lifecycleAt == "" {
-		return w.WriteError("lifecycle", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("lifecycle", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "provide a type name, hex ID, or --at position",
 		})
 	}
@@ -50,8 +51,8 @@ func runLifecycle(args []string) error {
 	if lifecycleAt != "" {
 		pos, perr := query.ParsePosition(lifecycleAt)
 		if perr != nil {
-			return w.WriteError("lifecycle", &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError("lifecycle", &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: perr.Error(),
 			})
 		}
@@ -60,15 +61,15 @@ func runLifecycle(args []string) error {
 		}
 		id, rerr := query.ResolvePosition(s.DB(), pos)
 		if rerr != nil {
-			return w.WriteError("lifecycle", &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError("lifecycle", &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: "no symbol found at " + lifecycleAt,
 			})
 		}
 		row, lookupErr := query.LookupByID(s.DB(), id)
 		if lookupErr != nil || row == nil {
-			return w.WriteError("lifecycle", &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError("lifecycle", &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: "symbol id " + id + " not found",
 			})
 		}
@@ -82,8 +83,8 @@ func runLifecycle(args []string) error {
 		if _, hexErr := hex.DecodeString(typeName); hexErr == nil {
 			row, lookupErr := query.LookupByID(s.DB(), typeName)
 			if lookupErr != nil {
-				return w.WriteError("lifecycle", &output.Error{
-					Code:    output.ErrInternal,
+				return w.WriteError("lifecycle", &protocol.Error{
+					Code:    protocol.ErrInternal,
 					Message: lookupErr.Error(),
 				})
 			}
@@ -104,21 +105,21 @@ func runLifecycle(args []string) error {
 			symbols, err = query.LookupByName(s.DB(), typeName)
 		}
 		if err != nil {
-			return w.WriteError("lifecycle", &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError("lifecycle", &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 		if len(symbols) == 0 {
-			return w.WriteError("lifecycle", output.NewNotFoundError(typeName))
+			return w.WriteError("lifecycle", protocol.NewNotFoundError(typeName))
 		}
 		if len(symbols) > 1 {
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
-			return w.WriteError("lifecycle", output.NewAmbiguousError(typeName, candidates))
+			return w.WriteError("lifecycle", protocol.NewAmbiguousError(typeName, candidates))
 		}
 		sym = symbols[0]
 	}
@@ -126,8 +127,8 @@ func runLifecycle(args []string) error {
 	// Fetch all refs. Use a large limit; lifecycle is a holistic view.
 	refRows, err := query.FindRefs(s.DB(), sym.ID, 10000, 0)
 	if err != nil {
-		return w.WriteError("lifecycle", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("lifecycle", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
@@ -149,7 +150,7 @@ func runLifecycle(args []string) error {
 		result, tokenTruncated = output.TruncateLifecycleToTokenBudget(result, maxTok)
 	}
 
-	meta := output.Meta{
+	meta := protocol.Meta{
 		Command:   "lifecycle",
 		Query:     map[string]string{cmdKindType: typeName},
 		RepoRoot:  dir,
@@ -160,10 +161,10 @@ func runLifecycle(args []string) error {
 		Truncated: tokenTruncated,
 	}
 
-	return w.WriteResponse(output.Response[output.LifecycleResult]{
-		Protocol: output.ProtocolVersion,
+	return w.WriteResponse(protocol.Response[protocol.LifecycleResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.LifecycleResult{result},
+		Results:  []protocol.LifecycleResult{result},
 		Meta:     meta,
 	})
 }
@@ -185,14 +186,14 @@ func buildLifecycleResult(
 	classifications []lifecycle.Classification,
 	includeTests bool,
 	callerDepth int,
-) output.LifecycleResult {
-	buckets := make(map[lifecycle.Role][]output.LifecycleFunction)
-	testBucket := []output.LifecycleFunction{}
+) protocol.LifecycleResult {
+	buckets := make(map[lifecycle.Role][]protocol.LifecycleFunction)
+	testBucket := []protocol.LifecycleFunction{}
 	funcCount := 0
 	testRefCount := 0
 
 	for _, c := range classifications {
-		fn := output.LifecycleFunction{
+		fn := protocol.LifecycleFunction{
 			ID:      c.EnclosingID,
 			Name:    displayName(c.EnclosingName),
 			File:    c.FileRel,
@@ -216,24 +217,24 @@ func buildLifecycleResult(
 	}
 	sortLifecycleFuncs(testBucket)
 
-	groups := make([]output.LifecycleGroup, 0, len(roleOrder)+1)
+	groups := make([]protocol.LifecycleGroup, 0, len(roleOrder)+1)
 	for _, role := range roleOrder {
 		funcs := buckets[role]
-		groups = append(groups, output.LifecycleGroup{
+		groups = append(groups, protocol.LifecycleGroup{
 			Role:  string(role),
 			Count: len(funcs),
 			Funcs: funcs,
 		})
 	}
 	if len(testBucket) > 0 {
-		groups = append(groups, output.LifecycleGroup{
+		groups = append(groups, protocol.LifecycleGroup{
 			Role:  "Tests",
 			Count: len(testBucket),
 			Funcs: testBucket,
 		})
 	}
 
-	return output.LifecycleResult{
+	return protocol.LifecycleResult{
 		Type:         sym.Name,
 		TypeID:       sym.ID,
 		TypeFile:     sym.FilePathRel,
@@ -264,7 +265,7 @@ func rolesToStrings(roles []lifecycle.Role) []string {
 	return out
 }
 
-func buildCallerChain(db *sql.DB, symbolID string, depth int) []output.LifecycleCallerNode {
+func buildCallerChain(db *sql.DB, symbolID string, depth int) []protocol.LifecycleCallerNode {
 	if symbolID == "" || depth <= 0 {
 		return nil
 	}
@@ -272,9 +273,9 @@ func buildCallerChain(db *sql.DB, symbolID string, depth int) []output.Lifecycle
 	if len(nodes) == 0 {
 		return nil
 	}
-	out := make([]output.LifecycleCallerNode, len(nodes))
+	out := make([]protocol.LifecycleCallerNode, len(nodes))
 	for i, n := range nodes {
-		out[i] = output.LifecycleCallerNode{
+		out[i] = protocol.LifecycleCallerNode{
 			ID:    n.ID,
 			Name:  n.Name,
 			File:  n.File,
@@ -284,7 +285,7 @@ func buildCallerChain(db *sql.DB, symbolID string, depth int) []output.Lifecycle
 	return out
 }
 
-func sortLifecycleFuncs(fns []output.LifecycleFunction) {
+func sortLifecycleFuncs(fns []protocol.LifecycleFunction) {
 	sort.Slice(fns, func(i, j int) bool {
 		if fns[i].File != fns[j].File {
 			return fns[i].File < fns[j].File

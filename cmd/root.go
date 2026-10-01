@@ -13,6 +13,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/config"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/telemetry"
@@ -391,7 +392,7 @@ func uniqueStrings(ss []string) []string {
 
 // ApplySelection truncates results based on the --select flag.
 // Should be called after ScoreAndSort.
-func ApplySelection(results []output.Result) []output.Result {
+func ApplySelection(results []protocol.Result) []protocol.Result {
 	switch selectMode {
 	case selectBest:
 		if len(results) > 1 {
@@ -421,11 +422,11 @@ func pickSelectedSymbol(symbols []query.SymbolRow, name string) (query.SymbolRow
 	default:
 		return query.SymbolRow{}, false
 	}
-	results := make([]output.Result, len(symbols))
+	results := make([]protocol.Result, len(symbols))
 	for i := range symbols {
 		results[i] = symbols[i].ToResult()
 	}
-	output.ScoreAndSort(results, name)
+	protocol.ScoreAndSort(results, name)
 	topID := results[0].ID
 	for i := range symbols {
 		s := &symbols[i]
@@ -442,8 +443,8 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		if w != nil {
-			_ = w.WriteError(cmdName, &output.Error{
-				Code:    output.ErrInternal,
+			_ = w.WriteError(cmdName, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: "failed to get working directory: " + err.Error(),
 			})
 		}
@@ -468,8 +469,8 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		cwdPath := store.DefaultIndexPath(cwd)
 		if store.Exists(cwdPath) {
 			if w != nil {
-				_ = w.WriteError(cmdName, &output.Error{
-					Code:    output.ErrIndexMismatch,
+				_ = w.WriteError(cmdName, &protocol.Error{
+					Code:    protocol.ErrIndexMismatch,
 					Message: fmt.Sprintf("index found at %s but project root is %s — run: snipe index", cwd, root),
 				})
 			}
@@ -480,7 +481,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	// Check if indexing is in progress
 	if store.IsIndexing(dbPath) {
 		if w != nil {
-			_ = w.WriteError(cmdName, output.NewIndexInProgressError())
+			_ = w.WriteError(cmdName, protocol.NewIndexInProgressError())
 		}
 		return nil, root, fmt.Errorf("indexing in progress")
 	}
@@ -488,7 +489,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	// Check for missing index
 	if !dbExists {
 		if w != nil {
-			_ = w.WriteError(cmdName, output.NewMissingIndexError())
+			_ = w.WriteError(cmdName, protocol.NewMissingIndexError())
 		}
 		return nil, root, fmt.Errorf("index missing")
 	}
@@ -496,8 +497,8 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	s, err := store.Open(dbPath)
 	if err != nil {
 		if w != nil {
-			_ = w.WriteError(cmdName, &output.Error{
-				Code:    output.ErrInternal,
+			_ = w.WriteError(cmdName, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: "failed to open index: " + err.Error(),
 			})
 		}

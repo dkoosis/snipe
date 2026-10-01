@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -143,7 +144,7 @@ func runPlan(change string, args []string) error {
 
 	symbolID, msg, err := resolvePlanSymbol(s.DB(), root, args)
 	if err != nil {
-		return w.WriteError(cmdNamePlan, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNamePlan, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 	if msg != "" {
 		return writePlanMessage(root, start, change, msg)
@@ -151,7 +152,7 @@ func runPlan(change string, args []string) error {
 
 	defSym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteError(cmdNamePlan, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNamePlan, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 	if defSym == nil {
 		return writePlanMessage(root, start, change, "no symbol with id "+symbolID)
@@ -220,7 +221,7 @@ func runPlan(change string, args []string) error {
 	// envelope (mirrors verify.go), distinct from the USER conditions that
 	// degrade to an exit-0 message.
 	internalErr := func(err error) error {
-		return w.WriteError(cmdNamePlan, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNamePlan, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 
 	switch change {
@@ -462,11 +463,11 @@ func writePlanMessage(root string, start time.Time, change, msg string) error {
 // writePlanJSON emits the result inside the standard envelope; the single
 // result is the sole entry, consumers read `.results[0]` (mirrors writeVerifyJSON).
 func writePlanJSON(p PlanResult, root string, start time.Time) error {
-	resp := output.Response[PlanResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[PlanResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  []PlanResult{p},
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:  cmdNamePlan,
 			RepoRoot: root,
 			Ms:       time.Since(start).Milliseconds(),

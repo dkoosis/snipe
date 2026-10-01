@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -24,8 +25,8 @@ func runExplain(args []string) error {
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && explainAt == "" {
-		return w.WriteError(cmdNameExplain, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameExplain, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: errProvideSymbolOrAt,
 		})
 	}
@@ -44,8 +45,8 @@ func runExplain(args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(explainAt)
 		if err != nil {
-			return w.WriteError(cmdNameExplain, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameExplain, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -57,8 +58,8 @@ func runExplain(args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError(cmdNameExplain, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError(cmdNameExplain, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: err.Error(),
 			})
 		}
@@ -82,8 +83,8 @@ func runExplain(args []string) error {
 			if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteError(cmdNameExplain, &output.Error{
-						Code:    output.ErrInternal,
+					return w.WriteError(cmdNameExplain, &protocol.Error{
+						Code:    protocol.ErrInternal,
 						Message: err.Error(),
 					})
 				}
@@ -92,12 +93,12 @@ func runExplain(args []string) error {
 					queryInfo = map[string]string{flagSymbol: symbolPart, flagFile: filePart}
 					goto explain
 				} else if len(symbols) > 1 {
-					candidates := make([]output.Candidate, len(symbols))
+					candidates := make([]protocol.Candidate, len(symbols))
 					for i := range symbols {
 						sym := &symbols[i]
 						candidates[i] = sym.ToCandidate()
 					}
-					return w.WriteError(cmdNameExplain, output.NewAmbiguousError(name, candidates))
+					return w.WriteError(cmdNameExplain, protocol.NewAmbiguousError(name, candidates))
 				}
 			}
 		}
@@ -105,8 +106,8 @@ func runExplain(args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameExplain, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameExplain, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -115,18 +116,18 @@ func runExplain(args []string) error {
 			maxDist := query.DefaultMaxDistance(name)
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
-				return w.WriteError(cmdNameExplain, output.NewNotFoundError(name))
+				return w.WriteError(cmdNameExplain, protocol.NewNotFoundError(name))
 			}
-			return w.WriteError(cmdNameExplain, output.NewNotFoundError(name, suggestions...))
+			return w.WriteError(cmdNameExplain, protocol.NewNotFoundError(name, suggestions...))
 		}
 
 		if len(symbols) > 1 {
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				sym := &symbols[i]
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError(cmdNameExplain, output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameExplain, protocol.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
@@ -139,28 +140,28 @@ explain:
 
 	switch explainMode {
 	case "brief":
-		opts.Mode = output.ExplainBrief
+		opts.Mode = protocol.ExplainBrief
 	case "normal":
-		opts.Mode = output.ExplainNormal
+		opts.Mode = protocol.ExplainNormal
 	case "deep":
-		opts.Mode = output.ExplainDeep
+		opts.Mode = protocol.ExplainDeep
 	default:
-		return w.WriteError(cmdNameExplain, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameExplain, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "invalid --mode: use brief, normal, or deep",
 		})
 	}
 
 	switch explainWarnings {
 	case "none":
-		opts.WarningsMode = output.WarningsNone
+		opts.WarningsMode = protocol.WarningsNone
 	case "fast":
-		opts.WarningsMode = output.WarningsFast
+		opts.WarningsMode = protocol.WarningsFast
 	case "full":
-		opts.WarningsMode = output.WarningsFull
+		opts.WarningsMode = protocol.WarningsFull
 	default:
-		return w.WriteError(cmdNameExplain, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameExplain, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "invalid --warnings: use none, fast, or full",
 		})
 	}
@@ -174,17 +175,17 @@ explain:
 	// Run explain
 	result, err := query.Explain(s.DB(), symbolID, opts)
 	if err != nil {
-		return w.WriteError(cmdNameExplain, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameExplain, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
-	resp := output.Response[output.ExplainResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.ExplainResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.ExplainResult{*result},
-		Meta: output.Meta{
+		Results:  []protocol.ExplainResult{*result},
+		Meta: protocol.Meta{
 			Command:    cmdNameExplain,
 			Query:      queryInfo,
 			RepoRoot:   dir,

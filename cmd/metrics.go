@@ -10,6 +10,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -53,8 +54,8 @@ func runMetrics() error {
 		cmdKindCyclo, "cyclo_sum", "cyclo_p95", "cyclo_max", cmdKindCognitive, kindChurn:
 		// ok
 	default:
-		return w.WriteError(cmdNameMetrics, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameMetrics, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: fmt.Sprintf("unknown --kind %q", metricsKind),
 		})
 	}
@@ -70,8 +71,8 @@ func runMetrics() error {
 	// so a cycle witness on calls isn't useful (use --kind=cycles instead).
 	if metricsKind == cmdKindTopo {
 		if metricsGraph != cmdNameImports {
-			return w.WriteError(cmdNameMetrics, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameMetrics, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: "topo is only supported for --graph=imports (use --kind=cycles on calls graph)",
 			})
 		}
@@ -115,8 +116,8 @@ func runMetrics() error {
 	}
 	rows, err := s.ReadTopN(metricsGraph, metricsKind, readN)
 	if err != nil {
-		return w.WriteError(cmdNameMetrics, &output.Error{
-			Code: output.ErrInternal, Message: err.Error(),
+		return w.WriteError(cmdNameMetrics, &protocol.Error{
+			Code: protocol.ErrInternal, Message: err.Error(),
 		})
 	}
 	if metricsPkg != "" {
@@ -142,11 +143,11 @@ func writeMetricsJSON(rows []store.MetricRow, dir string, start time.Time) error
 	for i, r := range rows {
 		out[i] = metricRow{Rank: r.Rank, Node: r.NodeID, Value: r.Value}
 	}
-	resp := output.Response[metricRow]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[metricRow]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  out,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:  cmdNameMetrics,
 			Query:    map[string]string{cmdKindGraph: metricsGraph, jsonKeyKind: metricsKind, "top": fmt.Sprintf("%d", metricsTopN)},
 			RepoRoot: dir,
@@ -175,11 +176,11 @@ func runTopoMetrics(s *store.Store, dir string, start time.Time) error {
 
 	if GetOutputFormat() == output.OutputJSON {
 		res := topoResult{Order: order, Cycle: cycle, Cyclic: order == nil}
-		resp := output.Response[topoResult]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[topoResult]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  []topoResult{res},
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  cmdNameMetrics,
 				Query:    map[string]string{cmdKindGraph: metricsGraph, jsonKeyKind: cmdKindTopo},
 				RepoRoot: dir,
@@ -282,11 +283,11 @@ func runCouplingMetrics(s *store.Store, dir string, startedAt time.Time) error {
 	}
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[couplingRow]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[couplingRow]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  rows,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  cmdNameMetrics,
 				Query:    map[string]string{cmdKindGraph: cmdNameImports, jsonKeyKind: cmdKindCoupling, flagPkg: metricsPkg},
 				RepoRoot: dir,
@@ -374,11 +375,11 @@ func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
 	}
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[distanceRow]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[distanceRow]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  rows,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  cmdNameMetrics,
 				Query:    map[string]string{cmdKindGraph: cmdNameImports, jsonKeyKind: cmdKindDistance, flagPkg: metricsPkg},
 				RepoRoot: dir,
@@ -487,11 +488,11 @@ func runComplexityRollupMetrics(s *store.Store, dir string, startedAt time.Time,
 	}
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[cycloRow]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[cycloRow]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  rows,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  cmdNameMetrics,
 				Query:    map[string]string{cmdKindGraph: cmdNameImports, jsonKeyKind: label, flagPkg: metricsPkg},
 				RepoRoot: dir,
@@ -554,8 +555,8 @@ func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error 
 
 	kinds := splitAndTrim(metricsKind)
 	if len(kinds) == 0 {
-		return w.WriteError(cmdNameMetrics, &output.Error{
-			Code: output.ErrInternal, Message: "empty --kind list",
+		return w.WriteError(cmdNameMetrics, &protocol.Error{
+			Code: protocol.ErrInternal, Message: "empty --kind list",
 		})
 	}
 	for _, k := range kinds {
@@ -565,8 +566,8 @@ func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error 
 			"ca", "ce", "instability", "abstractness", kindLCOM4,
 			"cyclo_sum", "cyclo_p95", "cyclo_max":
 		default:
-			return w.WriteError(cmdNameMetrics, &output.Error{
-				Code: output.ErrInternal,
+			return w.WriteError(cmdNameMetrics, &protocol.Error{
+				Code: protocol.ErrInternal,
 				Message: fmt.Sprintf(
 					"--kind=%q not supported in multi-kind mode (composite kinds topo/cycles/coupling/distance/cyclo must run alone)",
 					k,
@@ -579,8 +580,8 @@ func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error 
 	for _, k := range kinds {
 		rows, err := s.ReadTopN(metricsGraph, k, 0)
 		if err != nil {
-			return w.WriteError(cmdNameMetrics, &output.Error{
-				Code: output.ErrInternal, Message: err.Error(),
+			return w.WriteError(cmdNameMetrics, &protocol.Error{
+				Code: protocol.ErrInternal, Message: err.Error(),
 			})
 		}
 		for _, r := range rows {
@@ -614,11 +615,11 @@ func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error 
 	}
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[multiKindRow]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[multiKindRow]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  out,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command: cmdNameMetrics,
 				Query: map[string]string{
 					cmdKindGraph: metricsGraph,

@@ -12,6 +12,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -46,13 +47,13 @@ func runOrient() error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if orientOut == "" {
-		return w.WriteError("orient", &output.Error{
-			Code: output.ErrInternal, Message: "--out is required",
+		return w.WriteError("orient", &protocol.Error{
+			Code: protocol.ErrInternal, Message: "--out is required",
 		})
 	}
 	if err := os.MkdirAll(orientOut, 0o755); err != nil {
-		return w.WriteError("orient", &output.Error{
-			Code: output.ErrInternal, Message: "mkdir out: " + err.Error(),
+		return w.WriteError("orient", &protocol.Error{
+			Code: protocol.ErrInternal, Message: "mkdir out: " + err.Error(),
 		})
 	}
 
@@ -67,8 +68,8 @@ func runOrient() error {
 		RepoRoot: dir, DB: s.DB(), Full: true,
 	})
 	if err != nil {
-		return w.WriteError("orient", &output.Error{
-			Code: output.ErrInternal, Message: "context: " + err.Error(),
+		return w.WriteError("orient", &protocol.Error{
+			Code: protocol.ErrInternal, Message: "context: " + err.Error(),
 		})
 	}
 	if err := writeJSONFile(filepath.Join(orientOut, "context-full.json"), ctx); err != nil {
@@ -80,9 +81,9 @@ func runOrient() error {
 	depsPayload := map[string]interface{}{}
 	if modulePath != "" {
 		if graph, err := query.FindDepGraph(s.DB(), modulePath); err == nil {
-			edges := make([]output.DepTreeEdge, len(graph.Edges))
+			edges := make([]protocol.DepTreeEdge, len(graph.Edges))
 			for i, e := range graph.Edges {
-				edges[i] = output.DepTreeEdge{From: e.From, To: e.To, FileCount: e.FileCount}
+				edges[i] = protocol.DepTreeEdge{From: e.From, To: e.To, FileCount: e.FileCount}
 			}
 			sort.Strings(graph.Packages)
 			depsPayload["packages"] = graph.Packages
@@ -110,8 +111,8 @@ func runOrient() error {
 	// 4. content-addressed manifest
 	files, err := hashOrientFiles(orientOut)
 	if err != nil {
-		return w.WriteError("orient", &output.Error{
-			Code: output.ErrInternal, Message: "hash files: " + err.Error(),
+		return w.WriteError("orient", &protocol.Error{
+			Code: protocol.ErrInternal, Message: "hash files: " + err.Error(),
 		})
 	}
 	man := orientManifest{

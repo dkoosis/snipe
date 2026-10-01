@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/util"
@@ -13,13 +14,13 @@ import (
 
 // StatusResponse is the JSON response for status command.
 type StatusResponse struct {
-	State       output.IndexState `json:"state"`
-	Commit      string            `json:"commit,omitempty"`
-	IndexedAt   string            `json:"indexed_at,omitempty"`
-	Symbols     int               `json:"symbols"`
-	Refs        int               `json:"refs"`
-	Calls       int               `json:"calls"`
-	Fingerprint string            `json:"fingerprint,omitempty"`
+	State       protocol.IndexState `json:"state"`
+	Commit      string              `json:"commit,omitempty"`
+	IndexedAt   string              `json:"indexed_at,omitempty"`
+	Symbols     int                 `json:"symbols"`
+	Refs        int                 `json:"refs"`
+	Calls       int                 `json:"calls"`
+	Fingerprint string              `json:"fingerprint,omitempty"`
 }
 
 func runStatus() error {
@@ -28,15 +29,15 @@ func runStatus() error {
 	// Find repo root
 	cwd, err := os.Getwd()
 	if err != nil {
-		return w.WriteError(cmdNameStatus, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameStatus, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to get working directory: " + err.Error(),
 		})
 	}
 	dir := util.FindProjectRoot(cwd)
 	if dir == "" {
-		return w.WriteError(cmdNameStatus, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameStatus, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "not in a git repository",
 		})
 	}
@@ -44,16 +45,16 @@ func runStatus() error {
 	// Check if index exists
 	dbPath := store.DefaultIndexPath(dir)
 	if !store.Exists(dbPath) {
-		resp := output.Response[StatusResponse]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[StatusResponse]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results: []StatusResponse{{
-				State: output.IndexMissing,
+				State: protocol.IndexMissing,
 			}},
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:    cmdNameStatus,
 				RepoRoot:   dir,
-				IndexState: output.IndexMissing,
+				IndexState: protocol.IndexMissing,
 				Ms:         w.Elapsed(),
 				Total:      1,
 			},
@@ -64,8 +65,8 @@ func runStatus() error {
 	// Open store (read-only mode)
 	s, err := store.Open(dbPath)
 	if err != nil {
-		return w.WriteError(cmdNameStatus, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameStatus, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
@@ -74,8 +75,8 @@ func runStatus() error {
 	// Get stats
 	symbols, refs, calls, err := s.GetStats()
 	if err != nil {
-		return w.WriteError(cmdNameStatus, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameStatus, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to get stats: " + err.Error(),
 		})
 	}
@@ -89,8 +90,8 @@ func runStatus() error {
 	state := query.CheckIndexState(s.DB(), dir, Version)
 
 	// JSON response
-	resp := output.Response[StatusResponse]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[StatusResponse]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results: []StatusResponse{{
 			State:       state,
@@ -101,7 +102,7 @@ func runStatus() error {
 			Calls:       calls,
 			Fingerprint: fingerprint,
 		}},
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:    cmdNameStatus,
 			RepoRoot:   dir,
 			IndexState: state,
@@ -116,14 +117,14 @@ func runStatus() error {
 // emitStatus renders the status response. Default (Claude) surface is a terse
 // one-liner; --format json emits the full envelope (D1: Claude reads text, not
 // JSON envelope noise).
-func emitStatus(w *output.Writer, resp output.Response[StatusResponse]) error {
+func emitStatus(w *output.Writer, resp protocol.Response[StatusResponse]) error {
 	if GetOutputFormat() == output.OutputJSON {
 		return w.WriteResponse(resp)
 	}
 	r := resp.Results[0]
 	var b strings.Builder
 	fmt.Fprintf(&b, "index · %s", r.State)
-	if r.State != output.IndexMissing {
+	if r.State != protocol.IndexMissing {
 		fmt.Fprintf(&b, " · %d symbols · %d refs · %d calls", r.Symbols, r.Refs, r.Calls)
 		if r.Fingerprint != "" {
 			fmt.Fprintf(&b, " · %s", r.Fingerprint)

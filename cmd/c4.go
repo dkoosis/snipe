@@ -9,6 +9,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/c4"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -45,8 +46,8 @@ func runC4(level string) error {
 
 	resp, err := buildC4Response(s, dir, level, start)
 	if err != nil {
-		return w.WriteError(cmdNameC4, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameC4, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
@@ -74,44 +75,44 @@ func normalizeC4Level(level string) string {
 // buildC4Response builds the C4 facts and wraps them in the standard
 // Response[T] envelope (AC #2: `.results` is always an array, never null, via
 // Response[T]'s existing MarshalJSON guarantee — no bespoke envelope).
-func buildC4Response(s *store.Store, dir, level string, start time.Time) (output.Response[output.C4Result], error) {
+func buildC4Response(s *store.Store, dir, level string, start time.Time) (protocol.Response[protocol.C4Result], error) {
 	facts, err := c4.BuildFacts(s, dir, level)
 	if err != nil {
-		return output.Response[output.C4Result]{}, fmt.Errorf("build c4 facts: %w", err)
+		return protocol.Response[protocol.C4Result]{}, fmt.Errorf("build c4 facts: %w", err)
 	}
 
-	result := output.C4Result{
+	result := protocol.C4Result{
 		Module:     facts.Module,
 		GoVersion:  facts.GoVersion,
 		Level:      level,
-		Containers: make([]output.C4Container, 0, len(facts.Containers)),
-		Datastores: make([]output.C4Datastore, 0, len(facts.Datastores)),
-		External:   make([]output.C4ExternalSystem, 0, len(facts.External)),
-		Flows:      make([]output.C4Flow, 0, len(facts.Flows)),
-		Components: make([]output.C4Component, 0, len(facts.Components)),
+		Containers: make([]protocol.C4Container, 0, len(facts.Containers)),
+		Datastores: make([]protocol.C4Datastore, 0, len(facts.Datastores)),
+		External:   make([]protocol.C4ExternalSystem, 0, len(facts.External)),
+		Flows:      make([]protocol.C4Flow, 0, len(facts.Flows)),
+		Components: make([]protocol.C4Component, 0, len(facts.Components)),
 	}
 	for _, c := range facts.Containers {
-		result.Containers = append(result.Containers, output.C4Container{
+		result.Containers = append(result.Containers, protocol.C4Container{
 			Name: c.Name, Tech: c.Tech, File: c.File, Line: c.Line,
 		})
 	}
 	for _, d := range facts.Datastores {
-		result.Datastores = append(result.Datastores, output.C4Datastore{
+		result.Datastores = append(result.Datastores, protocol.C4Datastore{
 			Name: d.Name, Driver: d.Driver, Evidence: d.Evidence, File: d.File, Line: d.Line,
 		})
 	}
 	for _, e := range facts.External {
-		result.External = append(result.External, output.C4ExternalSystem{
+		result.External = append(result.External, protocol.C4ExternalSystem{
 			Name: e.Name, Kind: e.Kind, Evidence: e.Evidence, File: e.File, Line: e.Line,
 		})
 	}
 	for _, fl := range facts.Flows {
-		result.Flows = append(result.Flows, output.C4Flow{
+		result.Flows = append(result.Flows, protocol.C4Flow{
 			From: fl.From, To: fl.To, Kind: fl.Kind, File: fl.File, Line: fl.Line,
 		})
 	}
 	for _, comp := range facts.Components {
-		result.Components = append(result.Components, output.C4Component{
+		result.Components = append(result.Components, protocol.C4Component{
 			Name: comp.Name, Layer: comp.Layer, Purpose: comp.Purpose,
 		})
 	}
@@ -119,11 +120,11 @@ func buildC4Response(s *store.Store, dir, level string, start time.Time) (output
 	total := len(result.Containers) + len(result.Datastores) + len(result.External) +
 		len(result.Flows) + len(result.Components)
 
-	return output.Response[output.C4Result]{
-		Protocol: output.ProtocolVersion,
+	return protocol.Response[protocol.C4Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.C4Result{result},
-		Meta: output.Meta{
+		Results:  []protocol.C4Result{result},
+		Meta: protocol.Meta{
 			Command:    cmdNameC4,
 			Query:      map[string]string{"level": level},
 			RepoRoot:   dir,
@@ -140,7 +141,7 @@ const c4TextCap = 20
 
 // writeC4Text renders the Claude-optimized concise form: one section per
 // fact kind, one line per fact (name | tech/evidence | file:line).
-func writeC4Text(results []output.C4Result) error {
+func writeC4Text(results []protocol.C4Result) error {
 	if len(results) == 0 {
 		_, err := os.Stdout.WriteString("c4 · no facts\n")
 		return err

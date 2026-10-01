@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -28,8 +29,8 @@ func runImpact(args []string) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && impactAt == "" && impactID == "" {
-		return w.WriteError(cmdNameImpact, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameImpact, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "provide a symbol name, --at position, or --id",
 		})
 	}
@@ -52,8 +53,8 @@ func runImpact(args []string) error {
 	case impactAt != "":
 		pos, err := query.ParsePosition(impactAt)
 		if err != nil {
-			return w.WriteError(cmdNameImpact, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameImpact, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -65,8 +66,8 @@ func runImpact(args []string) error {
 		}
 		sym := query.FindSymbolAtPosition(s.DB(), filePath, pos.Line)
 		if sym == nil {
-			return w.WriteError(cmdNameImpact, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError(cmdNameImpact, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: "no symbol found at " + impactAt,
 			})
 		}
@@ -84,21 +85,21 @@ func runImpact(args []string) error {
 		}
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameImpact, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameImpact, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 		if len(symbols) == 0 {
-			return w.WriteError(cmdNameImpact, output.NewNotFoundError(name))
+			return w.WriteError(cmdNameImpact, protocol.NewNotFoundError(name))
 		}
 		if len(symbols) > 1 {
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				sym := &symbols[i]
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError(cmdNameImpact, output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameImpact, protocol.NewAmbiguousError(name, candidates))
 		}
 		symbolID = symbols[0].ID
 		queryInfo = map[string]string{flagSymbol: name}
@@ -183,14 +184,14 @@ func runImpact(args []string) error {
 
 	// --- Merge phases with cross-phase dedup ---
 	type merged struct {
-		result output.Result
+		result protocol.Result
 		hints  []string
 		order  int
 	}
 	seen := map[string]*merged{}
 	orderCounter := 0
 
-	addOrMerge := func(id string, r output.Result, hint string) {
+	addOrMerge := func(id string, r protocol.Result, hint string) {
 		if m, ok := seen[id]; ok {
 			m.hints = append(m.hints, hint)
 		} else {
@@ -204,9 +205,9 @@ func runImpact(args []string) error {
 	transitiveCallerCount := 0
 	for i := range callerRows {
 		cr := &callerRows[i]
-		hint := output.HintDirectCaller
+		hint := protocol.HintDirectCaller
 		if cr.Hop == 2 {
-			hint = output.HintTransitiveCaller
+			hint = protocol.HintTransitiveCaller
 			transitiveCallerCount++
 		} else {
 			directCallerCount++
@@ -217,14 +218,14 @@ func runImpact(args []string) error {
 	// Phase 1b: ref-site results (struct/type/interface only)
 	for i := range refRows {
 		rr := &refRows[i]
-		addOrMerge(rr.ID, rr.ToResult(), output.HintRefSite)
+		addOrMerge(rr.ID, rr.ToResult(), protocol.HintRefSite)
 	}
 
 	// Phase 2 results
 	implementerCount := 0
 	for i := range implRows {
 		ir := &implRows[i]
-		addOrMerge(ir.ID, ir.ToResult(), output.HintImplementer)
+		addOrMerge(ir.ID, ir.ToResult(), protocol.HintImplementer)
 		implementerCount++
 	}
 
@@ -232,9 +233,9 @@ func runImpact(args []string) error {
 	testCount := 0
 	for i := range testRows {
 		tr := &testRows[i]
-		hint := output.HintDirectTest
+		hint := protocol.HintDirectTest
 		if tr.Hop == 2 {
-			hint = output.HintTransitiveTest
+			hint = protocol.HintTransitiveTest
 		}
 		addOrMerge(tr.ID, tr.ToResult(), hint)
 		testCount++
@@ -255,11 +256,11 @@ func runImpact(args []string) error {
 		return sortable[i].order < sortable[j].order
 	})
 
-	results := make([]output.Result, 0, len(sortable))
+	results := make([]protocol.Result, 0, len(sortable))
 	for _, s := range sortable {
 		s.m.result.Hints = s.m.hints
 		if s.m.result.Name != "" && s.m.result.Name[0] >= 'A' && s.m.result.Name[0] <= 'Z' {
-			s.m.result.Hints = append(s.m.result.Hints, output.HintExported)
+			s.m.result.Hints = append(s.m.result.Hints, protocol.HintExported)
 		}
 		results = append(results, s.m.result)
 	}
@@ -279,7 +280,7 @@ func runImpact(args []string) error {
 				r := &results[i]
 				if sym, ok := bodySymbols[r.ID]; ok && sym != nil {
 					symResult := sym.ToResult()
-					if err := output.AddBody(&symResult); err != nil && !bodyFailed {
+					if err := protocol.AddBody(&symResult); err != nil && !bodyFailed {
 						degraded = append(degraded, "body_extraction_failed")
 						bodyFailed = true
 					}
@@ -292,7 +293,7 @@ func runImpact(args []string) error {
 	// Context lines
 	if contextLines > 0 && !withBody {
 		for i := range results {
-			if err := output.AddContext(&results[i], contextLines); err != nil && !contextFailed {
+			if err := protocol.AddContext(&results[i], contextLines); err != nil && !contextFailed {
 				degraded = append(degraded, "context_extraction_failed")
 				contextFailed = true
 			}
@@ -307,7 +308,7 @@ func runImpact(args []string) error {
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	// Apply user-requested offset/limit AFTER merge (phases use internal limits)
@@ -331,19 +332,19 @@ func runImpact(args []string) error {
 		}
 	}
 
-	suggestions := output.SuggestionsForImpact(
+	suggestions := protocol.SuggestionsForImpact(
 		symName, directCallerCount, transitiveCallerCount,
 		implementerCount, testCount, len(pkgs),
 	)
 
 	if summary {
-		summaryData := output.BuildSummary(results)
-		return w.WriteResponse(output.Response[output.Summary]{
-			Protocol:    output.ProtocolVersion,
+		summaryData := protocol.BuildSummary(results)
+		return w.WriteResponse(protocol.Response[protocol.Summary]{
+			Protocol:    protocol.ProtocolVersion,
 			Ok:          true,
-			Results:     []output.Summary{summaryData},
+			Results:     []protocol.Summary{summaryData},
 			Suggestions: suggestions,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:    cmdNameImpact,
 				Query:      queryInfo,
 				RepoRoot:   dir,
@@ -361,15 +362,15 @@ func runImpact(args []string) error {
 
 	tokenEstimate := 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
 		Results:     results,
 		Suggestions: suggestions,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:       cmdNameImpact,
 			Query:         queryInfo,
 			RepoRoot:      dir,

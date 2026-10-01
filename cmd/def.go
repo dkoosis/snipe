@@ -10,6 +10,7 @@ import (
 
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -42,8 +43,8 @@ func runDef(args []string) error {
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && defAt == "" {
-		return w.WriteError(cmdNameDef, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameDef, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: errProvideSymbolOrAt,
 		})
 	}
@@ -68,8 +69,8 @@ func runDef(args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(defAt)
 		if err != nil {
-			return w.WriteErrorWithMeta(cmdNameDef, defAt, decisionPath, idxState, 0, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteErrorWithMeta(cmdNameDef, defAt, decisionPath, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -81,8 +82,8 @@ func runDef(args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteErrorWithMeta(cmdNameDef, defAt, decisionPath, idxState, 0, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteErrorWithMeta(cmdNameDef, defAt, decisionPath, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: "no symbol found at " + defAt,
 			})
 		}
@@ -109,8 +110,8 @@ func runDef(args []string) error {
 				// This looks like file:symbol syntax
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, 0, &output.Error{
-						Code:    output.ErrInternal,
+					return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, 0, &protocol.Error{
+						Code:    protocol.ErrInternal,
 						Message: err.Error(),
 					})
 				}
@@ -120,12 +121,12 @@ func runDef(args []string) error {
 					decisionPath = append(decisionPath, "lookup:file_qualified")
 					goto lookup
 				} else if len(symbols) > 1 {
-					candidates := make([]output.Candidate, len(symbols))
+					candidates := make([]protocol.Candidate, len(symbols))
 					for i := range symbols {
 						s := &symbols[i]
 						candidates[i] = s.ToCandidate()
 					}
-					return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+					return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
 				}
 				// Fall through to regular lookup if not found
 			}
@@ -134,8 +135,8 @@ func runDef(args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, 0, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -146,9 +147,9 @@ func runDef(args []string) error {
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
 				// If fuzzy search fails, just return the basic error
-				return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, 0, output.NewNotFoundError(name))
+				return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, 0, protocol.NewNotFoundError(name))
 			}
-			return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, len(suggestions), output.NewNotFoundError(name, suggestions...))
+			return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, len(suggestions), protocol.NewNotFoundError(name, suggestions...))
 		}
 
 		if len(symbols) > 1 {
@@ -162,12 +163,12 @@ func runDef(args []string) error {
 				decisionPath = append(decisionPath, "lookup:name_select")
 				goto lookup
 			}
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
-			return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+			return w.WriteErrorWithMeta(cmdNameDef, name, decisionPath, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
@@ -178,18 +179,18 @@ func runDef(args []string) error {
 
 lookup:
 	// Get the symbol details
-	lookupArg := output.Meta{Query: queryInfo}.PrimaryQueryArg()
+	lookupArg := protocol.Meta{Query: queryInfo}.PrimaryQueryArg()
 	sym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteErrorWithMeta(cmdNameDef, lookupArg, decisionPath, idxState, 0, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteErrorWithMeta(cmdNameDef, lookupArg, decisionPath, idxState, 0, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if sym == nil {
-		return w.WriteErrorWithMeta(cmdNameDef, lookupArg, decisionPath, idxState, 0, &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteErrorWithMeta(cmdNameDef, lookupArg, decisionPath, idxState, 0, &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: fmt.Sprintf("symbol %s not found", symbolID),
 		})
 	}
@@ -204,19 +205,19 @@ lookup:
 	case query.MatchExact:
 		// Served: the literal query matched. Silence — no marker (D4).
 	case query.MatchCaseInsens:
-		degraded = append(degraded, output.DegradedCIMatch)
+		degraded = append(degraded, protocol.DegradedCIMatch)
 	}
 
 	// Add full body if requested
 	if withBody {
-		if err := output.AddBody(&result); err != nil {
+		if err := protocol.AddBody(&result); err != nil {
 			degraded = append(degraded, "body_extraction_failed")
 		}
 	}
 
 	// Add context lines if requested (only if not showing full body)
 	if contextLines > 0 && !withBody {
-		if err := output.AddContext(&result, contextLines); err != nil {
+		if err := protocol.AddContext(&result, contextLines); err != nil {
 			degraded = append(degraded, "context_extraction_failed")
 		}
 	}
@@ -248,12 +249,12 @@ lookup:
 		}
 	}
 
-	tokenEstimate := output.EstimateTokens(result.Match)
+	tokenEstimate := protocol.EstimateTokens(result.Match)
 	if result.Body != "" {
-		tokenEstimate = output.EstimateTokens(result.Body)
+		tokenEstimate = protocol.EstimateTokens(result.Body)
 	}
 
-	results := []output.Result{result}
+	results := []protocol.Result{result}
 
 	// Apply score-based selection if specified
 	results = ApplySelection(results)
@@ -262,22 +263,22 @@ lookup:
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 		// Recalculate token estimate after truncation
 		tokenEstimate = 0
 		for i := range results {
-			tokenEstimate += output.EstimateResultTokens(&results[i])
+			tokenEstimate += protocol.EstimateResultTokens(&results[i])
 		}
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
-	resp := output.Response[output.Result]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
 		Results:     results,
-		Suggestions: output.SuggestionsForDef(&result),
-		Meta: output.Meta{
+		Suggestions: protocol.SuggestionsForDef(&result),
+		Meta: protocol.Meta{
 			Command:       cmdNameDef,
 			Query:         queryInfo,
 			RepoRoot:      dir,
@@ -308,8 +309,8 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 
 	symbols, err := query.LookupByNameInPkg(s.DB(), name, defPkg)
 	if err != nil {
-		return w.WriteErrorWithMeta(cmdNameDef, name, nil, idxState, 0, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteErrorWithMeta(cmdNameDef, name, nil, idxState, 0, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
@@ -321,16 +322,16 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 			sym := &pkgSyms[i]
 			names[i] = sym.Name
 		}
-		return w.WriteErrorWithMeta(cmdNameDef, name, nil, idxState, len(names), output.NewNotFoundError(name+" in pkg "+defPkg, names...))
+		return w.WriteErrorWithMeta(cmdNameDef, name, nil, idxState, len(names), protocol.NewNotFoundError(name+" in pkg "+defPkg, names...))
 	}
 
 	if len(symbols) > 1 {
-		candidates := make([]output.Candidate, len(symbols))
+		candidates := make([]protocol.Candidate, len(symbols))
 		for i := range symbols {
 			sym := &symbols[i]
 			candidates[i] = sym.ToCandidate()
 		}
-		return w.WriteErrorWithMeta(cmdNameDef, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+		return w.WriteErrorWithMeta(cmdNameDef, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
 	}
 
 	sym := &symbols[0]
@@ -338,27 +339,27 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 	var degraded []string
 
 	if withBody {
-		if err := output.AddBody(&result); err != nil {
+		if err := protocol.AddBody(&result); err != nil {
 			degraded = append(degraded, "body_extraction_failed")
 		}
 	}
 	if contextLines > 0 && !withBody {
-		if err := output.AddContext(&result, contextLines); err != nil {
+		if err := protocol.AddContext(&result, contextLines); err != nil {
 			degraded = append(degraded, "context_extraction_failed")
 		}
 	}
 
-	tokenEstimate := output.EstimateTokens(result.Match)
+	tokenEstimate := protocol.EstimateTokens(result.Match)
 	if result.Body != "" {
-		tokenEstimate = output.EstimateTokens(result.Body)
+		tokenEstimate = protocol.EstimateTokens(result.Body)
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
-		Results:     []output.Result{result},
-		Suggestions: output.SuggestionsForDef(&result),
-		Meta: output.Meta{
+		Results:     []protocol.Result{result},
+		Suggestions: protocol.SuggestionsForDef(&result),
+		Meta: protocol.Meta{
 			Command:       cmdNameDef,
 			Query:         map[string]string{flagSymbol: name, flagPkg: defPkg},
 			RepoRoot:      dir,
@@ -388,8 +389,8 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 	var queryInfo map[string]string
 
 	if defFile != "" && defPkg != "" {
-		return w.WriteError(cmdNameDef, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameDef, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "--file and --pkg are mutually exclusive",
 		})
 	}
@@ -403,8 +404,8 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 	}
 
 	if err != nil {
-		return w.WriteError(cmdNameDef, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameDef, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
@@ -414,25 +415,25 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 		if scope == "" {
 			scope = defPkg
 		}
-		return w.WriteError(cmdNameDef, &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteError(cmdNameDef, &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: "no symbols found in " + scope,
 		})
 	}
 
 	// Convert to results
-	results := make([]output.Result, len(symbols))
+	results := make([]protocol.Result, len(symbols))
 	var degraded []string
 	for i := range symbols {
 		sym := &symbols[i]
 		results[i] = sym.ToResult()
 		if withBody {
-			if err := output.AddBody(&results[i]); err != nil {
+			if err := protocol.AddBody(&results[i]); err != nil {
 				degraded = append(degraded, "body_extraction_failed")
 			}
 		}
 		if contextLines > 0 && !withBody {
-			if err := output.AddContext(&results[i], contextLines); err != nil {
+			if err := protocol.AddContext(&results[i], contextLines); err != nil {
 				degraded = append(degraded, "context_extraction_failed")
 			}
 		}
@@ -444,28 +445,28 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 	if scope == "" {
 		scope = defPkg
 	}
-	output.ScoreAndSort(results, scope)
+	protocol.ScoreAndSort(results, scope)
 	results = ApplySelection(results)
 
 	// Apply token budget truncation
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	tokenEstimate := 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
-	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:       cmdNameDef,
 			Query:         queryInfo,
 			RepoRoot:      dir,

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/index"
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // EmbedMissing reports whether the index holds zero embeddings, i.e. semantic
@@ -24,33 +24,33 @@ func EmbedMissing(db *sql.DB) bool {
 }
 
 // CheckIndexState computes current fingerprint and compares with stored
-func CheckIndexState(db *sql.DB, repoRoot, version string) output.IndexState {
+func CheckIndexState(db *sql.DB, repoRoot, version string) protocol.IndexState {
 	// Compute current fingerprint
 	current, err := index.ComputeFingerprint(repoRoot, version)
 	if err != nil {
-		return output.IndexMissing
+		return protocol.IndexMissing
 	}
 
 	// Get stored fingerprint
 	var stored string
 	err = db.QueryRow(`SELECT value FROM meta WHERE key = 'fingerprint'`).Scan(&stored)
 	if errors.Is(err, sql.ErrNoRows) || stored == "" {
-		return output.IndexMissing
+		return protocol.IndexMissing
 	}
 	if err != nil {
-		return output.IndexMissing
+		return protocol.IndexMissing
 	}
 
 	// Compare
 	if current.Combined == stored {
-		return output.IndexFresh
+		return protocol.IndexFresh
 	}
-	return output.IndexStale
+	return protocol.IndexStale
 }
 
 // CheckFileStaleness compares on-disk mtimes against stored mtimes for result files.
 // Returns relative paths of files that changed since indexing (sorted, deterministic).
-func CheckFileStaleness(db *sql.DB, repoRoot string, results []output.Result) []string {
+func CheckFileStaleness(db *sql.DB, repoRoot string, results []protocol.Result) []string {
 	if len(results) == 0 {
 		return nil
 	}

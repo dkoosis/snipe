@@ -11,6 +11,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/search"
 	"github.com/dkoosis/snipe/internal/store"
@@ -28,9 +29,9 @@ func classifySearchErr(err, lookErr error) string {
 		return ""
 	}
 	if errors.Is(lookErr, exec.ErrNotFound) {
-		return output.ErrRgNotFound
+		return protocol.ErrRgNotFound
 	}
-	return output.ErrInternal
+	return protocol.ErrInternal
 }
 
 var identifierRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*$`)
@@ -53,8 +54,8 @@ func runSearch(args []string) error {
 	// Get current directory
 	dir, err := os.Getwd()
 	if err != nil {
-		return w.WriteError(cmdNameSearch, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameSearch, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to get working directory: " + err.Error(),
 		})
 	}
@@ -89,7 +90,7 @@ func runSearch(args []string) error {
 		// Probe for the rg binary with a typed sentinel so a missing-rg
 		// failure is classified by exec.ErrNotFound, never by message text.
 		_, lookErr := exec.LookPath("rg")
-		return w.WriteError(cmdNameSearch, &output.Error{
+		return w.WriteError(cmdNameSearch, &protocol.Error{
 			Code:    classifySearchErr(err, lookErr),
 			Message: err.Error(),
 		})
@@ -139,7 +140,7 @@ func runSearch(args []string) error {
 	}
 
 	// Enrich rg results with index metadata if available (skip for semantic results)
-	var indexState output.IndexState
+	var indexState protocol.IndexState
 	enriched := false
 	switch {
 	case s != nil && !usedFallback && !indexFallbackFound:
@@ -177,7 +178,7 @@ func runSearch(args []string) error {
 
 	// Score, sort, and apply selection (only for rg results)
 	if !usedFallback {
-		output.ScoreAndSort(results, pattern)
+		protocol.ScoreAndSort(results, pattern)
 		results = ApplySelection(results)
 	}
 
@@ -258,11 +259,11 @@ func runSearch(args []string) error {
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	// Determine index state and degraded flags for response metadata
-	searchIndexState := output.IndexNotUsed
+	searchIndexState := protocol.IndexNotUsed
 	var searchDegraded []string
 	if enriched {
 		searchIndexState = indexState
@@ -276,17 +277,17 @@ func runSearch(args []string) error {
 	// attributed to the top hit so the substitution — and its strength — is
 	// visible to ferret and the agent (snipe-ffj).
 	if usedFallback && len(results) > 0 {
-		searchDegraded = append(searchDegraded, output.SemanticMarker(results[0].Score))
+		searchDegraded = append(searchDegraded, protocol.SemanticMarker(results[0].Score))
 	}
 
 	// If summary mode, return condensed output
 	if summary {
-		summaryData := output.BuildSummary(results)
-		summaryResp := output.Response[output.Summary]{
-			Protocol: output.ProtocolVersion,
+		summaryData := protocol.BuildSummary(results)
+		summaryResp := protocol.Response[protocol.Summary]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
-			Results:  []output.Summary{summaryData},
-			Meta: output.Meta{
+			Results:  []protocol.Summary{summaryData},
+			Meta: protocol.Meta{
 				Command:      cmdNameSearch,
 				Query:        searchQueryInfo(pattern),
 				IndexState:   searchIndexState,
@@ -303,15 +304,15 @@ func runSearch(args []string) error {
 	// Estimate tokens
 	tokenEstimate := 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
 		Results:     results,
-		Suggestions: output.SuggestionsForSearch(pattern, len(results), usedFallback),
-		Meta: output.Meta{
+		Suggestions: protocol.SuggestionsForSearch(pattern, len(results), usedFallback),
+		Meta: protocol.Meta{
 			Command:       cmdNameSearch,
 			Query:         searchQueryInfo(pattern),
 			IndexState:    searchIndexState,

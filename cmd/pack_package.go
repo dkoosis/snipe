@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -70,8 +71,8 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 		_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? LIMIT 1`, fullPkgPath).Scan(&exists)
 	}
 	if exists == 0 {
-		return w.WriteError(cmdNamePack, &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteError(cmdNamePack, &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: "no package found matching: " + arg,
 		})
 	}
@@ -79,16 +80,16 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 	// Exports via existing machinery.
 	symbols, err := query.FindPackageSymbols(db, fullPkgPath, 500, 0)
 	if err != nil {
-		return w.WriteError(cmdNamePack, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNamePack, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
-	exports := make([]output.PackageExport, 0, len(symbols))
+	exports := make([]protocol.PackageExport, 0, len(symbols))
 	for i := range symbols {
 		sym := &symbols[i]
-		exports = append(exports, output.PackageExport{
+		exports = append(exports, protocol.PackageExport{
 			ID:        sym.ID,
 			Name:      sym.Name,
 			Kind:      sym.Kind,
@@ -101,17 +102,17 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 	rankedTypes, _ := query.TopTypesByRefs(db, fullPkgPath, 8)
 	rankedFuncs, _ := query.TopFuncsByCallCount(db, fullPkgPath, 8)
 
-	keyTypes := make([]output.PackageExport, 0, len(rankedTypes))
+	keyTypes := make([]protocol.PackageExport, 0, len(rankedTypes))
 	for _, r := range rankedTypes {
-		keyTypes = append(keyTypes, output.PackageExport{ID: r.ID, Name: r.Name, Kind: r.Kind, Signature: r.Signature})
+		keyTypes = append(keyTypes, protocol.PackageExport{ID: r.ID, Name: r.Name, Kind: r.Kind, Signature: r.Signature})
 	}
-	keyFuncs := make([]output.PackageExport, 0, len(rankedFuncs))
+	keyFuncs := make([]protocol.PackageExport, 0, len(rankedFuncs))
 	for _, r := range rankedFuncs {
-		keyFuncs = append(keyFuncs, output.PackageExport{ID: r.ID, Name: r.Name, Kind: r.Kind, Signature: r.Signature})
+		keyFuncs = append(keyFuncs, protocol.PackageExport{ID: r.ID, Name: r.Name, Kind: r.Kind, Signature: r.Signature})
 	}
 
 	// Imports (deps) + dependent count.
-	var imports []output.DepRef
+	var imports []protocol.DepRef
 	dependentCount := 0
 	if modulePath != "" {
 		pd, derr := query.FindPackageDeps(db, fullPkgPath, modulePath)
@@ -146,7 +147,7 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 		}
 	}
 
-	result := output.PackPackageResult{
+	result := protocol.PackPackageResult{
 		Package:        displayPkg,
 		ModulePath:     modulePath,
 		Dir:            pkgDirRel,
@@ -162,11 +163,11 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 		Files:          fileHeadersForDir(db, pkgDir, ""),
 	}
 
-	resp := output.Response[output.PackPackageResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.PackPackageResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.PackPackageResult{result},
-		Meta: output.Meta{
+		Results:  []protocol.PackPackageResult{result},
+		Meta: protocol.Meta{
 			Command:    cmdNamePack,
 			Query:      map[string]string{flagPackage: displayPkg},
 			RepoRoot:   dir,
@@ -248,7 +249,7 @@ func headerMatchesPkgDoc(header, pkgDoc string) bool {
 // sorted by basename. Test files are included. Empty headers are skipped.
 // pkgDoc, when non-empty, suppresses any file whose header equals it (avoids
 // duplicating the package doc surfaced separately).
-func fileHeadersForDir(db *sql.DB, pkgDir, pkgDoc string) []output.FileHeader {
+func fileHeadersForDir(db *sql.DB, pkgDir, pkgDoc string) []protocol.FileHeader {
 	if pkgDir == "" {
 		return nil
 	}
@@ -262,7 +263,7 @@ func fileHeadersForDir(db *sql.DB, pkgDir, pkgDoc string) []output.FileHeader {
 	}
 	defer rows.Close()
 
-	var out []output.FileHeader
+	var out []protocol.FileHeader
 	for rows.Next() {
 		var path, header string
 		if err := rows.Scan(&path, &header); err != nil {
@@ -275,7 +276,7 @@ func fileHeadersForDir(db *sql.DB, pkgDir, pkgDoc string) []output.FileHeader {
 		if pkgDoc != "" && headerMatchesPkgDoc(header, pkgDoc) {
 			continue
 		}
-		out = append(out, output.FileHeader{
+		out = append(out, protocol.FileHeader{
 			Name:   filepath.Base(path),
 			Header: header,
 		})

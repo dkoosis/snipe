@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 var (
@@ -71,8 +72,8 @@ func runDeadcode() error {
 
 	rows, err := s.DB().Query(q, args...)
 	if err != nil {
-		return w.WriteError("deadcode", &output.Error{
-			Code: output.ErrInternal, Message: err.Error(),
+		return w.WriteError("deadcode", &protocol.Error{
+			Code: protocol.ErrInternal, Message: err.Error(),
 		})
 	}
 	defer func() { _ = rows.Close() }()
@@ -89,11 +90,11 @@ func runDeadcode() error {
 	}
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[deadcodeRow]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[deadcodeRow]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  out,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  "deadcode",
 				Query:    map[string]string{"include_tests": fmt.Sprintf("%t", deadIncludeTests), flagPkg: deadPkg},
 				RepoRoot: dir,

@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -38,8 +39,8 @@ func runBoundary(args []string) error {
 	}
 
 	if len(args) != 2 {
-		return w.WriteError("boundary", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("boundary", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "boundary requires <pkg-set-a> <pkg-set-b> unless --layers is set",
 		})
 	}
@@ -49,8 +50,8 @@ func runBoundary(args []string) error {
 
 	universe, err := allPkgPaths(s.DB())
 	if err != nil {
-		return w.WriteError("boundary", &output.Error{
-			Code: output.ErrInternal, Message: err.Error(),
+		return w.WriteError("boundary", &protocol.Error{
+			Code: protocol.ErrInternal, Message: err.Error(),
 		})
 	}
 
@@ -58,8 +59,8 @@ func runBoundary(args []string) error {
 	setB := query.MatchPackagePatterns(universe, patternsB)
 
 	if len(setA) == 0 || len(setB) == 0 {
-		return w.WriteError("boundary", &output.Error{
-			Code: output.ErrNotFound,
+		return w.WriteError("boundary", &protocol.Error{
+			Code: protocol.ErrNotFound,
 			Message: fmt.Sprintf("no packages matched: A=%d B=%d (patterns: %q %q)",
 				len(setA), len(setB), args[0], args[1]),
 		})
@@ -67,25 +68,25 @@ func runBoundary(args []string) error {
 
 	report, err := query.FindBoundaryCrossings(s.DB(), setA, setB)
 	if err != nil {
-		return w.WriteError("boundary", &output.Error{
-			Code: output.ErrInternal, Message: err.Error(),
+		return w.WriteError("boundary", &protocol.Error{
+			Code: protocol.ErrInternal, Message: err.Error(),
 		})
 	}
 
 	if boundaryDetailed {
 		if err := query.PopulateBoundaryLocations(s.DB(), report); err != nil {
-			return w.WriteError("boundary", &output.Error{
-				Code: output.ErrInternal, Message: err.Error(),
+			return w.WriteError("boundary", &protocol.Error{
+				Code: protocol.ErrInternal, Message: err.Error(),
 			})
 		}
 	}
 
 	result := buildBoundaryResult(report)
-	resp := output.Response[output.BoundaryResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.BoundaryResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.BoundaryResult{result},
-		Meta: output.Meta{
+		Results:  []protocol.BoundaryResult{result},
+		Meta: protocol.Meta{
 			Command:    "boundary",
 			Query:      map[string]string{"a": args[0], "b": args[1], "direction": boundaryDir},
 			RepoRoot:   dir,
@@ -114,8 +115,8 @@ func allPkgPaths(db *sql.DB) ([]string, error) {
 	return out, rows.Err()
 }
 
-func buildBoundaryResult(r *query.BoundaryReport) output.BoundaryResult {
-	res := output.BoundaryResult{SetA: r.SetA, SetB: r.SetB}
+func buildBoundaryResult(r *query.BoundaryReport) protocol.BoundaryResult {
+	res := protocol.BoundaryResult{SetA: r.SetA, SetB: r.SetB}
 	if boundaryDir == "both" || boundaryDir == "a-to-b" {
 		res.Directions = append(res.Directions, makeDir("A", "B", r.AToB))
 	}
@@ -125,10 +126,10 @@ func buildBoundaryResult(r *query.BoundaryReport) output.BoundaryResult {
 	return res
 }
 
-func makeDir(from, to string, refs []query.BoundaryRef) output.BoundaryDirection {
-	d := output.BoundaryDirection{From: from, To: to, Symbols: make([]output.BoundarySymbol, len(refs))}
+func makeDir(from, to string, refs []query.BoundaryRef) protocol.BoundaryDirection {
+	d := protocol.BoundaryDirection{From: from, To: to, Symbols: make([]protocol.BoundarySymbol, len(refs))}
 	for i, b := range refs {
-		d.Symbols[i] = output.BoundarySymbol{
+		d.Symbols[i] = protocol.BoundarySymbol{
 			Symbol:    b.Symbol,
 			Kind:      b.Kind,
 			SourcePkg: b.SourcePkg,
@@ -141,13 +142,13 @@ func makeDir(from, to string, refs []query.BoundaryRef) output.BoundaryDirection
 	return d
 }
 
-func convertLocs(in []query.BoundaryLoc) []output.BoundaryLoc {
+func convertLocs(in []query.BoundaryLoc) []protocol.BoundaryLoc {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]output.BoundaryLoc, len(in))
+	out := make([]protocol.BoundaryLoc, len(in))
 	for i, l := range in {
-		out[i] = output.BoundaryLoc{File: l.File, Line: l.Line}
+		out[i] = protocol.BoundaryLoc{File: l.File, Line: l.Line}
 	}
 	return out
 }
@@ -187,14 +188,14 @@ func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
 
 	data, err := os.ReadFile(boundaryLayers)
 	if err != nil {
-		return w.WriteError("boundary", &output.Error{
-			Code: output.ErrInternal, Message: "read layers manifest: " + err.Error(),
+		return w.WriteError("boundary", &protocol.Error{
+			Code: protocol.ErrInternal, Message: "read layers manifest: " + err.Error(),
 		})
 	}
 	var man archManifest
 	if err := yaml.Unmarshal(data, &man); err != nil {
-		return w.WriteError("boundary", &output.Error{
-			Code: output.ErrInternal, Message: "parse layers manifest: " + err.Error(),
+		return w.WriteError("boundary", &protocol.Error{
+			Code: protocol.ErrInternal, Message: "parse layers manifest: " + err.Error(),
 		})
 	}
 
@@ -248,8 +249,8 @@ func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
 
 	universe, err := allPkgPaths(s.DB())
 	if err != nil {
-		return w.WriteError("boundary", &output.Error{
-			Code: output.ErrInternal, Message: err.Error(),
+		return w.WriteError("boundary", &protocol.Error{
+			Code: protocol.ErrInternal, Message: err.Error(),
 		})
 	}
 	for i := range layers {
@@ -266,8 +267,8 @@ func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
 			}
 			report, err := query.FindBoundaryCrossings(s.DB(), layers[i].pkgs, layers[j].pkgs)
 			if err != nil {
-				return w.WriteError("boundary", &output.Error{
-					Code: output.ErrInternal, Message: err.Error(),
+				return w.WriteError("boundary", &protocol.Error{
+					Code: protocol.ErrInternal, Message: err.Error(),
 				})
 			}
 			rows = append(rows,
@@ -286,11 +287,11 @@ func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
 	}
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[layerCrossingRow]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[layerCrossingRow]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  rows,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  "boundary",
 				Query:    map[string]string{"layers": boundaryLayers},
 				RepoRoot: dir,

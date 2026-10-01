@@ -1,4 +1,4 @@
-package output
+package protocol
 
 import (
 	"encoding/json"
@@ -157,6 +157,12 @@ type Error struct {
 	// WriteErrorWithMeta. Unexported, so never serialized.
 	query     string
 	hintCount int
+}
+
+// TelemetryArgs returns the symbol the caller asked for and how many
+// alternatives the error offered, as recorded by the miss constructors.
+func (e *Error) TelemetryArgs() (query string, hintCount int) {
+	return e.query, e.hintCount
 }
 
 // NextAction suggests the next command to run

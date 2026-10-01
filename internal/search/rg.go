@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // rgMatch represents a ripgrep JSON match.
@@ -48,7 +48,7 @@ type rgSubmatch struct {
 // ctx bounds the rg subprocess: cancelling it (timeout or SIGINT) kills rg and
 // makes Search return promptly, instead of blocking until a pathological pattern
 // finishes. A nil ctx is treated as context.Background().
-func Search(ctx context.Context, dir, pattern string, limit, contextLines int, globs ...string) ([]output.Result, error) {
+func Search(ctx context.Context, dir, pattern string, limit, contextLines int, globs ...string) ([]protocol.Result, error) {
 	if ctx == nil {
 		ctx = context.Background() //nolint:forbidigo // nil-guard default for the optional ctx param (documented contract); the caller's ctx bounds rg when supplied
 	}
@@ -101,7 +101,7 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 		return nil, fmt.Errorf("start rg: %w", err)
 	}
 
-	var results []output.Result
+	var results []protocol.Result
 	scanner := bufio.NewScanner(stdout)
 	// Increase buffer size to handle long lines (default is 64KB, increase to 1MB)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
@@ -124,9 +124,9 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 		}
 
 		for _, sub := range data.Submatches {
-			matchRange := output.Range{
-				Start: output.Position{Line: data.LineNumber, Col: sub.Start + 1},
-				End:   output.Position{Line: data.LineNumber, Col: sub.End + 1},
+			matchRange := protocol.Range{
+				Start: protocol.Position{Line: data.LineNumber, Col: sub.Start + 1},
+				End:   protocol.Position{Line: data.LineNumber, Col: sub.End + 1},
 			}
 			// Compute relative path for output
 			filePathRel, relErr := filepath.Rel(dir, data.Path.Text)
@@ -138,7 +138,7 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 			if filePathRel == "" {
 				filePathRel = data.Path.Text
 			}
-			result := output.Result{
+			result := protocol.Result{
 				ID:         generateSearchID(data.LineNumber, sub.Start),
 				File:       filePathRel,
 				FileAbs:    data.Path.Text,
@@ -146,7 +146,7 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 				Kind:       "match",
 				Name:       sub.Match.Text,
 				Match:      strings.TrimSpace(data.Lines.Text),
-				EditTarget: output.FormatEditTargetWithHash(filePathRel, data.Path.Text, matchRange),
+				EditTarget: protocol.FormatEditTargetWithHash(filePathRel, data.Path.Text, matchRange),
 			}
 			results = append(results, result)
 

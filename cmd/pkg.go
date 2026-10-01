@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -51,21 +52,21 @@ func runPkg(args []string) error {
 	// Find package symbols ranked by usage.
 	symbols, err := query.FindPackageSymbolsByUsage(s.DB(), pkgPattern, lim, off)
 	if err != nil {
-		return w.WriteError(cmdNamePkg, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNamePkg, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if len(symbols) == 0 {
-		return w.WriteError(cmdNamePkg, &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteError(cmdNamePkg, &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: "no exported symbols found in package matching: " + pkgPattern,
 		})
 	}
 
 	// Convert to results.
-	results := make([]output.Result, len(symbols))
+	results := make([]protocol.Result, len(symbols))
 	tokenEstimate := 0
 	var degraded []string
 
@@ -74,21 +75,21 @@ func runPkg(args []string) error {
 		result := sym.ToResult()
 
 		if withBody {
-			if err := output.AddBody(&result); err != nil {
+			if err := protocol.AddBody(&result); err != nil {
 				degraded = append(degraded, "body_extraction_failed")
 			}
 		}
 
 		if contextLines > 0 && !withBody {
-			if err := output.AddContext(&result, contextLines); err != nil {
+			if err := protocol.AddContext(&result, contextLines); err != nil {
 				degraded = append(degraded, "context_extraction_failed")
 			}
 		}
 
 		results[i] = result
-		tokenEstimate += output.EstimateTokens(sym.Signature.String)
+		tokenEstimate += protocol.EstimateTokens(sym.Signature.String)
 		if result.Body != "" {
-			tokenEstimate += output.EstimateTokens(result.Body)
+			tokenEstimate += protocol.EstimateTokens(result.Body)
 		}
 	}
 
@@ -97,19 +98,19 @@ func runPkg(args []string) error {
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 	pkgDoc := query.GetPackageDoc(s.DB(), fullPkgPath)
 
 	if summary {
-		summaryData := output.BuildSummary(results)
-		summaryResp := output.Response[output.Summary]{
-			Protocol: output.ProtocolVersion,
+		summaryData := protocol.BuildSummary(results)
+		summaryResp := protocol.Response[protocol.Summary]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
-			Results:  []output.Summary{summaryData},
-			Meta: output.Meta{
+			Results:  []protocol.Summary{summaryData},
+			Meta: protocol.Meta{
 				Command:    cmdNamePkg,
 				Query:      queryInfo,
 				RepoRoot:   dir,
@@ -130,7 +131,7 @@ func runPkg(args []string) error {
 	// Recalculate token estimate after truncation.
 	tokenEstimate = 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
 	// Write a package header before the symbol listing (Claude text mode only).
@@ -156,7 +157,7 @@ func runPkg(args []string) error {
 		fmt.Fprintln(os.Stdout)
 	}
 
-	meta := output.Meta{
+	meta := protocol.Meta{
 		Command:       cmdNamePkg,
 		Query:         queryInfo,
 		RepoRoot:      dir,
@@ -177,8 +178,8 @@ func runPkg(args []string) error {
 		return nil
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
 		Meta:     meta,
@@ -236,11 +237,11 @@ func runPkgDigest(s *store.Store, dir, pkgPattern string, startedAt time.Time) e
 	row.LCOM4 = pull(kindLCOM4)
 	row.CycloMax = pull("cyclo_max")
 
-	resp := output.Response[pkgDigestRow]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[pkgDigestRow]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  []pkgDigestRow{row},
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:  cmdNamePkg,
 			Query:    map[string]string{flagPackage: pkgPattern, "digest": "1"},
 			RepoRoot: dir,

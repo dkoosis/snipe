@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/telemetry"
 )
 
@@ -27,15 +28,15 @@ func TestWriteResponse_EmitsSessionKey(t *testing.T) {
 		telemetry.SetSessionKey("")
 	})
 
-	resp := Response[Result]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{
+		Results: []protocol.Result{
 			{ID: "abc123", File: "main.go", Kind: "func", Name: "main"},
 		},
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "def",
-			IndexState: IndexFresh,
+			IndexState: protocol.IndexFresh,
 			Total:      1,
 		},
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/util"
 )
@@ -817,7 +818,7 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 // emitIndex renders the index response. Default (Claude) surface is a terse
 // one-liner (progress detail already went to stderr); --format json emits the
 // full envelope (D1).
-func emitIndex(w *output.Writer, resp output.Response[any]) error {
+func emitIndex(w *output.Writer, resp protocol.Response[any]) error {
 	if GetOutputFormat() == output.OutputJSON {
 		return w.WriteResponse(resp)
 	}
@@ -835,15 +836,15 @@ func emitIndex(w *output.Writer, resp output.Response[any]) error {
 	return err
 }
 
-func indexResponse(absDir string, start time.Time, symCount int, suggestions []output.Suggestion) output.Response[any] {
-	return output.Response[any]{
-		Protocol:    output.ProtocolVersion,
+func indexResponse(absDir string, start time.Time, symCount int, suggestions []protocol.Suggestion) protocol.Response[any] {
+	return protocol.Response[any]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
 		Suggestions: suggestions,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:    cmdNameIndex,
 			RepoRoot:   absDir,
-			IndexState: output.IndexFresh,
+			IndexState: protocol.IndexFresh,
 			Ms:         time.Since(start).Milliseconds(),
 			Total:      symCount,
 		},
@@ -851,11 +852,11 @@ func indexResponse(absDir string, start time.Time, symCount int, suggestions []o
 }
 
 // orphanSuggestion returns a suggestion to rebuild if orphaned refs exist.
-func orphanSuggestion(inc *store.IncrementalResult) []output.Suggestion {
+func orphanSuggestion(inc *store.IncrementalResult) []protocol.Suggestion {
 	if inc == nil || inc.OrphanedRefs == 0 {
 		return nil
 	}
-	return []output.Suggestion{{
+	return []protocol.Suggestion{{
 		Command:     "snipe index --force",
 		Description: fmt.Sprintf("Full rebuild to clear %d orphaned refs", inc.OrphanedRefs),
 		Priority:    3,
@@ -906,14 +907,14 @@ func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start ti
 		// No changes — skip indexing
 		fmt.Fprintf(os.Stderr, "Index up to date: %s\n", changes.Summary())
 		symCount, _, _, _ := s.GetStats()
-		resp := output.Response[any]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[any]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  nil,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:    cmdNameIndex,
 				RepoRoot:   absDir,
-				IndexState: output.IndexFresh,
+				IndexState: protocol.IndexFresh,
 				Ms:         time.Since(start).Milliseconds(),
 				Total:      symCount,
 			},

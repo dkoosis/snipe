@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // Package-level compiled regexps for extractDocReferences.
@@ -34,10 +34,10 @@ var commonDocWords = map[string]bool{
 
 // CheckDocStatus evaluates documentation freshness for a function.
 // Uses strict criteria: only marks stale when doc references params/returns that don't exist.
-func CheckDocStatus(fn *ast.FuncDecl, doc string) output.DocStatus {
+func CheckDocStatus(fn *ast.FuncDecl, doc string) protocol.DocStatus {
 	if doc == "" {
-		return output.DocStatus{
-			Status: output.DocMissing,
+		return protocol.DocStatus{
+			Status: protocol.DocMissing,
 		}
 	}
 
@@ -64,14 +64,14 @@ func CheckDocStatus(fn *ast.FuncDecl, doc string) output.DocStatus {
 	}
 
 	if len(reasons) > 0 {
-		return output.DocStatus{
-			Status:  output.DocStale,
+		return protocol.DocStatus{
+			Status:  protocol.DocStale,
 			Reasons: reasons,
 		}
 	}
 
-	return output.DocStatus{
-		Status: output.DocFresh,
+	return protocol.DocStatus{
+		Status: protocol.DocFresh,
 	}
 }
 
@@ -224,22 +224,22 @@ func levenshteinDistance(a, b string) int {
 }
 
 // ExtractPurpose extracts the purpose from doc comment or generates from signature.
-func ExtractPurpose(fn *ast.FuncDecl, doc string) (purpose string, source output.PurposeSource) {
+func ExtractPurpose(fn *ast.FuncDecl, doc string) (purpose string, source protocol.PurposeSource) {
 	// Priority 1: Doc comment first sentence
 	if doc != "" {
 		purpose = extractFirstSentence(doc)
 		if purpose != "" {
-			return purpose, output.PurposeFromDoc
+			return purpose, protocol.PurposeFromDoc
 		}
 	}
 
 	// Priority 2: Generate template from signature
 	purpose = generatePurposeTemplate(fn)
 	if purpose != "" {
-		return purpose, output.PurposeFromTemplate
+		return purpose, protocol.PurposeFromTemplate
 	}
 
-	return "", output.PurposeMissing
+	return "", protocol.PurposeMissing
 }
 
 // extractFirstSentence extracts the first sentence from a doc comment.

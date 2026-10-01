@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 func TestDetectDeferInLoop(t *testing.T) {
@@ -78,14 +78,14 @@ func simple() {
 			f, err := parser.ParseFile(fset, "test.go", tt.code, 0)
 			require.NoError(t, err)
 
-			analyzer := NewAnalyzer(fset, []byte(tt.code), output.WarningsFull)
+			analyzer := NewAnalyzer(fset, []byte(tt.code), protocol.WarningsFull)
 
 			var foundWarn bool
 			for _, decl := range f.Decls {
 				if fn, ok := decl.(*ast.FuncDecl); ok {
 					warnings := analyzer.AnalyzeFunc(fn)
 					for _, w := range warnings {
-						if w.Code == output.WarnDeferInLoop {
+						if w.Code == protocol.WarnDeferInLoop {
 							foundWarn = true
 						}
 					}
@@ -152,14 +152,14 @@ func simple() {
 			f, err := parser.ParseFile(fset, "test.go", tt.code, 0)
 			require.NoError(t, err)
 
-			analyzer := NewAnalyzer(fset, []byte(tt.code), output.WarningsFull)
+			analyzer := NewAnalyzer(fset, []byte(tt.code), protocol.WarningsFull)
 
 			var foundWarn bool
 			for _, decl := range f.Decls {
 				if fn, ok := decl.(*ast.FuncDecl); ok {
 					warnings := analyzer.AnalyzeFunc(fn)
 					for _, w := range warnings {
-						if w.Code == output.WarnIgnoredError {
+						if w.Code == protocol.WarnIgnoredError {
 							foundWarn = true
 						}
 					}
@@ -230,14 +230,14 @@ func simple() {
 			f, err := parser.ParseFile(fset, "test.go", tt.code, 0)
 			require.NoError(t, err)
 
-			analyzer := NewAnalyzer(fset, []byte(tt.code), output.WarningsFull)
+			analyzer := NewAnalyzer(fset, []byte(tt.code), protocol.WarningsFull)
 
 			var foundWarn bool
 			for _, decl := range f.Decls {
 				if fn, ok := decl.(*ast.FuncDecl); ok {
 					warnings := analyzer.AnalyzeFunc(fn)
 					for _, w := range warnings {
-						if w.Code == output.WarnLostCancel {
+						if w.Code == protocol.WarnLostCancel {
 							foundWarn = true
 						}
 					}
@@ -264,7 +264,7 @@ func bad() {
 	f, err := parser.ParseFile(fset, "test.go", code, 0)
 	require.NoError(t, err)
 
-	analyzer := NewAnalyzer(fset, []byte(code), output.WarningsNone)
+	analyzer := NewAnalyzer(fset, []byte(code), protocol.WarningsNone)
 
 	for _, decl := range f.Decls {
 		if fn, ok := decl.(*ast.FuncDecl); ok {
@@ -289,17 +289,17 @@ func test(ctx context.Context) {
 	f, err := parser.ParseFile(fset, "test.go", code, 0)
 	require.NoError(t, err)
 
-	analyzer := NewAnalyzer(fset, []byte(code), output.WarningsFast)
+	analyzer := NewAnalyzer(fset, []byte(code), protocol.WarningsFast)
 
 	var foundDefer, foundCancel bool
 	for _, decl := range f.Decls {
 		if fn, ok := decl.(*ast.FuncDecl); ok {
 			warnings := analyzer.AnalyzeFunc(fn)
 			for _, w := range warnings {
-				if w.Code == output.WarnDeferInLoop {
+				if w.Code == protocol.WarnDeferInLoop {
 					foundDefer = true
 				}
-				if w.Code == output.WarnLostCancel {
+				if w.Code == protocol.WarnLostCancel {
 					foundCancel = true
 				}
 			}

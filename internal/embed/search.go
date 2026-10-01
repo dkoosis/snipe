@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/vector"
@@ -31,7 +31,7 @@ type Embedder interface {
 // At 1024 dims × 4 bytes per float32, that's ~4KB per symbol. For 5,000 symbols
 // this is ~20MB — acceptable for current use. If this becomes a bottleneck,
 // the first optimization is an ANN index (HNSW or IVF) to avoid the full scan.
-func Search(ctx context.Context, queryText string, s *store.Store, client Embedder, limit int, threshold float32) ([]output.Result, time.Duration, error) {
+func Search(ctx context.Context, queryText string, s *store.Store, client Embedder, limit int, threshold float32) ([]protocol.Result, time.Duration, error) {
 	start := time.Now()
 
 	count, err := s.CountEmbeddings()
@@ -82,7 +82,7 @@ func Search(ctx context.Context, queryText string, s *store.Store, client Embedd
 		return nil, 0, fmt.Errorf("batch lookup: %w", err)
 	}
 
-	results := make([]output.Result, 0, len(matches))
+	results := make([]protocol.Result, 0, len(matches))
 	for _, m := range matches {
 		sym := symMap[m.symbolID]
 		if sym == nil {

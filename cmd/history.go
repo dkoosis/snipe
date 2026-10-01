@@ -7,6 +7,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/metrics"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 var (
@@ -18,8 +19,8 @@ func runHistory() error {
 
 	dir, err := os.Getwd()
 	if err != nil {
-		return w.WriteError("history", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("history", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to get working directory: " + err.Error(),
 		})
 	}
@@ -27,15 +28,15 @@ func runHistory() error {
 	historyFile := filepath.Join(dir, ".snipe", "metrics.jsonl")
 	baselines, err := metrics.LoadHistory(historyFile)
 	if err != nil {
-		return w.WriteError("history", &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteError("history", &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: "no history found at " + historyFile,
 		})
 	}
 
 	if len(baselines) == 0 {
-		return w.WriteError("history", &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteError("history", &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: "history file is empty",
 		})
 	}

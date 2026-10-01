@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/dkoosis/snipe/internal/edit"
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // TestEditErrCode guards the not-found classification: edit.ErrSymbolNotFound
@@ -21,17 +21,17 @@ func TestEditErrCode(t *testing.T) {
 		{
 			name: "bare sentinel routes to NOT_FOUND",
 			err:  edit.ErrSymbolNotFound,
-			want: output.ErrNotFound,
+			want: protocol.ErrNotFound,
 		},
 		{
 			name: "wrapped sentinel still routes to NOT_FOUND",
 			err:  fmt.Errorf("%w: %q in foo.go", edit.ErrSymbolNotFound, "Bar"),
-			want: output.ErrNotFound,
+			want: protocol.ErrNotFound,
 		},
 		{
 			name: "generic failure routes to INTERNAL_ERROR",
 			err:  errors.New("write: disk full"),
-			want: output.ErrInternal,
+			want: protocol.ErrInternal,
 		},
 	}
 	for _, tt := range tests {

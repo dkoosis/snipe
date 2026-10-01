@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -39,8 +40,8 @@ func runRefs(args []string) error {
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && refsAt == "" {
-		return w.WriteError(cmdNameRefs, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameRefs, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: errProvideSymbolOrAt,
 		})
 	}
@@ -59,8 +60,8 @@ func runRefs(args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(refsAt)
 		if err != nil {
-			return w.WriteError(cmdNameRefs, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameRefs, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -72,8 +73,8 @@ func runRefs(args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError(cmdNameRefs, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError(cmdNameRefs, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: err.Error(),
 			})
 		}
@@ -93,23 +94,23 @@ func runRefs(args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameRefs, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameRefs, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError(cmdNameRefs, output.NewNotFoundError(name))
+			return w.WriteError(cmdNameRefs, protocol.NewNotFoundError(name))
 		}
 
 		if len(symbols) > 1 {
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
-			return w.WriteError(cmdNameRefs, output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameRefs, protocol.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
@@ -130,8 +131,8 @@ findRefs:
 	// Find all references
 	refs, err := query.FindRefs(s.DB(), symbolID, lim, off)
 	if err != nil {
-		return w.WriteError(cmdNameRefs, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameRefs, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
@@ -180,7 +181,7 @@ findRefs:
 	}
 
 	// Convert to results
-	results := make([]output.Result, len(refs))
+	results := make([]protocol.Result, len(refs))
 	tokenEstimate := 0
 	var degraded []string
 
@@ -205,16 +206,16 @@ findRefs:
 
 	for i := range refs {
 		ref := &refs[i]
-		refRange := output.Range{
-			Start: output.Position{Line: ref.Line, Col: ref.Col},
-			End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
+		refRange := protocol.Range{
+			Start: protocol.Position{Line: ref.Line, Col: ref.Col},
+			End:   protocol.Position{Line: ref.Line, Col: ref.Col + nameLen},
 		}
 		// Use relative path for output, absolute for file operations
 		filePath := ref.FilePathRel
 		if filePath == "" {
 			filePath = ref.FilePath
 		}
-		result := output.Result{
+		result := protocol.Result{
 			ID:         ref.ID,
 			File:       filePath,
 			FileAbs:    ref.FilePath,
@@ -222,12 +223,12 @@ findRefs:
 			Kind:       flagRef,
 			Name:       symbolName,
 			Match:      ref.Snippet,
-			EditTarget: output.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
+			EditTarget: protocol.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
 		}
 
 		// Add enclosing info if available
 		if ref.EnclosingID.Valid {
-			result.Enclosing = &output.Enclosing{
+			result.Enclosing = &protocol.Enclosing{
 				ID:        ref.EnclosingID.String,
 				Kind:      ref.EnclosingKind,
 				Name:      ref.EnclosingName,
@@ -238,7 +239,7 @@ findRefs:
 			if withBody {
 				if encSym, ok := enclosingSymbols[ref.EnclosingID.String]; ok && encSym != nil {
 					encResult := encSym.ToResult()
-					if err := output.AddBody(&encResult); err != nil {
+					if err := protocol.AddBody(&encResult); err != nil {
 						degraded = append(degraded, "body_extraction_failed")
 					}
 					result.Body = encResult.Body
@@ -248,15 +249,15 @@ findRefs:
 
 		// Add context lines if requested (only if not showing full body)
 		if contextLines > 0 && !withBody {
-			if err := output.AddContext(&result, contextLines); err != nil {
+			if err := protocol.AddContext(&result, contextLines); err != nil {
 				degraded = append(degraded, "context_extraction_failed")
 			}
 		}
 
 		results[i] = result
-		tokenEstimate += output.EstimateTokens(ref.Snippet)
+		tokenEstimate += protocol.EstimateTokens(ref.Snippet)
 		if result.Body != "" {
-			tokenEstimate += output.EstimateTokens(result.Body)
+			tokenEstimate += protocol.EstimateTokens(result.Body)
 		}
 	}
 
@@ -264,26 +265,26 @@ findRefs:
 	degraded = uniqueStrings(degraded)
 
 	// Score, sort, and apply selection
-	output.ScoreAndSort(results, symbolName)
+	protocol.ScoreAndSort(results, symbolName)
 	results = ApplySelection(results)
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
 	// If summary mode, return condensed output
 	if summary {
-		summaryData := output.BuildSummary(results)
-		summaryResp := output.Response[output.Summary]{
-			Protocol: output.ProtocolVersion,
+		summaryData := protocol.BuildSummary(results)
+		summaryResp := protocol.Response[protocol.Summary]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
-			Results:  []output.Summary{summaryData},
-			Meta: output.Meta{
+			Results:  []protocol.Summary{summaryData},
+			Meta: protocol.Meta{
 				Command:    cmdNameRefs,
 				Query:      queryInfo,
 				RepoRoot:   dir,
@@ -303,15 +304,15 @@ findRefs:
 	// Recalculate token estimate after truncation
 	tokenEstimate = 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
 		Results:     results,
-		Suggestions: output.SuggestionsForRefs(symbolName, len(results)),
-		Meta: output.Meta{
+		Suggestions: protocol.SuggestionsForRefs(symbolName, len(results)),
+		Meta: protocol.Meta{
 			Command:       cmdNameRefs,
 			Query:         queryInfo,
 			RepoRoot:      dir,
