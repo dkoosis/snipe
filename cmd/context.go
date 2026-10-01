@@ -17,7 +17,6 @@ import (
 var (
 	contextFormat        string
 	contextFull          bool
-	contextOutputNug     bool
 	contextConventions   bool
 	contextSchemaVersion bool
 	contextKeySymbols    int
@@ -91,11 +90,6 @@ func runContext(args []string) error {
 			return fmt.Errorf("generate context: %w", err)
 		}
 
-		if contextOutputNug {
-			nugs := ctx.ToNuggets()
-			return outputNuggets(nugs)
-		}
-
 		return outputContext(ctx, structuredFormat)
 	}
 
@@ -105,11 +99,6 @@ func runContext(args []string) error {
 		return fmt.Errorf("generate orientation context: %w", err)
 	}
 	orientCtx.IndexState = string(query.CheckIndexState(s.DB(), projectRoot, Version))
-
-	if contextOutputNug {
-		nugs := orientCtx.ToNuggets()
-		return outputNuggets(nugs)
-	}
 
 	// Claudish text is the default for orient mode (D1: Claude is the consumer).
 	// --format json/yaml overrides for toolchain integration.
@@ -137,18 +126,6 @@ func outputContext(output interface{}, format string) error {
 		}
 	default:
 		return fmt.Errorf("unsupported format: %s (use json or yaml)", format)
-	}
-	return nil
-}
-
-func outputNuggets(nugs []context.Nugget) error {
-	enc := yaml.NewEncoder(os.Stdout)
-	enc.SetIndent(2)
-	for _, nug := range nugs {
-		if err := enc.Encode(nug); err != nil {
-			return fmt.Errorf("encode nug yaml: %w", err)
-		}
-		fmt.Println("---")
 	}
 	return nil
 }

@@ -113,17 +113,6 @@ func FormatText(bc *BootContext) string {
 	// DB schemas
 	formatDBSchemas(&b, bc.DBSchemas)
 
-	// Active work
-	if aw := bc.ActiveWork; aw != nil {
-		b.WriteString("\n## active work\n")
-		if aw.Branch != "" {
-			fmt.Fprintf(&b, "branch: %s\n", aw.Branch)
-		}
-		for _, s := range aw.RecentSymbols {
-			fmt.Fprintf(&b, "  %s (%s:%d)\n", s.Name, s.File, s.Line)
-		}
-	}
-
 	return b.String()
 }
 

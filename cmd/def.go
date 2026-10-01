@@ -207,9 +207,6 @@ lookup:
 		degraded = append(degraded, output.DegradedCIMatch)
 	}
 
-	// Record query in session for active work tracking
-	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameDef)
-
 	// Add full body if requested
 	if withBody {
 		if err := output.AddBody(&result); err != nil {
@@ -339,8 +336,6 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 	sym := &symbols[0]
 	result := sym.ToResultWithHints(s.DB())
 	var degraded []string
-
-	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameDef)
 
 	if withBody {
 		if err := output.AddBody(&result); err != nil {

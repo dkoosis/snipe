@@ -121,8 +121,6 @@ findRefs:
 	symbolName := ""
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symbolName = sym.Name
-		// Record query in session for active work tracking
-		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameRefs)
 	}
 	nameLen := len(symbolName)
 	if nameLen == 0 {
