@@ -547,10 +547,6 @@
       "purpose": "Go package loading and symbol extraction"
     },
     {
-      "name": "internal/kg",
-      "purpose": "Package kg provides knowledge graph hints."
-    },
-    {
       "name": "internal/metrics",
       "purpose": "Index and query metrics collection"
     },
