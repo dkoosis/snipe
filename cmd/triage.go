@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
@@ -133,7 +134,7 @@ func triageRelPath(root, f string) string {
 			f = abs
 		}
 	}
-	return relToRoot(root, f)
+	return graphmetrics.RelToRoot(root, f)
 }
 
 // resolveFilePackage looks up the real Go package for a file — NOT

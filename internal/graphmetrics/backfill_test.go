@@ -1,4 +1,4 @@
-package cmd
+package graphmetrics
 
 import (
 	"path/filepath"
@@ -7,7 +7,7 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 )
 
-func TestMetricsNeedBackfill(t *testing.T) {
+func TestNeedBackfill(t *testing.T) {
 	s, err := store.Open(filepath.Join(t.TempDir(), "index.db"))
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
@@ -15,7 +15,7 @@ func TestMetricsNeedBackfill(t *testing.T) {
 	defer func() { _ = s.Close() }()
 
 	// Fresh / pre-feature index — no marker → must backfill.
-	if !metricsNeedBackfill(s) {
+	if !NeedBackfill(s) {
 		t.Error("index with no metrics-version marker should need backfill")
 	}
 
@@ -23,7 +23,7 @@ func TestMetricsNeedBackfill(t *testing.T) {
 	if err := s.SetMeta(metaFileMetricsVersion, fileMetricsVersion); err != nil {
 		t.Fatal(err)
 	}
-	if metricsNeedBackfill(s) {
+	if NeedBackfill(s) {
 		t.Error("index at the current metrics version should not need backfill")
 	}
 
@@ -31,7 +31,7 @@ func TestMetricsNeedBackfill(t *testing.T) {
 	if err := s.SetMeta(metaFileMetricsVersion, "0"); err != nil {
 		t.Fatal(err)
 	}
-	if !metricsNeedBackfill(s) {
+	if !NeedBackfill(s) {
 		t.Error("index at a stale metrics version should need backfill")
 	}
 }
