@@ -9,6 +9,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/vector"
@@ -37,8 +38,8 @@ func runSim(args []string) error {
 	}
 
 	if len(args) == 0 {
-		return w.WriteError(cmdNameSim, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameSim, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "sim requires a query argument unless --pairs is set",
 		})
 	}
@@ -61,8 +62,8 @@ func runSimQuery(args []string, start time.Time, lim, off, contextLines int, wit
 	// Get embedding client
 	client, err := embed.NewClient()
 	if err != nil {
-		return w.WriteError(cmdNameSim, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameSim, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "embedding client: " + err.Error(),
 		})
 	}
@@ -72,14 +73,14 @@ func runSimQuery(args []string, start time.Time, lim, off, contextLines int, wit
 	searchLimit := off + lim
 	results, _, simErr := embed.Search(GetContext(), queryText, s, client, searchLimit, threshold)
 	if simErr != nil {
-		return w.WriteError(cmdNameSim, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameSim, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: simErr.Error(),
 		})
 	}
 	if results == nil {
-		return w.WriteError(cmdNameSim, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameSim, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "no embeddings found. Run 'snipe index --embed' first",
 		})
 	}
@@ -99,12 +100,12 @@ func runSimQuery(args []string, start time.Time, lim, off, contextLines int, wit
 	var degraded []string
 	for i := range results {
 		if withBody {
-			if err := output.AddBody(&results[i]); err != nil {
+			if err := protocol.AddBody(&results[i]); err != nil {
 				degraded = append(degraded, "body_extraction_failed")
 			}
 		}
 		if contextLines > 0 && !withBody {
-			if err := output.AddContext(&results[i], contextLines); err != nil {
+			if err := protocol.AddContext(&results[i], contextLines); err != nil {
 				degraded = append(degraded, "context_extraction_failed")
 			}
 		}
@@ -115,18 +116,18 @@ func runSimQuery(args []string, start time.Time, lim, off, contextLines int, wit
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
 	if summary {
-		summaryData := output.BuildSummary(results)
-		summaryResp := output.Response[output.Summary]{
-			Protocol: output.ProtocolVersion,
+		summaryData := protocol.BuildSummary(results)
+		summaryResp := protocol.Response[protocol.Summary]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
-			Results:  []output.Summary{summaryData},
-			Meta: output.Meta{
+			Results:  []protocol.Summary{summaryData},
+			Meta: protocol.Meta{
 				Command:    cmdNameSim,
 				Query:      map[string]string{"query": queryText, "threshold": strconv.FormatFloat(simThreshold, 'f', -1, 64)},
 				RepoRoot:   dir,
@@ -146,14 +147,14 @@ func runSimQuery(args []string, start time.Time, lim, off, contextLines int, wit
 	// Calculate token estimate after truncation
 	tokenEstimate := 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:       cmdNameSim,
 			Query:         map[string]string{"query": queryText, "threshold": strconv.FormatFloat(simThreshold, 'f', -1, 64)},
 			RepoRoot:      dir,
@@ -188,21 +189,21 @@ type simPairRow struct {
 func runSimPairs(s *store.Store, dir string, startedAt time.Time) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 	if !simWithinPkg {
-		return w.WriteError(cmdNameSim, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameSim, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "--pairs currently requires --within-pkg",
 		})
 	}
 
 	rows, err := s.GetEmbeddingsByPackage()
 	if err != nil {
-		return w.WriteError(cmdNameSim, &output.Error{
-			Code: output.ErrInternal, Message: err.Error(),
+		return w.WriteError(cmdNameSim, &protocol.Error{
+			Code: protocol.ErrInternal, Message: err.Error(),
 		})
 	}
 	if len(rows) == 0 {
-		return w.WriteError(cmdNameSim, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameSim, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "no embeddings — run 'snipe index --embed' first",
 		})
 	}

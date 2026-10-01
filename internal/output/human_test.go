@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // withTTY overrides isStdoutTTY for the duration of a test.
@@ -14,26 +16,26 @@ func withTTY(t *testing.T, v bool) {
 	t.Cleanup(func() { isStdoutTTY = prev })
 }
 
-func humanResp() Response[Result] {
-	return Response[Result]{
-		Protocol: ProtocolVersion,
+func humanResp() protocol.Response[protocol.Result] {
+	return protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{
+		Results: []protocol.Result{
 			{
 				Name:  "ProcessOrder",
 				File:  "internal/order/order.go",
-				Range: Range{Start: Position{Line: 42, Col: 1}},
+				Range: protocol.Range{Start: protocol.Position{Line: 42, Col: 1}},
 				Kind:  "func",
 			},
 			{
 				Name:     "Start",
 				Receiver: "*Server",
 				File:     "internal/server/server.go",
-				Range:    Range{Start: Position{Line: 10, Col: 1}},
+				Range:    protocol.Range{Start: protocol.Position{Line: 10, Col: 1}},
 				Kind:     "method",
 			},
 		},
-		Meta: Meta{Command: "def", Total: 2},
+		Meta: protocol.Meta{Command: "def", Total: 2},
 	}
 }
 
@@ -84,11 +86,11 @@ func TestHumanFormat_EmptyResults(t *testing.T) {
 	withTTY(t, false)
 	var buf bytes.Buffer
 	w := NewWriter(&buf, OutputHuman)
-	resp := Response[Result]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  nil,
-		Meta:     Meta{Command: "search"},
+		Meta:     protocol.Meta{Command: "search"},
 	}
 	if err := w.WriteResponse(resp); err != nil {
 		t.Fatalf("WriteResponse: %v", err)
@@ -102,10 +104,10 @@ func TestHumanFormat_ErrorRendering(t *testing.T) {
 	withTTY(t, false)
 	var buf bytes.Buffer
 	w := NewWriter(&buf, OutputHuman)
-	err := &Error{
-		Code:    ErrNotFound,
+	err := &protocol.Error{
+		Code:    protocol.ErrNotFound,
 		Message: "Symbol not found: Foo",
-		Candidates: []Candidate{
+		Candidates: []protocol.Candidate{
 			{Name: "Foo", File: "a.go", Kind: "func"},
 		},
 	}
@@ -130,13 +132,13 @@ func TestHumanFormat_CompositeFallback(t *testing.T) {
 	withTTY(t, false)
 	var buf bytes.Buffer
 	w := NewWriter(&buf, OutputHuman)
-	resp := Response[PackResult]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.PackResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []PackResult{
-			{Definition: &Result{Name: "Thing", File: "x.go", Range: Range{Start: Position{Line: 1}}, Kind: "type"}},
+		Results: []protocol.PackResult{
+			{Definition: &protocol.Result{Name: "Thing", File: "x.go", Range: protocol.Range{Start: protocol.Position{Line: 1}}, Kind: "type"}},
 		},
-		Meta: Meta{Command: "pack"},
+		Meta: protocol.Meta{Command: "pack"},
 	}
 	if err := w.WriteResponse(resp); err != nil {
 		t.Fatalf("WriteResponse: %v", err)

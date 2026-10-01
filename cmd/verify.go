@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/risk"
 )
@@ -105,7 +106,7 @@ func runVerify(base string) error {
 
 	symbols, err := query.FindOverlappingSymbols(s.DB(), root, changeMap)
 	if err != nil {
-		return w.WriteError(cmdNameVerify, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNameVerify, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 
 	changedFuncs, changedTestFuncs := verifySplitSymbols(symbols)
@@ -122,7 +123,7 @@ func runVerify(base string) error {
 
 	v, err := verifyBuildResult(s.DB(), changedFuncs, changedTestFuncs, changedFiles)
 	if err != nil {
-		return w.WriteError(cmdNameVerify, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNameVerify, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 
 	return writeVerify(v, root, start)
@@ -156,7 +157,7 @@ func verifyChangeMap(root string, changes []risk.FileChange) map[string][]query.
 func verifySplitSymbols(symbols []query.SymbolRow) (changedFuncs, changedTestFuncs []query.SymbolRow) {
 	for i := range symbols {
 		sym := &symbols[i]
-		if sym.Kind != output.KindFunc && sym.Kind != output.KindMethod {
+		if sym.Kind != protocol.KindFunc && sym.Kind != protocol.KindMethod {
 			continue
 		}
 		isTestFile := strings.HasSuffix(sym.FilePath, "_test.go")
@@ -347,11 +348,11 @@ func writeVerifyMessage(root string, start time.Time, msg string) error {
 // writeVerifyJSON emits the result inside the standard envelope; the single
 // result is the sole entry, consumers read `.results[0]` (mirrors writeRiskJSON).
 func writeVerifyJSON(v VerifyResult, root string, start time.Time) error {
-	resp := output.Response[VerifyResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[VerifyResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  []VerifyResult{v},
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:  cmdNameVerify,
 			RepoRoot: root,
 			Ms:       time.Since(start).Milliseconds(),

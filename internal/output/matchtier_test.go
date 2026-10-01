@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // TestClaudeMatchTierMarker: a degraded match tier carried on Meta.Degraded
@@ -13,14 +15,14 @@ func TestClaudeMatchTierMarker(t *testing.T) {
 	render := func(degraded ...string) string {
 		var buf bytes.Buffer
 		w := NewWriter(&buf, OutputClaude)
-		resp := Response[Result]{
-			Protocol: ProtocolVersion,
+		resp := protocol.Response[protocol.Result]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
-			Results: []Result{{
+			Results: []protocol.Result{{
 				ID: "go#main.go#main", Name: "main", File: "main.go",
-				Range: Range{Start: Position{Line: 5, Col: 1}}, Kind: "func",
+				Range: protocol.Range{Start: protocol.Position{Line: 5, Col: 1}}, Kind: "func",
 			}},
-			Meta: Meta{Command: "def", IndexState: IndexFresh, Total: 1, Degraded: degraded},
+			Meta: protocol.Meta{Command: "def", IndexState: protocol.IndexFresh, Total: 1, Degraded: degraded},
 		}
 		if err := w.WriteResponse(resp); err != nil {
 			t.Fatalf("WriteResponse: %v", err)
@@ -28,8 +30,8 @@ func TestClaudeMatchTierMarker(t *testing.T) {
 		return buf.String()
 	}
 
-	if got := render(DegradedCIMatch); !strings.Contains(got, "! "+DegradedCIMatch) {
-		t.Errorf("ci-match: want %q in output, got:\n%s", "! "+DegradedCIMatch, got)
+	if got := render(protocol.DegradedCIMatch); !strings.Contains(got, "! "+protocol.DegradedCIMatch) {
+		t.Errorf("ci-match: want %q in output, got:\n%s", "! "+protocol.DegradedCIMatch, got)
 	}
 	if got := render(); strings.Contains(got, "! ci-match") {
 		t.Errorf("served: want no tier marker, got:\n%s", got)
@@ -43,17 +45,17 @@ func TestClaudeMatchTierMarker(t *testing.T) {
 func TestClaudeSemanticMarker(t *testing.T) {
 	var buf bytes.Buffer
 	w := NewWriter(&buf, OutputClaude)
-	resp := Response[Result]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{{
+		Results: []protocol.Result{{
 			ID: "go#t.go#Near", Name: "Near", File: "t.go",
-			Range: Range{Start: Position{Line: 1, Col: 1}}, Kind: "func",
+			Range: protocol.Range{Start: protocol.Position{Line: 1, Col: 1}}, Kind: "func",
 			Score: 0.62,
 		}},
-		Meta: Meta{
-			Command: "search", IndexState: IndexNotUsed, Total: 1,
-			Degraded: []string{SemanticMarker(0.62)},
+		Meta: protocol.Meta{
+			Command: "search", IndexState: protocol.IndexNotUsed, Total: 1,
+			Degraded: []string{protocol.SemanticMarker(0.62)},
 		},
 	}
 	if err := w.WriteResponse(resp); err != nil {

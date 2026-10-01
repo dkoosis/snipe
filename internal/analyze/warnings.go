@@ -8,19 +8,19 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // Analyzer performs static analysis on a function AST.
 type Analyzer struct {
 	fset  *token.FileSet
 	src   []byte // Source for evidence extraction
-	mode  output.WarningsMode
+	mode  protocol.WarningsMode
 	lines [][]byte // lazily split source lines
 }
 
 // NewAnalyzer creates a new analyzer for warning detection.
-func NewAnalyzer(fset *token.FileSet, src []byte, mode output.WarningsMode) *Analyzer {
+func NewAnalyzer(fset *token.FileSet, src []byte, mode protocol.WarningsMode) *Analyzer {
 	return &Analyzer{
 		fset: fset,
 		src:  src,
@@ -30,8 +30,8 @@ func NewAnalyzer(fset *token.FileSet, src []byte, mode output.WarningsMode) *Ana
 
 // AnalyzeFunc runs all warning detectors on a function declaration.
 // Returns only high-confidence warnings.
-func (a *Analyzer) AnalyzeFunc(fn *ast.FuncDecl) []output.Warning {
-	if a.mode == output.WarningsNone {
+func (a *Analyzer) AnalyzeFunc(fn *ast.FuncDecl) []protocol.Warning {
+	if a.mode == protocol.WarningsNone {
 		return nil
 	}
 
@@ -39,13 +39,13 @@ func (a *Analyzer) AnalyzeFunc(fn *ast.FuncDecl) []output.Warning {
 		return nil
 	}
 
-	var warnings []output.Warning
+	var warnings []protocol.Warning
 
 	// Run detectors based on mode
 	warnings = append(warnings, a.detectDeferInLoop(fn.Body)...)
 	warnings = append(warnings, a.detectIgnoredError(fn.Body)...)
 
-	if a.mode == output.WarningsFull {
+	if a.mode == protocol.WarningsFull {
 		warnings = append(warnings, a.detectLostCancel(fn.Body)...)
 	}
 
@@ -54,8 +54,8 @@ func (a *Analyzer) AnalyzeFunc(fn *ast.FuncDecl) []output.Warning {
 
 // detectDeferInLoop finds defer statements inside for/range loops.
 // High precision: defer in loop always accumulates resources until function returns.
-func (a *Analyzer) detectDeferInLoop(body *ast.BlockStmt) []output.Warning {
-	var warnings []output.Warning
+func (a *Analyzer) detectDeferInLoop(body *ast.BlockStmt) []protocol.Warning {
+	var warnings []protocol.Warning
 	a.walkDeferInLoop(body, 0, &warnings)
 	return warnings
 }
@@ -63,7 +63,7 @@ func (a *Analyzer) detectDeferInLoop(body *ast.BlockStmt) []output.Warning {
 // walkDeferInLoop recursively walks the AST tracking loop nesting depth.
 // Using explicit recursion instead of ast.Inspect so loopDepth decrements
 // correctly when leaving a loop's subtree.
-func (a *Analyzer) walkDeferInLoop(n ast.Node, loopDepth int, warnings *[]output.Warning) {
+func (a *Analyzer) walkDeferInLoop(n ast.Node, loopDepth int, warnings *[]protocol.Warning) {
 	if n == nil {
 		return
 	}
@@ -74,8 +74,8 @@ func (a *Analyzer) walkDeferInLoop(n ast.Node, loopDepth int, warnings *[]output
 	case *ast.DeferStmt:
 		if loopDepth > 0 {
 			pos := a.fset.Position(n.Pos())
-			*warnings = append(*warnings, output.Warning{
-				Code:     output.WarnDeferInLoop,
+			*warnings = append(*warnings, protocol.Warning{
+				Code:     protocol.WarnDeferInLoop,
 				Severity: "high",
 				Line:     pos.Line,
 				Message:  "defer inside loop accumulates resources until function returns",
@@ -97,8 +97,8 @@ func (a *Analyzer) walkDeferInLoop(n ast.Node, loopDepth int, warnings *[]output
 
 // detectIgnoredError finds explicitly ignored error returns.
 // High precision: only triggers on `_ = fn()` or `_, _ = fn()` patterns.
-func (a *Analyzer) detectIgnoredError(body *ast.BlockStmt) []output.Warning {
-	var warnings []output.Warning
+func (a *Analyzer) detectIgnoredError(body *ast.BlockStmt) []protocol.Warning {
+	var warnings []protocol.Warning
 
 	ast.Inspect(body, func(n ast.Node) bool {
 		assign, ok := n.(*ast.AssignStmt)
@@ -136,8 +136,8 @@ func (a *Analyzer) detectIgnoredError(body *ast.BlockStmt) []output.Warning {
 		}
 
 		pos := a.fset.Position(assign.Pos())
-		warnings = append(warnings, output.Warning{
-			Code:     output.WarnIgnoredError,
+		warnings = append(warnings, protocol.Warning{
+			Code:     protocol.WarnIgnoredError,
 			Severity: "medium",
 			Line:     pos.Line,
 			Message:  "error return from " + funcName + " explicitly ignored",
@@ -152,8 +152,8 @@ func (a *Analyzer) detectIgnoredError(body *ast.BlockStmt) []output.Warning {
 
 // detectLostCancel finds context.WithCancel/Timeout without proper cancel handling.
 // High precision: tracks cancel variable and checks for defer cancel().
-func (a *Analyzer) detectLostCancel(body *ast.BlockStmt) []output.Warning {
-	var warnings []output.Warning
+func (a *Analyzer) detectLostCancel(body *ast.BlockStmt) []protocol.Warning {
+	var warnings []protocol.Warning
 
 	// Track context creation calls and their cancel variables
 	type cancelInfo struct {
@@ -235,8 +235,8 @@ func (a *Analyzer) detectLostCancel(body *ast.BlockStmt) []output.Warning {
 	// Report uncalled cancels
 	for _, c := range cancels {
 		if !cancelCalled[c.varName] {
-			warnings = append(warnings, output.Warning{
-				Code:     output.WarnLostCancel,
+			warnings = append(warnings, protocol.Warning{
+				Code:     protocol.WarnLostCancel,
 				Severity: "high",
 				Line:     c.line,
 				Message:  "context cancel function '" + c.varName + "' not deferred (may leak goroutines)",

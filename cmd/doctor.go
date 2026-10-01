@@ -12,6 +12,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 	"github.com/dkoosis/snipe/internal/util"
@@ -81,11 +82,11 @@ func runDoctor(probe bool) error {
 	cwd, _ := os.Getwd()
 	repoRoot := util.FindProjectRoot(cwd)
 
-	resp := output.Response[DoctorCheck]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[DoctorCheck]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       allOK,
 		Results:  checks,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:  cmdNameDoctor,
 			RepoRoot: repoRoot,
 			Ms:       w.Elapsed(),
@@ -430,15 +431,15 @@ func checkStaleness() DoctorCheck {
 	state := query.CheckIndexState(s.DB(), projectRoot, Version)
 
 	switch state {
-	case output.IndexFresh:
+	case protocol.IndexFresh:
 		check.OK = true
 		check.Message = "index is fresh"
-	case output.IndexStale:
+	case protocol.IndexStale:
 		check.OK = true // Degraded but not broken
 		check.Code = DoctorIndexStale
 		check.Message = "index is stale"
 		check.Remediation = remediationReindex
-	case output.IndexMissing, output.IndexNotUsed:
+	case protocol.IndexMissing, protocol.IndexNotUsed:
 		check.OK = true
 		check.Message = fmt.Sprintf("index state: %s", state)
 	}

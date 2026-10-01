@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -24,8 +25,8 @@ func runChurnMetrics(s *store.Store, dir string, startedAt time.Time) error {
 		by = store.ChurnRankCommits
 	}
 	if !store.ValidChurnRankBy(by) {
-		return output.NewWriter(os.Stdout, GetOutputFormat()).WriteError(cmdNameMetrics, &output.Error{
-			Code:    output.ErrInternal,
+		return output.NewWriter(os.Stdout, GetOutputFormat()).WriteError(cmdNameMetrics, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: fmt.Sprintf("unknown --by %q (want commits|bug|feature|chore|score)", metricsBy),
 		})
 	}
@@ -47,11 +48,11 @@ func runChurnMetrics(s *store.Store, dir string, startedAt time.Time) error {
 	}
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[store.FileChurn]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[store.FileChurn]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results:  rows,
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  cmdNameMetrics,
 				Query:    map[string]string{jsonKeyKind: kindChurn, flagPkg: metricsPkg, "by": string(by)},
 				RepoRoot: dir,

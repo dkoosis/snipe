@@ -6,6 +6,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/metrics"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 var (
@@ -19,8 +20,8 @@ func runCheck() error {
 
 	dir, err := os.Getwd()
 	if err != nil {
-		return w.WriteError("check", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("check", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to get working directory: " + err.Error(),
 		})
 	}
@@ -33,8 +34,8 @@ func runCheck() error {
 
 	reference, err := metrics.LoadBaseline(baselinePath)
 	if err != nil {
-		return w.WriteError("check", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("check", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to load baseline: " + err.Error(),
 		})
 	}
@@ -45,8 +46,8 @@ func runCheck() error {
 		Name: reference.Codebase.Name,
 	})
 	if err != nil {
-		return w.WriteError("check", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("check", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to capture current metrics: " + err.Error(),
 		})
 	}

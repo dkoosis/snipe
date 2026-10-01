@@ -11,7 +11,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // newTestParser builds a kong parser over a fresh CLI for tests. Help/error
@@ -263,12 +263,12 @@ func TestRoot_ApplySelection_ReturnsExpectedWindow_When_SelectModeVaries(t *test
 		selectMode = originalSelectMode
 	})
 
-	results := []output.Result{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}, {ID: "6"}}
+	results := []protocol.Result{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}, {ID: "6"}}
 
 	tests := []struct {
 		name   string
 		mode   string
-		input  []output.Result
+		input  []protocol.Result
 		wantID []string
 	}{
 		{

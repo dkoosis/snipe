@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -37,14 +38,14 @@ func runImporters(args []string) error {
 	}
 
 	if err != nil {
-		return w.WriteError(cmdNameImporters, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameImporters, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	// Convert to results - deduplicate by importing package
-	results := make([]output.Result, 0, len(imports))
+	results := make([]protocol.Result, 0, len(imports))
 	tokenEstimate := 0
 	seenPkg := make(map[string]bool, len(imports))
 
@@ -59,16 +60,16 @@ func runImporters(args []string) error {
 		}
 		seenPkg[pkgKey] = true
 
-		impRange := output.Range{
-			Start: output.Position{Line: imp.Line, Col: imp.Col},
-			End:   output.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
+		impRange := protocol.Range{
+			Start: protocol.Position{Line: imp.Line, Col: imp.Col},
+			End:   protocol.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
 		}
 		// Compute relative path for output
 		filePathRel, _ := filepath.Rel(dir, imp.FilePath)
 		if filePathRel == "" {
 			filePathRel = imp.FilePath
 		}
-		results = append(results, output.Result{
+		results = append(results, protocol.Result{
 			ID:         imp.FilePath + ":" + imp.PkgPath,
 			File:       filePathRel,
 			FileAbs:    imp.FilePath,
@@ -76,35 +77,35 @@ func runImporters(args []string) error {
 			Kind:       "import",
 			Name:       imp.ImporterPkg.String,
 			Match:      "import \"" + imp.PkgPath + "\"",
-			EditTarget: output.FormatEditTargetWithHash(filePathRel, imp.FilePath, impRange),
+			EditTarget: protocol.FormatEditTargetWithHash(filePathRel, imp.FilePath, impRange),
 		})
-		tokenEstimate += output.EstimateTokens(imp.FilePath)
+		tokenEstimate += protocol.EstimateTokens(imp.FilePath)
 	}
 
 	// Score, sort, and apply selection
-	output.ScoreAndSort(results, pkgPath)
+	protocol.ScoreAndSort(results, pkgPath)
 	results = ApplySelection(results)
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	// Recalculate token estimate after truncation
 	tokenEstimate = 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
-	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:       cmdNameImporters,
 			Query:         map[string]string{flagPackage: pkgPath},
 			RepoRoot:      dir,

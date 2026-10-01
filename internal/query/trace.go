@@ -4,14 +4,14 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // TraceRef is one occurrence of a string literal enriched with call context.
 type TraceRef struct {
 	LiteralRef
-	Enclosing *output.Enclosing
-	Callers   []output.CallerPreview
+	Enclosing *protocol.Enclosing
+	Callers   []protocol.CallerPreview
 }
 
 // TraceString finds all occurrences of a string literal and resolves their
@@ -29,7 +29,7 @@ func TraceString(db *sql.DB, value string) ([]TraceRef, error) {
 func EnrichTraceRefs(db *sql.DB, refs []LiteralRef) []TraceRef {
 	type encInfo struct {
 		sym     *SymbolRow
-		callers []output.CallerPreview
+		callers []protocol.CallerPreview
 	}
 	cache := map[string]*encInfo{}
 
@@ -57,7 +57,7 @@ func EnrichTraceRefs(db *sql.DB, refs []LiteralRef) []TraceRef {
 		tr := TraceRef{LiteralRef: *r}
 		if info := resolve(r.EnclosingID); info != nil && info.sym != nil {
 			sym := info.sym
-			enc := &output.Enclosing{
+			enc := &protocol.Enclosing{
 				ID:   sym.ID,
 				Kind: sym.Kind,
 				Name: sym.Name,

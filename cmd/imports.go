@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -38,14 +39,14 @@ func runImports(args []string) error {
 
 	imports, err := query.FindImports(s.DB(), filePath, lim, offset)
 	if err != nil {
-		return w.WriteError(cmdNameImports, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameImports, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	// Convert to results
-	results := make([]output.Result, len(imports))
+	results := make([]protocol.Result, len(imports))
 	tokenEstimate := 0
 
 	for i, imp := range imports {
@@ -54,16 +55,16 @@ func runImports(args []string) error {
 			name = imp.Name.String + " " + imp.PkgPath
 		}
 
-		impRange := output.Range{
-			Start: output.Position{Line: imp.Line, Col: imp.Col},
-			End:   output.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
+		impRange := protocol.Range{
+			Start: protocol.Position{Line: imp.Line, Col: imp.Col},
+			End:   protocol.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
 		}
 		// Compute relative path for output
 		filePathRel, _ := filepath.Rel(dir, imp.FilePath)
 		if filePathRel == "" {
 			filePathRel = imp.FilePath
 		}
-		results[i] = output.Result{
+		results[i] = protocol.Result{
 			ID:         imp.PkgPath,
 			File:       filePathRel,
 			FileAbs:    imp.FilePath,
@@ -71,31 +72,31 @@ func runImports(args []string) error {
 			Kind:       "import",
 			Name:       name,
 			Match:      imp.PkgPath,
-			EditTarget: output.FormatEditTargetWithHash(filePathRel, imp.FilePath, impRange),
+			EditTarget: protocol.FormatEditTargetWithHash(filePathRel, imp.FilePath, impRange),
 		}
-		tokenEstimate += output.EstimateTokens(imp.PkgPath)
+		tokenEstimate += protocol.EstimateTokens(imp.PkgPath)
 	}
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	// Recalculate token estimate after truncation
 	tokenEstimate = 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
-	resp := output.Response[output.Result]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:       cmdNameImports,
 			Query:         map[string]string{flagFile: args[0]},
 			RepoRoot:      dir,

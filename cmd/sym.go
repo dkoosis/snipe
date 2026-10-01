@@ -10,6 +10,7 @@ import (
 
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -28,8 +29,8 @@ func runSym(args []string) error {
 
 	// Need either a symbol name or --at position
 	if len(args) == 0 && symAt == "" {
-		return w.WriteError(cmdNameSym, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameSym, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: errProvideSymbolOrAt,
 		})
 	}
@@ -52,8 +53,8 @@ func runSym(args []string) error {
 		// Resolve position
 		pos, err := query.ParsePosition(symAt)
 		if err != nil {
-			return w.WriteErrorWithMeta(cmdNameSym, symAt, nil, idxState, 0, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteErrorWithMeta(cmdNameSym, symAt, nil, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -65,8 +66,8 @@ func runSym(args []string) error {
 
 		symbolID, err = query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteErrorWithMeta(cmdNameSym, symAt, nil, idxState, 0, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteErrorWithMeta(cmdNameSym, symAt, nil, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: err.Error(),
 			})
 		}
@@ -87,25 +88,25 @@ func runSym(args []string) error {
 			_, lim, off, _, _, _ := GetOutputConfig()
 			symbols, err := query.FindSymbolsInFile(s.DB(), name, lim, off)
 			if err != nil {
-				return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &output.Error{
-					Code:    output.ErrInternal,
+				return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &protocol.Error{
+					Code:    protocol.ErrInternal,
 					Message: err.Error(),
 				})
 			}
 			if len(symbols) > 0 {
-				candidates := make([]output.Candidate, len(symbols))
+				candidates := make([]protocol.Candidate, len(symbols))
 				for i := range symbols {
 					sym := &symbols[i]
 					candidates[i] = sym.ToCandidate()
 				}
-				return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(candidates), &output.Error{
-					Code:       output.ErrFileListing,
+				return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(candidates), &protocol.Error{
+					Code:       protocol.ErrFileListing,
 					Message:    fmt.Sprintf("%s (%d symbols)", name, len(candidates)),
 					Candidates: candidates,
 				})
 			}
-			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: "no symbols found in " + name,
 			})
 		}
@@ -117,8 +118,8 @@ func runSym(args []string) error {
 			if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 				if err != nil {
-					return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &output.Error{
-						Code:    output.ErrInternal,
+					return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &protocol.Error{
+						Code:    protocol.ErrInternal,
 						Message: err.Error(),
 					})
 				}
@@ -127,12 +128,12 @@ func runSym(args []string) error {
 					queryInfo = map[string]string{flagSymbol: symbolPart, flagFile: filePart}
 					goto lookup
 				} else if len(symbols) > 1 {
-					candidates := make([]output.Candidate, len(symbols))
+					candidates := make([]protocol.Candidate, len(symbols))
 					for i := range symbols {
 						s := &symbols[i]
 						candidates[i] = s.ToCandidate()
 					}
-					return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+					return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
 				}
 			}
 		}
@@ -140,8 +141,8 @@ func runSym(args []string) error {
 		// Look up by name
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -150,18 +151,18 @@ func runSym(args []string) error {
 			maxDist := query.DefaultMaxDistance(name)
 			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 			if err != nil {
-				return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, output.NewNotFoundError(name))
+				return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, 0, protocol.NewNotFoundError(name))
 			}
-			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(suggestions), output.NewNotFoundError(name, suggestions...))
+			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(suggestions), protocol.NewNotFoundError(name, suggestions...))
 		}
 
 		if len(symbols) > 1 {
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				s := &symbols[i]
 				candidates[i] = s.ToCandidate()
 			}
-			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+			return w.WriteErrorWithMeta(cmdNameSym, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
@@ -170,18 +171,18 @@ func runSym(args []string) error {
 
 lookup:
 	// Get the symbol details
-	lookupArg := output.Meta{Query: queryInfo}.PrimaryQueryArg()
+	lookupArg := protocol.Meta{Query: queryInfo}.PrimaryQueryArg()
 	sym, err := query.LookupByID(s.DB(), symbolID)
 	if err != nil {
-		return w.WriteErrorWithMeta(cmdNameSym, lookupArg, nil, idxState, 0, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteErrorWithMeta(cmdNameSym, lookupArg, nil, idxState, 0, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	if sym == nil {
-		return w.WriteErrorWithMeta(cmdNameSym, lookupArg, nil, idxState, 0, &output.Error{
-			Code:    output.ErrNotFound,
+		return w.WriteErrorWithMeta(cmdNameSym, lookupArg, nil, idxState, 0, &protocol.Error{
+			Code:    protocol.ErrNotFound,
 			Message: fmt.Sprintf("symbol %s not found", symbolID),
 		})
 	}
@@ -192,13 +193,13 @@ lookup:
 	defResult := sym.ToResultWithHints(s.DB())
 
 	if withBody {
-		if err := output.AddBody(&defResult); err != nil {
+		if err := protocol.AddBody(&defResult); err != nil {
 			degraded = append(degraded, "body_extraction_failed")
 		}
 	}
 
 	if contextLines > 0 && !withBody {
-		if err := output.AddContext(&defResult, contextLines); err != nil {
+		if err := protocol.AddContext(&defResult, contextLines); err != nil {
 			degraded = append(degraded, "context_extraction_failed")
 		}
 	}
@@ -225,7 +226,7 @@ lookup:
 		degraded = append(degraded, "refs_query_failed")
 	}
 
-	refResults := make([]output.Result, 0, len(refs))
+	refResults := make([]protocol.Result, 0, len(refs))
 	nameLen := len(sym.Name)
 	if nameLen == 0 {
 		nameLen = 1
@@ -233,15 +234,15 @@ lookup:
 
 	for i := range refs {
 		ref := &refs[i]
-		refRange := output.Range{
-			Start: output.Position{Line: ref.Line, Col: ref.Col},
-			End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
+		refRange := protocol.Range{
+			Start: protocol.Position{Line: ref.Line, Col: ref.Col},
+			End:   protocol.Position{Line: ref.Line, Col: ref.Col + nameLen},
 		}
 		filePath := ref.FilePathRel
 		if filePath == "" {
 			filePath = ref.FilePath
 		}
-		result := output.Result{
+		result := protocol.Result{
 			ID:         ref.ID,
 			File:       filePath,
 			FileAbs:    ref.FilePath,
@@ -249,11 +250,11 @@ lookup:
 			Kind:       flagRef,
 			Name:       sym.Name,
 			Match:      ref.Snippet,
-			EditTarget: output.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
+			EditTarget: protocol.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
 		}
 
 		if ref.EnclosingID.Valid {
-			result.Enclosing = &output.Enclosing{
+			result.Enclosing = &protocol.Enclosing{
 				ID:        ref.EnclosingID.String,
 				Kind:      ref.EnclosingKind,
 				Name:      ref.EnclosingName,
@@ -277,7 +278,7 @@ lookup:
 		degraded = append(degraded, "callers_query_failed")
 	}
 
-	callerResults := make([]output.Result, 0, len(callerRows))
+	callerResults := make([]protocol.Result, 0, len(callerRows))
 	for i := range callerRows {
 		call := &callerRows[i]
 		callerResults = append(callerResults, call.ToCallerResult())
@@ -296,7 +297,7 @@ lookup:
 		degraded = append(degraded, "callees_query_failed")
 	}
 
-	calleeResults := make([]output.Result, 0, len(calleeRows))
+	calleeResults := make([]protocol.Result, 0, len(calleeRows))
 	for i := range calleeRows {
 		call := &calleeRows[i]
 		calleeResults = append(calleeResults, call.ToCalleeResult())
@@ -313,7 +314,7 @@ lookup:
 	degraded = uniqueStrings(degraded)
 
 	// Build combined response
-	symResp := output.SymResult{
+	symResp := protocol.SymResult{
 		Definition:  &defResult,
 		References:  refResults,
 		Callers:     callerResults,
@@ -324,30 +325,30 @@ lookup:
 	}
 
 	// Estimate tokens
-	tokenEstimate := output.EstimateResultTokens(&defResult)
+	tokenEstimate := protocol.EstimateResultTokens(&defResult)
 	for i := range refResults {
-		tokenEstimate += output.EstimateResultTokens(&refResults[i])
+		tokenEstimate += protocol.EstimateResultTokens(&refResults[i])
 	}
 	for i := range callerResults {
-		tokenEstimate += output.EstimateResultTokens(&callerResults[i])
+		tokenEstimate += protocol.EstimateResultTokens(&callerResults[i])
 	}
 	for i := range calleeResults {
-		tokenEstimate += output.EstimateResultTokens(&calleeResults[i])
+		tokenEstimate += protocol.EstimateResultTokens(&calleeResults[i])
 	}
 
 	// Collect all results for staleness check
-	var allResults []output.Result
+	var allResults []protocol.Result
 	allResults = append(allResults, defResult)
 	allResults = append(allResults, refResults...)
 	allResults = append(allResults, callerResults...)
 	allResults = append(allResults, calleeResults...)
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, allResults)
 
-	resp := output.Response[output.SymResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.SymResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.SymResult{symResp},
-		Meta: output.Meta{
+		Results:  []protocol.SymResult{symResp},
+		Meta: protocol.Meta{
 			Command:       cmdNameSym,
 			Query:         queryInfo,
 			RepoRoot:      dir,

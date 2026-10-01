@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -24,8 +25,8 @@ func runCallers(args []string) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && callersID == "" {
-		return w.WriteError(cmdNameCallers, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameCallers, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "provide a symbol name or --id",
 		})
 	}
@@ -57,23 +58,23 @@ func runCallers(args []string) error {
 
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameCallers, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameCallers, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError(cmdNameCallers, output.NewNotFoundError(name))
+			return w.WriteError(cmdNameCallers, protocol.NewNotFoundError(name))
 		}
 
 		if len(symbols) > 1 {
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				sym := &symbols[i]
 				candidates[i] = sym.ToCandidate()
 			}
-			return w.WriteError(cmdNameCallers, output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameCallers, protocol.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
@@ -90,14 +91,14 @@ findCallers:
 	// Find callers
 	calls, err := query.FindCallers(s.DB(), symbolID, lim, off)
 	if err != nil {
-		return w.WriteError(cmdNameCallers, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameCallers, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	// Convert to results - show the caller functions, deduplicated by caller ID
-	results := make([]output.Result, 0, len(calls))
+	results := make([]protocol.Result, 0, len(calls))
 	tokenEstimate := 0
 	var degraded []string
 
@@ -130,7 +131,7 @@ findCallers:
 		if withBody {
 			if callerSym, ok := callerSymbols[call.CallerID]; ok && callerSym != nil {
 				callerResult := callerSym.ToResult()
-				if err := output.AddBody(&callerResult); err != nil {
+				if err := protocol.AddBody(&callerResult); err != nil {
 					degraded = append(degraded, "body_extraction_failed")
 				}
 				result.Body = callerResult.Body
@@ -138,15 +139,15 @@ findCallers:
 		}
 
 		if contextLines > 0 && !withBody {
-			if err := output.AddContext(&result, contextLines); err != nil {
+			if err := protocol.AddContext(&result, contextLines); err != nil {
 				degraded = append(degraded, "context_extraction_failed")
 			}
 		}
 
 		results = append(results, result)
-		tokenEstimate += output.EstimateTokens(call.CallerSignature.String)
+		tokenEstimate += protocol.EstimateTokens(call.CallerSignature.String)
 		if result.Body != "" {
-			tokenEstimate += output.EstimateTokens(result.Body)
+			tokenEstimate += protocol.EstimateTokens(result.Body)
 		}
 	}
 
@@ -154,26 +155,26 @@ findCallers:
 	degraded = uniqueStrings(degraded)
 
 	// Score, sort, and apply selection
-	output.ScoreAndSort(results, symName)
+	protocol.ScoreAndSort(results, symName)
 	results = ApplySelection(results)
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
 	// If summary mode, return condensed output
 	if summary {
-		summaryData := output.BuildSummary(results)
-		summaryResp := output.Response[output.Summary]{
-			Protocol: output.ProtocolVersion,
+		summaryData := protocol.BuildSummary(results)
+		summaryResp := protocol.Response[protocol.Summary]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
-			Results:  []output.Summary{summaryData},
-			Meta: output.Meta{
+			Results:  []protocol.Summary{summaryData},
+			Meta: protocol.Meta{
 				Command:    cmdNameCallers,
 				Query:      queryInfo,
 				RepoRoot:   dir,
@@ -193,15 +194,15 @@ findCallers:
 	// Recalculate token estimate after truncation
 	tokenEstimate = 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
 		Results:     results,
-		Suggestions: output.SuggestionsForCallers(symName, len(results)),
-		Meta: output.Meta{
+		Suggestions: protocol.SuggestionsForCallers(symName, len(results)),
+		Meta: protocol.Meta{
 			Command:       cmdNameCallers,
 			Query:         queryInfo,
 			RepoRoot:      dir,

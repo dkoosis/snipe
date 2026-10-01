@@ -8,6 +8,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/metrics"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 var (
@@ -20,8 +21,8 @@ func runBaseline() error {
 
 	dir, err := os.Getwd()
 	if err != nil {
-		return w.WriteError("baseline", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("baseline", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to get working directory: " + err.Error(),
 		})
 	}
@@ -37,8 +38,8 @@ func runBaseline() error {
 		Name: name,
 	})
 	if err != nil {
-		return w.WriteError("baseline", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("baseline", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to capture baseline: " + err.Error(),
 		})
 	}
@@ -46,8 +47,8 @@ func runBaseline() error {
 	// Output JSON
 	jsonData, err := baseline.ToJSON()
 	if err != nil {
-		return w.WriteError("baseline", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("baseline", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to serialize baseline: " + err.Error(),
 		})
 	}
@@ -69,8 +70,8 @@ func runBaseline() error {
 	}
 
 	if err := atomicfile.WriteFile(writeTarget, jsonData, 0600); err != nil {
-		return w.WriteError("baseline", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("baseline", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "failed to write baseline file: " + err.Error(),
 		})
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -189,7 +190,7 @@ func hasFileTests(db *sql.DB, rel string) (bool, error) {
 	isTestFile := strings.HasSuffix(rel, "_test.go")
 	ids := make([]string, 0, len(syms))
 	for _, s := range syms {
-		if isTestFile && (s.kind == output.KindFunc || s.kind == output.KindMethod) &&
+		if isTestFile && (s.kind == protocol.KindFunc || s.kind == protocol.KindMethod) &&
 			verifyIsTestFuncName(s.name) {
 			return true, nil
 		}

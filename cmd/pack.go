@@ -12,6 +12,7 @@ import (
 
 	ctxpkg "github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -39,8 +40,8 @@ func runPack(args []string) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && packAt == "" {
-		return w.WriteError(cmdNamePack, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNamePack, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: errProvideSymbolOrAt,
 		})
 	}
@@ -91,8 +92,8 @@ func runPack(args []string) error {
 
 	packResult, degraded, allResults, err := buildPackForSymbol(s, symbolID, opts)
 	if err != nil {
-		return w.WriteErrorWithMeta(cmdNamePack, output.Meta{Query: queryInfo}.PrimaryQueryArg(), nil, idxState, 0, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteErrorWithMeta(cmdNamePack, protocol.Meta{Query: queryInfo}.PrimaryQueryArg(), nil, idxState, 0, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
@@ -100,12 +101,12 @@ func runPack(args []string) error {
 	tokenEstimate := estimatePackTokens(packResult)
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, allResults)
 
-	resp := output.Response[output.PackResult]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.PackResult]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
-		Results:     []output.PackResult{packResult},
-		Suggestions: output.SuggestionsForPack(packResult.Definition),
-		Meta: output.Meta{
+		Results:     []protocol.PackResult{packResult},
+		Suggestions: protocol.SuggestionsForPack(packResult.Definition),
+		Meta: protocol.Meta{
 			Command:       cmdNamePack,
 			Query:         queryInfo,
 			RepoRoot:      dir,
@@ -129,23 +130,23 @@ func runPackMulti(w *output.Writer, s *store.Store, dir string, args []string, o
 	ids := make([]string, 0, len(args))
 	for _, arg := range args {
 		if len(arg) != 16 {
-			return w.WriteErrorWithMeta(cmdNamePack, arg, nil, idxState, 0, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteErrorWithMeta(cmdNamePack, arg, nil, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: fmt.Sprintf("multi-ID mode requires 16-char hex IDs, got %q", arg),
 			})
 		}
 		if _, err := hex.DecodeString(arg); err != nil {
-			return w.WriteErrorWithMeta(cmdNamePack, arg, nil, idxState, 0, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteErrorWithMeta(cmdNamePack, arg, nil, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: fmt.Sprintf("invalid hex ID %q", arg),
 			})
 		}
 		ids = append(ids, arg)
 	}
 
-	var allPackResults []output.PackResult
+	var allPackResults []protocol.PackResult
 	var allDegraded []string
-	var allResultsForStale []output.Result
+	var allResultsForStale []protocol.Result
 	tokenEstimate := 0
 
 	for _, id := range ids {
@@ -165,11 +166,11 @@ func runPackMulti(w *output.Writer, s *store.Store, dir string, args []string, o
 
 	queryInfo := map[string]string{"ids": strings.Join(ids, ",")}
 
-	resp := output.Response[output.PackResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.PackResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  allPackResults,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:       cmdNamePack,
 			Query:         queryInfo,
 			RepoRoot:      dir,
@@ -194,12 +195,12 @@ type packOpts struct {
 
 // resolvePackSymbol resolves args/--at into a symbol ID. idxState is threaded
 // through purely for usage.jsonl enrichment on the error path (sn-r1do.1).
-func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []string, at string, idxState output.IndexState) (string, map[string]string, error) {
+func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []string, at string, idxState protocol.IndexState) (string, map[string]string, error) {
 	if at != "" {
 		pos, err := query.ParsePosition(at)
 		if err != nil {
-			w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &output.Error{
-				Code:    output.ErrInternal,
+			w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 			return "", nil, errPackResolveFailed
@@ -209,8 +210,8 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		}
 		symbolID, err := query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &output.Error{
-				Code:    output.ErrNotFound,
+			w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: err.Error(),
 			})
 			return "", nil, errPackResolveFailed
@@ -234,8 +235,8 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 			symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 			if err != nil {
-				w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &output.Error{
-					Code:    output.ErrInternal,
+				w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &protocol.Error{
+					Code:    protocol.ErrInternal,
 					Message: err.Error(),
 				})
 				return "", nil, errPackResolveFailed
@@ -244,12 +245,12 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 				return symbols[0].ID, map[string]string{flagSymbol: symbolPart, flagFile: filePart}, nil
 			}
 			if len(symbols) > 1 {
-				candidates := make([]output.Candidate, len(symbols))
+				candidates := make([]protocol.Candidate, len(symbols))
 				for i := range symbols {
 					sym := &symbols[i]
 					candidates[i] = sym.ToCandidate()
 				}
-				w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+				w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
 				return "", nil, errPackResolveFailed
 			}
 		}
@@ -258,8 +259,8 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 	// Look up by name
 	symbols, err := query.LookupByName(s.DB(), name)
 	if err != nil {
-		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &output.Error{
-			Code:    output.ErrInternal,
+		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 		return "", nil, errPackResolveFailed
@@ -269,20 +270,20 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		maxDist := query.DefaultMaxDistance(name)
 		suggestions, sErr := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 		if sErr != nil {
-			w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, output.NewNotFoundError(name))
+			w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, protocol.NewNotFoundError(name))
 			return "", nil, errPackResolveFailed
 		}
-		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(suggestions), output.NewNotFoundError(name, suggestions...))
+		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(suggestions), protocol.NewNotFoundError(name, suggestions...))
 		return "", nil, errPackResolveFailed
 	}
 
 	if len(symbols) > 1 {
-		candidates := make([]output.Candidate, len(symbols))
+		candidates := make([]protocol.Candidate, len(symbols))
 		for i := range symbols {
 			sym := &symbols[i]
 			candidates[i] = sym.ToCandidate()
 		}
-		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), output.NewAmbiguousError(name, candidates))
+		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
 		return "", nil, errPackResolveFailed
 	}
 
@@ -291,28 +292,28 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 
 // buildPackForSymbol builds a full PackResult for a single symbol ID.
 // Returns the pack result, degraded warnings, all inner results (for staleness), and any error.
-func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (output.PackResult, []string, []output.Result, error) {
+func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (protocol.PackResult, []string, []protocol.Result, error) {
 	db := s.DB()
 	var degraded []string
 
 	sym, err := query.LookupByID(db, symbolID)
 	if err != nil {
-		return output.PackResult{}, nil, nil, err
+		return protocol.PackResult{}, nil, nil, err
 	}
 	if sym == nil {
-		return output.PackResult{}, nil, nil, fmt.Errorf("symbol %s not found", symbolID)
+		return protocol.PackResult{}, nil, nil, fmt.Errorf("symbol %s not found", symbolID)
 	}
 
 	// Build definition result
 	defResult := sym.ToResultWithHints(db)
 
 	if opts.withBody {
-		if err := output.AddBody(&defResult); err != nil {
+		if err := protocol.AddBody(&defResult); err != nil {
 			degraded = append(degraded, "body_extraction_failed")
 		}
 	}
 	if opts.contextLines > 0 && !opts.withBody {
-		if err := output.AddContext(&defResult, opts.contextLines); err != nil {
+		if err := protocol.AddContext(&defResult, opts.contextLines); err != nil {
 			degraded = append(degraded, "context_extraction_failed")
 		}
 	}
@@ -325,7 +326,7 @@ func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (output.
 		}
 	}
 
-	defResult.Score = output.ScoreResult(&defResult, sym.Name)
+	defResult.Score = protocol.ScoreResult(&defResult, sym.Name)
 
 	// Infer role
 	role := ctxpkg.InferRoleForSymbol(db, sym.ID, sym.Name, sym.Kind,
@@ -348,10 +349,10 @@ func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (output.
 	}
 
 	// Build callers/callees — branch on symbol kind
-	var callerResults, calleeResults []output.Result
+	var callerResults, calleeResults []protocol.Result
 	var callerDegraded, calleeDegraded []string
 	var callerCount, calleeCount int
-	var methods []output.MethodSummary
+	var methods []protocol.MethodSummary
 
 	isType := isTypeKind(sym.Kind)
 	if isType {
@@ -361,7 +362,7 @@ func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (output.
 			degraded = append(degraded, "methods_query_failed")
 		}
 		for _, m := range methodInfos {
-			methods = append(methods, output.MethodSummary{
+			methods = append(methods, protocol.MethodSummary{
 				ID:        m.ID,
 				Name:      m.Name,
 				Signature: m.Signature,
@@ -411,7 +412,7 @@ func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (output.
 	relatedTypes := extractRelatedTypes(sym.Signature.String)
 	degraded = uniqueStrings(degraded)
 
-	packResult := output.PackResult{
+	packResult := protocol.PackResult{
 		Definition:   &defResult,
 		References:   refResults,
 		Callers:      callerResults,
@@ -426,7 +427,7 @@ func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (output.
 	}
 
 	// Collect all results for staleness check
-	var allResults []output.Result
+	var allResults []protocol.Result
 	allResults = append(allResults, defResult)
 	allResults = append(allResults, refResults...)
 	allResults = append(allResults, callerResults...)
@@ -435,7 +436,7 @@ func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (output.
 	return packResult, degraded, allResults, nil
 }
 
-func buildRefResults(db *sql.DB, symbolID, symName string) ([]output.Result, []string) {
+func buildRefResults(db *sql.DB, symbolID, symName string) ([]protocol.Result, []string) {
 	var degraded []string
 	refs, err := query.FindRefs(db, symbolID, packRefsLimit, 0)
 	if err != nil {
@@ -447,18 +448,18 @@ func buildRefResults(db *sql.DB, symbolID, symName string) ([]output.Result, []s
 		nameLen = 1
 	}
 
-	results := make([]output.Result, 0, len(refs))
+	results := make([]protocol.Result, 0, len(refs))
 	for i := range refs {
 		ref := &refs[i]
-		refRange := output.Range{
-			Start: output.Position{Line: ref.Line, Col: ref.Col},
-			End:   output.Position{Line: ref.Line, Col: ref.Col + nameLen},
+		refRange := protocol.Range{
+			Start: protocol.Position{Line: ref.Line, Col: ref.Col},
+			End:   protocol.Position{Line: ref.Line, Col: ref.Col + nameLen},
 		}
 		filePath := ref.FilePathRel
 		if filePath == "" {
 			filePath = ref.FilePath
 		}
-		result := output.Result{
+		result := protocol.Result{
 			ID:         ref.ID,
 			File:       filePath,
 			FileAbs:    ref.FilePath,
@@ -466,10 +467,10 @@ func buildRefResults(db *sql.DB, symbolID, symName string) ([]output.Result, []s
 			Kind:       flagRef,
 			Name:       symName,
 			Match:      ref.Snippet,
-			EditTarget: output.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
+			EditTarget: protocol.FormatEditTargetWithHash(filePath, ref.FilePath, refRange),
 		}
 		if ref.EnclosingID.Valid {
-			result.Enclosing = &output.Enclosing{
+			result.Enclosing = &protocol.Enclosing{
 				ID:        ref.EnclosingID.String,
 				Kind:      ref.EnclosingKind,
 				Name:      ref.EnclosingName,
@@ -486,16 +487,16 @@ func buildRefResults(db *sql.DB, symbolID, symName string) ([]output.Result, []s
 // queryFn fetches the rows; toResult converts each row to an output.Result.
 func buildCallRowResults(
 	queryFn func() ([]query.CallRow, error),
-	toResult func(*query.CallRow) output.Result,
+	toResult func(*query.CallRow) protocol.Result,
 	degradedLabel string,
-) ([]output.Result, []string) {
+) ([]protocol.Result, []string) {
 	var degraded []string
 	rows, err := queryFn()
 	if err != nil {
 		degraded = append(degraded, degradedLabel)
 	}
 
-	results := make([]output.Result, 0, len(rows))
+	results := make([]protocol.Result, 0, len(rows))
 	for i := range rows {
 		results = append(results, toResult(&rows[i]))
 	}
@@ -503,19 +504,19 @@ func buildCallRowResults(
 	return results, degraded
 }
 
-func estimatePackTokens(pr output.PackResult) int {
+func estimatePackTokens(pr protocol.PackResult) int {
 	estimate := 0
 	if pr.Definition != nil {
-		estimate += output.EstimateResultTokens(pr.Definition)
+		estimate += protocol.EstimateResultTokens(pr.Definition)
 	}
 	for i := range pr.References {
-		estimate += output.EstimateResultTokens(&pr.References[i])
+		estimate += protocol.EstimateResultTokens(&pr.References[i])
 	}
 	for i := range pr.Callers {
-		estimate += output.EstimateResultTokens(&pr.Callers[i])
+		estimate += protocol.EstimateResultTokens(&pr.Callers[i])
 	}
 	for i := range pr.Callees {
-		estimate += output.EstimateResultTokens(&pr.Callees[i])
+		estimate += protocol.EstimateResultTokens(&pr.Callees[i])
 	}
 	return estimate
 }

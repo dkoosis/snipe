@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -24,8 +25,8 @@ func runCallees(args []string) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if len(args) == 0 && calleesID == "" {
-		return w.WriteError(cmdNameCallees, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameCallees, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "provide a symbol name or --id",
 		})
 	}
@@ -57,22 +58,22 @@ func runCallees(args []string) error {
 
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameCallees, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameCallees, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError(cmdNameCallees, output.NewNotFoundError(name))
+			return w.WriteError(cmdNameCallees, protocol.NewNotFoundError(name))
 		}
 
 		if len(symbols) > 1 {
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				candidates[i] = symbols[i].ToCandidate()
 			}
-			return w.WriteError(cmdNameCallees, output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameCallees, protocol.NewAmbiguousError(name, candidates))
 		}
 
 		symbolID = symbols[0].ID
@@ -89,14 +90,14 @@ findCallees:
 	// Find callees
 	calls, err := query.FindCallees(s.DB(), symbolID, lim, off)
 	if err != nil {
-		return w.WriteError(cmdNameCallees, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameCallees, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
 	// Convert to results - callee function definitions, deduplicated by callee ID
-	results := make([]output.Result, 0, len(calls))
+	results := make([]protocol.Result, 0, len(calls))
 	tokenEstimate := 0
 	var degraded []string
 
@@ -128,7 +129,7 @@ findCallees:
 		if withBody {
 			if calleeSym, ok := calleeSymbols[call.CalleeID]; ok && calleeSym != nil {
 				calleeResult := calleeSym.ToResult()
-				if err := output.AddBody(&calleeResult); err != nil {
+				if err := protocol.AddBody(&calleeResult); err != nil {
 					degraded = append(degraded, "body_extraction_failed")
 				}
 				result.Body = calleeResult.Body
@@ -136,15 +137,15 @@ findCallees:
 		}
 
 		if contextLines > 0 && !withBody {
-			if err := output.AddContext(&result, contextLines); err != nil {
+			if err := protocol.AddContext(&result, contextLines); err != nil {
 				degraded = append(degraded, "context_extraction_failed")
 			}
 		}
 
 		results = append(results, result)
-		tokenEstimate += output.EstimateTokens(call.CalleeSignature.String)
+		tokenEstimate += protocol.EstimateTokens(call.CalleeSignature.String)
 		if result.Body != "" {
-			tokenEstimate += output.EstimateTokens(result.Body)
+			tokenEstimate += protocol.EstimateTokens(result.Body)
 		}
 	}
 
@@ -152,26 +153,26 @@ findCallees:
 	degraded = uniqueStrings(degraded)
 
 	// Score, sort, and apply selection
-	output.ScoreAndSort(results, symName)
+	protocol.ScoreAndSort(results, symName)
 	results = ApplySelection(results)
 
 	// Apply token budget truncation if specified
 	maxTok := GetMaxTokens()
 	tokenTruncated := false
 	if maxTok > 0 {
-		results, tokenTruncated = output.TruncateToTokenBudget(results, maxTok)
+		results, tokenTruncated = protocol.TruncateToTokenBudget(results, maxTok)
 	}
 
 	staleFiles := query.CheckFileStaleness(s.DB(), dir, results)
 
 	// If summary mode, return condensed output
 	if summary {
-		summaryData := output.BuildSummary(results)
-		summaryResp := output.Response[output.Summary]{
-			Protocol: output.ProtocolVersion,
+		summaryData := protocol.BuildSummary(results)
+		summaryResp := protocol.Response[protocol.Summary]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
-			Results:  []output.Summary{summaryData},
-			Meta: output.Meta{
+			Results:  []protocol.Summary{summaryData},
+			Meta: protocol.Meta{
 				Command:    cmdNameCallees,
 				Query:      queryInfo,
 				RepoRoot:   dir,
@@ -191,15 +192,15 @@ findCallees:
 	// Recalculate token estimate after truncation
 	tokenEstimate = 0
 	for i := range results {
-		tokenEstimate += output.EstimateResultTokens(&results[i])
+		tokenEstimate += protocol.EstimateResultTokens(&results[i])
 	}
 
-	resp := output.Response[output.Result]{
-		Protocol:    output.ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol:    protocol.ProtocolVersion,
 		Ok:          true,
 		Results:     results,
-		Suggestions: output.SuggestionsForCallees(symName, len(results)),
-		Meta: output.Meta{
+		Suggestions: protocol.SuggestionsForCallees(symName, len(results)),
+		Meta: protocol.Meta{
 			Command:       cmdNameCallees,
 			Query:         queryInfo,
 			RepoRoot:      dir,

@@ -7,15 +7,15 @@ import (
 
 	"github.com/invopop/jsonschema"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // schemaResponse is the concrete type for schema generation
 // (since Response[T] is generic, we need a concrete instantiation)
 type schemaResponse struct {
-	Results []output.Result `json:"results"`
-	Meta    output.Meta     `json:"meta"`
-	Error   *output.Error   `json:"error"`
+	Results []protocol.Result `json:"results"`
+	Meta    protocol.Meta     `json:"meta"`
+	Error   *protocol.Error   `json:"error"`
 }
 
 func runSchema(args []string) error {
@@ -35,15 +35,15 @@ func runSchema(args []string) error {
 		schema.Title = "SnipeResponse"
 		schema.Description = "Top-level response for all snipe commands"
 	case "result":
-		schema = reflector.Reflect(&output.Result{})
+		schema = reflector.Reflect(&protocol.Result{})
 		schema.Title = "SnipeResult"
 		schema.Description = "Individual navigation result"
 	case "meta":
-		schema = reflector.Reflect(&output.Meta{})
+		schema = reflector.Reflect(&protocol.Meta{})
 		schema.Title = "SnipeMeta"
 		schema.Description = "Response metadata"
 	case cmdKindError:
-		schema = reflector.Reflect(&output.Error{})
+		schema = reflector.Reflect(&protocol.Error{})
 		schema.Title = "SnipeError"
 		schema.Description = "Error response structure"
 	default:

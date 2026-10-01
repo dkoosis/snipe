@@ -11,27 +11,27 @@ import (
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/analyze"
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // ExplainOptions controls explain analysis depth.
 type ExplainOptions struct {
-	Mode         output.ExplainMode
-	WarningsMode output.WarningsMode
+	Mode         protocol.ExplainMode
+	WarningsMode protocol.WarningsMode
 	MaxCallers   int // Cap on callers to analyze (0 = use mode default)
 }
 
 // DefaultExplainOptions returns sensible defaults.
 func DefaultExplainOptions() ExplainOptions {
 	return ExplainOptions{
-		Mode:         output.ExplainNormal,
-		WarningsMode: output.WarningsFast,
+		Mode:         protocol.ExplainNormal,
+		WarningsMode: protocol.WarningsFast,
 		MaxCallers:   10,
 	}
 }
 
 // Explain generates a structured explanation for a symbol.
-func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*output.ExplainResult, error) {
+func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*protocol.ExplainResult, error) {
 	// Look up the symbol
 	sym, err := LookupByID(db, symbolID)
 	if err != nil {
@@ -46,7 +46,7 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*output.ExplainR
 		return nil, fmt.Errorf("explain only supports func/method, got %s", sym.Kind)
 	}
 
-	result := &output.ExplainResult{
+	result := &protocol.ExplainResult{
 		Symbol:    sym.Name,
 		File:      fmt.Sprintf("%s:%d", sym.FilePathRel, sym.LineStart),
 		Kind:      sym.Kind,
@@ -89,13 +89,13 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*output.ExplainR
 	result.DocStatus = analyze.CheckDocStatus(funcDecl, sym.Doc.String)
 
 	// Run warning analysis based on mode
-	if opts.WarningsMode != output.WarningsNone {
+	if opts.WarningsMode != protocol.WarningsNone {
 		analyzer := analyze.NewAnalyzer(fset, src, opts.WarningsMode)
 		result.Warnings = analyzer.AnalyzeFunc(funcDecl)
 	}
 
 	// Extract mechanism (callees with action mapping)
-	if opts.Mode != output.ExplainBrief {
+	if opts.Mode != protocol.ExplainBrief {
 		mechanism, keyDeps, mechErr := extractMechanism(db, sym, funcDecl, fset, opts.Mode)
 		if mechErr != nil {
 			return nil, fmt.Errorf("extract mechanism: %w", mechErr)
@@ -108,11 +108,11 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*output.ExplainR
 	callerLimit := opts.MaxCallers
 	if callerLimit == 0 {
 		switch opts.Mode {
-		case output.ExplainBrief:
+		case protocol.ExplainBrief:
 			callerLimit = 3
-		case output.ExplainNormal:
+		case protocol.ExplainNormal:
 			callerLimit = 10
-		case output.ExplainDeep:
+		case protocol.ExplainDeep:
 			callerLimit = 50
 		}
 	}
@@ -127,10 +127,10 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*output.ExplainR
 }
 
 // extractMechanism builds mechanism steps from callees.
-func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.FileSet, mode output.ExplainMode) ([]output.MechanismStep, []string, error) {
+func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.FileSet, mode protocol.ExplainMode) ([]protocol.MechanismStep, []string, error) {
 	// Get callees from the call graph
 	limit := 20
-	if mode == output.ExplainDeep {
+	if mode == protocol.ExplainDeep {
 		limit = 50
 	}
 
@@ -139,7 +139,7 @@ func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.File
 		return nil, nil, err
 	}
 
-	var steps []output.MechanismStep
+	var steps []protocol.MechanismStep
 	depSet := make(map[string]struct{})
 	seen := make(map[string]struct{})
 
@@ -151,7 +151,7 @@ func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.File
 		seen[callee.CalleeName] = struct{}{}
 
 		action := inferAction(callee.CalleeName)
-		step := output.MechanismStep{
+		step := protocol.MechanismStep{
 			Action: action,
 			Target: callee.CalleeName,
 			Line:   callee.CallLine,
@@ -315,7 +315,7 @@ var goBuiltins = map[string]bool{
 func isBuiltin(s string) bool { return goBuiltins[s] }
 
 // buildCallerContext summarizes caller patterns.
-func buildCallerContext(db *sql.DB, symbolID string, limit int) (*output.CallerContext, error) {
+func buildCallerContext(db *sql.DB, symbolID string, limit int) (*protocol.CallerContext, error) {
 	// Get total count
 	var count int
 	err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE callee_id = ?`, symbolID).Scan(&count)
@@ -333,7 +333,7 @@ func buildCallerContext(db *sql.DB, symbolID string, limit int) (*output.CallerC
 		return nil, err
 	}
 
-	ctx := &output.CallerContext{
+	ctx := &protocol.CallerContext{
 		Count: count,
 	}
 

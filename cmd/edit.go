@@ -12,6 +12,7 @@ import (
 
 	"github.com/dkoosis/snipe/internal/edit"
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -20,9 +21,9 @@ import (
 // Claude (D1) must see a recoverable lookup miss, not an INTERNAL_ERROR crash.
 func editErrCode(err error) string {
 	if errors.Is(err, edit.ErrSymbolNotFound) {
-		return output.ErrNotFound
+		return protocol.ErrNotFound
 	}
-	return output.ErrInternal
+	return protocol.ErrInternal
 }
 
 var (
@@ -68,15 +69,15 @@ func runEdit(args []string) error {
 
 	// Single edit mode - need symbol name or --at position
 	if len(args) == 0 && editAt == "" {
-		return w.WriteError(cmdNameEdit, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameEdit, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: errProvideSymbolOrAt,
 		})
 	}
 
 	if editOperation == "" {
-		return w.WriteError(cmdNameEdit, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameEdit, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "provide --operation: replace_body, replace_full, insert_after, insert_before",
 		})
 	}
@@ -86,8 +87,8 @@ func runEdit(args []string) error {
 	if editNewCodeFile != "" {
 		data, err := os.ReadFile(editNewCodeFile) // #nosec G304 -- CLI tool accepts user-specified file paths
 		if err != nil {
-			return w.WriteError(cmdNameEdit, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameEdit, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: "read new-code-file: " + err.Error(),
 			})
 		}
@@ -95,8 +96,8 @@ func runEdit(args []string) error {
 	}
 
 	if newCode == "" {
-		return w.WriteError(cmdNameEdit, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameEdit, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "provide --new-code or --new-code-file",
 		})
 	}
@@ -116,8 +117,8 @@ func runEdit(args []string) error {
 	if editAt != "" {
 		pos, err := query.ParsePosition(editAt)
 		if err != nil {
-			return w.WriteError(cmdNameEdit, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameEdit, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
@@ -129,16 +130,16 @@ func runEdit(args []string) error {
 
 		symbolID, err := query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			return w.WriteError(cmdNameEdit, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError(cmdNameEdit, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: err.Error(),
 			})
 		}
 
 		sym, err := query.LookupByID(s.DB(), symbolID)
 		if err != nil || sym == nil {
-			return w.WriteError(cmdNameEdit, &output.Error{
-				Code:    output.ErrNotFound,
+			return w.WriteError(cmdNameEdit, &protocol.Error{
+				Code:    protocol.ErrNotFound,
 				Message: "symbol not found at position",
 			})
 		}
@@ -157,8 +158,8 @@ func runEdit(args []string) error {
 			if _, err := hex.DecodeString(name); err == nil {
 				sym, err := query.LookupByID(s.DB(), name)
 				if err != nil || sym == nil {
-					return w.WriteError(cmdNameEdit, &output.Error{
-						Code:    output.ErrNotFound,
+					return w.WriteError(cmdNameEdit, &protocol.Error{
+						Code:    protocol.ErrNotFound,
 						Message: "symbol not found: " + name,
 					})
 				}
@@ -185,22 +186,22 @@ func runEdit(args []string) error {
 		// Regular name lookup
 		symbols, err := query.LookupByName(s.DB(), name)
 		if err != nil {
-			return w.WriteError(cmdNameEdit, &output.Error{
-				Code:    output.ErrInternal,
+			return w.WriteError(cmdNameEdit, &protocol.Error{
+				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
 		}
 
 		if len(symbols) == 0 {
-			return w.WriteError(cmdNameEdit, output.NewNotFoundError(name))
+			return w.WriteError(cmdNameEdit, protocol.NewNotFoundError(name))
 		}
 
 		if len(symbols) > 1 {
-			candidates := make([]output.Candidate, len(symbols))
+			candidates := make([]protocol.Candidate, len(symbols))
 			for i := range symbols {
 				candidates[i] = symbols[i].ToCandidate()
 			}
-			return w.WriteError(cmdNameEdit, output.NewAmbiguousError(name, candidates))
+			return w.WriteError(cmdNameEdit, protocol.NewAmbiguousError(name, candidates))
 		}
 
 		filePath = symbols[0].FilePath
@@ -235,7 +236,7 @@ doEdit:
 	var durabilityWarn []string
 	if err != nil {
 		if !errors.Is(err, edit.ErrAppliedNotDurable) {
-			return w.WriteError(cmdNameEdit, &output.Error{
+			return w.WriteError(cmdNameEdit, &protocol.Error{
 				Code:    editErrCode(err),
 				Message: err.Error(),
 			})
@@ -262,11 +263,11 @@ doEdit:
 		Applied:      result.Applied,
 	}
 
-	resp := output.Response[EditResponse]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[EditResponse]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  []EditResponse{editResp},
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:  cmdNameEdit,
 			Query:    map[string]string{flagSymbol: symbolName, "operation": editOperation},
 			RepoRoot: dir,
@@ -285,15 +286,15 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 	dec := json.NewDecoder(os.Stdin)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&requests); err != nil {
-		return w.WriteError(cmdNameEdit, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameEdit, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "parse batch input: " + err.Error(),
 		})
 	}
 
 	if len(requests) == 0 {
-		return w.WriteError(cmdNameEdit, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameEdit, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "no operations in batch",
 		})
 	}
@@ -386,11 +387,11 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 		})
 	}
 
-	resp := output.Response[EditResponse]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[EditResponse]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:  cmdNameEdit,
 			Query:    map[string]string{"mode": "batch"},
 			RepoRoot: dir,
@@ -406,7 +407,7 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 // emitEdit renders edit results. Default (Claude) surface is a terse status
 // line per edit plus the unified diff; --format json emits the full envelope
 // (D1). Dry-run vs applied is stated explicitly.
-func emitEdit(w *output.Writer, resp output.Response[EditResponse]) error {
+func emitEdit(w *output.Writer, resp protocol.Response[EditResponse]) error {
 	if GetOutputFormat() == output.OutputJSON {
 		return w.WriteResponse(resp)
 	}

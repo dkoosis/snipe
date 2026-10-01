@@ -11,6 +11,7 @@ import (
 	"github.com/dkoosis/atomicfile"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -66,8 +67,8 @@ func runReport() error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
 	if !reportEmitShell {
-		return w.WriteError(cmdNameReport, &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError(cmdNameReport, &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "v1 only supports --emit-shell (native visuals + D2 manifest); no other mode exists yet",
 		})
 	}
@@ -80,7 +81,7 @@ func runReport() error {
 
 	rows, _, err := loadHotspotRows(s)
 	if err != nil {
-		return w.WriteError(cmdNameReport, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNameReport, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Score != rows[j].Score {
@@ -94,7 +95,7 @@ func runReport() error {
 
 	funcCounts, err := fileFuncCounts(s)
 	if err != nil {
-		return w.WriteError(cmdNameReport, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNameReport, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 
 	items := make([]treemapItem, 0, len(rows))
@@ -111,11 +112,11 @@ func runReport() error {
 
 	importSCCs, err := s.ReadSCCs(cmdNameImports)
 	if err != nil {
-		return w.WriteError(cmdNameReport, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNameReport, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 	callSCCs, err := s.ReadSCCs("calls")
 	if err != nil {
-		return w.WriteError(cmdNameReport, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNameReport, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 
 	manifest := buildReportManifest(start)
@@ -131,11 +132,11 @@ func runReport() error {
 	)
 
 	if err := os.MkdirAll(reportOut, 0o755); err != nil {
-		return w.WriteError(cmdNameReport, &output.Error{Code: output.ErrInternal, Message: "mkdir out: " + err.Error()})
+		return w.WriteError(cmdNameReport, &protocol.Error{Code: protocol.ErrInternal, Message: "mkdir out: " + err.Error()})
 	}
 	htmlPath := filepath.Join(reportOut, "report.html")
 	if err := atomicfile.WriteFile(htmlPath, []byte(htmlDoc), 0o644); err != nil {
-		return w.WriteError(cmdNameReport, &output.Error{Code: output.ErrInternal, Message: "write report.html: " + err.Error()})
+		return w.WriteError(cmdNameReport, &protocol.Error{Code: protocol.ErrInternal, Message: "write report.html: " + err.Error()})
 	}
 	manifestPath := filepath.Join(reportOut, "manifest.json")
 	if err := writeJSONFile(manifestPath, manifest); err != nil {
@@ -143,8 +144,8 @@ func runReport() error {
 	}
 
 	if GetOutputFormat() == output.OutputJSON {
-		resp := output.Response[reportSummary]{
-			Protocol: output.ProtocolVersion,
+		resp := protocol.Response[reportSummary]{
+			Protocol: protocol.ProtocolVersion,
 			Ok:       true,
 			Results: []reportSummary{{
 				HTMLPath:     htmlPath,
@@ -152,7 +153,7 @@ func runReport() error {
 				Files:        len(rows),
 				Slots:        len(manifest.Slots),
 			}},
-			Meta: output.Meta{
+			Meta: protocol.Meta{
 				Command:  cmdNameReport,
 				RepoRoot: dir,
 				Ms:       time.Since(start).Milliseconds(),

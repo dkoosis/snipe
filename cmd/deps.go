@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -25,10 +26,10 @@ func runDeps(args []string) error {
 
 	modulePath := query.DetectModulePath(s.DB())
 	if modulePath == "" {
-		return w.WriteError("deps", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("deps", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: "could not detect module path from index",
-			Next: &output.NextAction{
+			Next: &protocol.NextAction{
 				Command:     "snipe index --force",
 				Description: "Rebuild the index; module path is stored at index time",
 			},
@@ -57,22 +58,22 @@ func runDeps(args []string) error {
 func runDepsSingle(w *output.Writer, db *sql.DB, pkgPath, modulePath, dir string, start time.Time) error {
 	deps, err := query.FindPackageDeps(db, pkgPath, modulePath)
 	if err != nil {
-		return w.WriteError("deps", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("deps", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
-	result := output.DepsResult{
+	result := protocol.DepsResult{
 		Package:      pkgPath,
 		Dependencies: deps.Dependencies,
 		Dependents:   deps.Dependents,
 	}
 
-	resp := output.Response[output.DepsResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.DepsResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.DepsResult{result},
+		Results:  []protocol.DepsResult{result},
 		Meta:     depsMeta(db, dir, start, map[string]string{flagPackage: pkgPath}, len(deps.Dependencies)+len(deps.Dependents)),
 	}
 
@@ -82,37 +83,37 @@ func runDepsSingle(w *output.Writer, db *sql.DB, pkgPath, modulePath, dir string
 func runDepsTree(w *output.Writer, db *sql.DB, modulePath, dir string, start time.Time) error {
 	graph, err := query.FindDepGraph(db, modulePath)
 	if err != nil {
-		return w.WriteError("deps", &output.Error{
-			Code:    output.ErrInternal,
+		return w.WriteError("deps", &protocol.Error{
+			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
 	}
 
-	edges := make([]output.DepTreeEdge, len(graph.Edges))
+	edges := make([]protocol.DepTreeEdge, len(graph.Edges))
 	for i, e := range graph.Edges {
-		edges[i] = output.DepTreeEdge{From: e.From, To: e.To, FileCount: e.FileCount}
+		edges[i] = protocol.DepTreeEdge{From: e.From, To: e.To, FileCount: e.FileCount}
 	}
 
 	sort.Strings(graph.Packages)
 
-	result := output.DepTreeResult{
+	result := protocol.DepTreeResult{
 		Packages: graph.Packages,
 		Edges:    edges,
 		Cycles:   graph.Cycles,
 	}
 
-	resp := output.Response[output.DepTreeResult]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[protocol.DepTreeResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results:  []output.DepTreeResult{result},
+		Results:  []protocol.DepTreeResult{result},
 		Meta:     depsMeta(db, dir, start, map[string]string{"mode": "tree"}, len(graph.Packages)),
 	}
 
 	return w.WriteResponse(resp)
 }
 
-func depsMeta(db *sql.DB, dir string, start time.Time, q map[string]string, total int) output.Meta {
-	return output.Meta{
+func depsMeta(db *sql.DB, dir string, start time.Time, q map[string]string, total int) protocol.Meta {
+	return protocol.Meta{
 		Command:    "deps",
 		Query:      q,
 		RepoRoot:   dir,

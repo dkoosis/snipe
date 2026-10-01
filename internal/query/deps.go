@@ -9,13 +9,13 @@ import (
 
 	"golang.org/x/mod/modfile"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // PackageDeps holds bidirectional dependencies for a single package.
 type PackageDeps struct {
-	Dependencies []output.DepRef
-	Dependents   []output.DepRef
+	Dependencies []protocol.DepRef
+	Dependents   []protocol.DepRef
 }
 
 // DepGraphEdge represents a directed edge in the full dependency graph.
@@ -115,17 +115,17 @@ func FindPackageDeps(db *sql.DB, pkgPath, modulePath string) (*PackageDeps, erro
 }
 
 // scanDepEdges runs a query returning (pkg_path, file_count) rows and trims the module prefix.
-func scanDepEdges(db *sql.DB, query, modulePath string, args ...any) ([]output.DepRef, error) {
+func scanDepEdges(db *sql.DB, query, modulePath string, args ...any) ([]protocol.DepRef, error) {
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var result []output.DepRef
+	var result []protocol.DepRef
 	for rows.Next() {
 		var fullPath string
-		var e output.DepRef
+		var e protocol.DepRef
 		if err := rows.Scan(&fullPath, &e.FileCount); err != nil {
 			return nil, err
 		}

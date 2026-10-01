@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/risk"
 )
 
@@ -42,11 +43,11 @@ func writeRisk(v risk.Verdict, root string, start time.Time) error {
 // This shape is a semver-guarded cross-repo contract — see docs/contracts/risk-json.md
 // (guard test: test/blackbox/risk_contract_test.go, sn-n8re).
 func writeRiskJSON(v risk.Verdict, root string, start time.Time) error {
-	resp := output.Response[risk.Verdict]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[risk.Verdict]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  []risk.Verdict{v},
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:  cmdNameRisk,
 			RepoRoot: root,
 			Ms:       time.Since(start).Milliseconds(),

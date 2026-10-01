@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 var update = flag.Bool("update", false, "update golden files")
@@ -25,16 +27,16 @@ const (
 
 // TestGoldenDefOutput tests def command output against golden file
 func TestGoldenDefOutput(t *testing.T) {
-	resp := Response[Result]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{
+		Results: []protocol.Result{
 			{
 				ID:   "go#main.go#main",
 				File: "main.go",
-				Range: Range{
-					Start: Position{Line: 5, Col: 1},
-					End:   Position{Line: 10, Col: 2},
+				Range: protocol.Range{
+					Start: protocol.Position{Line: 5, Col: 1},
+					End:   protocol.Position{Line: 10, Col: 2},
 				},
 				Kind:       "func",
 				Name:       "main",
@@ -42,9 +44,9 @@ func TestGoldenDefOutput(t *testing.T) {
 				EditTarget: "main.go:5:1-10:2",
 			},
 		},
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "def",
-			IndexState: IndexFresh,
+			IndexState: protocol.IndexFresh,
 			Ms:         15,
 			Total:      1,
 			Limit:      50,
@@ -56,21 +58,21 @@ func TestGoldenDefOutput(t *testing.T) {
 
 // TestGoldenRefsOutput tests refs command output against golden file
 func TestGoldenRefsOutput(t *testing.T) {
-	resp := Response[Result]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{
+		Results: []protocol.Result{
 			{
 				ID:   "ref:main.go:15:10",
 				File: "main.go",
-				Range: Range{
-					Start: Position{Line: 15, Col: 10},
-					End:   Position{Line: 15, Col: 14},
+				Range: protocol.Range{
+					Start: protocol.Position{Line: 15, Col: 10},
+					End:   protocol.Position{Line: 15, Col: 14},
 				},
 				Kind:  "ref",
 				Name:  "main",
 				Match: "    main()",
-				Enclosing: &Enclosing{
+				Enclosing: &protocol.Enclosing{
 					ID:   "go#main.go#init",
 					Kind: "func",
 					Name: "init",
@@ -80,9 +82,9 @@ func TestGoldenRefsOutput(t *testing.T) {
 			{
 				ID:   "ref:cmd/root.go:42:5",
 				File: "cmd/root.go",
-				Range: Range{
-					Start: Position{Line: 42, Col: 5},
-					End:   Position{Line: 42, Col: 9},
+				Range: protocol.Range{
+					Start: protocol.Position{Line: 42, Col: 5},
+					End:   protocol.Position{Line: 42, Col: 9},
 				},
 				Kind:       "ref",
 				Name:       "main",
@@ -90,9 +92,9 @@ func TestGoldenRefsOutput(t *testing.T) {
 				EditTarget: "cmd/root.go:42:5-42:9",
 			},
 		},
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "refs",
-			IndexState: IndexFresh,
+			IndexState: protocol.IndexFresh,
 			Ms:         23,
 			Total:      2,
 			Limit:      50,
@@ -104,16 +106,16 @@ func TestGoldenRefsOutput(t *testing.T) {
 
 // TestGoldenSearchOutput tests search command output against golden file
 func TestGoldenSearchOutput(t *testing.T) {
-	resp := Response[Result]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{
+		Results: []protocol.Result{
 			{
 				ID:   "s1510",
 				File: "internal/search/rg.go",
-				Range: Range{
-					Start: Position{Line: 15, Col: 10},
-					End:   Position{Line: 15, Col: 16},
+				Range: protocol.Range{
+					Start: protocol.Position{Line: 15, Col: 10},
+					End:   protocol.Position{Line: 15, Col: 16},
 				},
 				Kind:       "match",
 				Name:       "Search",
@@ -121,9 +123,9 @@ func TestGoldenSearchOutput(t *testing.T) {
 				EditTarget: "internal/search/rg.go:15:10-15:16",
 			},
 		},
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "search",
-			IndexState: IndexFresh,
+			IndexState: protocol.IndexFresh,
 			Ms:         8,
 			Total:      1,
 			Limit:      50,
@@ -135,21 +137,21 @@ func TestGoldenSearchOutput(t *testing.T) {
 
 // TestGoldenCallersOutput tests callers command output against golden file
 func TestGoldenCallersOutput(t *testing.T) {
-	resp := Response[Result]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{
+		Results: []protocol.Result{
 			{
 				ID:   "caller:cmd/search.go:25",
 				File: "cmd/search.go",
-				Range: Range{
-					Start: Position{Line: 25, Col: 12},
-					End:   Position{Line: 25, Col: 18},
+				Range: protocol.Range{
+					Start: protocol.Position{Line: 25, Col: 12},
+					End:   protocol.Position{Line: 25, Col: 18},
 				},
 				Kind:  "caller",
 				Name:  "runSearch",
 				Match: "    results, err := search.Search(dir, pattern, limit, ctx)",
-				Enclosing: &Enclosing{
+				Enclosing: &protocol.Enclosing{
 					ID:        "go#cmd/search.go#runSearch",
 					Kind:      "func",
 					Name:      "runSearch",
@@ -158,9 +160,9 @@ func TestGoldenCallersOutput(t *testing.T) {
 				EditTarget: "cmd/search.go:25:12-25:18",
 			},
 		},
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "callers",
-			IndexState: IndexFresh,
+			IndexState: protocol.IndexFresh,
 			Ms:         12,
 			Total:      1,
 			Limit:      50,
@@ -172,17 +174,17 @@ func TestGoldenCallersOutput(t *testing.T) {
 
 // TestGoldenNotFoundOutput tests NOT_FOUND error envelope
 func TestGoldenNotFoundOutput(t *testing.T) {
-	resp := Response[any]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[any]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       false,
 		Results:  nil,
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "def",
-			IndexState: IndexFresh,
+			IndexState: protocol.IndexFresh,
 			Ms:         5,
 		},
-		Error: NewNotFoundError("Foo", "FooBar", "FooHandler"),
-		Suggestions: []Suggestion{
+		Error: protocol.NewNotFoundError("Foo", "FooBar", "FooHandler"),
+		Suggestions: []protocol.Suggestion{
 			{Command: "snipe search Foo", Description: "Try text search", Priority: 2},
 		},
 	}
@@ -192,7 +194,7 @@ func TestGoldenNotFoundOutput(t *testing.T) {
 
 // TestGoldenAmbiguousOutput tests AMBIGUOUS_SYMBOL error envelope
 func TestGoldenAmbiguousOutput(t *testing.T) {
-	candidates := []Candidate{
+	candidates := []protocol.Candidate{
 		{ID: "abc123def45601", Name: "Config", File: "config/config.go", Kind: "type"},
 		{ID: "abc123def45602", Name: "Config", File: "server/config.go", Kind: "type"},
 	}
@@ -200,14 +202,14 @@ func TestGoldenAmbiguousOutput(t *testing.T) {
 	// itself (err.Suggestions), not a separate re-call of the helper. This makes
 	// the golden assert the real shipped output -- if NewAmbiguousError stopped
 	// populating Suggestions, the hints would vanish and this test would fail.
-	err := NewAmbiguousError("Config", candidates)
-	resp := Response[any]{
-		Protocol: ProtocolVersion,
+	err := protocol.NewAmbiguousError("Config", candidates)
+	resp := protocol.Response[any]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       false,
 		Results:  nil,
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "def",
-			IndexState: IndexFresh,
+			IndexState: protocol.IndexFresh,
 			Ms:         8,
 		},
 		Error:       err,
@@ -219,16 +221,16 @@ func TestGoldenAmbiguousOutput(t *testing.T) {
 
 // TestGoldenMissingIndexOutput tests MISSING_INDEX error envelope with NextAction
 func TestGoldenMissingIndexOutput(t *testing.T) {
-	resp := Response[any]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[any]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       false,
 		Results:  nil,
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "def",
-			IndexState: IndexMissing,
+			IndexState: protocol.IndexMissing,
 			Ms:         1,
 		},
-		Error: NewMissingIndexError(),
+		Error: protocol.NewMissingIndexError(),
 	}
 
 	testGolden(t, goldenMissingIndexOut, resp)
@@ -236,23 +238,23 @@ func TestGoldenMissingIndexOutput(t *testing.T) {
 
 // TestGoldenStaleIndexOutput tests STALE_INDEX warning (ok:true with degraded)
 func TestGoldenStaleIndexOutput(t *testing.T) {
-	resp := Response[Result]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{
+		Results: []protocol.Result{
 			{
 				ID:         "go#main.go#main",
 				File:       "main.go",
-				Range:      Range{Start: Position{Line: 5, Col: 1}, End: Position{Line: 10, Col: 2}},
+				Range:      protocol.Range{Start: protocol.Position{Line: 5, Col: 1}, End: protocol.Position{Line: 10, Col: 2}},
 				Kind:       "func",
 				Name:       "main",
 				Match:      "func main() {",
 				EditTarget: "main.go:5:1-10:2",
 			},
 		},
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "def",
-			IndexState: IndexStale,
+			IndexState: protocol.IndexStale,
 			Degraded:   []string{"stale_index"},
 			Ms:         15,
 			Total:      1,
@@ -300,22 +302,22 @@ func testGolden(t *testing.T, filename string, resp interface{}) {
 // TestGoldenSchemaConsistency verifies that the output schema is consistent
 func TestGoldenSchemaConsistency(t *testing.T) {
 	// Verify Response[Result] JSON schema has required fields
-	resp := Response[Result]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{
+		Results: []protocol.Result{
 			{
 				ID:         "test",
 				File:       "test.go",
-				Range:      Range{Start: Position{Line: 1, Col: 1}, End: Position{Line: 1, Col: 5}},
+				Range:      protocol.Range{Start: protocol.Position{Line: 1, Col: 1}, End: protocol.Position{Line: 1, Col: 5}},
 				Kind:       "func",
 				Name:       "test",
 				EditTarget: "test.go:1:1-1:5",
 			},
 		},
-		Meta: Meta{
+		Meta: protocol.Meta{
 			Command:    "test",
-			IndexState: IndexFresh,
+			IndexState: protocol.IndexFresh,
 			Total:      1,
 		},
 	}

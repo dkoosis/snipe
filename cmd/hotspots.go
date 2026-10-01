@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/sensitive"
 	"github.com/dkoosis/snipe/internal/store"
 )
@@ -91,7 +92,7 @@ func runHotspots(top int, pkg, file string) error {
 
 	rows, haveChurn, err := loadHotspotRows(s)
 	if err != nil {
-		return w.WriteError(cmdNameHotspots, &output.Error{Code: output.ErrInternal, Message: err.Error()})
+		return w.WriteError(cmdNameHotspots, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
 	if rows == nil {
 		// Preserve the JSON envelope for API consumers in the common
@@ -204,11 +205,11 @@ func filterHotspots(rows []hotspotRow, pkg, file string) []hotspotRow {
 }
 
 func writeHotspotsJSON(rows []hotspotRow, dir string, start time.Time) error {
-	resp := output.Response[hotspotRow]{
-		Protocol: output.ProtocolVersion,
+	resp := protocol.Response[hotspotRow]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  rows,
-		Meta: output.Meta{
+		Meta: protocol.Meta{
 			Command:  cmdNameHotspots,
 			RepoRoot: dir,
 			Ms:       time.Since(start).Milliseconds(),

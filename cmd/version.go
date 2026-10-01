@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 var (
@@ -26,9 +26,9 @@ var Features = []string{
 
 func runVersion() {
 	if versionJSON {
-		info := output.VersionInfo{
+		info := protocol.VersionInfo{
 			Version:  Version,
-			Protocol: output.ProtocolVersion,
+			Protocol: protocol.ProtocolVersion,
 			Features: Features,
 			Commit:   GitCommit,
 		}

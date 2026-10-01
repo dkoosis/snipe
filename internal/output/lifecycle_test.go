@@ -4,31 +4,33 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 func TestLifecycleCallerChain(t *testing.T) {
 	tests := []struct {
 		name    string
-		callers []LifecycleCallerNode
+		callers []protocol.LifecycleCallerNode
 		want    string
 	}{
 		{"empty", nil, ""},
-		{"single", []LifecycleCallerNode{{Name: "foo", Depth: 1}}, "foo"},
-		{"two hops", []LifecycleCallerNode{
+		{"single", []protocol.LifecycleCallerNode{{Name: "foo", Depth: 1}}, "foo"},
+		{"two hops", []protocol.LifecycleCallerNode{
 			{Name: "bar", Depth: 2},
 			{Name: "foo", Depth: 1},
 		}, "foo ← bar"},
-		{"stable sort by name at same depth", []LifecycleCallerNode{
+		{"stable sort by name at same depth", []protocol.LifecycleCallerNode{
 			{Name: "zzz", Depth: 1},
 			{Name: "aaa", Depth: 1},
 		}, "aaa ← zzz"},
-		{"tests folded into count", []LifecycleCallerNode{
+		{"tests folded into count", []protocol.LifecycleCallerNode{
 			{Name: "TestA", Depth: 1},
 			{Name: "TestB", Depth: 1},
 			{Name: "BenchmarkC", Depth: 1},
 			{Name: "realCaller", Depth: 1},
 		}, "realCaller ← +3 tests"},
-		{"non-test cap with +N more", []LifecycleCallerNode{
+		{"non-test cap with +N more", []protocol.LifecycleCallerNode{
 			{Name: "a", Depth: 1}, {Name: "b", Depth: 1}, {Name: "c", Depth: 1},
 			{Name: "d", Depth: 1}, {Name: "e", Depth: 1}, {Name: "f", Depth: 1},
 			{Name: "g", Depth: 1}, {Name: "h", Depth: 1}, {Name: "i", Depth: 1},
@@ -48,7 +50,7 @@ func TestLifecycleCallerChain(t *testing.T) {
 func TestWriteClaudeLifecycle_CallersRendered(t *testing.T) {
 	w := NewWriter(&strings.Builder{}, OutputClaude)
 	var b strings.Builder
-	results := []LifecycleResult{
+	results := []protocol.LifecycleResult{
 		{
 			Type:         "Nug",
 			TypeFile:     "store/nug.go",
@@ -56,17 +58,17 @@ func TestWriteClaudeLifecycle_CallersRendered(t *testing.T) {
 			TypeKind:     "struct",
 			TotalRefs:    3,
 			FunctionRefs: 2,
-			Groups: []LifecycleGroup{
+			Groups: []protocol.LifecycleGroup{
 				{
 					Role:  "Create",
 					Count: 1,
-					Funcs: []LifecycleFunction{
+					Funcs: []protocol.LifecycleFunction{
 						{
 							Name:   "NewNug",
 							File:   "store/nug.go",
 							Line:   20,
 							Signal: "rule:struct-literal",
-							Callers: []LifecycleCallerNode{
+							Callers: []protocol.LifecycleCallerNode{
 								{Name: "handleCreate", Depth: 1},
 								{Name: "router", Depth: 2},
 							},
@@ -81,7 +83,7 @@ func TestWriteClaudeLifecycle_CallersRendered(t *testing.T) {
 			},
 		},
 	}
-	w.writeClaudeLifecycle(&b, results, Meta{})
+	w.writeClaudeLifecycle(&b, results, protocol.Meta{})
 	out := b.String()
 
 	if !strings.Contains(out, "# Lifecycle: Nug") {
@@ -108,31 +110,31 @@ func TestWriteClaudeLifecycle_CallersRendered(t *testing.T) {
 func TestWriteClaudeLifecycle_SummaryFormat(t *testing.T) {
 	w := NewWriter(&strings.Builder{}, OutputClaude)
 	var b strings.Builder
-	funcs := make([]LifecycleFunction, 0, 15)
+	funcs := make([]protocol.LifecycleFunction, 0, 15)
 	for i := 0; i < 15; i++ {
-		funcs = append(funcs, LifecycleFunction{
+		funcs = append(funcs, protocol.LifecycleFunction{
 			Name:   fmt.Sprintf("fn%d", i),
 			File:   "x.go",
 			Line:   i,
 			Signal: "should-not-render",
-			Callers: []LifecycleCallerNode{
+			Callers: []protocol.LifecycleCallerNode{
 				{Name: "shouldNotRender", Depth: 1},
 			},
 		})
 	}
-	results := []LifecycleResult{
+	results := []protocol.LifecycleResult{
 		{
 			Type:         "Big",
 			TypeFile:     "x.go",
 			TotalRefs:    15,
 			FunctionRefs: 15,
 			Summary:      true,
-			Groups: []LifecycleGroup{
+			Groups: []protocol.LifecycleGroup{
 				{Role: "Read", Count: 15, Funcs: funcs},
 			},
 		},
 	}
-	w.writeClaudeLifecycle(&b, results, Meta{})
+	w.writeClaudeLifecycle(&b, results, protocol.Meta{})
 	out := b.String()
 
 	if strings.Contains(out, "should-not-render") || strings.Contains(out, "shouldNotRender") {
@@ -151,28 +153,28 @@ func TestWriteClaudeLifecycle_SummaryFormat(t *testing.T) {
 }
 
 func TestTruncateLifecycleToTokenBudget(t *testing.T) {
-	makeResult := func(fnCount int, withCallers bool) LifecycleResult {
-		funcs := make([]LifecycleFunction, fnCount)
+	makeResult := func(fnCount int, withCallers bool) protocol.LifecycleResult {
+		funcs := make([]protocol.LifecycleFunction, fnCount)
 		for i := range funcs {
-			fn := LifecycleFunction{
+			fn := protocol.LifecycleFunction{
 				Name:   "Func",
 				File:   "store/nug.go",
 				Line:   i + 1,
 				Signal: "rule:name",
 			}
 			if withCallers {
-				fn.Callers = []LifecycleCallerNode{
+				fn.Callers = []protocol.LifecycleCallerNode{
 					{Name: "callerA", Depth: 1},
 					{Name: "callerB", Depth: 2},
 				}
 			}
 			funcs[i] = fn
 		}
-		return LifecycleResult{
+		return protocol.LifecycleResult{
 			Type:         "Nug",
 			TotalRefs:    fnCount,
 			FunctionRefs: fnCount,
-			Groups: []LifecycleGroup{
+			Groups: []protocol.LifecycleGroup{
 				{Role: "Create", Count: fnCount, Funcs: funcs},
 			},
 		}
@@ -241,24 +243,24 @@ func TestTruncateLifecycleToTokenBudget(t *testing.T) {
 func TestWriteClaudeLifecycle_JSONEnvelope(t *testing.T) {
 	var buf strings.Builder
 	w := NewWriter(&buf, OutputJSON)
-	results := []LifecycleResult{
+	results := []protocol.LifecycleResult{
 		{
 			Type:         "Store",
 			TotalRefs:    1,
 			FunctionRefs: 1,
-			Groups: []LifecycleGroup{
-				{Role: "Create", Count: 1, Funcs: []LifecycleFunction{
+			Groups: []protocol.LifecycleGroup{
+				{Role: "Create", Count: 1, Funcs: []protocol.LifecycleFunction{
 					{Name: "NewStore", File: "store.go", Line: 5,
-						Callers: []LifecycleCallerNode{{Name: "main", Depth: 1}}},
+						Callers: []protocol.LifecycleCallerNode{{Name: "main", Depth: 1}}},
 				}},
 			},
 		},
 	}
-	resp := Response[LifecycleResult]{
-		Protocol: ProtocolVersion,
+	resp := protocol.Response[protocol.LifecycleResult]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  results,
-		Meta:     Meta{Command: "lifecycle"},
+		Meta:     protocol.Meta{Command: "lifecycle"},
 	}
 	if err := w.WriteResponse(resp); err != nil {
 		t.Fatalf("WriteResponse error: %v", err)

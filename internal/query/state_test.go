@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/index"
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -69,7 +69,7 @@ func TestCheckFileStaleness_FreshFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: testFile, File: testMainGo},
 	}
 
@@ -104,7 +104,7 @@ func TestCheckFileStaleness_StaleFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: testFile, File: testMainGo},
 	}
 
@@ -136,7 +136,7 @@ func TestCheckFileStaleness_DeletedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: deletedFile, File: "deleted.go"},
 	}
 
@@ -164,7 +164,7 @@ func TestCheckFileStaleness_EmptyResults(t *testing.T) {
 		t.Errorf("expected nil for empty results, got %v", stale)
 	}
 
-	stale = CheckFileStaleness(s.DB(), dir, []output.Result{})
+	stale = CheckFileStaleness(s.DB(), dir, []protocol.Result{})
 	if stale != nil {
 		t.Errorf("expected nil for zero-length results, got %v", stale)
 	}
@@ -198,7 +198,7 @@ func TestCheckFileStaleness_MixedFreshAndStale(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: freshFile, File: "fresh.go"},
 		{FileAbs: staleFile, File: "stale.go"},
 	}
@@ -223,7 +223,7 @@ func TestCheckFileStaleness_EmptyFileAbs(t *testing.T) {
 	defer s.Close()
 
 	// Results with empty FileAbs should be skipped
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: "", File: "something.go"},
 	}
 
@@ -250,7 +250,7 @@ func TestCheckFileStaleness_FileNotInIndex(t *testing.T) {
 	defer s.Close()
 
 	// Don't write any file metadata — file is "not in index"
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: unknownFile, File: "unknown.go"},
 	}
 
@@ -319,11 +319,11 @@ func TestCheckFileStaleness_Sorted(t *testing.T) {
 	// All stale (old mtimes)
 	oldMtime := time.Now().Add(-1 * time.Hour).Unix()
 	fileInfos := make([]index.FileInfo, len(files))
-	var results []output.Result
+	var results []protocol.Result
 	for i, name := range files {
 		abs := filepath.Join(dir, name)
 		fileInfos[i] = index.FileInfo{Path: abs, Mtime: oldMtime}
-		results = append(results, output.Result{FileAbs: abs, File: name})
+		results = append(results, protocol.Result{FileAbs: abs, File: name})
 	}
 	if err := s.WriteFiles(fileInfos); err != nil {
 		t.Fatal(err)
@@ -371,7 +371,7 @@ func TestCheckFileStaleness_HashMatch_MtimeChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: testFile, File: testMainGo},
 	}
 
@@ -405,7 +405,7 @@ func TestCheckFileStaleness_HashMismatch_MtimeChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: testFile, File: testMainGo},
 	}
 
@@ -442,7 +442,7 @@ func TestCheckFileStaleness_NoHash_FallsBackToMtime(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: testFile, File: testMainGo},
 	}
 
@@ -488,7 +488,7 @@ func TestCheckFileStaleness_HashMatch_MtimeFresh(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := []output.Result{
+	results := []protocol.Result{
 		{FileAbs: testFile, File: testMainGo},
 	}
 

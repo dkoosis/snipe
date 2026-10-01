@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/dkoosis/snipe/internal/output"
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // TestClassifySearchErr guards the rg-binary-missing vs runtime-error split.
@@ -33,19 +33,19 @@ func TestClassifySearchErr(t *testing.T) {
 			name:    "missing rg binary routes to RG_NOT_FOUND",
 			err:     rgMissing,
 			lookErr: exec.ErrNotFound,
-			want:    output.ErrRgNotFound,
+			want:    protocol.ErrRgNotFound,
 		},
 		{
 			name:    "wrapped exec.ErrNotFound routes to RG_NOT_FOUND",
 			err:     rgMissing,
 			lookErr: fmt.Errorf("exec %q: %w", "rg", exec.ErrNotFound),
-			want:    output.ErrRgNotFound,
+			want:    protocol.ErrRgNotFound,
 		},
 		{
 			name:    "runtime error with rg present routes to INTERNAL_ERROR",
 			err:     runtimeErr,
 			lookErr: nil,
-			want:    output.ErrInternal,
+			want:    protocol.ErrInternal,
 		},
 		{
 			// Regression: message contains "not found" but rg is present —
@@ -53,7 +53,7 @@ func TestClassifySearchErr(t *testing.T) {
 			name:    "non-rg error containing 'not found' stays INTERNAL_ERROR",
 			err:     errors.New("pattern not found in any tracked file"),
 			lookErr: nil,
-			want:    output.ErrInternal,
+			want:    protocol.ErrInternal,
 		},
 	}
 	for _, tt := range tests {

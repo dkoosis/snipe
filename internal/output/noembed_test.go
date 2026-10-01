@@ -4,24 +4,26 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/dkoosis/snipe/internal/protocol"
 )
 
 // noEmbedResp is a minimal Claude-format def response used to probe the
 // noembed self-assessment marker (snipe-ffj).
-func noEmbedResp() Response[Result] {
-	return Response[Result]{
-		Protocol: ProtocolVersion,
+func noEmbedResp() protocol.Response[protocol.Result] {
+	return protocol.Response[protocol.Result]{
+		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
-		Results: []Result{
+		Results: []protocol.Result{
 			{
 				ID:    "go#main.go#main",
 				Name:  "main",
 				File:  "main.go",
-				Range: Range{Start: Position{Line: 5, Col: 1}},
+				Range: protocol.Range{Start: protocol.Position{Line: 5, Col: 1}},
 				Kind:  "func",
 			},
 		},
-		Meta: Meta{Command: "def", IndexState: IndexFresh, Total: 1},
+		Meta: protocol.Meta{Command: "def", IndexState: protocol.IndexFresh, Total: 1},
 	}
 }
 
@@ -39,7 +41,7 @@ func renderClaude(t *testing.T, embedMissing bool) string {
 // TestClaudeNoEmbedMarker: an index with no embeddings appends `! noembed` to
 // the meta line; a healthy index stays silent (D4 — clean path pays zero).
 func TestClaudeNoEmbedMarker(t *testing.T) {
-	const marker = "! " + DegradedNoEmbed
+	const marker = "! " + protocol.DegradedNoEmbed
 
 	if got := renderClaude(t, true); !strings.Contains(got, marker) {
 		t.Errorf("embedMissing=true: want %q in output, got:\n%s", marker, got)
