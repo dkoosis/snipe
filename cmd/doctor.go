@@ -210,8 +210,8 @@ func checkIndex() DoctorCheck {
 		return check
 	}
 
-	var integrityResult string
-	if err := s.DB().QueryRow("PRAGMA integrity_check").Scan(&integrityResult); err != nil {
+	integrityResult, err := s.IntegrityCheck()
+	if err != nil {
 		s.Close()
 		check.OK = false
 		check.Code = DoctorIndexCorrupt
@@ -379,8 +379,7 @@ func checkOrphans() DoctorCheck {
 	}
 	defer s.Close()
 
-	var orphanCount int
-	err = s.DB().QueryRow(`SELECT COUNT(*) FROM refs WHERE symbol_id NOT IN (SELECT id FROM symbols)`).Scan(&orphanCount)
+	orphanCount, err := s.OrphanedRefCount()
 	if err != nil {
 		check.OK = true
 		check.Message = "skipped (query failed)"

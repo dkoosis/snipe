@@ -1010,6 +1010,20 @@ func CountCalleesForType(db *sql.DB, typeName string) (int, error) {
 	return count, err
 }
 
+// CountCallers returns the number of call_graph edges into symbolID.
+func CountCallers(db *sql.DB, symbolID string) (int, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE callee_id = ?`, symbolID).Scan(&count)
+	return count, err
+}
+
+// CountCallees returns the number of call_graph edges out of symbolID.
+func CountCallees(db *sql.DB, symbolID string) (int, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE caller_id = ?`, symbolID).Scan(&count)
+	return count, err
+}
+
 // ToCalleeResult converts a CallRow to an output.Result describing the callee's definition.
 // ID, file, range, and edit_target all point to where the callee is defined.
 func (c *CallRow) ToCalleeResult() protocol.Result {
