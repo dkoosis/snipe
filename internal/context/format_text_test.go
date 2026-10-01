@@ -107,3 +107,20 @@ func TestFormatText_DepDAG(t *testing.T) {
 		}
 	})
 }
+
+func TestFormatBoundaries_PrintsConcernsInAscendingOrder(t *testing.T) {
+	boundaries := map[string][]string{
+		"query":       {"LookupByName"},
+		"cli":         {"DoctorCheck", "PlanResult"},
+		"persistence": {"Store"},
+		"output":      {"WriteError"},
+	}
+	want := "\n## boundaries\ncli: DoctorCheck, PlanResult\noutput: WriteError\npersistence: Store\nquery: LookupByName\n"
+	for range 20 {
+		var b strings.Builder
+		formatBoundaries(&b, boundaries)
+		if got := b.String(); got != want {
+			t.Fatalf("formatBoundaries =\n%q\nwant\n%q", got, want)
+		}
+	}
+}
