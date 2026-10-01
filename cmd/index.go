@@ -84,6 +84,15 @@ func runIndex(args []string) error {
 	}
 	defer s.Close()
 
+	// An index built at another directory (the repo moved or was renamed)
+	// stores every file under the old path; an incremental run would see all
+	// of them as deleted and re-added. Rebuild it from scratch instead.
+	force := forceIndex
+	if prevRoot, _ := s.GetMeta("repo_root"); util.RootMoved(prevRoot, absDir) {
+		fmt.Fprintf(os.Stderr, "Index was built for %s; repo is now at %s — running full reindex\n", prevRoot, absDir)
+		force = true
+	}
+
 	// Persist repo_root before any WriteIndex call. Both full and incremental
 	// writers read it to compute file_path_rel; if stale or empty, paths get
 	// relativized against the wrong base (or stored absolute), breaking output.
@@ -101,7 +110,7 @@ func runIndex(args []string) error {
 
 	// Change detection fast-path: skip expensive work if nothing changed
 	var detection *changeDetection
-	if !forceIndex {
+	if !force {
 		var detectErr error
 		detection, detectErr = trySkipIndex(s, fp, absDir, start, w)
 		if detectErr != nil {

@@ -194,3 +194,41 @@ func canonical(t *testing.T, p string) string {
 	}
 	return resolved
 }
+
+func TestRootMoved(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	repo := filepath.Join(tmp, "repo")
+	other := filepath.Join(tmp, "other")
+	link := filepath.Join(tmp, "link")
+	for _, d := range []string{repo, other} {
+		if err := os.Mkdir(d, 0750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(repo, link); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name            string
+		stored, current string
+		want            bool
+	}{
+		{name: "same directory", stored: repo, current: repo, want: false},
+		{name: "symlinked spelling of the same directory", stored: link, current: repo, want: false},
+		{name: "relative spelling of the same directory", stored: filepath.Join(repo, "..", "repo"), current: repo, want: false},
+		{name: "different directory", stored: other, current: repo, want: true},
+		{name: "stored directory no longer exists", stored: filepath.Join(tmp, "gone"), current: repo, want: true},
+		{name: "no stored root", stored: "", current: repo, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := util.RootMoved(tt.stored, tt.current); got != tt.want {
+				t.Errorf("RootMoved(%q, %q) = %v, want %v", tt.stored, tt.current, got, tt.want)
+			}
+		})
+	}
+}

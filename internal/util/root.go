@@ -49,3 +49,33 @@ func walkUp(start, marker string) string {
 		dir = parent
 	}
 }
+
+// RootMoved reports whether an index built at stored now serves a repo at
+// current: the repo was moved or renamed after indexing. Another spelling of
+// the same directory is not a move: a symlink (macOS /var vs /private/var) or
+// a case difference on a case-insensitive volume (/Users vs /users). An empty
+// stored root (an index from before repo_root was recorded) is never a move.
+func RootMoved(stored, current string) bool {
+	if stored == "" || current == "" {
+		return false
+	}
+	if canonical(stored) == canonical(current) {
+		return false
+	}
+	a, errA := os.Stat(stored)
+	b, errB := os.Stat(current)
+	if errA == nil && errB == nil {
+		return !os.SameFile(a, b)
+	}
+	return true
+}
+
+func canonical(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	if resolved, err := filepath.EvalSymlinks(p); err == nil {
+		p = resolved
+	}
+	return filepath.Clean(p)
+}
