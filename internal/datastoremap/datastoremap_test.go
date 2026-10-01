@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dkoosis/snipe/internal/c4"
-	"github.com/dkoosis/snipe/internal/context"
+	"github.com/dkoosis/snipe/internal/dbschema"
 	"github.com/dkoosis/snipe/internal/lifecycle"
 )
 
@@ -54,20 +54,20 @@ func TestMatchSchema(t *testing.T) {
 	}
 
 	t.Run("directory match resolves the owning package", func(t *testing.T) {
-		schema := context.DBSchema{Source: "internal/store/schema.go", Name: "store"}
+		schema := dbschema.DBSchema{Source: "internal/store/schema.go", Name: "store"}
 		pkg, ok := MatchSchema(schema, datastores, modulePath)
 		assert.True(t, ok)
 		assert.Equal(t, "example.com/repo/internal/store", pkg)
 	})
 
 	t.Run("repo-root schema has no owning package", func(t *testing.T) {
-		schema := context.DBSchema{Source: "schema.sql", Name: "schema"}
+		schema := dbschema.DBSchema{Source: "schema.sql", Name: "schema"}
 		_, ok := MatchSchema(schema, datastores, modulePath)
 		assert.False(t, ok)
 	})
 
 	t.Run("directory that matches no datastore package", func(t *testing.T) {
-		schema := context.DBSchema{Source: "migrations/0001_init.sql", Name: "migrations"}
+		schema := dbschema.DBSchema{Source: "migrations/0001_init.sql", Name: "migrations"}
 		_, ok := MatchSchema(schema, datastores, modulePath)
 		assert.False(t, ok)
 	})

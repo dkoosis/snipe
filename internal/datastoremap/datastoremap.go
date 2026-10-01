@@ -7,7 +7,7 @@
 //     test packages (declared `package foo_test`) as if they were real
 //     touchpoints, and can list the same package twice under a generic
 //     "SQL" name and a specific driver name.
-//  2. internal/context's DetectDBSchemas finds the DDL for a store — a
+//  2. internal/dbschema's DetectDBSchemas finds the DDL for a store — a
 //     separate detector (grep-shaped, not package-aware) that this package
 //     correlates back to a c4 Datastore by directory.
 //  3. internal/lifecycle classifies functions that reference a Go type as
@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/c4"
-	"github.com/dkoosis/snipe/internal/context"
+	"github.com/dkoosis/snipe/internal/dbschema"
 	"github.com/dkoosis/snipe/internal/lifecycle"
 )
 
@@ -115,7 +115,7 @@ func GroupByPackage(rows []Row) []Row {
 // directory) with the c4-detected package that owns it. Returns ("", false)
 // when no package resolves to the schema's directory — e.g. a repo-root
 // schema.sql isn't owned by any one package.
-func MatchSchema(schema context.DBSchema, rows []Row, modulePath string) (string, bool) {
+func MatchSchema(schema dbschema.DBSchema, rows []Row, modulePath string) (string, bool) {
 	schemaDir := filepath.ToSlash(filepath.Dir(schema.Source))
 	for _, r := range rows {
 		pkgDir := strings.TrimPrefix(r.Package, modulePath)

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/dbschema"
 )
 
 const empty = "∅"
@@ -118,7 +120,7 @@ func FormatText(bc *BootContext) string {
 
 // formatDBSchemas emits one "## db schema" section per detected schema.
 // Source and name are shown in the header; DDL follows in a fenced sql block.
-func formatDBSchemas(b *strings.Builder, schemas []DBSchema) {
+func formatDBSchemas(b *strings.Builder, schemas []dbschema.DBSchema) {
 	for _, s := range schemas {
 		fmt.Fprintf(b, "\n## db schema: %s (%s)\n", s.Name, s.Source)
 		b.WriteString("```sql\n")
