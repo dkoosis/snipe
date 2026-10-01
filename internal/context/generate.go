@@ -109,6 +109,7 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 
 	depDAG := buildDepDAG(cfg.DB)
 	totalSymbols, totalPkgs := countSymbolsAndPkgs(cfg.DB)
+	totalFiles, totalLines := countFilesAndLines(cfg.DB)
 	archWarnings := buildArchWarnings(cfg.DB)
 
 	return &BootContext{
@@ -128,6 +129,8 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		ArchWarnings:  archWarnings,
 		TotalSymbols:  totalSymbols,
 		TotalPkgs:     totalPkgs,
+		TotalFiles:    totalFiles,
+		TotalLines:    totalLines,
 	}, nil
 }
 
@@ -247,6 +250,20 @@ func countSymbolsAndPkgs(db *sql.DB) (symbols, pkgs int) {
 	_ = db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbols)
 	_ = db.QueryRow(`SELECT COUNT(DISTINCT pkg_path) FROM symbols`).Scan(&pkgs)
 	return
+}
+
+// countFilesAndLines returns the indexed Go file count and their total line
+// count. lines is 0 when any file lacks a count (an index built before schema
+// v22 and not rebuilt since), so a partial sum is never reported.
+func countFilesAndLines(db *sql.DB) (files, lines int) {
+	var counted int
+	if err := db.QueryRow(`SELECT COUNT(*), COUNT(lines), COALESCE(SUM(lines), 0) FROM files`).Scan(&files, &counted, &lines); err != nil {
+		return 0, 0
+	}
+	if counted < files {
+		lines = 0
+	}
+	return files, lines
 }
 
 func isTestPkg(pkg string) bool {

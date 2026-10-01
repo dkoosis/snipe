@@ -59,6 +59,8 @@ type BootContext struct {
 	// Index triage stats — used for the first-line summary in text output.
 	TotalSymbols int    `json:"total_symbols,omitempty" yaml:"total_symbols,omitempty"`
 	TotalPkgs    int    `json:"total_pkgs,omitempty" yaml:"total_pkgs,omitempty"`
+	TotalFiles   int    `json:"total_files,omitempty" yaml:"total_files,omitempty"`
+	TotalLines   int    `json:"total_lines,omitempty" yaml:"total_lines,omitempty"` // 0 when the index predates line counts
 	IndexState   string `json:"index_state,omitempty" yaml:"index_state,omitempty"`
 }
 

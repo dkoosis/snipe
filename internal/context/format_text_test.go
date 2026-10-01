@@ -34,6 +34,37 @@ func TestFormatText_TriageLine(t *testing.T) {
 		}
 	})
 
+	t.Run("emits files and lines when the index has them", func(t *testing.T) {
+		bc := &BootContext{
+			Project:      "testproj",
+			TotalSymbols: 42,
+			TotalPkgs:    7,
+			TotalFiles:   19,
+			TotalLines:   3150,
+			IndexState:   "fresh",
+		}
+		out := FormatText(bc)
+		want := "42 symbols | 7 pkgs | 19 files | 3150 lines | index: fresh\n"
+		if !strings.HasPrefix(out, want) {
+			t.Errorf("expected output to start with %q, got:\n%s", want, out[:min(len(out), 80)])
+		}
+	})
+
+	t.Run("omits lines when the index predates line counts", func(t *testing.T) {
+		bc := &BootContext{
+			Project:      "testproj",
+			TotalSymbols: 42,
+			TotalPkgs:    7,
+			TotalFiles:   19,
+			IndexState:   "stale",
+		}
+		out := FormatText(bc)
+		want := "42 symbols | 7 pkgs | 19 files | ! index: stale\n"
+		if !strings.HasPrefix(out, want) {
+			t.Errorf("expected output to start with %q, got:\n%s", want, out[:min(len(out), 80)])
+		}
+	})
+
 	t.Run("omits triage line when IndexState is empty", func(t *testing.T) {
 		bc := &BootContext{Project: "testproj", TotalSymbols: 5, TotalPkgs: 2}
 		out := FormatText(bc)

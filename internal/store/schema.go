@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 21
+const schemaVersion = 22
 
 // migration represents a database migration.
 type migration struct {
@@ -307,6 +307,13 @@ var migrations = []migration{
 		ALTER TABLE file_churn ADD COLUMN other_commits   INT NOT NULL DEFAULT 0;
 		ALTER TABLE file_churn ADD COLUMN untyped_commits INT NOT NULL DEFAULT 0;
 		CREATE INDEX IF NOT EXISTS idx_file_churn_bug ON file_churn(bug_commits);
+		`,
+	},
+	{
+		version: 22,
+		name:    "files_lines",
+		up: `
+		ALTER TABLE files ADD COLUMN lines INT;
 		`,
 	},
 }
