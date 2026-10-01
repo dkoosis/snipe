@@ -421,7 +421,7 @@ func joinSuggestions(suggestions []string) string {
 }
 
 // NewAmbiguousError creates an AMBIGUOUS_SYMBOL error. Suggestions carry the
-// "snipe show <id>" disambiguation hints so the rendered error tells Claude how
+// "snipe def <id>" disambiguation hints so the rendered error tells Claude how
 // to pick a candidate (D2), not just that the symbol was ambiguous.
 func NewAmbiguousError(symbol string, candidates []Candidate) *Error {
 	return &Error{
@@ -630,7 +630,7 @@ func SuggestionsForAmbiguous(candidates []Candidate) []Suggestion {
 			desc = c.Receiver + "." + c.Name
 		}
 		suggestions = append(suggestions, Suggestion{
-			Command:     "snipe show " + c.ID,
+			Command:     "snipe def " + c.ID,
 			Description: desc + " in " + c.File,
 			Priority:    1,
 		})
