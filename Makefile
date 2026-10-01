@@ -51,7 +51,7 @@ help: ## Show this help
 		/^## [^-]/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 4) } \
 		/^[a-zA-Z0-9_-]+:.*?## / { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-check: vet lint test build pack-drift selfcheck ## Full repo: vet + lint + test + build + pack-drift + conform-to-sdlc
+check: vet lint test build selfcheck ## Full repo: vet + lint + test + build + conform-to-sdlc
 	@echo "=== check pass ==="
 
 build: ## Compile everything
@@ -62,7 +62,7 @@ build: ## Compile everything
 selfcheck: ## Run conform-to-sdlc (fleet SDLC checker) against this repo
 	go tool conform-to-sdlc
 
-audit: check race blackbox eval vuln ## Exhaustive: +race +blackbox +eval +vuln
+audit: check race blackbox eval vuln pack-drift ## Exhaustive: +race +blackbox +eval +vuln +pack-drift
 	@echo "=== audit pass ==="
 
 deploy: install ## Build, install, and verify (install reports the path and version)

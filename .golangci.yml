@@ -73,7 +73,7 @@ linters:
       # checker runs the shared machine rules for the recurring cross-repo Go
       # defect classes (scanner-buffer, err-substring, pid-liveness). Rules live
       # in .golangci-rules/bugclasses.go — a verbatim copy of the upstream pack,
-      # drift-guarded by scripts/check-pack-drift.sh.
+      # drift-guarded by .golangci-rules/check-pack-drift.sh (make audit).
       enabled-checks:
         - ruleguard
       settings:
