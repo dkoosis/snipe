@@ -285,8 +285,8 @@ lookup:
 	}
 
 	// Get caller count
-	var callerCount int
-	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM call_graph WHERE callee_id = ?`, symbolID).Scan(&callerCount); err != nil {
+	callerCount, err := query.CountCallers(s.DB(), symbolID)
+	if err != nil {
 		degraded = append(degraded, "caller_count_query_failed")
 		callerCount = -1
 	}
@@ -304,8 +304,8 @@ lookup:
 	}
 
 	// Get callee count
-	var calleeCount int
-	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM call_graph WHERE caller_id = ?`, symbolID).Scan(&calleeCount); err != nil {
+	calleeCount, err := query.CountCallees(s.DB(), symbolID)
+	if err != nil {
 		degraded = append(degraded, "callee_count_query_failed")
 		calleeCount = -1
 	}

@@ -1,6 +1,6 @@
 # snipe
 
-★ Maps a Go codebase for LLMs orientation and navigation: symbols, callers, hotspots, metrics, in structured JSON.
+★ Maps a Go codebase for LLMs orientation and navigation: symbols, callers, hotspots, metrics. Terse prose by default; JSON on request.
 
 (mirrors the nugbase's `projects/dk/snipe/NORTH_STAR.md`, which owns the line — dk
 edits that file and nothing else is a source.)

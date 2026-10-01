@@ -93,7 +93,7 @@ func runReport() error {
 		rows = rows[:reportTopN]
 	}
 
-	funcCounts, err := fileFuncCounts(s)
+	funcCounts, err := s.FileFuncCounts()
 	if err != nil {
 		return w.WriteError(cmdNameReport, &protocol.Error{Code: protocol.ErrInternal, Message: err.Error()})
 	}
@@ -168,38 +168,6 @@ func runReport() error {
 	fmt.Printf("report · %s + %s · %d files · %d D2 slots pending external render\n",
 		htmlPath, manifestPath, len(rows), len(manifest.Slots))
 	return nil
-}
-
-// fileFuncCounts returns per-file function+method counts (production code
-// only — _test.go excluded, matching computeFileComplexity's convention so
-// treemap sizing and the complexity coloring agree on which files count as
-// "hot"). Keyed by file_path_rel to match hotspotRow.Path's relative form.
-func fileFuncCounts(s *store.Store) (map[string]int, error) {
-	rows, err := s.DB().Query(`
-		SELECT file_path_rel, COUNT(*)
-		FROM symbols
-		WHERE kind IN ('func', 'method')
-		  AND file_path_rel IS NOT NULL
-		  AND file_path_rel NOT LIKE '%_test.go'
-		GROUP BY file_path_rel`)
-	if err != nil {
-		return nil, fmt.Errorf("query file func counts: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	out := make(map[string]int)
-	for rows.Next() {
-		var path string
-		var n int
-		if err := rows.Scan(&path, &n); err != nil {
-			return nil, fmt.Errorf("scan func count row: %w", err)
-		}
-		out[path] = n
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate func count rows: %w", err)
-	}
-	return out, nil
 }
 
 // groupSCCs collapses raw graph_sccs rows into grouped components — mirrors
