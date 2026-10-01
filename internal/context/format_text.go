@@ -20,10 +20,17 @@ func FormatText(bc *BootContext) string {
 	// Triage line (omitted when IndexState not set).
 	// Stale state gets the ! sigil, matching writeClaudeMeta's convention.
 	if bc.IndexState != "" {
+		fmt.Fprintf(&b, "%d symbols | %d pkgs", bc.TotalSymbols, bc.TotalPkgs)
+		if bc.TotalFiles > 0 {
+			fmt.Fprintf(&b, " | %d files", bc.TotalFiles)
+		}
+		if bc.TotalLines > 0 {
+			fmt.Fprintf(&b, " | %d lines", bc.TotalLines)
+		}
 		if bc.IndexState == "fresh" {
-			fmt.Fprintf(&b, "%d symbols | %d pkgs | index: %s\n", bc.TotalSymbols, bc.TotalPkgs, bc.IndexState)
+			fmt.Fprintf(&b, " | index: %s\n", bc.IndexState)
 		} else {
-			fmt.Fprintf(&b, "%d symbols | %d pkgs | ! index: %s\n", bc.TotalSymbols, bc.TotalPkgs, bc.IndexState)
+			fmt.Fprintf(&b, " | ! index: %s\n", bc.IndexState)
 		}
 	}
 

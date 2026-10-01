@@ -2,6 +2,7 @@ package index
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -16,6 +17,7 @@ type FileInfo struct {
 	Path        string
 	Mtime       int64
 	Hash        string
+	Lines       int    // newline count, plus one for a final line with no newline
 	Header      string // leading comment block above package clause (cleaned, capped)
 	PackageName string // bare `package <name>` clause; "" if unparsed/unknown
 }
@@ -76,9 +78,9 @@ func computeFileInfo(path string) (FileInfo, error) {
 		return FileInfo{}, fmt.Errorf("stat %s: %w", path, err)
 	}
 
-	hash, err := HashFileSHA256(path)
+	hash, lines, err := hashAndCountLines(path)
 	if err != nil {
-		return FileInfo{}, err // HashFileSHA256 already includes path context
+		return FileInfo{}, err // hashAndCountLines already includes path context
 	}
 
 	header, pkgName, _ := extractFileHeader(path) // best-effort; empty on error
@@ -87,6 +89,7 @@ func computeFileInfo(path string) (FileInfo, error) {
 		Path:        path,
 		Mtime:       stat.ModTime().Unix(),
 		Hash:        hash,
+		Lines:       lines,
 		Header:      header,
 		PackageName: pkgName,
 	}, nil
@@ -137,17 +140,49 @@ func extractFileHeader(path string) (header, pkgName string, err error) {
 // HashFileSHA256 computes a truncated SHA256 hash of a file (16 hex chars).
 // Used during indexing and for staleness checks at query time.
 func HashFileSHA256(path string) (string, error) {
+	hash, _, err := hashAndCountLines(path)
+	return hash, err
+}
+
+// hashAndCountLines hashes a file as HashFileSHA256 does and counts its lines
+// in the same read.
+func hashAndCountLines(path string) (hash string, lines int, err error) {
 	f, err := os.Open(path) // #nosec G304 -- path from go/packages load result
 	if err != nil {
-		return "", fmt.Errorf("hash %s: %w", path, err)
+		return "", 0, fmt.Errorf("hash %s: %w", path, err)
 	}
 	defer f.Close()
 
 	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", fmt.Errorf("hash %s: %w", path, err)
+	var lc lineCounter
+	if _, err := io.Copy(io.MultiWriter(h, &lc), f); err != nil {
+		return "", 0, fmt.Errorf("hash %s: %w", path, err)
 	}
 
 	// Return first 8 bytes as hex (16 characters)
-	return hex.EncodeToString(h.Sum(nil)[:8]), nil
+	return hex.EncodeToString(h.Sum(nil)[:8]), lc.lines(), nil
+}
+
+// lineCounter is an io.Writer that counts lines the way wc -l does, plus one
+// for a final line that has no trailing newline.
+type lineCounter struct {
+	newlines int
+	last     byte
+	seen     bool
+}
+
+func (c *lineCounter) Write(p []byte) (int, error) {
+	if len(p) > 0 {
+		c.newlines += bytes.Count(p, []byte{'\n'})
+		c.last = p[len(p)-1]
+		c.seen = true
+	}
+	return len(p), nil
+}
+
+func (c *lineCounter) lines() int {
+	if c.seen && c.last != '\n' {
+		return c.newlines + 1
+	}
+	return c.newlines
 }

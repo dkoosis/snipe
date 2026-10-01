@@ -156,6 +156,8 @@
   ],
   "project": "001",
   "schema_version": "2.0",
+  "total_files": 5,
+  "total_lines": 123,
   "total_pkgs": 4,
   "total_symbols": 24
 }
