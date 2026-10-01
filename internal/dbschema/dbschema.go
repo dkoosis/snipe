@@ -1,4 +1,7 @@
-package context
+// Package dbschema detects SQLite schema definitions in a repo from static
+// sources: a migrations directory, a top-level .sql file, or DDL embedded in
+// Go string literals.
+package dbschema
 
 import (
 	"io/fs"

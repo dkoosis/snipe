@@ -1,14 +1,16 @@
 // Package context generates Claude-optimized project context from snipe index.
 package context
 
+import "github.com/dkoosis/snipe/internal/dbschema"
+
 // ProjectContext is the top-level output structure for snipe context command.
 type ProjectContext struct {
-	Project      Project      `json:"project" yaml:"project"`
-	Architecture Architecture `json:"architecture" yaml:"architecture"`
-	Files        Files        `json:"files,omitempty" yaml:"files,omitempty"`
-	Symbols      Symbols      `json:"symbols" yaml:"symbols"`
-	DBSchemas    []DBSchema   `json:"db_schemas,omitempty" yaml:"db_schemas,omitempty"`
-	Meta         Meta         `json:"meta" yaml:"meta"`
+	Project      Project             `json:"project" yaml:"project"`
+	Architecture Architecture        `json:"architecture" yaml:"architecture"`
+	Files        Files               `json:"files,omitempty" yaml:"files,omitempty"`
+	Symbols      Symbols             `json:"symbols" yaml:"symbols"`
+	DBSchemas    []dbschema.DBSchema `json:"db_schemas,omitempty" yaml:"db_schemas,omitempty"`
+	Meta         Meta                `json:"meta" yaml:"meta"`
 }
 
 // DepEdge is one node in the internal package DAG: a package and its direct imports.
@@ -44,7 +46,7 @@ type BootContext struct {
 	Conventions *Conventions `json:"conventions,omitempty" yaml:"conventions,omitempty"`
 
 	// DBSchemas is statically-detected SQLite DDL (migrations, schema.sql, or embedded Go literals).
-	DBSchemas []DBSchema `json:"db_schemas,omitempty" yaml:"db_schemas,omitempty"`
+	DBSchemas []dbschema.DBSchema `json:"db_schemas,omitempty" yaml:"db_schemas,omitempty"`
 
 	// DepDAG is the compact internal package dependency graph.
 	DepDAG *DepDAG `json:"dep_dag,omitempty" yaml:"dep_dag,omitempty"`

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/dbschema"
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -48,7 +49,7 @@ func Generate(cfg GenerateConfig) (*ProjectContext, error) {
 		Architecture: generateArchitecture(cfg.DB, cfg.RepoRoot),
 		Files:        generateFiles(cfg.DB, cfg.RepoRoot),
 		Symbols:      generateSymbols(cfg.DB, cfg.RepoRoot, cfg.Full, cfg.MaxSymbols),
-		DBSchemas:    DetectDBSchemas(cfg.RepoRoot),
+		DBSchemas:    dbschema.DetectDBSchemas(cfg.RepoRoot),
 		Meta:         generateMeta(cfg.DB),
 	}
 
@@ -122,7 +123,7 @@ func GenerateBoot(cfg GenerateConfig) (*BootContext, error) {
 		BootViews:     bootViews,
 		Packages:      packages,
 		Conventions:   conventions,
-		DBSchemas:     DetectDBSchemas(cfg.RepoRoot),
+		DBSchemas:     dbschema.DetectDBSchemas(cfg.RepoRoot),
 		DepDAG:        depDAG,
 		ArchWarnings:  archWarnings,
 		TotalSymbols:  totalSymbols,

@@ -1,4 +1,4 @@
-package context
+package dbschema
 
 import (
 	"strings"

@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/c4"
-	"github.com/dkoosis/snipe/internal/context"
 	"github.com/dkoosis/snipe/internal/datastoremap"
+	"github.com/dkoosis/snipe/internal/dbschema"
 	"github.com/dkoosis/snipe/internal/diagram"
 	"github.com/dkoosis/snipe/internal/lifecycle"
 	"github.com/dkoosis/snipe/internal/output"
@@ -69,7 +69,7 @@ func pickStoreTypes(types []pkgType) []pkgType {
 }
 
 // runDiagramDatastores builds the datastore access map: for each detected
-// SQL store, its schema (internal/context.DetectDBSchemas) plus a read-list
+// SQL store, its schema (internal/dbschema.DetectDBSchemas) plus a read-list
 // and write-list of packages/functions (internal/c4 datastore detection,
 // direction from internal/lifecycle role classification). Written via
 // emitDoc to docs/diagrams/datastore-map.md by default, same pattern as
@@ -91,7 +91,7 @@ func runDiagramDatastores() error {
 	}
 	datastores := datastoremap.GroupByPackage(datastoremap.FilterTestPackages(facts.Datastores))
 
-	schemas := context.DetectDBSchemas(dir)
+	schemas := dbschema.DetectDBSchemas(dir)
 
 	stores, err := buildStores(db, schemas, datastores, modulePath)
 	if err != nil {
@@ -110,7 +110,7 @@ func runDiagramDatastores() error {
 // Datastore packages with no matching schema still get a Store entry (schema
 // unknown, access map populated) so a driver-detected store never vanishes
 // silently just because DetectDBSchemas couldn't find its DDL.
-func buildStores(db *sql.DB, schemas []context.DBSchema, datastores []datastoremap.Row, modulePath string) ([]datastoremap.Store, error) {
+func buildStores(db *sql.DB, schemas []dbschema.DBSchema, datastores []datastoremap.Row, modulePath string) ([]datastoremap.Store, error) {
 	matchedPkgs := make(map[string]bool, len(schemas))
 	stores := make([]datastoremap.Store, 0, len(schemas)+len(datastores))
 
