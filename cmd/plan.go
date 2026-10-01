@@ -156,7 +156,6 @@ func runPlan(change string, args []string) error {
 	if defSym == nil {
 		return writePlanMessage(root, start, change, "no symbol with id "+symbolID)
 	}
-	recordSessionQuery(root, defSym.Name, defSym.FilePathRel, defSym.LineStart, defSym.Kind, cmdNamePlan)
 
 	result := PlanResult{
 		Symbol: defSym.Name,

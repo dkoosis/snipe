@@ -24,7 +24,6 @@ Flags:
       --full                Full architecture dump (all components, flows,
                             boundaries)
       --orient              Claude-optimized orientation (default)
-      --output-nug          Output as nugget YAML (for save_nug)
       --conventions         Detect coding conventions
       --schema-version      Print the context output schema version and exit
       --key-symbols=15      Cap ranked key symbols in boot output (orient mode)

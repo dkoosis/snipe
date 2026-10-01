@@ -113,7 +113,6 @@ func runTests(args []string) error {
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symName = sym.Name
 		symFileRel = sym.FilePathRel
-		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameTests)
 	}
 
 	// Find tests

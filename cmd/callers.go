@@ -82,11 +82,9 @@ func runCallers(args []string) error {
 
 findCallers:
 
-	// Record query in session for active work tracking
 	var symName string
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symName = sym.Name
-		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameCallers)
 	}
 
 	// Find callers
