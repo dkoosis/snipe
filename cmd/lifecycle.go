@@ -28,7 +28,7 @@ func runLifecycle(args []string) error {
 
 	if len(args) == 0 && lifecycleAt == "" {
 		return w.WriteError("lifecycle", &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "provide a type name, hex ID, or --at position",
 		})
 	}

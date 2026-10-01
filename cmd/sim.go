@@ -39,7 +39,7 @@ func runSim(args []string) error {
 
 	if len(args) == 0 {
 		return w.WriteError(cmdNameSim, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "sim requires a query argument unless --pairs is set",
 		})
 	}
@@ -190,7 +190,7 @@ func runSimPairs(s *store.Store, dir string, startedAt time.Time) error {
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 	if !simWithinPkg {
 		return w.WriteError(cmdNameSim, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "--pairs currently requires --within-pkg",
 		})
 	}

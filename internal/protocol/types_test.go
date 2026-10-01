@@ -825,12 +825,21 @@ func TestSuggestionJSONFormat(t *testing.T) {
 func TestDefaultNextForCode_AllRecoverableCodesRouteForward(t *testing.T) {
 	// D2: an error without a next command is a dead end that teaches the
 	// caller to abandon the tool. Every recoverable code must route forward.
-	recoverable := []string{ErrNotFound, ErrMissingIndex, ErrStaleIndex, ErrIndexMismatch, ErrInternal}
+	recoverable := []string{ErrNotFound, ErrMissingIndex, ErrStaleIndex, ErrIndexMismatch, ErrInternal, ErrInvalidArgs}
 	for _, code := range recoverable {
-		next := DefaultNextForCode(code)
+		next := DefaultNextForCode(code, "def")
 		if next == nil || next.Command == "" {
 			t.Errorf("DefaultNextForCode(%s) = %v, want a non-empty recovery command", code, next)
 		}
+	}
+}
+
+func TestDefaultNextForCode_InvalidArgsRoutesToTheCommandsHelp(t *testing.T) {
+	if got := DefaultNextForCode(ErrInvalidArgs, "boundary").Command; got != "snipe boundary --help" {
+		t.Errorf("INVALID_ARGS next for boundary = %q, want %q", got, "snipe boundary --help")
+	}
+	if got := DefaultNextForCode(ErrInvalidArgs, "").Command; got != "snipe --help" {
+		t.Errorf("INVALID_ARGS next with no command = %q, want %q", got, "snipe --help")
 	}
 }
 

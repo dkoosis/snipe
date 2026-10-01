@@ -26,7 +26,7 @@ func runExplain(args []string) error {
 	// Need either a symbol name or --at position
 	if len(args) == 0 && explainAt == "" {
 		return w.WriteError(cmdNameExplain, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: errProvideSymbolOrAt,
 		})
 	}
@@ -147,7 +147,7 @@ explain:
 		opts.Mode = protocol.ExplainDeep
 	default:
 		return w.WriteError(cmdNameExplain, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "invalid --mode: use brief, normal, or deep",
 		})
 	}
@@ -161,7 +161,7 @@ explain:
 		opts.WarningsMode = protocol.WarningsFull
 	default:
 		return w.WriteError(cmdNameExplain, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "invalid --warnings: use none, fast, or full",
 		})
 	}

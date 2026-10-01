@@ -344,6 +344,9 @@ const (
 	ErrRgNotFound      = "RG_NOT_FOUND"
 	ErrInternal        = "INTERNAL_ERROR"
 	ErrIndexMismatch   = "INDEX_MISMATCH"
+	// ErrInvalidArgs is a missing, extra or malformed argument or flag value:
+	// the caller's fix is the command's --help, not snipe doctor.
+	ErrInvalidArgs = "INVALID_ARGS"
 )
 
 // VersionInfo is the JSON output for the version command with --json.
@@ -375,8 +378,18 @@ func NewNotFoundError(symbol string, suggestions ...string) *Error {
 // DefaultNextForCode returns a recovery action for errors that did not set
 // one explicitly. Every error must route forward (D2): a dead-end error
 // teaches the caller to abandon the tool for the rest of the session.
-func DefaultNextForCode(code string) *NextAction {
+// command names the command that failed; it shapes the INVALID_ARGS action.
+func DefaultNextForCode(code, command string) *NextAction {
 	switch code {
+	case ErrInvalidArgs:
+		help := "snipe --help"
+		if command != "" {
+			help = "snipe " + command + " --help"
+		}
+		return &NextAction{
+			Command:     help,
+			Description: "Show the command's arguments and flags",
+		}
 	case ErrNotFound:
 		return &NextAction{
 			Command:     "snipe search \"<term>\"",

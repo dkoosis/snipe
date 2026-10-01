@@ -68,7 +68,7 @@ func runReport() error {
 
 	if !reportEmitShell {
 		return w.WriteError(cmdNameReport, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "v1 only supports --emit-shell (native visuals + D2 manifest); no other mode exists yet",
 		})
 	}

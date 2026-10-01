@@ -70,14 +70,14 @@ func runEdit(args []string) error {
 	// Single edit mode - need symbol name or --at position
 	if len(args) == 0 && editAt == "" {
 		return w.WriteError(cmdNameEdit, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: errProvideSymbolOrAt,
 		})
 	}
 
 	if editOperation == "" {
 		return w.WriteError(cmdNameEdit, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "provide --operation: replace_body, replace_full, insert_after, insert_before",
 		})
 	}
@@ -97,7 +97,7 @@ func runEdit(args []string) error {
 
 	if newCode == "" {
 		return w.WriteError(cmdNameEdit, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "provide --new-code or --new-code-file",
 		})
 	}

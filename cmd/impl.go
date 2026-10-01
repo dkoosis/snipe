@@ -23,7 +23,7 @@ func runImpl(args []string) error {
 
 	if len(args) == 0 && implID == "" {
 		return w.WriteError(cmdNameImpl, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "provide an interface name or --id",
 		})
 	}

@@ -26,7 +26,7 @@ func runCallees(args []string) error {
 
 	if len(args) == 0 && calleesID == "" {
 		return w.WriteError(cmdNameCallees, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "provide a symbol name or --id",
 		})
 	}

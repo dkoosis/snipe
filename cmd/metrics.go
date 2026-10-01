@@ -55,7 +55,7 @@ func runMetrics() error {
 		// ok
 	default:
 		return w.WriteError(cmdNameMetrics, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: fmt.Sprintf("unknown --kind %q", metricsKind),
 		})
 	}
@@ -72,7 +72,7 @@ func runMetrics() error {
 	if metricsKind == cmdKindTopo {
 		if metricsGraph != cmdNameImports {
 			return w.WriteError(cmdNameMetrics, &protocol.Error{
-				Code:    protocol.ErrInternal,
+				Code:    protocol.ErrInvalidArgs,
 				Message: "topo is only supported for --graph=imports (use --kind=cycles on calls graph)",
 			})
 		}
@@ -556,7 +556,7 @@ func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error 
 	kinds := splitAndTrim(metricsKind)
 	if len(kinds) == 0 {
 		return w.WriteError(cmdNameMetrics, &protocol.Error{
-			Code: protocol.ErrInternal, Message: "empty --kind list",
+			Code: protocol.ErrInvalidArgs, Message: "empty --kind list",
 		})
 	}
 	for _, k := range kinds {
@@ -567,7 +567,7 @@ func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error 
 			"cyclo_sum", "cyclo_p95", "cyclo_max":
 		default:
 			return w.WriteError(cmdNameMetrics, &protocol.Error{
-				Code: protocol.ErrInternal,
+				Code: protocol.ErrInvalidArgs,
 				Message: fmt.Sprintf(
 					"--kind=%q not supported in multi-kind mode (composite kinds topo/cycles/coupling/distance/cyclo must run alone)",
 					k,

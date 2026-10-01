@@ -30,7 +30,7 @@ func runSym(args []string) error {
 	// Need either a symbol name or --at position
 	if len(args) == 0 && symAt == "" {
 		return w.WriteError(cmdNameSym, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: errProvideSymbolOrAt,
 		})
 	}

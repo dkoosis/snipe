@@ -30,7 +30,7 @@ func runImpact(args []string) error {
 
 	if len(args) == 0 && impactAt == "" && impactID == "" {
 		return w.WriteError(cmdNameImpact, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "provide a symbol name, --at position, or --id",
 		})
 	}
