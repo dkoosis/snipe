@@ -23,7 +23,7 @@ type CLI struct {
 	Tests   TestsCmd   `cmd:"" group:"Navigate:" help:"Tests that exercise a symbol"`
 
 	// Read: each step adds to the one before (def < sym < pack < explain).
-	Show    ShowCmd    `cmd:"" group:"Read:" help:"Expand an id from any result"`
+	Show    ShowCmd    `cmd:"" hidden:"" help:"Alias of def <id>"`
 	Sym     SymCmd     `cmd:"" group:"Read:" help:"def + refs, callers, callees"`
 	Pack    PackCmd    `cmd:"" group:"Read:" help:"sym + package role and purpose"`
 	Explain ExplainCmd `cmd:"" group:"Read:" help:"pack + prose walkthrough and warnings"`

@@ -203,20 +203,20 @@ func TestCallersAndCallees_Work_When_IndexPresent(t *testing.T) {
 			t.Fatalf("results[%d]: edit_target missing", i)
 		}
 
-		// Verify ID chains: snipe show <id> should resolve to the callee
-		showStdout, showStderr, showExit := run(t, repoDir, "show", id)
+		// Verify ID chains: snipe def <id> should resolve to the callee
+		showStdout, showStderr, showExit := run(t, repoDir, "def", id)
 		if showExit != 0 {
-			t.Fatalf("snipe show %s failed: exit=%d stderr=%s", id, showExit, string(showStderr))
+			t.Fatalf("snipe def %s failed: exit=%d stderr=%s", id, showExit, string(showStderr))
 		}
 		showResp := parseJSON(t, showStdout)
 		showResults := requireSlice(t, showResp["results"], "show results")
 		if len(showResults) == 0 {
-			t.Fatalf("snipe show %s returned no results", id)
+			t.Fatalf("snipe def %s returned no results", id)
 		}
 		showResult := requireMap(t, showResults[0], "show results[0]")
 		showName := getString(t, showResult["name"], "show name")
 		if showName != name {
-			t.Fatalf("ID chain broken: callees returned name=%q but show %s returned name=%q", name, id, showName)
+			t.Fatalf("ID chain broken: callees returned name=%q but def %s returned name=%q", name, id, showName)
 		}
 	}
 }
@@ -274,7 +274,7 @@ func TestShow_ByID_ReturnsExpandedContext_When_UsingPriorResultID(t *testing.T) 
 	}
 	resp := parseJSON(t, stdout)
 	assertResponseContract(t, resp, responseExpectations{
-		command:           "show",
+		command:           "def",
 		requireQuery:      true,
 		requireRepoRoot:   true,
 		requireIndexState: true,

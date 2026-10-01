@@ -172,12 +172,15 @@ func (c *ImpactCmd) Run() error {
 
 // --- Read ---
 
+// ShowCmd is a hidden alias of `def <id>`: def already resolves a 16-char hex id.
 type ShowCmd struct {
 	ID string `arg:"" help:"Symbol ID"`
 }
 
 func (c *ShowCmd) Run() error {
-	return runShow([]string{c.ID})
+	aliasNudge(os.Stderr, "show", "def")
+	def := DefCmd{Symbol: c.ID}
+	return def.Run()
 }
 
 type PackCmd struct {

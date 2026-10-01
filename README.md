@@ -64,11 +64,10 @@ The optional enrichment layer adds semantic embeddings (for similarity search) a
 
 | Command | Description |
 |---------|-------------|
-| `def [symbol]` | Symbol definition |
+| `def [symbol]` | Symbol definition, by name or by hex ID |
 | `refs [symbol]` | All references to a symbol |
 | `callers [symbol]` | Functions that call a symbol |
 | `callees [symbol]` | Functions called by a symbol |
-| `show <id>` | Expand a result by its hex ID |
 | `search <pattern>` | Text search via ripgrep (no index needed) |
 
 ### Composite
@@ -122,7 +121,7 @@ snipe refs Open --file store.go    # References filtered to a file
 ```bash
 snipe def --at handler.go:142:15   # Returns id: "a3f2c1de89ab0123"
 snipe callers a3f2c1de89ab0123     # Who calls it?
-snipe show b4e3d2c1a0f98765 --with-body  # Full source of a caller
+snipe def b4e3d2c1a0f98765         # Full source of a caller
 ```
 
 **Indexing modes:**

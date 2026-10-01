@@ -304,8 +304,11 @@ func TestShow(t *testing.T) {
 
 	t.Run("valid_id", func(t *testing.T) {
 		id := firstResultID(t, repoDir, "Callee")
-		stdout, _, _ := run(t, repoDir, "show", id)
-		resp := assertEnvelope(t, stdout, "show")
+		stdout, stderr, _ := run(t, repoDir, "show", id)
+		resp := assertEnvelope(t, stdout, "def")
+		if got := strings.Count(string(stderr), "snipe: 'show' is now 'def'"); got != 1 {
+			t.Fatalf("expected one alias nudge on stderr, got %d: %s", got, stderr)
+		}
 		if !getBool(t, resp["ok"], "ok") {
 			t.Fatalf("expected ok true")
 		}
@@ -317,7 +320,7 @@ func TestShow(t *testing.T) {
 
 	t.Run("invalid_id", func(t *testing.T) {
 		stdout, _, _ := run(t, repoDir, "show", "1234abcd")
-		resp := assertEnvelope(t, stdout, "show")
+		resp := assertEnvelope(t, stdout, "def")
 		if getBool(t, resp["ok"], "ok") {
 			t.Fatalf("expected ok false")
 		}

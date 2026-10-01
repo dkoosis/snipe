@@ -54,7 +54,7 @@ const rootHelp = `snipe: Go code navigation for Claude.
 Notes:
   Start:      snipe index, then snipe context (context --out DIR writes the full bundle)
   Flow:       context → pack <symbol> → callers/callees → tests <symbol>
-  IDs chain:  every result's 'id' is valid input to the next command
+  IDs chain:  every result's 'id' is valid input to the next command; def <id> expands one
   Index:      every command except search needs one
   Writes:     only edit modifies files; the rest are read-only`
 

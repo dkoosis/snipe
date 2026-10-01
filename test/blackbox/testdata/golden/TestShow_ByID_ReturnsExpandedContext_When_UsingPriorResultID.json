@@ -1,7 +1,10 @@
 {
   "error": null,
   "meta": {
-    "command": "show",
+    "command": "def",
+    "decision_path": [
+      "lookup:id"
+    ],
     "limit": 0,
     "offset": 0,
     "query": {},
@@ -21,6 +24,23 @@
         "result_count": 1
       },
       "body": "func Callee() string {\n\treturn \"ok\"\n}",
+      "callers_preview": [
+        {
+          "file": "main.go",
+          "line": 25,
+          "name": "Caller"
+        },
+        {
+          "file": "main.go",
+          "line": 33,
+          "name": "AnotherCaller"
+        },
+        {
+          "file": "main.go",
+          "line": 37,
+          "name": "ThirdCaller"
+        }
+      ],
       "edit_target": "main.go:49:1-51:2@8b60bd8320e77b84",
       "file": "main.go",
       "kind": "func",

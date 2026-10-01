@@ -1,8 +1,10 @@
-# show — expand a symbol by 16-char hex ID.
-# The valid-ID happy path is blackbox-covered (TestShow); asserting a real ID
-# here would hardcode a hash that drifts if indexing changes. Instead we smoke
-# the default text surface of the graceful miss: a bogus ID renders a
-# not-found error envelope (exit 1, AXI #6) rather than crashing.
+# show — hidden alias of def <id>; prints one stderr nudge, then runs def.
+# Proves: the nudge appears once on stderr, stdout is def's, and def's id path
+# answers (a bogus 16-char hex id reaches the id lookup, not the name lookup).
 cd $FIXTURE
 ! exec snipe show deadbeefdeadbeef
-stdout 'symbol not found: deadbeefdeadbeef'
+stdout 'symbol deadbeefdeadbeef not found'
+stderr -count=1 'snipe: ''show'' is now ''def'''
+! exec snipe def deadbeefdeadbeef
+stdout 'symbol deadbeefdeadbeef not found'
+! stderr 'is now'
