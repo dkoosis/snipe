@@ -31,7 +31,6 @@ type BootContext struct {
 	BuildInfo     *BuildInfo  `json:"build_info,omitempty" yaml:"build_info,omitempty"`
 	EntryPoints   []string    `json:"entry_points" yaml:"entry_points"`
 	KeySymbols    []SymbolRef `json:"key_symbols" yaml:"key_symbols"`
-	ActiveWork    *ActiveWork `json:"active_work,omitempty" yaml:"active_work,omitempty"`
 	Commit        string      `json:"commit" yaml:"commit"`
 
 	// Enhanced fields (Phase 2)

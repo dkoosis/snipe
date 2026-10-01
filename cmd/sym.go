@@ -188,9 +188,6 @@ lookup:
 
 	var degraded []string
 
-	// Record query in session for active work tracking
-	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameSym)
-
 	// Build definition result
 	defResult := sym.ToResultWithHints(s.DB())
 

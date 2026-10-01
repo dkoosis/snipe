@@ -109,7 +109,6 @@ func runImpact(args []string) error {
 	if sym, err := query.LookupByID(s.DB(), symbolID); err == nil && sym != nil {
 		symName = sym.Name
 		symKind = sym.Kind
-		recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNameImpact)
 	}
 
 	var degraded []string

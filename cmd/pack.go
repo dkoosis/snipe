@@ -89,7 +89,7 @@ func runPack(args []string) error {
 		return nil
 	}
 
-	packResult, degraded, allResults, err := buildPackForSymbol(s, dir, symbolID, opts)
+	packResult, degraded, allResults, err := buildPackForSymbol(s, symbolID, opts)
 	if err != nil {
 		return w.WriteErrorWithMeta(cmdNamePack, output.Meta{Query: queryInfo}.PrimaryQueryArg(), nil, idxState, 0, &output.Error{
 			Code:    output.ErrInternal,
@@ -149,7 +149,7 @@ func runPackMulti(w *output.Writer, s *store.Store, dir string, args []string, o
 	tokenEstimate := 0
 
 	for _, id := range ids {
-		packResult, degraded, results, err := buildPackForSymbol(s, dir, id, opts)
+		packResult, degraded, results, err := buildPackForSymbol(s, id, opts)
 		if err != nil {
 			allDegraded = append(allDegraded, fmt.Sprintf("pack_%s_failed", id[:8]))
 			continue
@@ -291,7 +291,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 
 // buildPackForSymbol builds a full PackResult for a single symbol ID.
 // Returns the pack result, degraded warnings, all inner results (for staleness), and any error.
-func buildPackForSymbol(s *store.Store, dir, symbolID string, opts packOpts) (output.PackResult, []string, []output.Result, error) {
+func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (output.PackResult, []string, []output.Result, error) {
 	db := s.DB()
 	var degraded []string
 
@@ -302,8 +302,6 @@ func buildPackForSymbol(s *store.Store, dir, symbolID string, opts packOpts) (ou
 	if sym == nil {
 		return output.PackResult{}, nil, nil, fmt.Errorf("symbol %s not found", symbolID)
 	}
-
-	recordSessionQuery(dir, sym.Name, sym.FilePathRel, sym.LineStart, sym.Kind, cmdNamePack)
 
 	// Build definition result
 	defResult := sym.ToResultWithHints(db)

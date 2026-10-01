@@ -14,4 +14,6 @@ package context
 //	1.1 — additive (sn-zd2): SymbolRef.role now populated on `context --full`
 //	      symbols (was boot-only), and new optional SymbolRef.risk_flags carries
 //	      orthogonal concurrency/security_boundary classes.
-const SchemaVersion = "1.1"
+//	2.0 — removal (sn-zcn5.3): BootContext.active_work is gone with the
+//	      per-query session tracker that fed it.
+const SchemaVersion = "2.0"
