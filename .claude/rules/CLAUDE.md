@@ -86,7 +86,7 @@ deep context: `search_nugs(id: "n:project:snipe-evolution-v2")`
 
 ## traps
 
-- New `snipe metrics --kind=X` → register in switch in `cmd/metrics.go` + run `go test ./cmd -run TestHelpGolden -update`
+- New `snipe metrics --kind=X` → register in switch in `cmd/metrics.go`
 - Index metrics only run on `--force` or full reindex; incremental skips them
 - Lifecycle R1/R2 classification reads `refs.ast_ctx` (schema v18); pre-v18 index → NULL ctx → no Create signals until reindex
 - ORDER BY guard test (`internal/store/orderby_guard_test.go`) fails any embedded SQL whose final sort key isn't a plain column — append a stable tiebreaker
