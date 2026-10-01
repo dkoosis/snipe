@@ -4,3 +4,10 @@ cd $FIXTURE
 exec snipe def Run
 stdout '# Run'
 stdout 'func Run\(\) string'
+
+# def <16-char hex id> takes the id path: a bogus id is reported as a missing
+# id, not fuzzy-matched as a name. (The valid-id path is blackbox-covered:
+# TestShow_ByID_ReturnsExpandedContext_When_UsingPriorResultID.)
+! exec snipe def deadbeefdeadbeef
+stdout 'symbol deadbeefdeadbeef not found'
+! stdout 'Symbol not found'
