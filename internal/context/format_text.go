@@ -2,7 +2,9 @@ package context
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 )
 
@@ -166,8 +168,8 @@ func formatBoundaries(b *strings.Builder, boundaries map[string][]string) {
 		return
 	}
 	b.WriteString("\n## boundaries\n")
-	for concern, syms := range boundaries {
-		fmt.Fprintf(b, "%s: %s\n", concern, strings.Join(syms, ", "))
+	for _, concern := range slices.Sorted(maps.Keys(boundaries)) {
+		fmt.Fprintf(b, "%s: %s\n", concern, strings.Join(boundaries[concern], ", "))
 	}
 }
 
