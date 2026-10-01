@@ -31,12 +31,12 @@
     ],
     "suggestions": [
       {
-        "command": "snipe show abc123def45601",
+        "command": "snipe def abc123def45601",
         "description": "Config in config/config.go",
         "priority": 1
       },
       {
-        "command": "snipe show abc123def45602",
+        "command": "snipe def abc123def45602",
         "description": "Config in server/config.go",
         "priority": 1
       }
@@ -44,12 +44,12 @@
   },
   "suggestions": [
     {
-      "command": "snipe show abc123def45601",
+      "command": "snipe def abc123def45601",
       "description": "Config in config/config.go",
       "priority": 1
     },
     {
-      "command": "snipe show abc123def45602",
+      "command": "snipe def abc123def45602",
       "description": "Config in server/config.go",
       "priority": 1
     }
