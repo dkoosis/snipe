@@ -26,7 +26,7 @@ func runChurnMetrics(s *store.Store, dir string, startedAt time.Time) error {
 	}
 	if !store.ValidChurnRankBy(by) {
 		return output.NewWriter(os.Stdout, GetOutputFormat()).WriteError(cmdNameMetrics, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: fmt.Sprintf("unknown --by %q (want commits|bug|feature|chore|score)", metricsBy),
 		})
 	}

@@ -915,7 +915,7 @@ func (w *Writer) WriteErrorWithMeta(command, arg string, decisionPath []string, 
 		TriedRungs:     decisionPath,
 	})
 	if err.Next == nil {
-		err.Next = protocol.DefaultNextForCode(err.Code)
+		err.Next = protocol.DefaultNextForCode(err.Code, command)
 	}
 	if w.format == OutputHuman {
 		var b strings.Builder

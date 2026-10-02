@@ -48,7 +48,7 @@ func runOrient() error {
 
 	if orientOut == "" {
 		return w.WriteError("orient", &protocol.Error{
-			Code: protocol.ErrInternal, Message: "--out is required",
+			Code: protocol.ErrInvalidArgs, Message: "--out is required",
 		})
 	}
 	if err := os.MkdirAll(orientOut, 0o755); err != nil {

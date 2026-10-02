@@ -26,7 +26,7 @@ func runCallers(args []string) error {
 
 	if len(args) == 0 && callersID == "" {
 		return w.WriteError(cmdNameCallers, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "provide a symbol name or --id",
 		})
 	}

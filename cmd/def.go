@@ -44,7 +44,7 @@ func runDef(args []string) error {
 	// Need either a symbol name or --at position
 	if len(args) == 0 && defAt == "" {
 		return w.WriteError(cmdNameDef, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: errProvideSymbolOrAt,
 		})
 	}
@@ -390,7 +390,7 @@ func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines
 
 	if defFile != "" && defPkg != "" {
 		return w.WriteError(cmdNameDef, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "--file and --pkg are mutually exclusive",
 		})
 	}

@@ -40,6 +40,7 @@ package script
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -283,5 +284,64 @@ func findRepoRoot() (string, error) {
 			return "", fmt.Errorf("could not find repo root from %s", wd)
 		}
 		dir = parent
+	}
+}
+
+// TestMissingArgument_IsInvalidArgs runs every command that needs a symbol
+// (or package sets) with none. Each must return INVALID_ARGS routed to its
+// own --help, not INTERNAL_ERROR routed to doctor (sn-r1do.5): telemetry
+// counted these as internal errors, and the doctor hint sent agents to the
+// wrong fix.
+func TestMissingArgument_IsInvalidArgs(t *testing.T) {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatalf("find repo root: %v", err)
+	}
+	binPath := filepath.Join(t.TempDir(), "snipe")
+	build := exec.Command("go", "build", "-o", binPath, "./")
+	build.Dir = repoRoot
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build snipe: %v\n%s", err, out)
+	}
+	fixtureDir := t.TempDir()
+	if err := writeScriptFixture(fixtureDir); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	env := append(os.Environ(), "KEYRING_DISABLE=1", "SNIPE_NO_TELEMETRY=1")
+	index := exec.Command(binPath, "index", fixtureDir, "--enrich=false", "--embed-mode=off")
+	index.Dir = fixtureDir
+	index.Env = env
+	if out, err := index.CombinedOutput(); err != nil {
+		t.Fatalf("index fixture: %v\n%s", err, out)
+	}
+
+	commands := []string{
+		"def", "refs", "callers", "callees", "impact", "tests", "impl", "types",
+		"sym", "pack", "explain", "lifecycle", "boundary", "sim",
+	}
+	for _, name := range commands {
+		t.Run(name, func(t *testing.T) {
+			cmd := exec.Command(binPath, "--format", "json", name)
+			cmd.Dir = fixtureDir
+			cmd.Env = env
+			out, _ := cmd.Output()
+			var resp struct {
+				Error struct {
+					Code string `json:"code"`
+					Next struct {
+						Command string `json:"command"`
+					} `json:"next"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal(out, &resp); err != nil {
+				t.Fatalf("snipe %s: not a JSON envelope: %v\n%s", name, err, out)
+			}
+			if resp.Error.Code != "INVALID_ARGS" {
+				t.Errorf("snipe %s with no argument: code = %q, want INVALID_ARGS", name, resp.Error.Code)
+			}
+			if want := "snipe " + name + " --help"; resp.Error.Next.Command != want {
+				t.Errorf("snipe %s with no argument: next = %q, want %q", name, resp.Error.Next.Command, want)
+			}
+		})
 	}
 }

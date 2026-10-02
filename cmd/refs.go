@@ -41,7 +41,7 @@ func runRefs(args []string) error {
 	// Need either a symbol name or --at position
 	if len(args) == 0 && refsAt == "" {
 		return w.WriteError(cmdNameRefs, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: errProvideSymbolOrAt,
 		})
 	}

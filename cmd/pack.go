@@ -41,7 +41,7 @@ func runPack(args []string) error {
 
 	if len(args) == 0 && packAt == "" {
 		return w.WriteError(cmdNamePack, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: errProvideSymbolOrAt,
 		})
 	}
@@ -131,13 +131,13 @@ func runPackMulti(w *output.Writer, s *store.Store, dir string, args []string, o
 	for _, arg := range args {
 		if len(arg) != 16 {
 			return w.WriteErrorWithMeta(cmdNamePack, arg, nil, idxState, 0, &protocol.Error{
-				Code:    protocol.ErrInternal,
+				Code:    protocol.ErrInvalidArgs,
 				Message: fmt.Sprintf("multi-ID mode requires 16-char hex IDs, got %q", arg),
 			})
 		}
 		if _, err := hex.DecodeString(arg); err != nil {
 			return w.WriteErrorWithMeta(cmdNamePack, arg, nil, idxState, 0, &protocol.Error{
-				Code:    protocol.ErrInternal,
+				Code:    protocol.ErrInvalidArgs,
 				Message: fmt.Sprintf("invalid hex ID %q", arg),
 			})
 		}

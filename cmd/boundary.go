@@ -40,7 +40,7 @@ func runBoundary(args []string) error {
 
 	if len(args) != 2 {
 		return w.WriteError("boundary", &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "boundary requires <pkg-set-a> <pkg-set-b> unless --layers is set",
 		})
 	}

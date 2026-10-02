@@ -24,7 +24,7 @@ func runTypes(args []string) error {
 
 	if len(args) == 0 && typesAt == "" {
 		return w.WriteError(cmdNameTypes, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "provide a type name or --at position",
 		})
 	}

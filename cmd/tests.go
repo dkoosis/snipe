@@ -30,7 +30,7 @@ func runTests(args []string) error {
 
 	if len(args) == 0 && testsAt == "" && testsID == "" {
 		return w.WriteError(cmdNameTests, &protocol.Error{
-			Code:    protocol.ErrInternal,
+			Code:    protocol.ErrInvalidArgs,
 			Message: "provide a symbol name, --at position, or --id",
 		})
 	}
