@@ -29,7 +29,7 @@ Standard snipe envelope; consumers read `.results[0]`:
       "degraded": false
     }
   ],
-  "meta": { "command": "risk", "total": 1, "ms": 12, "…": "…" },
+  "meta": { "command": "risk", "total": 1, "index_state": "fresh", "ms": 12, "…": "…" },
   "error": null
 }
 ```
@@ -54,6 +54,8 @@ Standard snipe envelope; consumers read `.results[0]`:
    `len(results)`.
 2. **`risk` never fails.** Exit 0 even with no index, a non-git tree, or an
    unresolved ref — those degrade rather than erroring.
+3. **`.meta.index_state` is never empty.** `fresh`, `stale` (the index no
+   longer matches the code on disk) or `missing`.
 
 ## `degraded` — trust vs. fallback
 

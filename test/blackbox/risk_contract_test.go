@@ -3,8 +3,12 @@
 package blackbox
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 // sn-n8re — golden contract test for `snipe risk --format json`.
@@ -43,7 +47,15 @@ func gitCommitAll(t *testing.T, dir, msg string) {
 // path — clean, degraded, or unanalyzable — and returns the sole verdict object.
 func riskResult(t *testing.T, repoDir string, args ...string) map[string]any {
 	t.Helper()
-	stdout, stderr, exitCode := run(t, repoDir, append([]string{"risk"}, args...)...)
+	v, _ := riskResultEnv(t, repoDir, os.Environ(), args...)
+	return v
+}
+
+// riskResultEnv is riskResult under a given environment; it also returns
+// meta.index_state, which is never empty.
+func riskResultEnv(t *testing.T, repoDir string, env []string, args ...string) (verdict map[string]any, indexState string) {
+	t.Helper()
+	stdout, stderr, exitCode := runWithEnv(t, repoDir, env, append([]string{"risk"}, args...)...)
 	if exitCode != 0 {
 		t.Fatalf("risk %v exit %d (risk must never fail — it degrades): stderr=%s stdout=%s",
 			args, exitCode, string(stderr), string(stdout))
@@ -59,6 +71,10 @@ func riskResult(t *testing.T, repoDir string, args ...string) map[string]any {
 	meta := requireMap(t, resp["meta"], "meta")
 	if total, ok := meta["total"].(float64); !ok || total != 1 {
 		t.Fatalf("risk %v: meta.total = %v, want 1", args, meta["total"])
+	}
+	indexState, _ = meta["index_state"].(string)
+	if indexState == "" {
+		t.Fatalf("risk %v: meta.index_state is empty, want fresh, stale or missing", args)
 	}
 
 	v := requireMap(t, results[0], "results[0]")
@@ -79,7 +95,7 @@ func riskResult(t *testing.T, repoDir string, args ...string) map[string]any {
 	if _, ok := v["degraded"].(bool); !ok {
 		t.Fatalf("risk %v: results[0].degraded missing/not a bool: %v", args, v["degraded"])
 	}
-	return v
+	return v, indexState
 }
 
 // reasonsLen returns the length of results[0].reasons, tolerating JSON null.
@@ -170,6 +186,54 @@ func TestRiskJSONContract(t *testing.T) {
 		if emptyDiff["degraded"] != true || analyzed["degraded"] != false {
 			t.Fatalf("degraded must separate unanalyzable (want true) from analyzed (want false): "+
 				"empty=%v analyzed=%v", emptyDiff["degraded"], analyzed["degraded"])
+		}
+	})
+
+	// --- stale index: the diff is real, but the index cannot map it --------
+	// A stale index finds too few changed symbols and reads as a small, safe
+	// change (sn-qtjl.2: every sdlc PR scored low with 0 symbols). It must
+	// degrade, so the judge drops to its fallback instead of tier:none.
+	goMod := filepath.Join(repoDir, "go.mod")
+	origGoMod := readFile(t, goMod)
+	editFile(t, goMod, origGoMod+"\n// stale-probe\n")
+	t.Run("changed_go_mod_degrades", func(t *testing.T) {
+		v, state := riskResultEnv(t, repoDir, os.Environ(), "HEAD~1", "HEAD")
+		if v["degraded"] != true || state != "stale" {
+			t.Fatalf("index older than go.mod: want degraded=true index_state=stale, got degraded=%v index_state=%q",
+				v["degraded"], state)
+		}
+		if note, _ := v["note"].(string); !strings.Contains(note, "index is stale") {
+			t.Fatalf("note must name the stale index, got %q", note)
+		}
+	})
+	editFile(t, goMod, origGoMod)
+
+	// Drift the inline heal does not repair (here: heal disabled; in the wild:
+	// more than 20 changed files, or a heal that timed out).
+	editFile(t, paths["test"], readFile(t, paths["test"])+"\n// drift-probe\n")
+	// Change detection reads mtime in whole seconds; move it past the index's.
+	later := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(paths["test"], later, later); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("unhealed_drift_degrades", func(t *testing.T) {
+		env := append(os.Environ(), "SNIPE_NO_HEAL=1")
+		v, state := riskResultEnv(t, repoDir, env, "HEAD~1", "HEAD")
+		if v["degraded"] != true || state != "stale" {
+			t.Fatalf("drifted index: want degraded=true index_state=stale, got degraded=%v index_state=%q",
+				v["degraded"], state)
+		}
+		if note, _ := v["note"].(string); !strings.Contains(note, "1 file changed") {
+			t.Fatalf("note must say how far the index drifted, got %q", note)
+		}
+	})
+
+	// The same drift, healed inline, scores normally against a fresh index.
+	t.Run("healed_drift_is_fresh", func(t *testing.T) {
+		v, state := riskResultEnv(t, repoDir, os.Environ(), "HEAD~1", "HEAD")
+		if v["degraded"] != false || state != "fresh" {
+			t.Fatalf("healed index: want degraded=false index_state=fresh, got degraded=%v index_state=%q",
+				v["degraded"], state)
 		}
 	})
 }

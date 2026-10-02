@@ -23,17 +23,26 @@ func runRisk(base, head string) error {
 	s, root, err := OpenStore(nil, cmdNameRisk)
 	if err != nil {
 		v := risk.Fuse(nil, risk.ChangeStats{}, true, "index unavailable: "+err.Error())
-		return writeRisk(v, root, start)
+		return writeRisk(v, root, protocol.IndexMissing, start)
 	}
 	defer s.Close()
 
+	// A stale index maps the diff to too few symbols and reads as a small, safe
+	// change, so a stale verdict is degraded: the caller must not route on it.
 	v := risk.Assess(s, root, base, head)
-	return writeRisk(v, root, start)
+	state := protocol.IndexFresh
+	if why := indexStaleness(s, root); why != "" {
+		state = protocol.IndexStale
+		if !v.Degraded {
+			v = risk.Fuse(nil, v.Changed, true, "index is stale: "+why+" — run: snipe index")
+		}
+	}
+	return writeRisk(v, root, state, start)
 }
 
-func writeRisk(v risk.Verdict, root string, start time.Time) error {
+func writeRisk(v risk.Verdict, root string, state protocol.IndexState, start time.Time) error {
 	if GetOutputFormat() == output.OutputJSON {
-		return writeRiskJSON(v, root, start)
+		return writeRiskJSON(v, root, state, start)
 	}
 	return writeRiskText(v)
 }
@@ -42,16 +51,17 @@ func writeRisk(v risk.Verdict, root string, start time.Time) error {
 // is the sole result; consumers read `.results[0]` (e.g. `jq '.results[0].verdict'`).
 // This shape is a semver-guarded cross-repo contract — see docs/contracts/risk-json.md
 // (guard test: test/blackbox/risk_contract_test.go, sn-n8re).
-func writeRiskJSON(v risk.Verdict, root string, start time.Time) error {
+func writeRiskJSON(v risk.Verdict, root string, state protocol.IndexState, start time.Time) error {
 	resp := protocol.Response[risk.Verdict]{
 		Protocol: protocol.ProtocolVersion,
 		Ok:       true,
 		Results:  []risk.Verdict{v},
 		Meta: protocol.Meta{
-			Command:  cmdNameRisk,
-			RepoRoot: root,
-			Ms:       time.Since(start).Milliseconds(),
-			Total:    1,
+			Command:    cmdNameRisk,
+			RepoRoot:   root,
+			IndexState: state,
+			Ms:         time.Since(start).Milliseconds(),
+			Total:      1,
 		},
 	}
 	enc := json.NewEncoder(os.Stdout)

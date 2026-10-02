@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/dkoosis/snipe/internal/index"
+	"github.com/dkoosis/snipe/internal/protocol"
+	"github.com/dkoosis/snipe/internal/query"
 	"github.com/dkoosis/snipe/internal/store"
 )
 
@@ -79,6 +81,34 @@ func maybeSelfHeal(s *store.Store, root string) bool {
 
 	fmt.Fprintf(os.Stderr, "healed index: %d changed files reindexed\n", changes.TotalChanged())
 	return true
+}
+
+// indexStaleness says why the index no longer matches the code on disk, or ""
+// when it does. Run it after maybeSelfHeal: it catches the staleness the heal
+// leaves alone — a changed go.mod, go.sum, go.work or go env (the fingerprint,
+// which needs a full reindex), drift past healMaxChangedFiles, a disabled or
+// failed heal.
+func indexStaleness(s *store.Store, root string) string {
+	// Stored root, for the same symlink reason as maybeSelfHeal.
+	if storedRoot, err := s.GetMeta("repo_root"); err == nil && storedRoot != "" {
+		root = storedRoot
+	}
+	if query.CheckIndexState(s.DB(), root, Version) != protocol.IndexFresh {
+		return "go.mod, go.sum, go.work or go env changed since it was built"
+	}
+	storedFiles, err := s.GetAllFiles()
+	if err != nil {
+		return "could not read its file list: " + err.Error()
+	}
+	changes, err := index.DetectChanges(root, storedFiles, index.DefaultExclude())
+	if err != nil {
+		return "could not compare it with the files on disk: " + err.Error()
+	}
+	if changes.HasChanges {
+		n := changes.TotalChanged()
+		return fmt.Sprintf("%d file%s changed since it was built", n, plural(n))
+	}
+	return ""
 }
 
 // runHealCmd starts cmd and waits for it under three exit conditions: clean
