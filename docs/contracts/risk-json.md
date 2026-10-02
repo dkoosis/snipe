@@ -6,6 +6,33 @@ and one overall score from visible, versioned weights. There is no band or
 verdict: the router picks its own cut-offs, and the weights get tuned as outcomes
 show which factors matter (sn-qtjl.4).
 
+## Why a score and its contributors
+
+- **The score is a simple start.** A router can route on one number without
+  knowing what is behind it.
+- **The factors, weights and measures let it improve.** Nobody yet knows which
+  of these predict review trouble. With the inputs and weights visible, when
+  outcomes show that one factor matters a lot and another not at all, the
+  weights change in one obvious place. A router can also route on a factor
+  directly.
+- **No bands.** low/medium/high presumes how many routing steps there are and
+  where the cut-offs sit. Those are the router's decisions.
+- **Missing is not safe.** A null score means snipe could not measure; a factor
+  with no data is left out, not counted as 0.
+
+The score is rough, not precise: use it to rank and route, and expect the
+weights to change as evidence comes in.
+
+The factors, in plain words:
+
+| Factor | Question it answers |
+|--------|--------------------|
+| reach | How far could a mistake spread? |
+| difficulty | How hard is the changed code to get right? |
+| history | Has this code needed fixing, and does it churn? |
+| kind | Does it touch persistence, concurrency, security or exported API? |
+| safety_net | How much of the changed code would no test catch? |
+
 Callers: sdlc's review routing (`cmd/sdlc/review.go`) reads the JSON;
 cc-plugins' dispatch probe (`plugins/dispatch/scripts/lib.sh`) reads the
 concise text and drops it when it contains `degraded:`.
