@@ -118,15 +118,18 @@ func writeDoctorText(checks []DoctorCheck, allOK bool) error {
 	for i := range checks {
 		c := &checks[i]
 		glyph := "✓"
-		if !c.OK {
+		switch {
+		case !c.OK:
 			glyph = "✗"
+		case c.Code != "":
+			glyph = "!" // passes, but degraded: a stale index answers from old code
 		}
 		line := fmt.Sprintf("  %s %-14s %s", glyph, c.Name, c.Message)
 		if c.Code != "" {
 			line += fmt.Sprintf(" [%s]", c.Code)
 		}
 		fmt.Fprintln(&b, strings.TrimRight(line, " "))
-		if !c.OK && c.Remediation != "" {
+		if (!c.OK || c.Code != "") && c.Remediation != "" {
 			fmt.Fprintf(&b, "    → %s\n", c.Remediation)
 		}
 	}
@@ -456,7 +459,20 @@ func checkRootMismatch() DoctorCheck {
 	}
 
 	detectedRoot := util.FindProjectRoot(cwd)
-	if detectedRoot == "" || detectedRoot == cwd {
+
+	// The index at the root was built for another directory: the repo was
+	// moved or renamed after indexing, and queries refuse it.
+	if detectedRoot != "" {
+		if moved, stored := indexBuiltElsewhere(detectedRoot); moved {
+			check.OK = false
+			check.Code = "ROOT_MISMATCH"
+			check.Message = fmt.Sprintf("index was built for %s but this repo is at %s", stored, detectedRoot)
+			check.Remediation = "snipe index"
+			return check
+		}
+	}
+
+	if detectedRoot == "" || !util.RootMoved(cwd, detectedRoot) {
 		check.OK = true
 		check.Message = "no root mismatch detected"
 		return check
@@ -507,4 +523,20 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%.1f hours", d.Hours())
 	}
 	return fmt.Sprintf("%.1f days", d.Hours()/24)
+}
+
+// indexBuiltElsewhere reports whether the index at root records a different
+// repo_root, and returns that recorded root.
+func indexBuiltElsewhere(root string) (bool, string) {
+	indexPath := store.DefaultIndexPath(root)
+	if !store.Exists(indexPath) {
+		return false, ""
+	}
+	s, err := store.Open(indexPath)
+	if err != nil {
+		return false, ""
+	}
+	defer s.Close()
+	stored, _ := s.GetMeta("repo_root")
+	return util.RootMoved(stored, root), stored
 }

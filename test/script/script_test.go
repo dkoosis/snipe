@@ -22,20 +22,19 @@
 // Exemptions (a real happy-path assertion is impossible on this fixture; the
 // script smokes a documented fallback and says why, in its own header comment):
 //   - sim: zero-embedding index + no Voyage key → graceful no-key path.
-//   - risk / index: need a git work tree / would reindex per script (defeats the
-//     copy-a-prebuilt-index design) → --help fast-exit, like watch.
-//   - imports: a FILE-argument command; file lookups match the absolute path
-//     stored at index time, which no longer exists once the index is copied to a
-//     fresh $WORK path (name/package queries stay portable, file-path ones do
-//     not) → --help fast-exit (real path is blackbox TestImports).
+//   - risk / index: risk needs a git work tree; index is already run by Setup
+//     for every script → --help fast-exit, like watch.
+//   - imports: a FILE-argument command → --help fast-exit (real path is
+//     blackbox TestImports). The original reason, a copied index whose stored
+//     file paths no longer existed, is gone: each script now indexes in place.
 //   - verify / tests / show: the fixture has no diff / no _test.go / stable hex
 //     ID to assert → graceful degrade path (JSON contract is in blackbox).
 //
 // Pattern: build-and-exec. cmd.Execute() calls os.Exit internally (kong's
 // FatalIfErrorf), so the binary cannot be driven in-process. Instead the suite
-// builds snipe once, indexes a small Go fixture once, and for each script copies
-// the indexed fixture into $WORK and prepends the binary's directory to PATH so
-// scripts can `exec snipe ...` against a ready-to-query index. No build tag — it
+// builds snipe once and, for each script, writes and indexes a small Go fixture
+// in $WORK and prepends the binary's directory to PATH so scripts can
+// `exec snipe ...` against a ready-to-query index. No build tag — it
 // is its own package, so plain `make` (go test ./...) runs it.
 package script
 
@@ -69,27 +68,6 @@ func TestScripts(t *testing.T) {
 		t.Fatalf("build snipe: %v\n%s\n%s", err, bout.String(), berr.String())
 	}
 
-	// Build + index the fixture once. The .snipe index is path-portable, so we
-	// copy the whole indexed tree into each script's $WORK during Setup. This
-	// keeps `go` off the script PATH and makes scripts fast (no per-script
-	// indexing).
-	fixtureDir := t.TempDir()
-	if err := writeScriptFixture(fixtureDir); err != nil {
-		t.Fatalf("write fixture: %v", err)
-	}
-	index := exec.Command(binPath, "index", fixtureDir, "--enrich=false", "--embed-mode=off")
-	index.Dir = fixtureDir
-	// Seal this subprocess boundary too: without KEYRING_DISABLE a real
-	// snipe/voyage keychain item (or a locked-keychain prompt) on a developer
-	// Mac could leak into the fixture index run.
-	index.Env = append(os.Environ(), "KEYRING_DISABLE=1")
-	var iout, ierr bytes.Buffer
-	index.Stdout = &iout
-	index.Stderr = &ierr
-	if err := index.Run(); err != nil {
-		t.Fatalf("index fixture: %v\n%s\n%s", err, iout.String(), ierr.String())
-	}
-
 	testscript.Run(t, testscript.Params{
 		Dir: filepath.Join("testdata", "script"),
 		Setup: func(env *testscript.Env) error {
@@ -108,12 +86,26 @@ func TestScripts(t *testing.T) {
 			// supply credentials and defeat key-absence isolation.
 			env.Setenv("KEYRING_DISABLE", "1")
 
-			// Copy the pre-indexed fixture into $WORK/fixture. snipe resolves the
-			// index root to the go.mod root (D3), and the .snipe index is
-			// path-portable, so the copy is immediately queryable.
+			// Write and index the fixture in $WORK/fixture. Each script indexes its
+			// own copy: an index records the directory it was built in, and
+			// snipe refuses one that has moved (sn-r1do.4), so a prebuilt index
+			// cannot be copied in. Indexing here, outside the script, keeps `go`
+			// off the script PATH; the fixture indexes in well under a second.
 			dst := filepath.Join(env.WorkDir, "fixture")
-			if err := copyTree(fixtureDir, dst); err != nil {
-				return err
+			if err := writeScriptFixture(dst); err != nil {
+				return fmt.Errorf("write fixture: %w", err)
+			}
+			index := exec.Command(binPath, "index", dst, "--enrich=false", "--embed-mode=off")
+			index.Dir = dst
+			// Seal this subprocess boundary too: without KEYRING_DISABLE a real
+			// snipe/voyage keychain item (or a locked-keychain prompt) on a
+			// developer Mac could leak into the fixture index run.
+			index.Env = append(os.Environ(), "KEYRING_DISABLE=1")
+			var iout, ierr bytes.Buffer
+			index.Stdout = &iout
+			index.Stderr = &ierr
+			if err := index.Run(); err != nil {
+				return fmt.Errorf("index fixture: %w\n%s\n%s", err, iout.String(), ierr.String())
 			}
 			env.Setenv("FIXTURE", dst)
 			return nil
@@ -207,31 +199,6 @@ func Reply() string {
 		}
 	}
 	return nil
-}
-
-// copyTree recursively copies src into dst.
-func copyTree(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dst, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return err
-		}
-		return os.WriteFile(target, data, info.Mode())
-	})
 }
 
 // TestExitCodeContract asserts the exact process exit codes snipe promises, so

@@ -505,6 +505,21 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		return nil, root, err
 	}
 
+	// An index built before the repo was moved or renamed holds paths under the
+	// old directory: every path-based lookup misses, and self-heal (which
+	// works from the stored root) cannot repair it. Refuse it rather than
+	// answer from it.
+	if storedRoot, _ := s.GetMeta("repo_root"); util.RootMoved(storedRoot, root) {
+		_ = s.Close()
+		if w != nil {
+			_ = w.WriteError(cmdName, &protocol.Error{
+				Code:    protocol.ErrIndexMismatch,
+				Message: fmt.Sprintf("index was built for %s but this repo is at %s — run: snipe index", storedRoot, root),
+			})
+		}
+		return nil, root, fmt.Errorf("index root moved")
+	}
+
 	// Small drift heals inline so queries answer from current code; the
 	// subprocess takes its own lock, so reopen to see the new data.
 	if maybeSelfHeal(s, root) {
