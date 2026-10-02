@@ -1,10 +1,10 @@
-// Package risk turns a git diff into a code-graph risk verdict. It maps changed
-// lines to changed symbols, fuses the signals snipe already owns (roles, package
-// centrality, blast radius, churn), and emits one repo-agnostic verdict + reasons.
+// Package risk measures a git diff against snipe's index: the changed symbols,
+// who calls them, who imports their packages, how often their files change, and
+// the roles they play. It hands over raw measures, never a score or verdict —
+// how much review a change gets is the caller's decision.
 //
-// Consumer: cc-plugins review-judge maps the verdict → a CI review tier. snipe owns
-// the risk answer; the judge owns the policy. Every code path degrades silently to a
-// low verdict rather than erroring, so the judge can call `snipe risk` on any repo.
+// Every code path degrades rather than erroring, so a caller can run
+// `snipe risk` on any repo and branch on `degraded`.
 package risk
 
 import (
@@ -25,8 +25,8 @@ type FileChange struct {
 
 // gitDiff runs `git diff --unified=0 <base> <head> -- '*.go'` at repoRoot and
 // returns the raw diff stream. ok is false — with no error — when git is absent,
-// repoRoot is not a work tree, or a ref won't resolve, so callers degrade to a low
-// verdict instead of failing (mirrors gitchurn.Walk's git-when-available contract).
+// repoRoot is not a work tree, or a ref won't resolve, so callers degrade
+// instead of failing (mirrors gitchurn.Walk's git-when-available contract).
 func gitDiff(repoRoot, base, head string) (stream string, ok bool) {
 	if _, err := exec.LookPath("git"); err != nil {
 		return "", false
@@ -48,6 +48,30 @@ func gitDiff(repoRoot, base, head string) (stream string, ok bool) {
 		return "", false
 	}
 	return string(out), true
+}
+
+// codeLines is the lines a diff adds and removes in non-test Go files, from
+// `git diff --numstat`. Callers run it after gitDiff accepted the refs; any
+// git failure counts nothing.
+func codeLines(repoRoot, base, head string) (added, removed int) {
+	out, err := exec.Command("git", "-C", repoRoot, "diff", "--numstat", "--no-renames",
+		"--end-of-options", base, head, "--", "*.go").Output()
+	if err != nil {
+		return 0, 0
+	}
+	for line := range strings.SplitSeq(string(out), "\n") {
+		f := strings.SplitN(line, "\t", 3)
+		if len(f) != 3 || strings.HasSuffix(f[2], "_test.go") {
+			continue
+		}
+		a, errA := strconv.Atoi(f[0]) // "-" for a binary file
+		r, errR := strconv.Atoi(f[1])
+		if errA == nil && errR == nil {
+			added += a
+			removed += r
+		}
+	}
+	return added, removed
 }
 
 // parseDiff turns a `git diff --unified=0` stream into per-file head-side line
@@ -117,7 +141,7 @@ func parseHunkHead(line string) (start, count int, ok bool) {
 // Untracked .go files are synthesized as whole-file changes spanning line 1
 // to their line count — git diff never reports them since they're outside
 // the index. ok is false — with no error — when git is absent or repoRoot
-// isn't a work tree, mirroring gitDiff's degrade-to-low-verdict contract.
+// isn't a work tree, mirroring gitDiff's degrade-not-fail contract.
 //
 // Rename detection (-M) is explicit here so a `git mv` + edit resolves to one
 // FileChange at the new path rather than a dropped delete plus a whole-file

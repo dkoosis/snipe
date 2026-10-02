@@ -1,8 +1,8 @@
-# risk — assess a diff's risk (base->head) from the code graph.
+# risk — review-risk score and measures of a diff (base->head).
 # risk requires a git work tree and a base ref, which the scripted fixture is
-# not; the real risk verdict is blackbox-covered (risk_contract_test.go). Per
+# not; the real measures are blackbox-covered (risk_contract_test.go). Per
 # the bead exemption for git-diff commands, we smoke the --help fast-exit path:
 # it prints usage naming the required <base> argument and exits 0.
 exec snipe risk --help
 stdout 'Usage: snipe risk <base>'
-stdout 'Risk verdict for a diff'
+stdout 'Review-risk score and measures for a diff'
