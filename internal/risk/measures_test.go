@@ -7,8 +7,9 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 )
 
-// seedStore opens a temp index and inserts one central package, one hot file, and
-// one persistence-role symbol so the store-backed gatherers have something to read.
+// seedStore opens a temp index with one store package imported by two others,
+// one file with commit history, and one persistence-role symbol, so the
+// store-backed measures have something to read.
 func seedStore(t *testing.T, repoRoot string) *store.Store {
 	t.Helper()
 	s, err := store.Open(filepath.Join(t.TempDir(), "index.db"))
@@ -17,16 +18,24 @@ func seedStore(t *testing.T, repoRoot string) *store.Store {
 	}
 	t.Cleanup(func() { _ = s.Close() })
 
-	// PageRank: internal/store is #1 of two packages.
-	if err := s.WriteGraphMetrics("imports", "pagerank", map[string]float64{
-		"github.com/x/internal/store": 0.9,
-		"github.com/x/internal/util":  0.1,
-	}); err != nil {
-		t.Fatalf("write metrics: %v", err)
+	// internal/store is imported by cmd (twice, from two files) and internal/util,
+	// and imports itself from a test file (which must not count).
+	for _, imp := range [][2]string{
+		{"cmd/a.go", "github.com/x/cmd"},
+		{"cmd/b.go", "github.com/x/cmd"},
+		{"internal/util/u.go", "github.com/x/internal/util"},
+		{"internal/store/s_test.go", "github.com/x/internal/store"},
+	} {
+		if _, err := s.DB().Exec(`
+			INSERT INTO imports (file_path, pkg_path, line, col, importer_pkg)
+			VALUES (?, 'github.com/x/internal/store', 3, 2, ?)
+		`, imp[0], imp[1]); err != nil {
+			t.Fatalf("insert import: %v", err)
+		}
 	}
-	// Churn: store.go is a hotspot.
 	if err := s.WriteFileChurn([]store.FileChurn{
 		{Path: "internal/store/store.go", Commits: 40, Authors: 3, Score: 9.9},
+		{Path: "cmd/cold.go", Commits: 2, Authors: 1, Score: 0.1},
 	}); err != nil {
 		t.Fatalf("write churn: %v", err)
 	}
@@ -45,45 +54,34 @@ func seedStore(t *testing.T, repoRoot string) *store.Store {
 	return s
 }
 
-func TestCentralSignal_FiresOnTopRankedPackage(t *testing.T) {
+var storeSym = []changedSym{{id: "sym1", pkgPath: "github.com/x/internal/store"}}
+
+func TestImporters_CountsDistinctOtherPackages(t *testing.T) {
 	t.Parallel()
 	s := seedStore(t, t.TempDir())
-	got := centralSignal(s, []changedSym{{id: "sym1", pkgPath: "github.com/x/internal/store"}})
-	if len(got) != 1 || got[0].Signal != sigCentral || got[0].Weight != weightStrong {
-		t.Fatalf("central signal = %+v, want one strong central", got)
+	if got := importers(s.DB(), storeSym); got != 2 {
+		t.Fatalf("importers = %d, want 2 (cmd and internal/util; not itself)", got)
+	}
+	if got := importers(s.DB(), []changedSym{{pkgPath: "github.com/x/unknown"}}); got != 0 {
+		t.Fatalf("importers of an unimported package = %d, want 0", got)
 	}
 }
 
-func TestCentralSignal_SilentOnUnrankedPackage(t *testing.T) {
+func TestCommits_IsTheMostForAnyChangedFile(t *testing.T) {
 	t.Parallel()
 	s := seedStore(t, t.TempDir())
-	if got := centralSignal(s, []changedSym{{pkgPath: "github.com/x/unknown"}}); got != nil {
-		t.Fatalf("expected no central signal, got %+v", got)
+	if got := commits(s, []string{"cmd/cold.go", "internal/store/store.go", "new.go"}); got != 40 {
+		t.Fatalf("commits = %d, want 40", got)
 	}
 }
 
-func TestChurnSignal_FiresOnHotFile(t *testing.T) {
-	t.Parallel()
-	s := seedStore(t, t.TempDir())
-	got := churnSignal(s, []string{"internal/store/store.go", "cmd/cold.go"})
-	if len(got) != 1 || got[0].Signal != sigChurn {
-		t.Fatalf("churn signal = %+v, want one churn-hotspot", got)
-	}
-}
-
-func TestRoleSignals_FiresPersistenceOnStorePackageSymbol(t *testing.T) {
+func TestRoles_CountsChangedSymbolsPerRole(t *testing.T) {
 	t.Parallel()
 	repoRoot := t.TempDir()
 	s := seedStore(t, repoRoot)
-	got := roleSignals(s.DB(), repoRoot, []changedSym{{id: "sym1", pkgPath: "github.com/x/internal/store"}})
-	var found bool
-	for _, sig := range got {
-		if sig.Signal == sigRolePrefix+"persistence" && sig.Weight == weightStrong {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected role:persistence signal, got %+v", got)
+	byRole, _ := roles(s.DB(), repoRoot, storeSym)
+	if byRole["persistence"] != 1 {
+		t.Fatalf("roles = %v, want persistence: 1", byRole)
 	}
 }
 
@@ -112,7 +110,7 @@ func TestAssess_DegradesWhenNotAGitWorkTree(t *testing.T) {
 	repoRoot := t.TempDir() // empty dir, not a git repo
 	s := seedStore(t, repoRoot)
 	v := Assess(s, repoRoot, "HEAD~1", "HEAD")
-	if !v.Degraded || v.Verdict != VerdictLow {
-		t.Fatalf("expected degraded low verdict outside a git tree, got %+v", v)
+	if !v.Degraded || v.Note == "" {
+		t.Fatalf("expected a degraded result with a note outside a git tree, got %+v", v)
 	}
 }

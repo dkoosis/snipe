@@ -1,13 +1,18 @@
 # `snipe risk --format json` — stable contract
 
-`snipe risk <base> [head] --format json` emits a code-graph risk verdict for the
-diff between two git refs. It is consumed **cross-repo** by the cc-plugins
-review-judge (ccp-1cfm), which branches CI review depth on the verdict. The
-fields and guarantees below are a **semver-guarded contract**: a rename or a
-path change is a **major** version bump. The guard test
-`test/blackbox/risk_contract_test.go` (sn-n8re) fails on any breaking change — if
-it goes red, a downstream CI judge breaks, so treat a red as intentional only
-with a major bump + a heads-up to `@cc-plugins`.
+`snipe risk <base> [head] --format json` hands over raw measures of the diff
+between two git refs: what changed, who calls it, who imports it, how often it
+changes, and the roles it plays. It gives no score, weights, thresholds or
+verdict. What the numbers mean for review is the caller's decision, made on
+evidence snipe does not have (sn-qtjl.4).
+
+Callers: sdlc's review routing (`cmd/sdlc/review.go`) reads the JSON;
+cc-plugins' dispatch probe (`plugins/dispatch/scripts/lib.sh`) reads the
+concise text and drops it when it contains `degraded:`.
+
+The fields below are a **semver-guarded contract**: a rename or a path change is
+a **major** version bump. The guard test `test/blackbox/risk_contract_test.go`
+fails on any breaking change.
 
 ## Shape
 
@@ -19,13 +24,13 @@ Standard snipe envelope; consumers read `.results[0]`:
   "ok": true,
   "results": [
     {
-      "verdict": "medium",
-      "score": 2,
-      "reasons": [
-        { "signal": "central", "detail": "…ranks #15/31 by PageRank", "weight": 1 },
-        { "signal": "churn-hotspot", "detail": "…in churn top-20", "weight": 1 }
-      ],
-      "changed": { "files": 2, "go_files": 2, "symbols": 3 },
+      "changed": { "files": 12, "go_files": 12, "symbols": 22 },
+      "callers": 16,
+      "caller_files": 6,
+      "importers": 0,
+      "commits": 32,
+      "roles": { "entry_point": 2, "internal": 20 },
+      "risk_flags": { "concurrency": 1 },
       "degraded": false
     }
   ],
@@ -38,49 +43,37 @@ Standard snipe envelope; consumers read `.results[0]`:
 
 | Path | Type | Meaning |
 |------|------|---------|
-| `.verdict` | string | `low` \| `medium` \| `high`. Forced `low` when `degraded`. |
-| `.score` | int | Summed signal weights (deduped per signal class). |
-| `.reasons` | array | Fired signals, each `{signal, detail, weight}`. May be `[]`. |
-| `.reasons[].signal` | string | Stable signal code (`central`, `churn-hotspot`, `blast`, `role:*`, `risk:*`, `bead-central`). |
-| `.changed` | object | `{files, go_files, symbols}` — diff shape (observability, not scored). |
+| `.changed` | object | `{files, go_files, symbols}` — the diff's shape. Symbols are production symbols whose body a changed line touches; `_test.go` edits add files, not symbols. |
+| `.callers` | int | Call sites of the changed symbols (capped at 500). |
+| `.caller_files` | int | Files those call sites are in. |
+| `.importers` | int | Packages importing a changed package — the most for any one changed package. |
+| `.commits` | int | Non-merge commits to a changed Go file over its history — the most for any one file. |
+| `.roles` | object | Changed symbols per architectural role (`persistence`, `api_boundary`, `entry_point`, `handler`, `io_primitive`, `factory`, `internal`). May be `{}`. |
+| `.risk_flags` | object | Changed symbols per risk flag (`concurrency`, `security_boundary`, …). May be `{}`. |
 | `.degraded` | bool | See below — the load-bearing discriminator. |
-| `.note` | string | Present (omitempty) only when `degraded` or otherwise noteworthy. |
+| `.note` | string | Present (omitempty) only when `degraded`; says why. |
 
 ## Invariants
 
 1. **Always exactly one result.** `.results` has length 1 and `.meta.total == 1`
-   on every path — clean, degraded, or unanalyzable. `risk` **never** emits
-   `results == []`. Read `.results[0]` unconditionally; **do not** branch on
-   `len(results)`.
+   on every path. Read `.results[0]` unconditionally.
 2. **`risk` never fails.** Exit 0 even with no index, a non-git tree, or an
    unresolved ref — those degrade rather than erroring.
 3. **`.meta.index_state` is never empty.** `fresh`, `stale` (the index no
    longer matches the code on disk) or `missing`.
 
-## `degraded` — trust vs. fallback
+## `degraded` — measured vs. not
 
-`degraded` is the discriminator a consumer **must** branch on. `len(reasons)`
-is **not** a safe proxy: an unanalyzable diff also carries `reasons == []`.
-
-- **`degraded: false`** — snipe analyzed a real Go diff. Trust the verdict. A
-  clean diff here reads `verdict: low` with `reasons: []` → the judge's
-  `tier:none`.
-- **`degraded: true`** — snipe **couldn't analyze**; the verdict is a safe-low
-  placeholder, not evidence of low risk. The consumer should drop to its
-  portable fallback. `.note` says why. Three cases:
+- **`degraded: false`** — snipe measured a real Go diff. The measures can be
+  trusted, including zeros: a `_test.go`-only change measures zero callers.
+- **`degraded: true`** — snipe **could not measure**. The measures are zeros
+  (except `changed`, when git could read the diff), not evidence of a small
+  change. `.note` says why:
   - index absent (`"index unavailable: …"`)
+  - index stale (`"index is stale: … — run: snipe index"`) — go.mod, go.sum,
+    go.work or go env changed since it was built, or files changed that the
+    inline heal did not repair (more than 20, heal disabled, or heal failed).
   - git diff unavailable — not a work tree, unresolved ref, or git absent
   - no changed Go files (`"no changed Go files"`)
 
-The trap: a clean analyzed diff (`degraded:false`, `reasons:[]`) and an
-unanalyzable diff (`degraded:true`, `reasons:[]`) can look identical on
-`reasons` alone, but the judge branches on them **oppositely**. `degraded` is
-the only sound signal.
-
-## Consumer recipe (cc-plugins review-judge)
-
-```
-degraded == true                              → portable fallback (don't trust empty as safe)
-degraded == false && verdict == "low"         → tier:none  (trust the clean verdict)
-degraded == false && verdict in {medium,high} → escalate review depth
-```
+Zeros look the same in both cases; `degraded` is the only sound discriminator.

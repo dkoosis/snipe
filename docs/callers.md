@@ -489,6 +489,7 @@ Kinds: hook, shell script, Go exec, agent prompt (agents and linters), skill, ru
 | mnemd | .sandbox/lib/lib-setup.sh:69 | index |  | concise (default) | shell script | |
 | mnemd | .sandbox/lib/lib-setup.sh:73 | index |  | concise (default) | shell script | |
 | mnemd | .sandbox/lib/lib-setup.sh:73 | index | --embed-mode=off --enrich=false | concise (default) | shell script | |
+| sdlc | cmd/sdlc/review.go:144 | risk | --format=json | json | go | |
 | sdlc | docs/adr/0002-work-provenance-lives-in-commit-trailers.md:27 | index |  | concise (default) | doc | |
 | sdlc | home/rules/standard-go-tools.md:10 | callers |  | concise (default) | rule | |
 | sdlc | home/rules/standard-go-tools.md:10 | context |  | concise (default) | rule | |

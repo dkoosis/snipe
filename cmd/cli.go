@@ -37,7 +37,7 @@ type CLI struct {
 	// Change: symbol-scoped first, then diff-scoped, then file-scoped.
 	Impact    ImpactCmd    `cmd:"" group:"Change:" help:"Blast radius of changing a symbol"`
 	Plan      PlanCmd      `cmd:"" group:"Change:" help:"Ordered edit worklist for changing a symbol"`
-	Risk      RiskCmd      `cmd:"" group:"Change:" help:"Risk verdict for a diff (base→head)"`
+	Risk      RiskCmd      `cmd:"" group:"Change:" help:"Raw measures of a diff (base→head): callers, importers, commits, roles"`
 	Verify    VerifyCmd    `cmd:"" group:"Change:" help:"Minimal go test set for a diff"`
 	Triage    TriageCmd    `cmd:"" group:"Change:" help:"Facts for a file set: hotspots, package, tests"`
 	Sensitive SensitiveCmd `cmd:"" group:"Change:" help:"Files in security zones (auth, crypto, secrets)"`

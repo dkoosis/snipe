@@ -11,20 +11,17 @@ import (
 	"time"
 )
 
-// sn-n8re — golden contract test for `snipe risk --format json`.
+// Golden contract test for `snipe risk --format json`.
 //
-// cc-plugins' review-judge (ccp-1cfm) is a thin consumer that hard-couples to
-// this shape as a semver-guarded contract: it reads .results[0].{verdict,score,
-// reasons,degraded} and branches on .degraded. A rename or a shape drift here
-// silently miscalibrates their CI judge, so this test fails on any breaking
-// change. The committed field set + the always-one-result guarantee ARE the
-// contract; keep them stable or bump snipe's major version.
+// snipe risk hands over raw measures of a diff — no score, weights or verdict
+// (sn-qtjl.4); callers (sdlc's review routing) decide what they mean. The
+// committed field set + the always-one-result guarantee ARE the contract; keep
+// them stable or bump snipe's major version.
 //
-// The load-bearing distinction the judge needs: a clean analyzed diff
-// (degraded=false, reasons=[]) means "trust it, tier:none", whereas an
-// unanalyzable diff (degraded=true) means "drop to portable fallback, don't
-// trust empty as safe". Both can surface reasons==[], so `degraded` — not
-// len(reasons) — is the only sound discriminator. This test pins that.
+// The load-bearing distinction: a measured diff (degraded=false) can be
+// trusted, even when every measure is zero; an unmeasurable one (degraded=true)
+// cannot. Zeros look the same in both, so `degraded` is the only sound
+// discriminator. This test pins that.
 
 // gitCommitAll stages everything and commits, with ambient hooks disabled (the
 // global commit-msg conventional-commit hook otherwise rejects fixture commits).
@@ -78,33 +75,27 @@ func riskResultEnv(t *testing.T, repoDir string, env []string, args ...string) (
 	}
 
 	v := requireMap(t, results[0], "results[0]")
-	// Stable field names the judge hard-codes. `note` is omitempty (absent on a
-	// clean analyzed diff), so it isn't required here.
-	if _, ok := v["verdict"].(string); !ok {
-		t.Fatalf("risk %v: results[0].verdict missing/not a string: %v", args, v["verdict"])
+	// Stable field names callers hard-code. `note` is omitempty (absent on a
+	// measured diff), so it isn't required here.
+	for _, f := range []string{"callers", "caller_files", "importers", "commits"} {
+		if _, ok := v[f].(float64); !ok {
+			t.Fatalf("risk %v: results[0].%s missing/not a number: %v", args, f, v[f])
+		}
 	}
-	if _, ok := v["score"].(float64); !ok {
-		t.Fatalf("risk %v: results[0].score missing/not a number: %v", args, v["score"])
-	}
-	if _, ok := v["reasons"]; !ok {
-		t.Fatalf("risk %v: results[0].reasons missing", args)
-	}
-	if _, ok := v["changed"].(map[string]any); !ok {
-		t.Fatalf("risk %v: results[0].changed missing/not an object: %v", args, v["changed"])
+	for _, f := range []string{"changed", "roles", "risk_flags"} {
+		if _, ok := v[f].(map[string]any); !ok {
+			t.Fatalf("risk %v: results[0].%s missing/not an object: %v", args, f, v[f])
+		}
 	}
 	if _, ok := v["degraded"].(bool); !ok {
 		t.Fatalf("risk %v: results[0].degraded missing/not a bool: %v", args, v["degraded"])
 	}
-	return v, indexState
-}
-
-// reasonsLen returns the length of results[0].reasons, tolerating JSON null.
-func reasonsLen(t *testing.T, v map[string]any) int {
-	t.Helper()
-	if v["reasons"] == nil {
-		return 0
+	for _, gone := range []string{"verdict", "score", "reasons"} {
+		if _, ok := v[gone]; ok {
+			t.Fatalf("risk %v: results[0].%s is back; snipe hands over measures, not a judgment", args, gone)
+		}
 	}
-	return len(requireSlice(t, v["reasons"], "reasons"))
+	return v, indexState
 }
 
 func TestRiskJSONContract(t *testing.T) {
@@ -112,7 +103,7 @@ func TestRiskJSONContract(t *testing.T) {
 	repoDir = canonicalRepoDir(t, repoDir)
 	initGitRepo(t, repoDir)
 
-	// --- unanalyzable case 1: no index -------------------------------------
+	// --- unmeasurable case 1: no index ------------------------------------
 	// runRisk hits OpenStore before any diff work; a missing index degrades
 	// rather than erroring. No indexRepo call yet.
 	t.Run("missing_index_degrades", func(t *testing.T) {
@@ -120,31 +111,25 @@ func TestRiskJSONContract(t *testing.T) {
 		if v["degraded"] != true {
 			t.Fatalf("missing index must degrade, got degraded=%v", v["degraded"])
 		}
-		if v["verdict"] != "low" {
-			t.Fatalf("degraded verdict must be forced low, got %v", v["verdict"])
-		}
 	})
 
 	indexRepo(t, repoDir)
 
-	// --- unanalyzable case 2: no changed Go files (empty diff) --------------
-	// This is the trap the judge must not fall into: reasons==[] here, but the
-	// diff was NOT analyzed, so it must read degraded=true, never tier:none.
+	// --- unmeasurable case 2: no changed Go files (empty diff) -------------
+	// Every measure is zero here, but nothing was measured: it must read
+	// degraded=true, never as a measured change with zero reach.
 	var emptyDiff map[string]any
 	t.Run("empty_diff_degrades", func(t *testing.T) {
 		emptyDiff = riskResult(t, repoDir, "HEAD", "HEAD")
 		if emptyDiff["degraded"] != true {
 			t.Fatalf("empty diff (no Go files) must degrade, got degraded=%v", emptyDiff["degraded"])
 		}
-		if n := reasonsLen(t, emptyDiff); n != 0 {
-			t.Fatalf("empty diff must carry no reasons, got %d", n)
-		}
-		if emptyDiff["verdict"] != "low" {
-			t.Fatalf("degraded verdict must be forced low, got %v", emptyDiff["verdict"])
+		if emptyDiff["callers"] != 0.0 {
+			t.Fatalf("empty diff must carry zero callers, got %v", emptyDiff["callers"])
 		}
 	})
 
-	// --- unanalyzable case 3: unresolved ref -------------------------------
+	// --- unmeasurable case 3: unresolved ref -------------------------------
 	t.Run("unresolved_ref_degrades", func(t *testing.T) {
 		v := riskResult(t, repoDir, "no-such-ref-deadbeef")
 		if v["degraded"] != true {
@@ -152,40 +137,27 @@ func TestRiskJSONContract(t *testing.T) {
 		}
 	})
 
-	// --- analyzed clean case: real Go diff, no risk signals ----------------
-	// Edit only a _test.go body: a changed Go file (so NOT degraded), but it
-	// contributes no production symbols. This is the judge's "analyzed, trust
-	// it" case; it must read degraded=false and be separable from the
-	// unanalyzable empty diff above.
+	// --- measured case with zero reach: a _test.go-only edit ---------------
+	// A changed Go file (so NOT degraded) that contributes no production
+	// symbols, so zero callers — the same zero the empty diff carries.
 	editFile(t, paths["test"], readFile(t, paths["test"])+"\n// contract-probe touch\n")
 	gitCommitAll(t, repoDir, "edit test only")
 	indexRepo(t, repoDir)
 
 	t.Run("degraded_is_the_discriminator", func(t *testing.T) {
-		analyzed := riskResult(t, repoDir, "HEAD~1", "HEAD")
-		t.Logf("analyzed verdict: %v", analyzed)
-		if analyzed["degraded"] != false {
-			t.Fatalf("a real analyzed diff must NOT be degraded, got degraded=%v", analyzed["degraded"])
-		}
+		measured := riskResult(t, repoDir, "HEAD~1", "HEAD")
+		t.Logf("measured: %v", measured)
 		if emptyDiff == nil {
 			t.Fatal("empty-diff case did not run before discriminator check")
 		}
-
-		// The contract's load-bearing guarantee. The unanalyzable empty diff
-		// carries reasons==[] (the trap: a judge keying on len(reasons)==0 as
-		// "clean" would mis-score it as tier:none), yet it is degraded=true. The
-		// analyzed diff is degraded=false. So `degraded` — never len(reasons) —
-		// is the sound discriminator between "trust the clean verdict" and "drop
-		// to portable fallback". In this small fixture the analyzed diff also
-		// trips the file-level churn signal (every file lands in churn top-20),
-		// so we can't manufacture an analyzed reasons==[]; the trap we DO pin is
-		// the dangerous direction — empty-but-unanalyzable.
-		if n := reasonsLen(t, emptyDiff); n != 0 {
-			t.Fatalf("expected the unanalyzable empty diff to expose the trap (reasons==[]), got %d reasons", n)
+		// Both carry zero callers; only `degraded` tells "measured, nothing
+		// reached" from "could not measure".
+		if measured["callers"] != 0.0 || emptyDiff["callers"] != 0.0 {
+			t.Fatalf("want zero callers in both: measured=%v empty=%v", measured["callers"], emptyDiff["callers"])
 		}
-		if emptyDiff["degraded"] != true || analyzed["degraded"] != false {
-			t.Fatalf("degraded must separate unanalyzable (want true) from analyzed (want false): "+
-				"empty=%v analyzed=%v", emptyDiff["degraded"], analyzed["degraded"])
+		if emptyDiff["degraded"] != true || measured["degraded"] != false {
+			t.Fatalf("degraded must separate unmeasurable (want true) from measured (want false): "+
+				"empty=%v measured=%v", emptyDiff["degraded"], measured["degraded"])
 		}
 	})
 
