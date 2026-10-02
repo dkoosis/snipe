@@ -50,6 +50,30 @@ func gitDiff(repoRoot, base, head string) (stream string, ok bool) {
 	return string(out), true
 }
 
+// codeLines is the lines a diff adds and removes in non-test Go files, from
+// `git diff --numstat`. Callers run it after gitDiff accepted the refs; any
+// git failure counts nothing.
+func codeLines(repoRoot, base, head string) (added, removed int) {
+	out, err := exec.Command("git", "-C", repoRoot, "diff", "--numstat", "--no-renames",
+		"--end-of-options", base, head, "--", "*.go").Output()
+	if err != nil {
+		return 0, 0
+	}
+	for line := range strings.SplitSeq(string(out), "\n") {
+		f := strings.SplitN(line, "\t", 3)
+		if len(f) != 3 || strings.HasSuffix(f[2], "_test.go") {
+			continue
+		}
+		a, errA := strconv.Atoi(f[0]) // "-" for a binary file
+		r, errR := strconv.Atoi(f[1])
+		if errA == nil && errR == nil {
+			added += a
+			removed += r
+		}
+	}
+	return added, removed
+}
+
 // parseDiff turns a `git diff --unified=0` stream into per-file head-side line
 // ranges. It tracks the current file from the `+++ b/<path>` header (so renames
 // resolve to the head path) and reads each `@@ -a,b +c,d @@` hunk's + side. A

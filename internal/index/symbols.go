@@ -142,6 +142,13 @@ func extractFuncSymbol(pkg *packages.Package, decl *ast.FuncDecl, filePath, pkgP
 	}
 }
 
+// Cyclo is computeCyclo for callers outside indexing (snipe risk measures the
+// changed functions at the head of a diff, which the index does not store).
+func Cyclo(body *ast.BlockStmt) int { return computeCyclo(body) }
+
+// Cognitive is computeCognitive for callers outside indexing.
+func Cognitive(body *ast.BlockStmt) int { return computeCognitive(body) }
+
 // computeCyclo returns the McCabe cyclomatic complexity of a function body
 // (McCabe, "A Complexity Measure", IEEE TSE 1976).
 // 1 + count of decision points (if/for/range/case/comm/&&/||). Body=nil

@@ -1,6 +1,8 @@
 package risk
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -54,24 +56,37 @@ func seedStore(t *testing.T, repoRoot string) *store.Store {
 	return s
 }
 
-var storeSym = []changedSym{{id: "sym1", pkgPath: "github.com/x/internal/store"}}
+var storeSym = []changedSym{{id: "sym1", name: "WriteIndex", kind: "func", pkgPath: "github.com/x/internal/store"}}
 
 func TestImporters_CountsDistinctOtherPackages(t *testing.T) {
 	t.Parallel()
 	s := seedStore(t, t.TempDir())
-	if got := importers(s.DB(), storeSym); got != 2 {
+	if got := reach(s, storeSym).Importers; got != 2 {
 		t.Fatalf("importers = %d, want 2 (cmd and internal/util; not itself)", got)
 	}
-	if got := importers(s.DB(), []changedSym{{pkgPath: "github.com/x/unknown"}}); got != 0 {
+	if got := reach(s, []changedSym{{pkgPath: "github.com/x/unknown"}}).Importers; got != 0 {
 		t.Fatalf("importers of an unimported package = %d, want 0", got)
 	}
 }
 
-func TestCommits_IsTheMostForAnyChangedFile(t *testing.T) {
+func TestHistory_IsTheMostForAnyChangedFile(t *testing.T) {
 	t.Parallel()
 	s := seedStore(t, t.TempDir())
-	if got := commits(s, []string{"cmd/cold.go", "internal/store/store.go", "new.go"}); got != 40 {
-		t.Fatalf("commits = %d, want 40", got)
+	h := history(s, []string{"cmd/cold.go", "internal/store/store.go", "new.go"})
+	if h == nil || h.Commits != 40 || h.Authors != 3 || h.Churn != 9.9 {
+		t.Fatalf("history = %+v, want commits 40, authors 3, churn 9.9", h)
+	}
+}
+
+func TestHistory_NilWithoutChurn(t *testing.T) {
+	t.Parallel()
+	s, err := store.Open(filepath.Join(t.TempDir(), "index.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if h := history(s, []string{"a.go"}); h != nil {
+		t.Fatalf("history with no churn = %+v, want nil (missing, not zero)", h)
 	}
 }
 
@@ -79,9 +94,9 @@ func TestRoles_CountsChangedSymbolsPerRole(t *testing.T) {
 	t.Parallel()
 	repoRoot := t.TempDir()
 	s := seedStore(t, repoRoot)
-	byRole, _ := roles(s.DB(), repoRoot, storeSym)
-	if byRole["persistence"] != 1 {
-		t.Fatalf("roles = %v, want persistence: 1", byRole)
+	k := kind(s.DB(), repoRoot, storeSym)
+	if k.Roles["persistence"] != 1 || k.Exported != 1 {
+		t.Fatalf("kind = %+v, want persistence: 1, exported 1", k)
 	}
 }
 
@@ -110,7 +125,54 @@ func TestAssess_DegradesWhenNotAGitWorkTree(t *testing.T) {
 	repoRoot := t.TempDir() // empty dir, not a git repo
 	s := seedStore(t, repoRoot)
 	v := Assess(s, repoRoot, "HEAD~1", "HEAD")
-	if !v.Degraded || v.Note == "" {
-		t.Fatalf("expected a degraded result with a note outside a git tree, got %+v", v)
+	if !v.Degraded || v.Note == "" || v.Score != nil {
+		t.Fatalf("expected a degraded result with a note and no score outside a git tree, got %+v", v)
+	}
+}
+
+func TestComplexity_MeasuresOnlyTheChangedFunctions(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	src := `package p
+
+func simple() {}
+
+func branchy(a, b int) int {
+	if a > 0 && b > 0 {
+		for i := 0; i < a; i++ {
+			if i == b {
+				return i
+			}
+		}
+	}
+	return 0
+}
+`
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"config", "core.hooksPath", "/dev/null"},
+	} {
+		gitRun(t, repo, args...)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "p.go"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, repo, "add", "-A")
+	gitRun(t, repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "x")
+
+	// Only branchy (lines 5-14) is touched.
+	cx := complexity(repo, "HEAD", []FileChange{{Path: "p.go", LineRanges: [][2]int{{7, 7}}}})
+	got := cx["p.go"]
+	if len(got) != 1 || got[0].name != "branchy" || got[0].cyclo != 5 || got[0].cognitive == 0 {
+		t.Fatalf("complexity = %+v, want branchy alone with cyclo 5", got)
+	}
+}
+
+func gitRun(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 }

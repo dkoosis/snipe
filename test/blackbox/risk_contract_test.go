@@ -13,15 +13,15 @@ import (
 
 // Golden contract test for `snipe risk --format json`.
 //
-// snipe risk hands over raw measures of a diff — no score, weights or verdict
-// (sn-qtjl.4); callers (sdlc's review routing) decide what they mean. The
-// committed field set + the always-one-result guarantee ARE the contract; keep
-// them stable or bump snipe's major version.
+// snipe risk hands the router measures in five factors (reach, difficulty,
+// history, kind, safety net), each scored 0-1, and one overall score from
+// visible, versioned weights — no band or verdict (sn-qtjl.4). The committed
+// field set + the always-one-result guarantee ARE the contract; keep them
+// stable or bump snipe's major version.
 //
-// The load-bearing distinction: a measured diff (degraded=false) can be
-// trusted, even when every measure is zero; an unmeasurable one (degraded=true)
-// cannot. Zeros look the same in both, so `degraded` is the only sound
-// discriminator. This test pins that.
+// The load-bearing distinction: a measured diff (degraded=false) carries a
+// score, even a low one; an unmeasurable diff (degraded=true) carries none —
+// score is null, never 0, so a router can't read "couldn't look" as "safe".
 
 // gitCommitAll stages everything and commits, with ambient hooks disabled (the
 // global commit-msg conventional-commit hook otherwise rejects fixture commits).
@@ -75,24 +75,34 @@ func riskResultEnv(t *testing.T, repoDir string, env []string, args ...string) (
 	}
 
 	v := requireMap(t, results[0], "results[0]")
-	// Stable field names callers hard-code. `note` is omitempty (absent on a
-	// measured diff), so it isn't required here.
-	for _, f := range []string{"callers", "caller_files", "importers", "commits"} {
-		if _, ok := v[f].(float64); !ok {
-			t.Fatalf("risk %v: results[0].%s missing/not a number: %v", args, f, v[f])
-		}
+	// Stable field names callers hard-code. `note` is omitempty; `score` and
+	// `history` may be null.
+	if _, ok := v["score"]; !ok {
+		t.Fatalf("risk %v: results[0].score missing", args)
 	}
-	for _, f := range []string{"changed", "roles", "risk_flags"} {
+	if _, ok := v["weights_version"].(float64); !ok {
+		t.Fatalf("risk %v: results[0].weights_version missing/not a number: %v", args, v["weights_version"])
+	}
+	for _, f := range []string{"factors", "weights", "changed", "reach", "difficulty", "kind", "tests"} {
 		if _, ok := v[f].(map[string]any); !ok {
 			t.Fatalf("risk %v: results[0].%s missing/not an object: %v", args, f, v[f])
 		}
 	}
+	if _, ok := v["history"]; !ok {
+		t.Fatalf("risk %v: results[0].history missing", args)
+	}
+	if _, ok := v["focus"].([]any); !ok {
+		t.Fatalf("risk %v: results[0].focus missing/not an array: %v", args, v["focus"])
+	}
 	if _, ok := v["degraded"].(bool); !ok {
 		t.Fatalf("risk %v: results[0].degraded missing/not a bool: %v", args, v["degraded"])
 	}
-	for _, gone := range []string{"verdict", "score", "reasons"} {
+	if v["degraded"] == true && v["score"] != nil {
+		t.Fatalf("risk %v: degraded result carries score %v; it must be null", args, v["score"])
+	}
+	for _, gone := range []string{"verdict", "reasons"} {
 		if _, ok := v[gone]; ok {
-			t.Fatalf("risk %v: results[0].%s is back; snipe hands over measures, not a judgment", args, gone)
+			t.Fatalf("risk %v: results[0].%s is back; snipe hands over a score and its measures, not a band", args, gone)
 		}
 	}
 	return v, indexState
@@ -116,16 +126,16 @@ func TestRiskJSONContract(t *testing.T) {
 	indexRepo(t, repoDir)
 
 	// --- unmeasurable case 2: no changed Go files (empty diff) -------------
-	// Every measure is zero here, but nothing was measured: it must read
-	// degraded=true, never as a measured change with zero reach.
+	// Nothing was measured: it must read degraded=true with a null score,
+	// never as a measured change that scored low.
 	var emptyDiff map[string]any
 	t.Run("empty_diff_degrades", func(t *testing.T) {
 		emptyDiff = riskResult(t, repoDir, "HEAD", "HEAD")
 		if emptyDiff["degraded"] != true {
 			t.Fatalf("empty diff (no Go files) must degrade, got degraded=%v", emptyDiff["degraded"])
 		}
-		if emptyDiff["callers"] != 0.0 {
-			t.Fatalf("empty diff must carry zero callers, got %v", emptyDiff["callers"])
+		if emptyDiff["score"] != nil {
+			t.Fatalf("empty diff must carry no score, got %v", emptyDiff["score"])
 		}
 	})
 
@@ -137,9 +147,9 @@ func TestRiskJSONContract(t *testing.T) {
 		}
 	})
 
-	// --- measured case with zero reach: a _test.go-only edit ---------------
+	// --- measured case: a _test.go-only edit --------------------------------
 	// A changed Go file (so NOT degraded) that contributes no production
-	// symbols, so zero callers — the same zero the empty diff carries.
+	// symbols: a measured, low score — unlike the empty diff's null.
 	editFile(t, paths["test"], readFile(t, paths["test"])+"\n// contract-probe touch\n")
 	gitCommitAll(t, repoDir, "edit test only")
 	indexRepo(t, repoDir)
@@ -150,10 +160,12 @@ func TestRiskJSONContract(t *testing.T) {
 		if emptyDiff == nil {
 			t.Fatal("empty-diff case did not run before discriminator check")
 		}
-		// Both carry zero callers; only `degraded` tells "measured, nothing
-		// reached" from "could not measure".
-		if measured["callers"] != 0.0 || emptyDiff["callers"] != 0.0 {
-			t.Fatalf("want zero callers in both: measured=%v empty=%v", measured["callers"], emptyDiff["callers"])
+		score, ok := measured["score"].(float64)
+		if !ok || score < 0 || score > 1 {
+			t.Fatalf("measured diff: want a score in [0,1], got %v", measured["score"])
+		}
+		if emptyDiff["score"] != nil {
+			t.Fatalf("unmeasurable diff: want a null score, got %v", emptyDiff["score"])
 		}
 		if emptyDiff["degraded"] != true || measured["degraded"] != false {
 			t.Fatalf("degraded must separate unmeasurable (want true) from measured (want false): "+
