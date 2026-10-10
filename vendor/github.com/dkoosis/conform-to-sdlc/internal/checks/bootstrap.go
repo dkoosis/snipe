@@ -65,14 +65,28 @@ func BootstrapPlan(spec ScaffoldSpec) []Step {
 			Argv: []string{"git", "init", "-b", defaultBranch},
 		},
 		{
+			// bd init runs `git commit` internally. Wiring core.hooksPath
+			// before that commit would fire the tracked pre-commit hook,
+			// which delegates to the .beads/hooks shim bd init itself is
+			// mid-install of — a nested `bd` call that contends with this
+			// still-running `bd init` for the same Dolt lock and hangs
+			// until the bootstrap timeout kills it (cfm-d4r). Wiring hooks
+			// after gives bd's own commit git's default (empty) hooks.
+			//
+			// --skip-agents: bd's own default init writes AGENTS.md,
+			// CLAUDE.md, .claude/settings.json and a Codex skill install —
+			// none part of this contract, and the first carries a managed
+			// block that trips conform-to-sdlc's own agents-managed-block rule,
+			// breaking reportInitResult's "one call produces a passing
+			// repo" claim the moment bd init is allowed to finish (cfm-d4r).
+			Why:      "bd needs a store before " + bdConfigFile + " has a live counterpart",
+			Argv:     []string{"bd", "init", "--prefix", spec.Prefix, "--non-interactive", "--skip-agents"},
+			Optional: true,
+		},
+		{
 			// checkHooksPath's repair, verbatim.
 			Why:  RuleHooksPath + ": git must read hooks from the tracked " + hooksDir,
 			Argv: []string{"git", "config", "core.hooksPath", hooksDir},
-		},
-		{
-			Why:      "bd needs a store before " + bdConfigFile + " has a live counterpart",
-			Argv:     []string{"bd", "init", "--prefix", spec.Prefix, "--non-interactive"},
-			Optional: true,
 		},
 	}
 	// checkBDLive compares the live bd config against the tracked
@@ -163,36 +177,62 @@ func Bootstrap(ctx context.Context, dir string, spec ScaffoldSpec, opts Bootstra
 	if out == nil {
 		out = os.Stdout
 	}
-	if !filepath.IsAbs(dir) {
-		abs, err := filepath.Abs(dir)
-		if err != nil {
-			return fmt.Errorf("%w: resolve %s: %w", ErrBootstrap, dir, err)
-		}
-		dir = abs
+	dir, err := resolveBootstrapDir(dir)
+	if err != nil {
+		return err
 	}
 
 	for _, step := range BootstrapPlan(spec) {
-		switch {
-		case opts.DryRun:
-			fmt.Fprintf(out, "  · would run: %s\n", step)
-			continue
-		case step.Remote && !opts.WithRemote:
-			fmt.Fprintf(out, "  · skipped (remote): %s\n", step)
-			continue
+		if err := runBootstrapStep(ctx, dir, step, out, opts); err != nil {
+			return err
 		}
-		if _, err := exec.LookPath(step.Argv[0]); err != nil {
-			fmt.Fprintf(out, "  ▲ %s not on PATH — run by hand: %s\n", step.Argv[0], step)
-			continue
-		}
-		if err := runStep(ctx, dir, step); err != nil {
-			if !step.Optional {
-				return fmt.Errorf("%w: %s: %w", ErrBootstrap, step, err)
-			}
-			fmt.Fprintf(out, "  ▲ %s\n      %v\n      run it by hand once the cause is cleared\n", step, err)
-			continue
-		}
-		fmt.Fprintf(out, "  ✓ %s\n", step)
 	}
+	return nil
+}
+
+// resolveBootstrapDir makes dir absolute, since every step below runs with
+// it as cmd.Dir.
+func resolveBootstrapDir(dir string) (string, error) {
+	if filepath.IsAbs(dir) {
+		return dir, nil
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("%w: resolve %s: %w", ErrBootstrap, dir, err)
+	}
+	return abs, nil
+}
+
+// runBootstrapStep runs one step and reports its outcome to out. A failed
+// Optional step is reported and survived (nil); a failed required step stops
+// Bootstrap.
+func runBootstrapStep(ctx context.Context, dir string, step Step, out *os.File, opts BootstrapOpts) error {
+	switch {
+	case opts.DryRun:
+		fmt.Fprintf(out, "  · would run: %s\n", step)
+		return nil
+	case step.Remote && !opts.WithRemote:
+		fmt.Fprintf(out, "  · skipped (remote): %s\n", step)
+		return nil
+	}
+	if _, err := exec.LookPath(step.Argv[0]); err != nil {
+		// A missing command is reported, not fatal: a scaffolded repo must
+		// not be stranded half-wired because one tool isn't installed yet.
+		fmt.Fprintf(out, "  ▲ %s not on PATH — run by hand: %s\n", step.Argv[0], step)
+		return nil //nolint:nilerr // deliberate: see comment above
+	}
+	run := runStep
+	if isBDInitStep(step) {
+		run = runBDInitStep
+	}
+	if err := run(ctx, dir, step); err != nil {
+		if !step.Optional {
+			return fmt.Errorf("%w: %s: %w", ErrBootstrap, step, err)
+		}
+		fmt.Fprintf(out, "  ▲ %s\n      %v\n      run it by hand once the cause is cleared\n", step, err)
+		return nil
+	}
+	fmt.Fprintf(out, "  ✓ %s\n", step)
 	return nil
 }
 
@@ -215,4 +255,65 @@ func runStep(ctx context.Context, dir string, step Step) error {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	return nil
+}
+
+// isBDInitStep reports whether step is the plan's `bd init` — the one
+// command that reads the tracked bd declaration before a live store exists
+// (cfm-d4r).
+func isBDInitStep(step Step) bool {
+	return len(step.Argv) >= 2 && step.Argv[0] == "bd" && step.Argv[1] == "init"
+}
+
+// runBDInitStep runs `bd init` with the tracked sync.remote declaration held
+// back, then restores the tracked file byte-identical.
+//
+// bd init reads .beads/config.yaml before it has a store of its own; a
+// freshly scaffolded repo declares a sync.remote naming a GitHub repo that
+// need not exist yet (that only happens under --with-remote, if ever), so bd
+// tries to clone it and exits 1 — no live store is created at all (cfm-d4r).
+// Holding the one line back for the one command that cares, then restoring
+// the file exactly afterward, keeps Surface 1's contract (the declaration is
+// always in the tracked file, unconditionally) while letting bd init
+// succeed locally. A run with no tracked file yet (files-only, hand-rolled
+// repo) has nothing to hold back and falls through to a plain run.
+func runBDInitStep(ctx context.Context, dir string, step Step) error {
+	// path is dir (already resolved to an absolute path by Bootstrap) joined
+	// with the package's own bdConfigFile constant, not attacker input.
+	path := filepath.Join(dir, bdConfigFile)
+	info, statErr := os.Stat(path)
+	original, err := os.ReadFile(path)
+	if statErr != nil || err != nil {
+		return runStep(ctx, dir, step)
+	}
+	mode := info.Mode().Perm()
+
+	if err := os.WriteFile(path, stripSyncRemote(original), mode); err != nil {
+		return fmt.Errorf("%w: hold back sync.remote before bd init: %w", ErrBootstrap, err)
+	}
+
+	runErr := runStep(ctx, dir, step)
+
+	//nolint:gosec // G703: path above is dir (already resolved absolute by Bootstrap) + the package's own bdConfigFile constant, not attacker input
+	if restoreErr := os.WriteFile(path, original, mode); restoreErr != nil {
+		if runErr != nil {
+			return fmt.Errorf("%w: restore %s failed after bd init also failed: %w: %w", ErrBootstrap, bdConfigFile, restoreErr, runErr)
+		}
+		return fmt.Errorf("%w: restore %s after bd init: %w", ErrBootstrap, bdConfigFile, restoreErr)
+	}
+	return runErr
+}
+
+// stripSyncRemote returns config bytes with the flat sync.remote line
+// removed — the only shape renderBDConfig ever emits. Held back only for the
+// one bd init call that would otherwise try to clone it.
+func stripSyncRemote(data []byte) []byte {
+	lines := strings.Split(string(data), "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "sync.remote:") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return []byte(strings.Join(kept, "\n"))
 }
