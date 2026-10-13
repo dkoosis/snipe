@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -85,7 +86,7 @@ var contractVerbs = []string{"check", "audit", "help"}
 // the lib profile means). verbFindings checks against this list and the
 // scaffold renderer emits from it, so the two cannot disagree.
 func requiredVerbs(profile values.Profile) []string {
-	verbs := append([]string{}, contractVerbs...)
+	verbs := slices.Clone(contractVerbs)
 	if profile == values.ProfileTool {
 		verbs = append(verbs, "deploy")
 	}
@@ -121,7 +122,7 @@ func checkMakefile(dir string, profile values.Profile) []Finding {
 
 // floorTargets is the target floor for a profile.
 func floorTargets(profile values.Profile) []string {
-	floor := append([]string{}, targetFloor...)
+	floor := slices.Clone(targetFloor)
 	if profile == values.ProfileTool {
 		floor = append(floor, toolTargets...)
 	}

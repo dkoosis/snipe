@@ -46,10 +46,9 @@ var noGitOpsFamily = []string{RuleHooksShape, RuleHookExitDiscard, RuleHooksPath
 // trackedHookEvents are the bd hook events shape B tracks in .githooks.
 var trackedHookEvents = []string{"post-checkout", "post-merge", "pre-commit", "pre-push", "prepare-commit-msg"}
 
-// Two delegation shapes are accepted (cfm-wml; the itzy#161 pin surfaced the
-// second): the inline beads-managed block, or a delegating wrapper that
-// exec-chains to bd's shim in .beads/hooks/. Both are checked semantically
-// (marker/path presence), not byte-wise.
+// Two delegation shapes are accepted (cfm-wml): the inline beads-managed block,
+// or a delegating wrapper that exec-chains to bd's shim in .beads/hooks/.
+// Both are checked semantically (marker/path presence), not byte-wise.
 const (
 	delegationMarker = "BEADS INTEGRATION"
 	delegationShim   = ".beads/hooks"

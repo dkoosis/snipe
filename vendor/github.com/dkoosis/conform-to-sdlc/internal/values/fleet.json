@@ -3,7 +3,6 @@
     {"name": "ferret", "visibility": "public"},
     {"name": "snipe", "visibility": "public"},
     {"name": "trixi-bot", "visibility": "private"},
-    {"name": "itzy", "visibility": "private"},
     {"name": "canapay", "visibility": "private"},
     {"name": "fo", "visibility": "public"},
     {"name": "loto", "visibility": "public"},
