@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -79,9 +80,7 @@ func runRaw(t *testing.T, repoDir string, args ...string) (stdout []byte, stderr
 
 	cmd := exec.Command(binPath, args...)
 	cmd.Dir = repoDir
-	// KEYRING_DISABLE keeps the binary under test off the real macOS keychain,
-	// so a developer's snipe/voyage keychain item can't defeat test isolation.
-	cmd.Env = append(os.Environ(), "KEYRING_DISABLE=1")
+	cmd.Env = snipeEnv()
 
 	var outBuf bytes.Buffer
 	var errBuf bytes.Buffer
@@ -99,6 +98,24 @@ func runRaw(t *testing.T, repoDir string, args ...string) (stdout []byte, stderr
 		return stdout, stderr, exitErr.ExitCode()
 	}
 	return stdout, stderr, 1
+}
+
+// voyageVars are the env vars that point the binary at the real Voyage API.
+var voyageVars = []string{"VOYAGE_API_KEY", "VOYAGE_MODEL", "VOYAGE_API_URL"}
+
+// snipeEnv is the environment for the binary under test: os.Environ() without
+// any VOYAGE_* var, so a developer's real key never reaches `snipe index` and
+// uploads Voyage batches (sn-pln6). KEYRING_DISABLE keeps the binary off the
+// real macOS keychain, so a snipe/voyage keychain item can't defeat that.
+// Tests that want embeddings add a fake key and endpoint themselves.
+func snipeEnv() []string {
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "VOYAGE_") {
+			env = append(env, e)
+		}
+	}
+	return append(env, "KEYRING_DISABLE=1")
 }
 
 func findRepoRoot() (string, error) {
