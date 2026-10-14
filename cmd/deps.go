@@ -58,7 +58,7 @@ func runDeps(args []string) error {
 func runDepsSingle(w *output.Writer, db *sql.DB, pkgPath, modulePath, dir string, start time.Time) error {
 	deps, err := query.FindPackageDeps(db, pkgPath, modulePath)
 	if err != nil {
-		return w.WriteError("deps", &protocol.Error{
+		return w.WriteErrorWithMeta("deps", pkgPath, nil, "", 0, &protocol.Error{
 			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})

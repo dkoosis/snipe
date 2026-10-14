@@ -29,7 +29,7 @@ func runLits(args []string) error {
 	}
 
 	if len(refs) == 0 {
-		return w.WriteError("lits", &protocol.Error{
+		return w.WriteErrorWithMeta("lits", value, nil, "", 0, &protocol.Error{
 			Code:    protocol.ErrNotFound,
 			Message: fmt.Sprintf("no string refs found for %q", value),
 		})
