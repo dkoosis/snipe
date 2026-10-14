@@ -46,6 +46,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
@@ -101,7 +102,7 @@ func TestScripts(t *testing.T) {
 			// Seal this subprocess boundary too: without KEYRING_DISABLE a real
 			// snipe/voyage keychain item (or a locked-keychain prompt) on a
 			// developer Mac could leak into the fixture index run.
-			index.Env = append(os.Environ(), "KEYRING_DISABLE=1")
+			index.Env = snipeEnv()
 			var iout, ierr bytes.Buffer
 			index.Stdout = &iout
 			index.Stderr = &ierr
@@ -230,7 +231,7 @@ func TestExitCodeContract(t *testing.T) {
 	}
 	index := exec.Command(binPath, "index", fixtureDir, "--enrich=false", "--embed-mode=off")
 	index.Dir = fixtureDir
-	index.Env = append(os.Environ(), "KEYRING_DISABLE=1")
+	index.Env = snipeEnv()
 	if out, err := index.CombinedOutput(); err != nil {
 		t.Fatalf("index fixture: %v\n%s", err, out)
 	}
@@ -238,7 +239,7 @@ func TestExitCodeContract(t *testing.T) {
 	run := func(args ...string) int {
 		cmd := exec.Command(binPath, args...)
 		cmd.Dir = fixtureDir
-		cmd.Env = append(os.Environ(), "KEYRING_DISABLE=1")
+		cmd.Env = snipeEnv()
 		if err := cmd.Run(); err != nil {
 			var ee *exec.ExitError
 			if errors.As(err, &ee) {
@@ -307,7 +308,7 @@ func TestMissingArgument_IsInvalidArgs(t *testing.T) {
 	if err := writeScriptFixture(fixtureDir); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
-	env := append(os.Environ(), "KEYRING_DISABLE=1", "SNIPE_NO_TELEMETRY=1")
+	env := append(snipeEnv(), "SNIPE_NO_TELEMETRY=1")
 	index := exec.Command(binPath, "index", fixtureDir, "--enrich=false", "--embed-mode=off")
 	index.Dir = fixtureDir
 	index.Env = env
@@ -344,4 +345,17 @@ func TestMissingArgument_IsInvalidArgs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// snipeEnv is os.Environ() without any VOYAGE_* var, plus KEYRING_DISABLE, so
+// the binary under test never reaches the real Voyage API with a developer's
+// key or keychain item (sn-pln6).
+func snipeEnv() []string {
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "VOYAGE_") {
+			env = append(env, e)
+		}
+	}
+	return append(env, "KEYRING_DISABLE=1")
 }

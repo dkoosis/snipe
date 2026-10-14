@@ -44,7 +44,7 @@ func gitCommitAll(t *testing.T, dir, msg string) {
 // path — clean, degraded, or unanalyzable — and returns the sole verdict object.
 func riskResult(t *testing.T, repoDir string, args ...string) map[string]any {
 	t.Helper()
-	v, _ := riskResultEnv(t, repoDir, os.Environ(), args...)
+	v, _ := riskResultEnv(t, repoDir, snipeEnv(), args...)
 	return v
 }
 
@@ -181,7 +181,7 @@ func TestRiskJSONContract(t *testing.T) {
 	origGoMod := readFile(t, goMod)
 	editFile(t, goMod, origGoMod+"\n// stale-probe\n")
 	t.Run("changed_go_mod_degrades", func(t *testing.T) {
-		v, state := riskResultEnv(t, repoDir, os.Environ(), "HEAD~1", "HEAD")
+		v, state := riskResultEnv(t, repoDir, snipeEnv(), "HEAD~1", "HEAD")
 		if v["degraded"] != true || state != "stale" {
 			t.Fatalf("index older than go.mod: want degraded=true index_state=stale, got degraded=%v index_state=%q",
 				v["degraded"], state)
@@ -201,7 +201,7 @@ func TestRiskJSONContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("unhealed_drift_degrades", func(t *testing.T) {
-		env := append(os.Environ(), "SNIPE_NO_HEAL=1")
+		env := append(snipeEnv(), "SNIPE_NO_HEAL=1")
 		v, state := riskResultEnv(t, repoDir, env, "HEAD~1", "HEAD")
 		if v["degraded"] != true || state != "stale" {
 			t.Fatalf("drifted index: want degraded=true index_state=stale, got degraded=%v index_state=%q",
@@ -214,7 +214,7 @@ func TestRiskJSONContract(t *testing.T) {
 
 	// The same drift, healed inline, scores normally against a fresh index.
 	t.Run("healed_drift_is_fresh", func(t *testing.T) {
-		v, state := riskResultEnv(t, repoDir, os.Environ(), "HEAD~1", "HEAD")
+		v, state := riskResultEnv(t, repoDir, snipeEnv(), "HEAD~1", "HEAD")
 		if v["degraded"] != false || state != "fresh" {
 			t.Fatalf("healed index: want degraded=false index_state=fresh, got degraded=%v index_state=%q",
 				v["degraded"], state)

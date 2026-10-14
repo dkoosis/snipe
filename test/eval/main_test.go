@@ -79,9 +79,8 @@ func run(t *testing.T, repoDir string, args ...string) (stdout, stderr []byte, e
 
 	cmd := exec.Command(binPath, args...)
 	cmd.Dir = repoDir
-	// KEYRING_DISABLE keeps the binary under test off the real macOS keychain:
-	// eval must stay fully no-API even when a snipe/voyage keychain item exists.
-	cmd.Env = append(os.Environ(), "KEYRING_DISABLE=1")
+	// Eval must stay fully no-API even with a developer's key in env or keychain.
+	cmd.Env = snipeEnv()
 
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
@@ -207,4 +206,17 @@ func findRepoRoot() (string, error) {
 		dir = parent
 	}
 	return "", fmt.Errorf("could not find repo root from %s", wd)
+}
+
+// snipeEnv is os.Environ() without any VOYAGE_* var, plus KEYRING_DISABLE, so
+// the binary under test never reaches the real Voyage API with a developer's
+// key or keychain item (sn-pln6).
+func snipeEnv() []string {
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "VOYAGE_") {
+			env = append(env, e)
+		}
+	}
+	return append(env, "KEYRING_DISABLE=1")
 }
