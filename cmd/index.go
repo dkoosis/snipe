@@ -556,6 +556,9 @@ func startBatchEmbeddings(ctx context.Context, s *store.Store, repoRoot string, 
 				case batchStatusFailed, batchStatusCancelled, "expired":
 					// Batch is dead, clear state
 					fmt.Fprintf(os.Stderr, "  Batch is %s, clearing state and starting fresh...\n", actualStatus.Status)
+					if reason := actualStatus.FailureReason(); reason != "" {
+						fmt.Fprintf(os.Stderr, "  Voyage reported: %s\n", reason)
+					}
 					if clearErr := client.ClearState(); clearErr != nil {
 						return "", fmt.Errorf("clear dead batch state: %w", clearErr)
 					}

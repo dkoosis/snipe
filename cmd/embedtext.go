@@ -181,10 +181,17 @@ func refreshEmbeddings(ctx context.Context, s *store.Store, before map[string]st
 
 // filterEmbeddableSymbols returns symbols suitable for embedding (functions, methods,
 // types with signatures or docs) as SymbolText with combined text for the embedding model.
+// A symbol the loader yields twice is kept once, the first copy, as the store
+// keeps it: a repeated ID fails a whole Voyage batch (sn-dtkq).
 func filterEmbeddableSymbols(symbols []index.Symbol, ec embedContext) []embed.SymbolText {
 	var result []embed.SymbolText
+	seen := make(map[string]bool, len(symbols))
 	for i := range symbols {
 		sym := &symbols[i]
+		if seen[sym.ID] {
+			continue
+		}
+		seen[sym.ID] = true
 		switch sym.Kind {
 		case index.KindFunc, index.KindMethod, index.KindType, index.KindInterface, index.KindStruct:
 			if sym.Signature != "" || sym.Doc != "" {
