@@ -254,6 +254,50 @@ func TestLoad_ExcludesTestBinaryPackages(t *testing.T) {
 	}
 }
 
+// TestLoad_TestFilesResolveStdlibImports pins sn-xdxz: a _test.go file's
+// stdlib imports load from the toolchain's export data, so *testing.T is a
+// real type. An x/tools too old for the toolchain's export-data version
+// leaves "testing" unresolved and the param renders as "invalid type".
+func TestLoad_TestFilesResolveStdlibImports(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"go.mod":         "module example.com/stdimp\n\ngo 1.22\n",
+		"stdimp.go":      "package stdimp\n\nfunc Callee() string { return \"ok\" }\n",
+		"stdimp_test.go": "package stdimp\n\nimport \"testing\"\n\nfunc TestCallee(t *testing.T) { _ = Callee() }\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := Load(LoadConfig{Dir: dir, Tests: true})
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	for _, e := range result.Errors {
+		t.Errorf("load error: %v", e)
+	}
+
+	var found bool
+	for _, pkg := range result.Packages {
+		if pkg.Types == nil {
+			continue
+		}
+		obj := pkg.Types.Scope().Lookup("TestCallee")
+		if obj == nil {
+			continue
+		}
+		found = true
+		if got, want := obj.Type().String(), "func(t *testing.T)"; got != want {
+			t.Errorf("TestCallee type = %q, want %q", got, want)
+		}
+	}
+	if !found {
+		t.Fatal("TestCallee not found in any loaded package")
+	}
+}
+
 // TestExtractFilePackages_CoversSymbolFreeFile pins the sn-dzbj fix's tier-2
 // source: a doc.go file that go/packages loads but that declares no
 // func/type/const/var (so ExtractSymbols emits zero Symbol rows for it) must
