@@ -1,6 +1,6 @@
 # Who calls snipe
 
-Census of every program, hook, skill, rule and doc outside snipe that runs a snipe verb, so a verb rename is checked against callers instead of memory. Built 2026-09-30 for sn-lvub.1 (Every snipe verb is one an agent picks right the first time). Read-only record: it changes no caller and decides no verb (that is sn-zvoz).
+A list of every program, hook, skill, rule and doc outside snipe that runs a snipe verb, so a verb rename is checked against callers instead of memory. Built 2026-09-30 for sn-lvub.1 (Every snipe verb is one an agent picks right the first time). Read-only record: it changes no caller and decides no verb (that is sn-zvoz).
 
 Scope: every git repo under `~/projects/dk/` plus skills and rules under `~/nugbases/dk/`. Excluded: snipe's own tree (except `snipe/.claude/rules/CLAUDE.md`, a seed site), `.eval-repos/`, `node_modules/`, git worktrees and session logs. Paths are relative to `~/projects/dk/`. orca is retired (dk, 2026-09-30) and has no row.
 
@@ -565,4 +565,4 @@ Every verb in `snipe --help` (2026-09-30) that has no row above:
 
 `verify`, `plan`, `guard`, `sensitive`, `c4`, `deadcode`, `report`, `edit`, `version`
 
-Of the verbs the seed census expected to be uncalled, these gained a caller and have rows above: `orient`, `sym`, `explain`, `show`, `lits`, `trace`, `imports`, `types`. Check the rows: some are prose mentions in skills, not runs.
+Of the verbs the seed list expected to be uncalled, these gained a caller and have rows above: `orient`, `sym`, `explain`, `show`, `lits`, `trace`, `imports`, `types`. Check the rows: some are prose mentions in skills, not runs.
