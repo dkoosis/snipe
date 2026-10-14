@@ -88,3 +88,18 @@ func TestEmbedTextCallerCap(t *testing.T) {
 		t.Errorf("expected exactly 3 callers a1..a3, got %q", text)
 	}
 }
+
+// TestFilterEmbeddableSymbols_DedupesByID: the loader can hand the same symbol
+// twice (the store keeps the first, INSERT OR IGNORE). A repeated ID sent to
+// Voyage fails the whole batch (sn-dtkq), so the filter keeps the first too.
+func TestFilterEmbeddableSymbols_DedupesByID(t *testing.T) {
+	symbols := []index.Symbol{
+		{ID: "a", Name: "Open", Kind: index.KindFunc, Signature: "func Open() error"},
+		{ID: "b", Name: "Close", Kind: index.KindFunc, Signature: "func Close() error"},
+		{ID: "a", Name: "Open", Kind: index.KindFunc, Signature: "func Open() error"},
+	}
+	got := filterEmbeddableSymbols(symbols, buildEmbedContext(symbols, nil, nil))
+	if len(got) != 2 || got[0].ID != "a" || got[1].ID != "b" {
+		t.Fatalf("filterEmbeddableSymbols IDs = %v, want [a b]", got)
+	}
+}

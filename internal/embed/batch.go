@@ -33,6 +33,7 @@ type BatchState struct {
 	OutputFileID     string    `json:"output_file_id,omitempty"`
 	ErrorFileID      string    `json:"error_file_id,omitempty"`
 	Status           string    `json:"status"` // validating, in_progress, completed, failed, cancelled
+	FailureReason    string    `json:"failure_reason,omitempty"`
 	Total            int       `json:"total"`
 	Completed        int       `json:"completed"`
 	Failed           int       `json:"failed"`
@@ -115,7 +116,61 @@ type BatchCreateResponse struct {
 		Completed int `json:"completed"`
 		Failed    int `json:"failed"`
 	} `json:"request_counts"`
-	CreatedAt string `json:"created_at"`
+	CreatedAt string          `json:"created_at"`
+	Errors    *BatchJobErrors `json:"errors"`
+}
+
+// BatchJobErrors is the errors list Voyage attaches to a batch that failed
+// validation. It is the only record of why: such a batch never ran, so its
+// request_counts are all zero and it has no error file (sn-dtkq).
+type BatchJobErrors struct {
+	Data []BatchJobError `json:"data"`
+}
+
+// BatchJobError is one validation error, tied to a line of the input file.
+type BatchJobError struct {
+	Code    string `json:"code"`
+	Line    int    `json:"line"`
+	Message string `json:"message"`
+}
+
+// failureReasonLines caps the input-file line numbers FailureReason lists.
+const failureReasonLines = 3
+
+// FailureReason summarizes the batch's validation errors as one line: the
+// first error's code, the first few input lines that carry it, how many
+// Voyage listed, and its message. Other codes are counted, not spelled out. Empty when
+// Voyage listed no errors.
+func (r *BatchCreateResponse) FailureReason() string {
+	if r.Errors == nil || len(r.Errors.Data) == 0 {
+		return ""
+	}
+	first := r.Errors.Data[0]
+	var lines []string
+	n, other := 0, 0
+	for _, e := range r.Errors.Data {
+		if e.Code != first.Code {
+			other++
+			continue
+		}
+		n++
+		if len(lines) < failureReasonLines {
+			lines = append(lines, fmt.Sprint(e.Line))
+		}
+	}
+	if n > failureReasonLines {
+		lines = append(lines, "…")
+	}
+	noun := "lines"
+	if n == 1 {
+		noun = "line"
+	}
+	// "listed", not a total: Voyage truncates the list (20 seen on mnemd).
+	reason := fmt.Sprintf("%s at %s %s (%d listed): %s", first.Code, noun, strings.Join(lines, ", "), n, first.Message)
+	if other > 0 {
+		reason += fmt.Sprintf(" (+%d errors of other kinds)", other)
+	}
+	return reason
 }
 
 // NewBatchClient creates a new batch embedding client.
@@ -445,9 +500,16 @@ func (c *BatchClient) WriteJSONL(symbols []SymbolText, outputDir string) (string
 	// Buffer in memory and write atomically: a disk-full or crash mid-encode
 	// must not leave a truncated JSONL behind, since the indexer would ship
 	// the partial file to Voyage and burn the 12h batch window.
+	// Voyage fails the whole batch on one repeated custom_id, and only after
+	// the upload (sn-dtkq); refuse it here instead.
+	seen := make(map[string]bool, len(symbols))
 	var buf bytes.Buffer
 	encoder := json.NewEncoder(&buf)
 	for _, sym := range symbols {
+		if seen[sym.ID] {
+			return "", fmt.Errorf("duplicate symbol ID %s: Voyage would fail the batch", sym.ID)
+		}
+		seen[sym.ID] = true
 		req := BatchRequest{
 			CustomID: sym.ID,
 			Body: BatchRequestBody{

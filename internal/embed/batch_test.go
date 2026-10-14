@@ -68,6 +68,21 @@ func TestWriteJSONL_WritesExpectedRequests(t *testing.T) {
 	}
 }
 
+// TestWriteJSONL_RejectsDuplicateID: Voyage fails the whole batch on one
+// repeated custom_id (sn-dtkq), after the upload. Refusing it here saves the
+// upload and names the symbol.
+func TestWriteJSONL_RejectsDuplicateID(t *testing.T) {
+	dir := t.TempDir()
+	_, err := testBatchClient(dir).WriteJSONL([]SymbolText{
+		{ID: "sym1", Text: "func Open() error"},
+		{ID: "sym2", Text: "func Close() error"},
+		{ID: "sym1", Text: "func Open() error"},
+	}, dir)
+	if err == nil || !strings.Contains(err.Error(), "sym1") {
+		t.Fatalf("WriteJSONL error = %v, want a duplicate-ID error naming sym1", err)
+	}
+}
+
 func TestParseBatchResults_Behavior(t *testing.T) {
 	embBody, _ := json.Marshal(EmbeddingResponse{
 		Data: []struct {

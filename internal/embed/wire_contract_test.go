@@ -225,3 +225,33 @@ func TestParseBatchResults_WireContract(t *testing.T) {
 		})
 	}
 }
+
+// TestGetBatchStatus_FailureReason drives GetBatchStatus against the status
+// body of a real failed batch (mnemd, sn-dtkq). Voyage fails the whole batch
+// in validation and reports why only in the errors list, with request_counts
+// all zero — the reason must survive the decode so embed-status can name it.
+func TestGetBatchStatus_FailureReason(t *testing.T) {
+	server := serveFixture(t, "voyage_batch_failed_duplicate_id.json")
+	c := testBatchClient("")
+	c.baseURL = server.URL
+	c.client = server.Client()
+
+	got, err := c.GetBatchStatus(context.Background(), "batch-1")
+	if err != nil {
+		t.Fatalf("GetBatchStatus: %v", err)
+	}
+	if got.Status != "failed" {
+		t.Fatalf("status = %q, want failed", got.Status)
+	}
+	want := "duplicate_custom_id at lines 1106, 1107, 1135, … (4 listed): The custom_id for this request is a duplicate of another request. The custom_id parameter must be unique for each request in a batch."
+	if reason := got.FailureReason(); reason != want {
+		t.Fatalf("FailureReason() =\n  %q\nwant\n  %q", reason, want)
+	}
+}
+
+func TestFailureReason_NoErrors(t *testing.T) {
+	var r BatchCreateResponse
+	if got := r.FailureReason(); got != "" {
+		t.Fatalf("FailureReason() = %q, want empty when Voyage lists no errors", got)
+	}
+}
