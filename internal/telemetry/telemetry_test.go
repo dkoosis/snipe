@@ -3,7 +3,9 @@ package telemetry
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestEmitAndReadAll_RoundTrip(t *testing.T) {
@@ -128,6 +130,9 @@ func TestEmit_DisabledByEnv(t *testing.T) {
 // TestClassifyRung_AllSixValues exercises ClassifyRung against decision-path
 // shapes actually emitted by cmd/def.go and cmd/search.go (not guessed —
 // verified by reading those files, sn-r1do.1 plan §2).
+//
+// sn-r1do.6: no decision path → no rung; AMBIGUOUS_SYMBOL → ambiguous; error
+// codes other than the two misses → no rung.
 func TestClassifyRung_AllSixValues(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -137,7 +142,8 @@ func TestClassifyRung_AllSixValues(t *testing.T) {
 		want         string
 	}{
 		{"silent exact (def lookup:name)", []string{"lookup:name"}, nil, "ok", RungExact},
-		{"silent exact (empty path)", nil, nil, "ok", RungExact},
+		{"no decision path logs no rung", nil, nil, "ok", ""},
+		{"unrecognized path still exact", []string{"lookup:pkg_scoped"}, nil, "ok", RungExact},
 		{"lookup:id", []string{"lookup:id"}, nil, "ok", RungExact},
 		{"lookup:position", []string{"lookup:position"}, nil, "ok", RungExact},
 		{"ci-match degraded marker wins", nil, []string{"ci-match"}, "ok", RungCaseInsensitive},
@@ -148,7 +154,9 @@ func TestClassifyRung_AllSixValues(t *testing.T) {
 		{"search sim fallback", []string{"rg:0_results", "sim:2_results:40ms"}, nil, "ok", RungSemantic},
 		{"search sim_augment", []string{"sim_augment:1_added:12ms"}, nil, "ok", RungSemantic},
 		{"not found", nil, nil, "NOT_FOUND", RungNotFound},
-		{"ambiguous symbol", nil, nil, "AMBIGUOUS_SYMBOL", RungNotFound},
+		{"ambiguous symbol", []string{"lookup:name"}, nil, "AMBIGUOUS_SYMBOL", RungAmbiguous},
+		{"internal error logs no rung", []string{"lookup:name"}, nil, "INTERNAL_ERROR", ""},
+		{"invalid args logs no rung", nil, nil, "INVALID_ARGS", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -178,5 +186,46 @@ func TestResolveSessionKey_FallbackIncludesRoot(t *testing.T) {
 	got := ResolveSessionKey("/some/root")
 	if len(got) <= len("/some/root") {
 		t.Errorf("ResolveSessionKey fallback = %q, want it to embed root %q", got, "/some/root")
+	}
+}
+
+// TestTruncateError covers sn-r1do.6's cap on INTERNAL_ERROR messages: short
+// messages pass through, long ones are cut to MaxErrorLen without splitting a
+// multi-byte rune.
+func TestTruncateError(t *testing.T) {
+	if got := TruncateError("short"); got != "short" {
+		t.Errorf("short = %q", got)
+	}
+	long := strings.Repeat("é", MaxErrorLen) // 2 bytes per rune
+	got := TruncateError(long)
+	if len(got) > MaxErrorLen || !strings.HasSuffix(got, "...") || !utf8.ValidString(got) {
+		t.Errorf("TruncateError(long) = %d bytes, valid=%v, want <= %d and ending in ...", len(got), utf8.ValidString(got), MaxErrorLen)
+	}
+}
+
+// TestEmit_CandidateKindsAndError round-trips the two sn-r1do.6 fields.
+func TestEmit_CandidateKindsAndError(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".snipe"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	SetRoot(root)
+	t.Cleanup(func() { SetRoot("") })
+
+	Emit(Fields{Command: "refs", Outcome: "AMBIGUOUS_SYMBOL", Rung: RungAmbiguous, CandidateKinds: map[string]int{"func": 1, "method": 3}})
+	Emit(Fields{Command: "deps", Outcome: "INTERNAL_ERROR", Error: strings.Repeat("y", 300)})
+
+	recs, err := ReadAll(root)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("got %d records, want 2", len(recs))
+	}
+	if recs[0].CandidateKinds["func"] != 1 || recs[0].CandidateKinds["method"] != 3 {
+		t.Errorf("CandidateKinds = %v", recs[0].CandidateKinds)
+	}
+	if len(recs[1].Error) != MaxErrorLen {
+		t.Errorf("Error len = %d, want %d", len(recs[1].Error), MaxErrorLen)
 	}
 }

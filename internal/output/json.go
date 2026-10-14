@@ -873,6 +873,23 @@ func (w *Writer) writeClaudeTrace(b *strings.Builder, results []protocol.TraceRe
 	w.writeClaudeMeta(b, meta)
 }
 
+// candidateKinds counts ambiguous candidates by symbol kind for usage.jsonl
+// (sn-r1do.6), so a miner can spot ties a deterministic rule could break.
+func candidateKinds(cands []protocol.Candidate) map[string]int {
+	if len(cands) == 0 {
+		return nil
+	}
+	kinds := make(map[string]int, len(cands))
+	for i := range cands {
+		k := cands[i].Kind
+		if k == "" {
+			k = "unknown"
+		}
+		kinds[k]++
+	}
+	return kinds
+}
+
 // shortPkg returns the last path segment of a Go pkg_path for compact output.
 func shortPkg(p string) string {
 	if i := strings.LastIndex(p, "/"); i >= 0 {
@@ -904,7 +921,7 @@ func (w *Writer) WriteError(command string, err *protocol.Error) error {
 // neither applies.
 func (w *Writer) WriteErrorWithMeta(command, arg string, decisionPath []string, indexState protocol.IndexState, candidateCount int, err *protocol.Error) error {
 	processErrored = true
-	telemetry.Emit(telemetry.Fields{
+	f := telemetry.Fields{
 		Command:        command,
 		Outcome:        err.Code,
 		Ms:             time.Since(w.start).Milliseconds(),
@@ -913,7 +930,14 @@ func (w *Writer) WriteErrorWithMeta(command, arg string, decisionPath []string, 
 		CandidateCount: candidateCount,
 		IndexState:     string(indexState),
 		TriedRungs:     decisionPath,
-	})
+	}
+	switch err.Code {
+	case protocol.ErrAmbiguousSymbol:
+		f.CandidateKinds = candidateKinds(err.Candidates)
+	case protocol.ErrInternal:
+		f.Error = err.Message
+	}
+	telemetry.Emit(f)
 	if err.Next == nil {
 		err.Next = protocol.DefaultNextForCode(err.Code, command)
 	}

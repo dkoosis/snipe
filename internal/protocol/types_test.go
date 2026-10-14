@@ -879,6 +879,11 @@ func TestPrimaryQueryArg_PriorityOrder(t *testing.T) {
 		{"pkg beats ids", map[string]string{"pkg": "pkg2", "ids": "a,b"}, "pkg2"},
 		{"ids beats file", map[string]string{"ids": "a,b", qFileKey: "f.go"}, "a,b"},
 		{"file alone", map[string]string{qFileKey: "f.go"}, "f.go"},
+		{"def by id", map[string]string{"id": "0123456789abcdef"}, "0123456789abcdef"},
+		{"def --at", map[string]string{"at": "a.go:3:4"}, "a.go:3:4"},
+		{"lits value", map[string]string{"value": "usage.jsonl"}, "usage.jsonl"},
+		{"sim query", map[string]string{"query": "open store", "threshold": "0.5"}, "open store"},
+		{"boundary pair", map[string]string{"a": "cmd", "b": "internal/store", "direction": "both"}, "cmd internal/store"},
 		{"blank value skipped", map[string]string{qSymbolKey: "", "pattern": "bar"}, "bar"},
 	}
 	for _, tt := range tests {

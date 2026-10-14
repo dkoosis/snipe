@@ -59,7 +59,7 @@ func runBoundary(args []string) error {
 	setB := query.MatchPackagePatterns(universe, patternsB)
 
 	if len(setA) == 0 || len(setB) == 0 {
-		return w.WriteError("boundary", &protocol.Error{
+		return w.WriteErrorWithMeta("boundary", args[0]+" "+args[1], nil, "", 0, &protocol.Error{
 			Code: protocol.ErrNotFound,
 			Message: fmt.Sprintf("no packages matched: A=%d B=%d (patterns: %q %q)",
 				len(setA), len(setB), args[0], args[1]),
