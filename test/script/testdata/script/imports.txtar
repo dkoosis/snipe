@@ -27,3 +27,8 @@ stderr 'can''t be used together'
 exec snipe deps --help
 stdout '--importers'
 stdout '--file'
+
+# An empty file is a usage error, not the bare graph.
+! exec snipe deps --file ''
+stderr 'deps --file needs a file'
+! stdout .

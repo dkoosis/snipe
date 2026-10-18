@@ -22,3 +22,8 @@ cmpjson stdout $WORK/old.json
 # A flag and a positional package together is a usage error, not a silent pick.
 ! exec snipe deps --importers example.com/fixture/alpha example.com/fixture/beta
 stderr 'extra argument'
+
+# An empty package is a usage error, not the bare graph.
+! exec snipe deps --importers ''
+stderr 'deps --importers needs a package'
+! stdout .

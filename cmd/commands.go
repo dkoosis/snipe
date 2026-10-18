@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -327,23 +328,29 @@ func (c *TraceCmd) Run() error {
 type DepsCmd struct {
 	Package string `arg:"" optional:"" help:"Package path"`
 
-	Tree      bool   `xor:"mode" help:"Show full dependency graph"`
-	Importers string `xor:"mode" placeholder:"PKG" help:"Files that import this package"`
-	File      string `xor:"mode" placeholder:"FILE" help:"Packages this file imports"`
+	Tree      bool    `xor:"mode" help:"Show full dependency graph"`
+	Importers *string `xor:"mode" placeholder:"PKG" help:"Files that import this package"`
+	File      *string `xor:"mode" placeholder:"FILE" help:"Packages this file imports"`
 }
 
 func (c *DepsCmd) Run() error {
 	switch {
-	case c.Importers != "":
+	case c.Importers != nil:
+		if *c.Importers == "" {
+			return errors.New("deps --importers needs a package")
+		}
 		if c.Package != "" {
 			return fmt.Errorf("deps --importers takes its package as the flag value, got extra argument %q", c.Package)
 		}
-		return runImporters([]string{c.Importers})
-	case c.File != "":
+		return runImporters([]string{*c.Importers})
+	case c.File != nil:
+		if *c.File == "" {
+			return errors.New("deps --file needs a file")
+		}
 		if c.Package != "" {
 			return fmt.Errorf("deps --file takes its file as the flag value, got extra argument %q", c.Package)
 		}
-		return runImports([]string{c.File})
+		return runImports([]string{*c.File})
 	}
 	depsTreeFlag = c.Tree
 	return runDeps(argsOf(c.Package))
@@ -356,7 +363,7 @@ type ImportersCmd struct {
 
 func (c *ImportersCmd) Run() error {
 	aliasNudge(os.Stderr, cmdNameImporters, "deps --importers")
-	deps := DepsCmd{Importers: c.Package}
+	deps := DepsCmd{Importers: &c.Package}
 	return deps.Run()
 }
 
@@ -367,7 +374,7 @@ type ImportsCmd struct {
 
 func (c *ImportsCmd) Run() error {
 	aliasNudge(os.Stderr, cmdNameImports, "deps --file")
-	deps := DepsCmd{File: c.File}
+	deps := DepsCmd{File: &c.File}
 	return deps.Run()
 }
 
