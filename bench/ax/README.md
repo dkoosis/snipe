@@ -6,7 +6,7 @@ The intent-routing bench for snipe's verb set (sn-lvub.2), feeding the verb-set 
 
 | File | What it is |
 |---|---|
-| `requests.jsonl` | One situation per line: the operation in meaning terms, and per variant the commands that count as right (`accept`), or as not wanted but not wrong (`defensible`). Requests sharing a `pair` letter differ in one feature. |
+| `requests.jsonl` | One situation per line: the operation in meaning terms, and per variant the commands that count as right (`accept`), or as not wanted but not wrong (`defensible`). Requests sharing a `pair` letter differ in one feature. An accept names the arguments the command needs to run, and every accept and defensible rejects a `--help` reply: printing help is not doing the operation. |
 | `variants/current.txt` | What `snipe --help` prints. `TestHelpVariantCurrent` in `cmd` fails when it drifts: `go run . --help > bench/ax/variants/current.txt`, then fix the `current` accepts. |
 | `variants/proposed.txt` | The surface sn-zvoz recommends: `pack --depth sym\|pack\|explain`, `search --lits\|--trace\|--semantic`, `deps --importers\|--file`. |
 | `results/<date>/` | `calls.jsonl` (one row per call) and `report.txt`. |
