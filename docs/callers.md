@@ -6,7 +6,7 @@ Scope: every git repo under `~/projects/dk/` plus skills and rules under `~/nugb
 
 Method: `rg -n -e '"snipe"' -e 'snipe <verb>\b'` over `*.{go,md,sh,yaml,yml,json}`, then one row per (file:line, verb). Flags and format are read from the same line; `concise (default)` means the line names no `--format`. Go test files that only fake snipe (sdlc `risk_test.go`, ferret and itzy fixtures) and ferret's transcript classifiers (`internal/event`, `internal/reach`, `internal/analyst`) name snipe as data, not as an invocation, so they have no row. Nugbase skills and rules hold no verb call.
 
-Replacement column: the command each row runs under sn-zvoz's draft verb set (comment of 2026-10-18, awaiting dk's ratification; evidence: axbench baseline, `bench/ax/results/2026-10-18T0022`). `unchanged` means the verb survives as is. A changed row keeps working through a hidden alias until its caller migrates (sn-lvub.8).
+Replacement column: the command each row runs under the verb set dk ratified on sn-zvoz (2026-10-18, decision nug 67785da834ca; evidence: axbench baseline, `bench/ax/results/2026-10-18T0022`). `unchanged` means the verb survives as is. A changed row keeps working through a hidden alias until its caller migrates (sn-lvub.8).
 
 Kinds: hook, shell script, Go exec, agent prompt (agents and linters), skill, rule, doc. A `doc` or `rule` row is prose that tells a reader to run the verb; a hook or script row runs it.
 
