@@ -123,3 +123,12 @@ non-internal-role symbols 3, exported symbols 3.
     inline heal did not repair (more than 20, heal disabled, or heal failed).
   - git diff unavailable — not a work tree, unresolved ref, or git absent
   - no changed Go files (`"no changed Go files"`)
+
+## The record — `.snipe/risk.jsonl`
+
+Every run, in any format, appends one line to `<repo>/.snipe/risk.jsonl`:
+`ts`, `base`, `head`, `base_sha`, `head_sha` (empty when a ref does not
+resolve), `index_state`, then every field of `.results[0]` above, inline.
+It is what snipe said, kept so the weights can be judged against sdlc's
+review outcomes (sn-qtjl). Nothing is written when `.snipe` does not exist
+or `SNIPE_NO_TELEMETRY` is set; a write failure never fails the run.

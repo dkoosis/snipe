@@ -12,6 +12,7 @@ import (
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/risk"
+	"github.com/dkoosis/snipe/internal/telemetry"
 )
 
 // runRisk measures the diff between two git refs and prints the measures.
@@ -25,7 +26,7 @@ func runRisk(base, head string) error {
 	s, root, err := OpenStore(nil, cmdNameRisk)
 	if err != nil {
 		m := risk.Degrade(risk.ChangeStats{}, "index unavailable: "+err.Error())
-		return writeRisk(m, root, protocol.IndexMissing, start)
+		return writeRisk(m, root, base, head, protocol.IndexMissing, start)
 	}
 	defer s.Close()
 
@@ -39,10 +40,20 @@ func runRisk(base, head string) error {
 			m = risk.Degrade(m.Changed, "index is stale: "+why+" — run: snipe index")
 		}
 	}
-	return writeRisk(m, root, state, start)
+	return writeRisk(m, root, base, head, state, start)
 }
 
-func writeRisk(m risk.Measures, root string, state protocol.IndexState, start time.Time) error {
+// writeRisk prints the answer and keeps it: one record in .snipe/risk.jsonl
+// with every measure, and one usage row like any other verb's.
+func writeRisk(m risk.Measures, root, base, head string, state protocol.IndexState, start time.Time) error {
+	risk.Append(root, base, head, string(state), m)
+	telemetry.Emit(telemetry.Fields{
+		Command:    cmdNameRisk,
+		Outcome:    "ok",
+		Ms:         time.Since(start).Milliseconds(),
+		Arg:        base + ".." + head,
+		IndexState: string(state),
+	})
 	if GetOutputFormat() == output.OutputJSON {
 		return writeRiskJSON(m, root, state, start)
 	}
