@@ -58,9 +58,8 @@ Change:
   guard        Check architecture rules; exit non-zero on violation
 
 Structure:
-  deps         Package dependency graph
-  importers    Files that import a package
-  imports      Packages a file imports
+  deps         Package dependency graph; --importers <pkg> files that import a
+               package; --file <f> packages a file imports
   types        Type relationships
   boundary     Symbols whose refs cross two package sets
   lifecycle    Functions that create, mutate, read or delete a type

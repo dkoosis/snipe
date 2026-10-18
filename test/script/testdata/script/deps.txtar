@@ -4,3 +4,7 @@
 cd $FIXTURE
 exec snipe deps
 stdout 'beta -> alpha'
+
+# Bare deps and a package argument are unchanged by --importers and --file.
+exec snipe deps --tree
+stdout 'beta -> alpha'

@@ -1,6 +1,29 @@
-# importers — files that import a package.
-# Proves: `importers <alpha>` finds both import sites (main.go and beta/beta.go).
+# importers — hidden alias of deps --importers (files that import a package).
+# Proves: `deps --importers <alpha>` finds both import sites (main.go and
+# beta/beta.go); `importers <alpha>` prints one stderr nudge and its stdout
+# equals the new form in concise and json.
 cd $FIXTURE
-exec snipe importers example.com/fixture/alpha
+exec snipe deps --importers example.com/fixture/alpha
 stdout 'main\.go:4 \| import'
 stdout 'beta/beta\.go:3 \| import'
+! stderr .
+cp stdout $WORK/new.txt
+
+exec snipe importers example.com/fixture/alpha
+stderr -count=1 'snipe: ''importers'' is now ''deps --importers'''
+cmp stdout $WORK/new.txt
+
+exec snipe importers example.com/fixture/alpha --format json
+cp stdout $WORK/old.json
+exec snipe deps --importers example.com/fixture/alpha --format json
+cmpjson stdout $WORK/old.json
+! stderr .
+
+# A flag and a positional package together is a usage error, not a silent pick.
+! exec snipe deps --importers example.com/fixture/alpha example.com/fixture/beta
+stderr 'extra argument'
+
+# An empty package is a usage error, not the bare graph.
+! exec snipe deps --importers ''
+stderr 'deps --importers needs a package'
+! stdout .

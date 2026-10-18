@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -321,31 +322,60 @@ func (c *TraceCmd) Run() error {
 
 // --- Graph & Structure ---
 
+// DepsCmd is the one Structure verb for import edges (sn-zvoz, nug
+// 67785da834ca). Bare it prints the package graph; --importers and --file turn
+// it to the two directions that importers and imports used to answer.
 type DepsCmd struct {
 	Package string `arg:"" optional:"" help:"Package path"`
 
-	Tree bool `help:"Show full dependency graph"`
+	Tree      bool    `xor:"mode" help:"Show full dependency graph"`
+	Importers *string `xor:"mode" placeholder:"PKG" help:"Files that import this package"`
+	File      *string `xor:"mode" placeholder:"FILE" help:"Packages this file imports"`
 }
 
 func (c *DepsCmd) Run() error {
+	switch {
+	case c.Importers != nil:
+		if *c.Importers == "" {
+			return errors.New("deps --importers needs a package")
+		}
+		if c.Package != "" {
+			return fmt.Errorf("deps --importers takes its package as the flag value, got extra argument %q", c.Package)
+		}
+		return runImporters([]string{*c.Importers})
+	case c.File != nil:
+		if *c.File == "" {
+			return errors.New("deps --file needs a file")
+		}
+		if c.Package != "" {
+			return fmt.Errorf("deps --file takes its file as the flag value, got extra argument %q", c.Package)
+		}
+		return runImports([]string{*c.File})
+	}
 	depsTreeFlag = c.Tree
 	return runDeps(argsOf(c.Package))
 }
 
+// ImportersCmd is a hidden alias of `deps --importers`.
 type ImportersCmd struct {
 	Package string `arg:"" help:"Package path"`
 }
 
 func (c *ImportersCmd) Run() error {
-	return runImporters([]string{c.Package})
+	aliasNudge(os.Stderr, cmdNameImporters, "deps --importers")
+	deps := DepsCmd{Importers: &c.Package}
+	return deps.Run()
 }
 
+// ImportsCmd is a hidden alias of `deps --file`.
 type ImportsCmd struct {
 	File string `arg:"" help:"File path"`
 }
 
 func (c *ImportsCmd) Run() error {
-	return runImports([]string{c.File})
+	aliasNudge(os.Stderr, cmdNameImports, "deps --file")
+	deps := DepsCmd{File: &c.File}
+	return deps.Run()
 }
 
 type TypesCmd struct {
