@@ -3,6 +3,7 @@
 package blackbox
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -173,6 +174,46 @@ func TestRiskJSONContract(t *testing.T) {
 		}
 	})
 
+	// --- each answer is kept ------------------------------------------------
+	// snipe keeps what it said, raw measures included, so its weights can be
+	// judged against review outcomes later (sn-qtjl.5): one run, one record.
+	t.Run("run_appends_one_record", func(t *testing.T) {
+		var env []string
+		for _, e := range snipeEnv() {
+			if !strings.HasPrefix(e, "SNIPE_NO_TELEMETRY=") {
+				env = append(env, e)
+			}
+		}
+		recPath := filepath.Join(repoDir, ".snipe", "risk.jsonl")
+		before := riskRecords(t, recPath)
+		riskResultEnv(t, repoDir, env, "HEAD~1", "HEAD")
+		after := riskRecords(t, recPath)
+		if len(after) != len(before)+1 {
+			t.Fatalf("one risk run: want %d records, got %d", len(before)+1, len(after))
+		}
+		rec := after[len(after)-1]
+		if rec["base"] != "HEAD~1" || rec["head"] != "HEAD" {
+			t.Fatalf("record refs: want HEAD~1..HEAD, got %v..%v", rec["base"], rec["head"])
+		}
+		if rec["base_sha"] != gitRevParse(t, repoDir, "HEAD~1") || rec["head_sha"] != gitRevParse(t, repoDir, "HEAD") {
+			t.Fatalf("record SHAs: got base=%v head=%v", rec["base_sha"], rec["head_sha"])
+		}
+		if rec["index_state"] != "fresh" {
+			t.Fatalf("record index_state: want fresh, got %v", rec["index_state"])
+		}
+		if _, ok := rec["score"].(float64); !ok {
+			t.Fatalf("record of a measured diff: want a score, got %v", rec["score"])
+		}
+		if _, ok := rec["weights_version"].(float64); !ok {
+			t.Fatalf("record weights_version missing: %v", rec["weights_version"])
+		}
+		for _, f := range []string{"factors", "weights", "changed", "reach", "difficulty", "kind", "tests"} {
+			if _, ok := rec[f].(map[string]any); !ok {
+				t.Fatalf("record %s missing/not an object: %v", f, rec[f])
+			}
+		}
+	})
+
 	// --- stale index: the diff is real, but the index cannot map it --------
 	// A stale index finds too few changed symbols and reads as a small, safe
 	// change (sn-qtjl.2: every sdlc PR scored low with 0 symbols). It must
@@ -220,4 +261,36 @@ func TestRiskJSONContract(t *testing.T) {
 				v["degraded"], state)
 		}
 	})
+}
+
+// riskRecords reads .snipe/risk.jsonl, one object per line; none when absent.
+func riskRecords(t *testing.T, path string) []map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(path) // #nosec G304 -- test fixture path
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []map[string]any
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			t.Fatalf("risk.jsonl line %q: %v", line, err)
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+func gitRevParse(t *testing.T, dir, ref string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", ref)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git rev-parse %s: %v", ref, err)
+	}
+	return strings.TrimSpace(string(out))
 }
