@@ -85,8 +85,8 @@ The optional enrichment layer adds semantic embeddings (for similarity search) a
 |---------|-------------|
 | `types [type]` | Type relationships: methods, fields, embeds |
 | `impl [interface]` | Types implementing an interface |
-| `imports <file>` | Packages imported by a file |
-| `importers <pkg>` | Files that import a package |
+| `deps --file <file>` | Packages imported by a file |
+| `deps --importers <pkg>` | Files that import a package |
 | `pkg <name>` | Package overview with exported symbols |
 
 ### Index management

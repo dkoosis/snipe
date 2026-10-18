@@ -1,10 +1,29 @@
-# imports — packages imported by a file.
-# imports takes a FILE argument, and file lookups match the absolute path stored
-# at index time. This suite queries a prebuilt index copied to a fresh $WORK path
-# (name/package queries are portable; file-path queries are not), so no
-# script-reachable file arg resolves against it. The real file-lookup path is
-# blackbox-covered (TestImports, which indexes and queries in-place). Here we
-# smoke the --help fast-exit: usage naming the required <file> arg, exit 0.
-exec snipe imports --help
-stdout 'Usage: snipe imports <file>'
-stdout 'Packages a file imports'
+# imports — hidden alias of deps --file (packages a file imports).
+# Proves: `deps --file main.go` lists the packages main.go imports; `imports
+# main.go` prints one stderr nudge and its stdout equals the new form in
+# concise and json.
+cd $FIXTURE
+exec snipe deps --file main.go
+stdout 'example\.com/fixture/alpha'
+stdout 'main\.go:4 \| import'
+! stderr .
+cp stdout $WORK/new.txt
+
+exec snipe imports main.go
+stderr -count=1 'snipe: ''imports'' is now ''deps --file'''
+cmp stdout $WORK/new.txt
+
+exec snipe imports main.go --format json
+cp stdout $WORK/old.json
+exec snipe deps --file main.go --format json
+cmpjson stdout $WORK/old.json
+! stderr .
+
+# --importers and --file answer different questions; asking both is an error.
+! exec snipe deps --importers example.com/fixture/alpha --file main.go
+stderr 'can''t be used together'
+
+# deps --help names both flags.
+exec snipe deps --help
+stdout '--importers'
+stdout '--file'

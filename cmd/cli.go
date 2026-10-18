@@ -43,9 +43,9 @@ type CLI struct {
 	Sensitive SensitiveCmd `cmd:"" group:"Change:" help:"Files in security zones (auth, crypto, secrets)"`
 	Guard     GuardCmd     `cmd:"" group:"Change:" help:"Check architecture rules; exit non-zero on violation"`
 
-	Deps      DepsCmd      `cmd:"" group:"Structure:" help:"Package dependency graph"`
-	Importers ImportersCmd `cmd:"" group:"Structure:" help:"Files that import a package"`
-	Imports   ImportsCmd   `cmd:"" group:"Structure:" help:"Packages a file imports"`
+	Deps      DepsCmd      `cmd:"" group:"Structure:" help:"Package dependency graph; --importers <pkg> files that import a package; --file <f> packages a file imports"`
+	Importers ImportersCmd `cmd:"" hidden:"" help:"Alias of deps --importers"`
+	Imports   ImportsCmd   `cmd:"" hidden:"" help:"Alias of deps --file"`
 	Types     TypesCmd     `cmd:"" group:"Structure:" help:"Type relationships"`
 	Boundary  BoundaryCmd  `cmd:"" group:"Structure:" help:"Symbols whose refs cross two package sets"`
 	Lifecycle LifecycleCmd `cmd:"" group:"Structure:" help:"Functions that create, mutate, read or delete a type"`
