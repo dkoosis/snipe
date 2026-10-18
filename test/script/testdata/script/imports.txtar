@@ -30,5 +30,10 @@ stdout '--file'
 
 # An empty file is a usage error, not the bare graph.
 ! exec snipe deps --file ''
-stderr 'deps --file needs a file'
-! stdout .
+stdout 'deps --file needs a file'
+! stdout 'example.com/fixture'
+
+# A flag and a positional together is a usage error, as an envelope.
+! exec snipe deps --file main.go example.com/fixture/alpha --format json
+stdout '"code":"INVALID_ARGS"'
+stdout 'extra argument'

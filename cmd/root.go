@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -277,6 +278,11 @@ func Execute() {
 	}
 
 	if err := ctx.Run(); err != nil {
+		// A usage error caught in Run: its envelope is already written, and
+		// it exits 2 like a kong flag error.
+		if errors.Is(err, errUsage) {
+			os.Exit(2)
+		}
 		// An internal Go error from a command (rare — most command-level
 		// problems are emitted via WriteError and return nil). Exit 1 directly,
 		// bypassing kong so the usage-error hook can't remap it to 2.
@@ -453,13 +459,14 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 
 	// Resolve to git/go.mod root — index always lives at project root (D3)
 	root := util.FindProjectRoot(cwd)
-	if root != "" {
-		telemetry.SetRoot(root)
-		telemetry.SetSessionKey(telemetry.ResolveSessionKey(root))
-	}
 	if root == "" {
 		root = cwd // fallback: not in a git/go.mod repo, use CWD
 	}
+	// Telemetry follows the root the index is read from, the fallback too: a
+	// directory indexed with no .git or go.mod still counts its queries. Emit
+	// never creates .snipe, so an unindexed directory still gets no file.
+	telemetry.SetRoot(root)
+	telemetry.SetSessionKey(telemetry.ResolveSessionKey(root))
 
 	dbPath := store.DefaultIndexPath(root)
 	dbExists := store.Exists(dbPath)

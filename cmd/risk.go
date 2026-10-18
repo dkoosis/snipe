@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -24,15 +25,22 @@ func runRisk(base, head string) error {
 	// nil writer: suppress OpenStore's missing-index error envelope. Risk
 	// degrades instead, still emitting a valid contract.
 	s, root, err := OpenStore(nil, cmdNameRisk)
+
+	// Resolve each ref once, up front, and measure the commits it named: a
+	// commit or fetch that moves a ref mid-run must not leave the record
+	// pairing these measures with a later commit. A ref that does not resolve
+	// is passed through as asked, so Assess degrades on it as before.
+	rec := risk.Record{Base: base, Head: head, BaseSHA: risk.Commit(root, base), HeadSHA: risk.Commit(root, head)}
 	if err != nil {
-		m := risk.Degrade(risk.ChangeStats{}, "index unavailable: "+err.Error())
-		return writeRisk(m, root, base, head, protocol.IndexMissing, start)
+		rec.Measures = risk.Degrade(risk.ChangeStats{}, "index unavailable: "+err.Error())
+		rec.IndexState = string(protocol.IndexMissing)
+		return writeRisk(rec, root, start)
 	}
 	defer s.Close()
 
 	// A stale index maps the diff to too few symbols, so its measures read as
 	// a small, safe change; a caller must not route on them.
-	m := risk.Assess(s, root, base, head)
+	m := risk.Assess(s, root, cmp.Or(rec.BaseSHA, base), cmp.Or(rec.HeadSHA, head))
 	state := protocol.IndexFresh
 	if why := indexStaleness(s, root); why != "" {
 		state = protocol.IndexStale
@@ -40,20 +48,22 @@ func runRisk(base, head string) error {
 			m = risk.Degrade(m.Changed, "index is stale: "+why+" — run: snipe index")
 		}
 	}
-	return writeRisk(m, root, base, head, state, start)
+	rec.Measures, rec.IndexState = m, string(state)
+	return writeRisk(rec, root, start)
 }
 
 // writeRisk prints the answer and keeps it: one record in .snipe/risk.jsonl
 // with every measure, and one usage row like any other verb's.
-func writeRisk(m risk.Measures, root, base, head string, state protocol.IndexState, start time.Time) error {
-	risk.Append(root, base, head, string(state), m)
+func writeRisk(rec risk.Record, root string, start time.Time) error {
+	risk.Append(root, rec)
 	telemetry.Emit(telemetry.Fields{
 		Command:    cmdNameRisk,
 		Outcome:    "ok",
 		Ms:         time.Since(start).Milliseconds(),
-		Arg:        base + ".." + head,
-		IndexState: string(state),
+		Arg:        rec.Base + ".." + rec.Head,
+		IndexState: rec.IndexState,
 	})
+	m, state := rec.Measures, protocol.IndexState(rec.IndexState)
 	if GetOutputFormat() == output.OutputJSON {
 		return writeRiskJSON(m, root, state, start)
 	}

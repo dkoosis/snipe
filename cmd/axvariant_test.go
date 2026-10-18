@@ -86,6 +86,7 @@ type axAccept struct {
 
 type axRequest struct {
 	ID         string                `json:"id"`
+	Pair       *string               `json:"pair"`
 	Situation  string                `json:"situation"`
 	Accept     map[string][]axAccept `json:"accept"`
 	Defensible map[string][]axAccept `json:"defensible"`
@@ -95,7 +96,8 @@ type axRequest struct {
 // mnemd's axbench finds verbs only on "  mnemd <verb>" lines, so on kong's
 // help its own banned-verb check sees nothing. A situation must name no verb
 // from any variant; each request accepts something under every variant; an
-// accept or defensible verb is one that variant's help offers.
+// accept or defensible verb is one that variant's help offers; each debated
+// cluster keeps at least two paired situations.
 func TestAXBench_RequestsUseOnlyTheHelp(t *testing.T) {
 	verbs := variantVerbs(t)
 	var all []string
@@ -114,6 +116,7 @@ func TestAXBench_RequestsUseOnlyTheHelp(t *testing.T) {
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 1<<20), 1<<20)
 	n := 0
+	pairs := map[string]int{}
 	for sc.Scan() {
 		if strings.TrimSpace(sc.Text()) == "" {
 			continue
@@ -123,6 +126,9 @@ func TestAXBench_RequestsUseOnlyTheHelp(t *testing.T) {
 			t.Fatalf("requests.jsonl line %d: %v", n+1, err)
 		}
 		n++
+		if r.Pair != nil {
+			pairs[*r.Pair]++
+		}
 		for _, v := range all {
 			if regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(v) + `\b`).MatchString(r.Situation) {
 				t.Errorf("%s: situation names the verb %q", r.ID, v)
@@ -145,4 +151,19 @@ func TestAXBench_RequestsUseOnlyTheHelp(t *testing.T) {
 	if n < 40 {
 		t.Errorf("requests.jsonl holds %d situations, want at least 40", n)
 	}
+	// Each debated cluster (pairs C-H) keeps a controlled comparison, and a
+	// pair label held by one request is a typo that silently drops one.
+	for _, p := range debatedPairs {
+		if pairs[p] < 2 {
+			t.Errorf("debated cluster pair %q has %d situations, want at least 2", p, pairs[p])
+		}
+	}
+	for p, c := range pairs {
+		if c < 2 {
+			t.Errorf("pair %q has %d situation, want at least 2", p, c)
+		}
+	}
 }
+
+// debatedPairs are the pair letters of the verb clusters sn-zvoz debates.
+var debatedPairs = []string{"C", "D", "E", "F", "G", "H"}
