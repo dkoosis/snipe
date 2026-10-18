@@ -1,0 +1,417 @@
+SUMMARY — scored requests only (split requests are listed apart)
+model              variant   verb right  command right  defensible  errors
+claude-haiku-5-5   current   75/135      70/135         5           0
+claude-haiku-5-5   proposed  72/135      67/135         3           0
+claude-opus-5-5    current   133/135     118/135        2           0
+claude-opus-5-5    proposed  132/135     117/135        3           0
+claude-sonnet-5-5  current   132/135     117/135        3           0
+claude-sonnet-5-5  proposed  132/135     117/135        3           0
+
+== claude-haiku-5-5 · current ==
+  wanted \ wrote  boundary  callees  callers  context  deadcode  def  deps  diagram  doctor  edit  embed-status  explain  hotspots  impact  impl  importers  imports  index  lifecycle  lits  pack  plan  risk  search  sensitive  status  sym  tests  triage  types  version  N
+        boundary         2        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      1          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+         callees         .        2        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      1          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+         callers         .        .        1        .         .    .     .        .       .     .             .        .         .       .     .          .        .      2          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+         context         .        .        .        6         .    .     .        .       .     .             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  9
+        deadcode         .        .        .        .         1    .     .        .       .     .             .        .         .       .     .          .        .      2          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+             def         .        .        .        .         .    4     .        .       .     .             .        .         .       .     .          .        .      2          .     .     .     .     .       .          .       .    .      .       .      .        .  6
+            deps         .        .        .        .         .    .     1        .       .     .             .        .         .       .     .          .        .      2          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+         diagram         .        .        .        .         .    .     .        1       .     .             .        .         .       .     .          .        .      5          .     .     .     .     .       .          .       .    .      .       .      .        .  6
+          doctor         .        .        .        .         .    .     .        .       3     .             .        .         .       .     .          .        .      .          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+            edit         .        .        .        .         .    .     .        .       .     6             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  9
+    embed-status         .        .        .        .         .    .     .        .       .     .             3        .         .       .     .          .        .      .          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+         explain         .        .        .        .         .    .     .        .       .     .             .        1         .       .     .          .        .      2          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+           guard         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+        hotspots         .        .        .        .         .    .     .        .       .     .             .        .         3       .     .          .        .      .          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+          impact         .        .        .        .         .    .     .        .       .     .             .        .         .       2     .          .        .      1          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+            impl         .        .        .        .         .    .     .        .       .     .             .        .         .       .     3          .        .      .          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+       importers         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          2        .      1          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+         imports         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        1      2          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+           index         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+       lifecycle         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      1          2     .     .     .     .       .          .       .    .      .       .      .        .  3
+            lits         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      1          .     2     .     .     .       .          .       .    .      .       .      .        .  3
+         metrics         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+            pack         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      .          .     .     3     .     .       .          .       .    .      .       .      .        .  3
+             pkg         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+            plan         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      2          .     .     .     1     .       .          .       .    .      .       .      .        .  3
+            refs         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+          report         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+            risk         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      .          .     .     .     .     3       .          .       .    .      .       .      .        .  3
+          search         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      .          .     .     .     .     .       3          .       .    .      .       .      .        .  3
+       sensitive         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      2          .     .     .     .     .       .          1       .    .      .       .      .        .  3
+             sim         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      1          .     .     .     .     .       2          .       .    .      .       .      .        .  3
+          status         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      .          .     .     .     .     .       .          .       3    .      .       .      .        .  3
+             sym         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      .          .     .     .     .     .       .          .       .    3      .       .      .        .  3
+           tests         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      .          .     .     .     .     .       .          .       .    .      3       .      .        .  3
+           trace         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+          triage         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      2          .     .     .     .     .       .          .       .    .      .       1      .        .  3
+           types         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      1          .     .     .     .     .       .          .       .    .      .       .      2        .  3
+          verify         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      3          .     .     .     .     .       .          .       .    .      .       .      .        .  3
+         version         .        .        .        .         .    .     .        .       .     .             .        .         .       .     .          .        .      .          .     .     .     .     .       .          .       .    .      .       .      .        3  3
+requests with a wrong command:
+  c1  2/3 right — how far a change to one symbol spreads
+      1× snipe index
+  c2  1/3 right — an ordered worklist for changing one symbol
+      2× snipe index
+  c3  1/3 right — a review score for a diff
+      2× snipe risk --help
+  c4  0/3 right — the fewest test runs that cover a diff
+      3× snipe index
+  c5  1/3 right — which files are in security zones
+      2× snipe index
+  c6  0/3 right — architecture rules checked, failing on a breach
+      3× snipe index
+  c7  1/3 right — facts for a named set of files
+      2× snipe index
+  f2  2/3 right — every use of one string literal
+      1× snipe index
+  f3  0/3 right — one string literal with the calls around it
+      3× snipe index
+  f4  0/3 right — code found by meaning, not by its words
+      1× (defensible) snipe search "backoff|retry|retries" --limit=30
+      1× (defensible) snipe search "retry|backoff|retries|exponential"
+      1× snipe index
+  n1  1/3 right — where one named symbol is declared
+      2× snipe index
+  n3  0/3 right — every mention of one symbol
+      3× snipe index
+  n4  1/3 right — the functions that invoke one function
+      2× snipe index
+  n5  2/3 right — the functions one function invokes
+      1× snipe index
+  o3  0/3 right — an overview of the whole repo, printed
+      3× (defensible) snipe index
+  r3  1/3 right — one symbol in full, with a prose walkthrough
+      2× snipe index
+  r4  0/3 right — one package's purpose and exported symbols
+      3× snipe index
+  s1  1/3 right — the package dependency graph
+      2× snipe index
+  s2  2/3 right — the files that import one package
+      1× snipe index
+  s3  1/3 right — the packages one file pulls in
+      2× snipe index
+  s4  2/3 right — one type's relationships
+      1× snipe index
+  s5  2/3 right — the functions that create, change, read or delete one type
+      1× snipe index
+  s7  1/3 right — exported symbols nothing uses
+      2× snipe index
+  s8  2/3 right — symbols referenced across two package sets
+      1× snipe index
+  s9  0/3 right — graph centrality and coupling numbers
+      3× snipe index
+  v1  0/3 right — a picture of the top packages by layer
+      3× snipe index
+  v2  1/3 right — a call-graph picture from one function
+      2× snipe index
+  v3  0/3 right — an HTML dashboard for a person
+      3× snipe index
+  w1  0/3 right — an AST-aware change to one function, previewed
+      2× snipe index
+      1× snipe edit --help
+  w3  0/3 right — an AST-aware replacement of a whole declaration
+      2× snipe edit --help
+      1× snipe index
+
+== claude-haiku-5-5 · proposed ==
+  wanted \ wrote  boundary  callees  context  def  deps  doctor  edit  embed-status  hotspots  impact  impl  index  lifecycle  metrics  pack  risk  search  sensitive  status  tests  triage  types  version   N
+        boundary         1        .        .    .     .       .     .             .         .       .     .      2          .        .     .     .       .          .       .      .       .      .        .   3
+         callees         .        3        .    .     .       .     .             .         .       .     .      .          .        .     .     .       .          .       .      .       .      .        .   3
+         callers         .        .        .    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   3
+         context         .        .        6    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   9
+        deadcode         .        .        .    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   3
+             def         .        .        .    5     .       .     .             .         .       .     .      1          .        .     .     .       .          .       .      .       .      .        .   6
+            deps         .        .        .    .     5       .     .             .         .       .     .      4          .        .     .     .       .          .       .      .       .      .        .   9
+         diagram         .        .        .    .     .       .     .             .         .       .     .      6          .        .     .     .       .          .       .      .       .      .        .   6
+          doctor         .        .        .    .     .       3     .             .         .       .     .      .          .        .     .     .       .          .       .      .       .      .        .   3
+            edit         .        .        .    .     .       .     7             .         .       .     .      2          .        .     .     .       .          .       .      .       .      .        .   9
+    embed-status         .        .        .    .     .       .     .             3         .       .     .      .          .        .     .     .       .          .       .      .       .      .        .   3
+           guard         .        .        .    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   3
+        hotspots         .        .        .    .     .       .     .             .         3       .     .      .          .        .     .     .       .          .       .      .       .      .        .   3
+          impact         .        .        .    .     .       .     .             .         .       2     .      1          .        .     .     .       .          .       .      .       .      .        .   3
+            impl         .        .        .    .     .       .     .             .         .       .     1      2          .        .     .     .       .          .       .      .       .      .        .   3
+           index         .        .        .    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   3
+       lifecycle         .        .        .    .     .       .     .             .         .       .     .      2          1        .     .     .       .          .       .      .       .      .        .   3
+         metrics         .        .        .    .     .       .     .             .         .       .     .      2          .        1     .     .       .          .       .      .       .      .        .   3
+            pack         .        .        .    .     .       .     .             .         .       .     .      5          .        .     4     .       .          .       .      .       .      .        .   9
+             pkg         .        .        .    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   3
+            plan         .        .        .    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   3
+            refs         .        .        .    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   3
+          report         .        .        .    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   3
+            risk         .        .        .    .     .       .     .             .         .       .     .      2          .        .     .     1       .          .       .      .       .      .        .   3
+          search         .        .        .    .     .       .     .             .         .       .     .      .          .        .     .     .      12          .       .      .       .      .        .  12
+       sensitive         .        .        .    .     .       .     .             .         .       .     .      2          .        .     .     .       .          1       .      .       .      .        .   3
+          status         .        .        .    .     .       .     .             .         .       .     .      .          .        .     .     .       .          .       3      .       .      .        .   3
+           tests         .        .        .    .     .       .     .             .         .       .     .      1          .        .     .     .       .          .       .      2       .      .        .   3
+          triage         .        .        .    .     .       .     .             .         .       .     .      2          .        .     .     .       .          .       .      .       1      .        .   3
+           types         .        .        .    .     .       .     .             .         .       .     .      2          .        .     .     .       .          .       .      .       .      1        .   3
+          verify         .        .        .    .     .       .     .             .         .       .     .      3          .        .     .     .       .          .       .      .       .      .        .   3
+         version         .        .        .    .     .       .     .             .         .       .     .      .          .        .     .     .       .          .       .      .       .      .        3   3
+requests with a wrong command:
+  c1  2/3 right — how far a change to one symbol spreads
+      1× snipe index
+  c2  0/3 right — an ordered worklist for changing one symbol
+      3× snipe index
+  c3  1/3 right — a review score for a diff
+      2× snipe index
+  c4  0/3 right — the fewest test runs that cover a diff
+      3× snipe index
+  c5  1/3 right — which files are in security zones
+      2× snipe index
+  c6  0/3 right — architecture rules checked, failing on a breach
+      3× snipe index
+  c7  1/3 right — facts for a named set of files
+      2× snipe index
+  n1  2/3 right — where one named symbol is declared
+      1× snipe index
+  n3  0/3 right — every mention of one symbol
+      3× snipe index
+  n4  0/3 right — the functions that invoke one function
+      3× snipe index
+  n6  1/3 right — the concrete types satisfying an interface
+      2× snipe index
+  n7  2/3 right — the test functions that reach one function
+      1× snipe index
+  o3  0/3 right — an overview of the whole repo, printed
+      3× (defensible) snipe index
+  r2  0/3 right — one symbol with its graph neighbours and its package's role
+      3× snipe index
+  r3  0/3 right — one symbol in full, with a prose walkthrough
+      2× snipe index
+      1× snipe pack ChargeCard explain
+  r4  0/3 right — one package's purpose and exported symbols
+      3× snipe index
+  s1  0/3 right — the package dependency graph
+      3× snipe index
+  s3  2/3 right — the packages one file pulls in
+      1× snipe index
+  s4  1/3 right — one type's relationships
+      2× snipe index
+  s5  1/3 right — the functions that create, change, read or delete one type
+      2× snipe index
+  s7  0/3 right — exported symbols nothing uses
+      3× snipe index
+  s8  1/3 right — symbols referenced across two package sets
+      2× snipe index
+  s9  1/3 right — graph centrality and coupling numbers
+      2× snipe index
+  v1  0/3 right — a picture of the top packages by layer
+      3× snipe index
+  v2  0/3 right — a call-graph picture from one function
+      3× snipe index
+  v3  0/3 right — an HTML dashboard for a person
+      3× snipe index
+  w1  0/3 right — an AST-aware change to one function, previewed
+      2× snipe index
+      1× snipe edit --help
+  w3  0/3 right — an AST-aware replacement of a whole declaration
+      3× snipe edit --help
+
+== claude-opus-5-5 · current ==
+  wanted \ wrote  boundary  callees  callers  context  deadcode  def  deps  diagram  doctor  edit  embed-status  explain  guard  hotspots  impact  impl  importers  imports  index  lifecycle  lits  metrics  pack  pkg  plan  refs  report  risk  search  sensitive  sim  status  sym  tests  trace  triage  types  verify  version  N
+        boundary         3        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         callees         .        3        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         callers         .        .        3        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         context         .        .        .        7         .    .     .        .       .     .             .        .      .         .       .     .          .        .      2          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  9
+        deadcode         .        .        .        .         3    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+             def         .        .        .        .         .    6     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  6
+            deps         .        .        .        .         .    .     3        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         diagram         .        .        .        .         .    .     .        6       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  6
+          doctor         .        .        .        .         .    .     .        .       3     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            edit         .        .        .        .         .    .     .        .       .     9             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  9
+    embed-status         .        .        .        .         .    .     .        .       .     .             3        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         explain         .        .        .        .         .    .     .        .       .     .             .        3      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+           guard         .        .        .        .         .    .     .        .       .     .             .        .      3         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+        hotspots         .        .        .        .         .    .     .        .       .     .             .        .      .         3       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+          impact         .        .        .        .         .    .     .        .       .     .             .        .      .         .       3     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            impl         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     3          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+       importers         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          3        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         imports         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        3      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+           index         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      3          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+       lifecycle         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          3     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            lits         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     3        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         metrics         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        3     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            pack         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     3    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+             pkg         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    3     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            plan         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     3     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            refs         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     3       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+          report         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       3     .       .          .    .       .    .      .      .       .      .       .        .  3
+            risk         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     3       .          .    .       .    .      .      .       .      .       .        .  3
+          search         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       3          .    .       .    .      .      .       .      .       .        .  3
+       sensitive         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          3    .       .    .      .      .       .      .       .        .  3
+             sim         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    3       .    .      .      .       .      .       .        .  3
+          status         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       3    .      .      .       .      .       .        .  3
+             sym         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    3      .      .       .      .       .        .  3
+           tests         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      3      .       .      .       .        .  3
+           trace         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      3       .      .       .        .  3
+          triage         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       3      .       .        .  3
+           types         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      3       .        .  3
+          verify         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       3        .  3
+         version         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        3  3
+requests with a wrong command:
+  c3  0/3 right — a review score for a diff
+      3× snipe risk --help
+  c4  0/3 right — the fewest test runs that cover a diff
+      3× snipe verify --help
+  o3  1/3 right — an overview of the whole repo, printed
+      2× (defensible) snipe index
+  w1  0/3 right — an AST-aware change to one function, previewed
+      3× snipe edit --help
+  w2  0/3 right — an AST-aware change to one function, written
+      3× snipe edit --help
+  w3  0/3 right — an AST-aware replacement of a whole declaration
+      3× snipe edit --help
+
+== claude-opus-5-5 · proposed ==
+  wanted \ wrote  boundary  callees  callers  context  deadcode  def  deps  diagram  doctor  edit  embed-status  guard  hotspots  impact  impl  index  lifecycle  metrics  pack  pkg  plan  refs  report  risk  search  sensitive  status  tests  triage  types  verify  version   N
+        boundary         3        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+         callees         .        3        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+         callers         .        .        3        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+         context         .        .        .        6         .    .     .        .       .     .             .      .         .       .     .      3          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   9
+        deadcode         .        .        .        .         3    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+             def         .        .        .        .         .    6     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   6
+            deps         .        .        .        .         .    .     9        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   9
+         diagram         .        .        .        .         .    .     .        6       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   6
+          doctor         .        .        .        .         .    .     .        .       3     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+            edit         .        .        .        .         .    .     .        .       .     9             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   9
+    embed-status         .        .        .        .         .    .     .        .       .     .             3      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+           guard         .        .        .        .         .    .     .        .       .     .             .      3         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+        hotspots         .        .        .        .         .    .     .        .       .     .             .      .         3       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+          impact         .        .        .        .         .    .     .        .       .     .             .      .         .       3     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+            impl         .        .        .        .         .    .     .        .       .     .             .      .         .       .     3      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+           index         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      3          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+       lifecycle         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          3        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+         metrics         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        3     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+            pack         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     9    .     .     .       .     .       .          .       .      .       .      .       .        .   9
+             pkg         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    3     .     .       .     .       .          .       .      .       .      .       .        .   3
+            plan         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     3     .       .     .       .          .       .      .       .      .       .        .   3
+            refs         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     3       .     .       .          .       .      .       .      .       .        .   3
+          report         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       3     .       .          .       .      .       .      .       .        .   3
+            risk         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     3       .          .       .      .       .      .       .        .   3
+          search         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .      12          .       .      .       .      .       .        .  12
+       sensitive         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          3       .      .       .      .       .        .   3
+          status         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       3      .       .      .       .        .   3
+           tests         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      3       .      .       .        .   3
+          triage         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       3      .       .        .   3
+           types         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      3       .        .   3
+          verify         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       3        .   3
+         version         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        3   3
+requests with a wrong command:
+  c3  0/3 right — a review score for a diff
+      3× snipe risk --help
+  c4  0/3 right — the fewest test runs that cover a diff
+      3× snipe verify --help
+  o3  0/3 right — an overview of the whole repo, printed
+      3× (defensible) snipe index
+  w1  0/3 right — an AST-aware change to one function, previewed
+      3× snipe edit --help
+  w2  0/3 right — an AST-aware change to one function, written
+      3× snipe edit --help
+  w3  0/3 right — an AST-aware replacement of a whole declaration
+      3× snipe edit --help
+
+== claude-sonnet-5-5 · current ==
+  wanted \ wrote  boundary  callees  callers  context  deadcode  def  deps  diagram  doctor  edit  embed-status  explain  guard  hotspots  impact  impl  importers  imports  index  lifecycle  lits  metrics  pack  pkg  plan  refs  report  risk  search  sensitive  sim  status  sym  tests  trace  triage  types  verify  version  N
+        boundary         3        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         callees         .        3        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         callers         .        .        3        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         context         .        .        .        6         .    .     .        .       .     .             .        .      .         .       .     .          .        .      3          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  9
+        deadcode         .        .        .        .         3    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+             def         .        .        .        .         .    6     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  6
+            deps         .        .        .        .         .    .     3        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         diagram         .        .        .        .         .    .     .        6       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  6
+          doctor         .        .        .        .         .    .     .        .       3     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            edit         .        .        .        .         .    .     .        .       .     9             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  9
+    embed-status         .        .        .        .         .    .     .        .       .     .             3        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         explain         .        .        .        .         .    .     .        .       .     .             .        3      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+           guard         .        .        .        .         .    .     .        .       .     .             .        .      3         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+        hotspots         .        .        .        .         .    .     .        .       .     .             .        .      .         3       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+          impact         .        .        .        .         .    .     .        .       .     .             .        .      .         .       3     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            impl         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     3          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+       importers         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          3        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         imports         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        3      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+           index         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      3          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+       lifecycle         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          3     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            lits         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     3        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+         metrics         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        3     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            pack         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     3    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+             pkg         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    3     .     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            plan         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     3     .       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+            refs         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     3       .     .       .          .    .       .    .      .      .       .      .       .        .  3
+          report         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       3     .       .          .    .       .    .      .      .       .      .       .        .  3
+            risk         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     3       .          .    .       .    .      .      .       .      .       .        .  3
+          search         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       3          .    .       .    .      .      .       .      .       .        .  3
+       sensitive         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          3    .       .    .      .      .       .      .       .        .  3
+             sim         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    3       .    .      .      .       .      .       .        .  3
+          status         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       3    .      .      .       .      .       .        .  3
+             sym         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    3      .      .       .      .       .        .  3
+           tests         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      3      .       .      .       .        .  3
+           trace         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      3       .      .       .        .  3
+          triage         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       3      .       .        .  3
+           types         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      3       .        .  3
+          verify         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       3        .  3
+         version         .        .        .        .         .    .     .        .       .     .             .        .      .         .       .     .          .        .      .          .     .        .     .    .     .     .       .     .       .          .    .       .    .      .      .       .      .       .        3  3
+requests with a wrong command:
+  c3  0/3 right — a review score for a diff
+      3× snipe risk --help
+  c4  0/3 right — the fewest test runs that cover a diff
+      3× snipe verify --help
+  o3  0/3 right — an overview of the whole repo, printed
+      3× (defensible) snipe index
+  w1  0/3 right — an AST-aware change to one function, previewed
+      3× snipe edit --help
+  w2  0/3 right — an AST-aware change to one function, written
+      3× snipe edit --help
+  w3  0/3 right — an AST-aware replacement of a whole declaration
+      3× snipe edit --help
+
+== claude-sonnet-5-5 · proposed ==
+  wanted \ wrote  boundary  callees  callers  context  deadcode  def  deps  diagram  doctor  edit  embed-status  guard  hotspots  impact  impl  index  lifecycle  metrics  pack  pkg  plan  refs  report  risk  search  sensitive  status  tests  triage  types  verify  version   N
+        boundary         3        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+         callees         .        3        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+         callers         .        .        3        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+         context         .        .        .        6         .    .     .        .       .     .             .      .         .       .     .      3          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   9
+        deadcode         .        .        .        .         3    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+             def         .        .        .        .         .    6     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   6
+            deps         .        .        .        .         .    .     9        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   9
+         diagram         .        .        .        .         .    .     .        6       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   6
+          doctor         .        .        .        .         .    .     .        .       3     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+            edit         .        .        .        .         .    .     .        .       .     9             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   9
+    embed-status         .        .        .        .         .    .     .        .       .     .             3      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+           guard         .        .        .        .         .    .     .        .       .     .             .      3         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+        hotspots         .        .        .        .         .    .     .        .       .     .             .      .         3       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+          impact         .        .        .        .         .    .     .        .       .     .             .      .         .       3     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+            impl         .        .        .        .         .    .     .        .       .     .             .      .         .       .     3      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+           index         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      3          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+       lifecycle         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          3        .     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+         metrics         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        3     .    .     .     .       .     .       .          .       .      .       .      .       .        .   3
+            pack         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     9    .     .     .       .     .       .          .       .      .       .      .       .        .   9
+             pkg         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    3     .     .       .     .       .          .       .      .       .      .       .        .   3
+            plan         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     3     .       .     .       .          .       .      .       .      .       .        .   3
+            refs         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     3       .     .       .          .       .      .       .      .       .        .   3
+          report         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       3     .       .          .       .      .       .      .       .        .   3
+            risk         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     3       .          .       .      .       .      .       .        .   3
+          search         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .      12          .       .      .       .      .       .        .  12
+       sensitive         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          3       .      .       .      .       .        .   3
+          status         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       3      .       .      .       .        .   3
+           tests         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      3       .      .       .        .   3
+          triage         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       3      .       .        .   3
+           types         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      3       .        .   3
+          verify         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       3        .   3
+         version         .        .        .        .         .    .     .        .       .     .             .      .         .       .     .      .          .        .     .    .     .     .       .     .       .          .       .      .       .      .       .        3   3
+requests with a wrong command:
+  c3  0/3 right — a review score for a diff
+      3× snipe risk --help
+  c4  0/3 right — the fewest test runs that cover a diff
+      3× snipe verify --help
+  o3  0/3 right — an overview of the whole repo, printed
+      3× (defensible) snipe index
+  w1  0/3 right — an AST-aware change to one function, previewed
+      3× snipe edit --help
+  w2  0/3 right — an AST-aware change to one function, written
+      3× snipe edit --help
+  w3  0/3 right — an AST-aware replacement of a whole declaration
+      3× snipe edit --help
+
+SPLIT REQUESTS — no single right answer; how the replies divide
