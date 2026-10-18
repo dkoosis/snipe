@@ -27,11 +27,14 @@ type Record struct {
 	Measures
 }
 
-// Append adds m as one line of <root>/.snipe/risk.jsonl. It writes only where
-// .snipe already exists, so a run on an unindexed repo leaves no trace, and
-// it honors SNIPE_NO_TELEMETRY. Failures are silent: keeping the record must
-// never break the answer.
-func Append(root, base, head, indexState string, m Measures) {
+// Append adds rec as one line of <root>/.snipe/risk.jsonl, stamping its time.
+// The caller fills BaseSHA/HeadSHA from the Commit calls it made before it
+// measured: Append resolves nothing, so a ref that moves while risk runs
+// cannot pair the measures with a commit they were not taken from. It writes
+// only where .snipe already exists, so a run on an unindexed repo leaves no
+// trace, and it honors SNIPE_NO_TELEMETRY. Failures are silent: keeping the
+// record must never break the answer.
+func Append(root string, rec Record) {
 	if root == "" || os.Getenv("SNIPE_NO_TELEMETRY") != "" {
 		return
 	}
@@ -39,15 +42,7 @@ func Append(root, base, head, indexState string, m Measures) {
 	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 		return
 	}
-	rec := Record{
-		TS:         time.Now().Format(time.RFC3339),
-		Base:       base,
-		Head:       head,
-		BaseSHA:    revParse(root, base),
-		HeadSHA:    revParse(root, head),
-		IndexState: indexState,
-		Measures:   m,
-	}
+	rec.TS = time.Now().Format(time.RFC3339)
 	line, err := json.Marshal(rec)
 	if err != nil {
 		return
@@ -60,9 +55,11 @@ func Append(root, base, head, indexState string, m Measures) {
 	_, _ = fh.Write(append(line, '\n'))
 }
 
-// revParse names the commit ref points at, or "" when it does not resolve.
-func revParse(root, ref string) string {
-	if ref == "" || strings.HasPrefix(ref, "-") {
+// Commit names the commit ref points at, or "" when it does not resolve.
+// runRisk calls it once per ref before it measures, then measures and
+// records those commits.
+func Commit(root, ref string) string {
+	if root == "" || ref == "" || strings.HasPrefix(ref, "-") {
 		return ""
 	}
 	out, err := exec.Command("git", "-C", root, "rev-parse", "--verify", "--quiet",
