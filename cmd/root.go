@@ -453,13 +453,14 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 
 	// Resolve to git/go.mod root — index always lives at project root (D3)
 	root := util.FindProjectRoot(cwd)
-	if root != "" {
-		telemetry.SetRoot(root)
-		telemetry.SetSessionKey(telemetry.ResolveSessionKey(root))
-	}
 	if root == "" {
 		root = cwd // fallback: not in a git/go.mod repo, use CWD
 	}
+	// Telemetry follows the root the index is read from, the fallback too: a
+	// directory indexed with no .git or go.mod still counts its queries. Emit
+	// never creates .snipe, so an unindexed directory still gets no file.
+	telemetry.SetRoot(root)
+	telemetry.SetSessionKey(telemetry.ResolveSessionKey(root))
 
 	dbPath := store.DefaultIndexPath(root)
 	dbExists := store.Exists(dbPath)
