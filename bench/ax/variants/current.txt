@@ -38,10 +38,8 @@ Navigate:
   tests      Tests that exercise a symbol
 
 Read:
-  sym        def + refs, callers, callees
-  pack       sym + package role and purpose
-  explain    pack + prose walkthrough and warnings
-  pkg        Package overview and exported symbols
+  pack    def + refs, callers, callees, package role; --depth sym|pack|explain
+  pkg     Package overview and exported symbols
 
 Find:
   search    Text search via ripgrep (no index needed)

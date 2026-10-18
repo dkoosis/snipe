@@ -172,7 +172,7 @@ func flagPassed(name string) bool {
 
 // knownSubcommandNames is the set of recognized subcommand names, used by the
 // bare-symbol fallback to decide whether "snipe X" should be rewritten to
-// "snipe sym X". Derived from the kong grammar at Parse time.
+// "snipe pack --depth sym X". Derived from the kong grammar at Parse time.
 var knownSubcommandNames = map[string]bool{}
 
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
@@ -219,7 +219,7 @@ func indexOfHelpCommand(args []string) int {
 
 // Execute parses os.Args with kong and runs the selected command. A bare
 // symbol ("snipe Store") with no matching subcommand is rewritten to
-// "snipe sym Store" to preserve the cobra one-command-just-works behavior.
+// "snipe pack --depth sym Store" to preserve the cobra one-command-just-works behavior.
 func Execute() {
 	cli := &CLI{}
 	parser, err := kong.New(cli,
@@ -265,9 +265,9 @@ func Execute() {
 		args = rest
 	}
 
-	// Bare-symbol fallback: "snipe Store" -> "snipe sym Store".
+	// Bare-symbol fallback: "snipe Store" -> "snipe pack --depth sym Store".
 	if len(args) > 0 && !isKnownSubcommandOrFlag(args[0]) {
-		args = append([]string{cmdNameSym}, args...)
+		args = append([]string{cmdNamePack, "--depth", packDepthSym}, args...)
 	}
 
 	ctx, err := parser.Parse(args)

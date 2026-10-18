@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/analyze"
@@ -170,11 +171,12 @@ func extractMechanism(db *sql.DB, sym *SymbolRow, _ *ast.FuncDecl, _ *token.File
 		}
 	}
 
-	// Convert dep set to slice
+	// Convert dep set to slice, sorted so output is stable across runs
 	var keyDeps []string
 	for dep := range depSet {
 		keyDeps = append(keyDeps, dep)
 	}
+	slices.Sort(keyDeps)
 
 	return steps, keyDeps, nil
 }

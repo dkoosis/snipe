@@ -53,10 +53,10 @@ snipe uses `go/packages` for static analysis (symbols, references, call graph) a
    semantic embeddings               symbol purposes
           |                                    |
           v                                    v
-       sim search                     explain, context
+       sim search                pack --depth explain, context
 ```
 
-The optional enrichment layer adds semantic embeddings (for similarity search) and LLM-generated symbol purposes (for explain and context commands). These require API keys and are off by default.
+The optional enrichment layer adds semantic embeddings (for similarity search) and LLM-generated symbol purposes (for `pack --depth explain` and `context`). These require API keys and are off by default.
 
 ## Commands
 
@@ -75,8 +75,8 @@ The optional enrichment layer adds semantic embeddings (for similarity search) a
 | Command | Description |
 |---------|-------------|
 | `pack [symbol]` | Definition + refs + callers + callees + role + purpose |
-| `sym [symbol]` | Definition + refs + callers + callees |
-| `explain [symbol]` | Structured function explanation with mechanism steps |
+| `pack --depth sym [symbol]` | Definition + refs + callers + callees, with higher limits (was `sym`) |
+| `pack --depth explain [symbol]` | Structured function explanation with mechanism steps (was `explain`) |
 | `context [path]` | Claude-optimized orientation (~5k tokens); `--full` for full architecture dump |
 
 ### Type system

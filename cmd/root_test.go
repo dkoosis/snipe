@@ -47,7 +47,7 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	knownSubcommandNames["help"] = true
 
 	if len(args) > 0 && !isKnownSubcommandOrFlag(args[0]) {
-		args = append([]string{cmdNameSym}, args...)
+		args = append([]string{cmdNamePack, "--depth", packDepthSym}, args...)
 	}
 
 	origStdout := os.Stdout

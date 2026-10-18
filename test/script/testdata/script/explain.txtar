@@ -1,7 +1,25 @@
-# explain — structured function walkthrough (purpose, mechanism, callers).
-# Proves: `explain Run` renders the purpose + mechanism sections and names a call.
+# explain — hidden alias of pack --depth explain (purpose, mechanism, callers).
+# Proves: `explain Run` renders the purpose + mechanism sections and names a
+# call, prints one stderr nudge, and its stdout equals `pack --depth explain Run`
+# in concise and json.
 cd $FIXTURE
 exec snipe explain Run
 stdout 'purpose:'
 stdout 'mechanism:'
 stdout 'calls Greet'
+stderr -count=1 'snipe: ''explain'' is now ''pack --depth explain'''
+cp stdout $WORK/old.txt
+exec snipe pack --depth explain Run
+cmp stdout $WORK/old.txt
+! stderr .
+
+exec snipe explain Run --format json
+cp stdout $WORK/old.json
+exec snipe pack --depth explain Run --format json
+cmpjson stdout $WORK/old.json
+
+# Old flags still map: --mode and --warnings reach the new form.
+exec snipe explain Run --mode brief --warnings none
+cp stdout $WORK/brief.txt
+exec snipe pack --depth explain Run --mode brief --warnings none
+cmp stdout $WORK/brief.txt
