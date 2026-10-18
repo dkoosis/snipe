@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 )
@@ -211,7 +210,7 @@ func (c *PackCmd) Run() error {
 	switch c.Depth {
 	case packDepthSym, packDepthExplain:
 		if len(c.Symbols) > 1 {
-			return fmt.Errorf("pack --depth %s takes one symbol, got %d", c.Depth, len(c.Symbols))
+			return usageError(cmdNamePack, "pack --depth %s takes one symbol, got %d", c.Depth, len(c.Symbols))
 		}
 	}
 	switch c.Depth {
@@ -337,18 +336,18 @@ func (c *DepsCmd) Run() error {
 	switch {
 	case c.Importers != nil:
 		if *c.Importers == "" {
-			return errors.New("deps --importers needs a package")
+			return usageError(cmdNameDeps, "deps --importers needs a package")
 		}
 		if c.Package != "" {
-			return fmt.Errorf("deps --importers takes its package as the flag value, got extra argument %q", c.Package)
+			return usageError(cmdNameDeps, "deps --importers takes its package as the flag value, got extra argument %q", c.Package)
 		}
 		return runImporters([]string{*c.Importers})
 	case c.File != nil:
 		if *c.File == "" {
-			return errors.New("deps --file needs a file")
+			return usageError(cmdNameDeps, "deps --file needs a file")
 		}
 		if c.Package != "" {
-			return fmt.Errorf("deps --file takes its file as the flag value, got extra argument %q", c.Package)
+			return usageError(cmdNameDeps, "deps --file takes its file as the flag value, got extra argument %q", c.Package)
 		}
 		return runImports([]string{*c.File})
 	}

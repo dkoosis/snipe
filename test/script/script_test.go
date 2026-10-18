@@ -286,6 +286,11 @@ func TestExitCodeContract(t *testing.T) {
 		{"symbol not found", []string{"def", "ZZZNotARealSymbol"}, 1},
 		{"unknown bare command", []string{"frobnicatezzz"}, 1},
 		{"bad flag", []string{"def", "--definitely-not-a-flag"}, 2},
+		// Usage errors found in Run, not by kong, still exit 2.
+		{"pack depth arity", []string{"pack", "--depth", "sym", "Greet", "Run"}, 2},
+		{"deps mode flag plus positional", []string{"deps", "--importers", "example.com/fixture/alpha", "extra"}, 2},
+		{"deps empty mode value", []string{"deps", "--file", ""}, 2},
+		{"usage error as json", []string{"pack", "--depth", "explain", "Greet", "Run", "--format", "json"}, 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

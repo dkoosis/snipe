@@ -20,10 +20,14 @@ cmpjson stdout $WORK/old.json
 ! stderr .
 
 # A flag and a positional package together is a usage error, not a silent pick.
+# It comes back as an INVALID_ARGS envelope on stdout (exit 2, pinned in
+# TestExitCodeContract), so a --format json caller can parse it.
 ! exec snipe deps --importers example.com/fixture/alpha example.com/fixture/beta
-stderr 'extra argument'
+stdout 'extra argument'
+! exec snipe deps --importers example.com/fixture/alpha example.com/fixture/beta --format json
+stdout '"code":"INVALID_ARGS"'
 
 # An empty package is a usage error, not the bare graph.
 ! exec snipe deps --importers ''
-stderr 'deps --importers needs a package'
-! stdout .
+stdout 'deps --importers needs a package'
+! stdout 'example.com/fixture'

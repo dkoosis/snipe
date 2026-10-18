@@ -5,6 +5,7 @@ package cmd
 // Common command names (used as annotations and in routing).
 const (
 	cmdNameDef         = "def"
+	cmdNameDeps        = "deps"
 	cmdNameRefs        = "refs"
 	cmdNameCallers     = "callers"
 	cmdNameCallees     = "callees"

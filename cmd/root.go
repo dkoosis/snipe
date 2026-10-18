@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -277,6 +278,11 @@ func Execute() {
 	}
 
 	if err := ctx.Run(); err != nil {
+		// A usage error caught in Run: its envelope is already written, and
+		// it exits 2 like a kong flag error.
+		if errors.Is(err, errUsage) {
+			os.Exit(2)
+		}
 		// An internal Go error from a command (rare — most command-level
 		// problems are emitted via WriteError and return nil). Exit 1 directly,
 		// bypassing kong so the usage-error hook can't remap it to 2.

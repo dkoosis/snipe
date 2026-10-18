@@ -16,5 +16,10 @@ exec snipe pack --depth pack Greet --format json
 cmpjson stdout $WORK/pack.json
 
 # --depth sym and --depth explain take one symbol.
+# The error is an INVALID_ARGS envelope on stdout (exit 2, pinned in
+# TestExitCodeContract), so a --format json caller can parse it.
 ! exec snipe pack --depth sym Greet Reply
-stderr 'takes one symbol'
+stdout 'takes one symbol'
+! exec snipe pack --depth explain Greet Reply --format json
+stdout '"code":"INVALID_ARGS"'
+stdout 'takes one symbol'
