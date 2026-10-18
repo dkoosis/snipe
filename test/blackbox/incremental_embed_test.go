@@ -61,7 +61,7 @@ func (f *fakeVoyage) drain() []string {
 }
 
 func (f *fakeVoyage) env() []string {
-	return append(envWithout("VOYAGE_API_KEY", "VOYAGE_MODEL", "VOYAGE_API_URL"),
+	return append(envWithout(voyageVars...),
 		"VOYAGE_API_KEY=test-key", "VOYAGE_API_URL="+f.srv.URL)
 }
 
@@ -242,7 +242,7 @@ func TestIncrementalIndex_NoCredentialsMakesNoCalls(t *testing.T) {
 	v.drain()
 
 	writeEdit(t, filepath.Join(dir, "caller.go"), callerSrc)
-	bare := append(envWithout("VOYAGE_API_KEY", "VOYAGE_MODEL", "VOYAGE_API_URL"), "HOME="+t.TempDir())
+	bare := append(envWithout(voyageVars...), "HOME="+t.TempDir())
 	mustIndex(t, dir, bare)
 	if got := v.drain(); len(got) != 0 {
 		t.Errorf("no-credentials incremental run sent %d texts: %q", len(got), got)
