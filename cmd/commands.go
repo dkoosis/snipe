@@ -183,40 +183,85 @@ func (c *ShowCmd) Run() error {
 	return def.Run()
 }
 
+// Pack depths: each step adds to the one before (sn-zvoz, nug 67785da834ca).
+const (
+	packDepthSym     = "sym"
+	packDepthPack    = "pack"
+	packDepthExplain = "explain"
+)
+
+// PackCmd is the one Read verb past def. --depth picks how much it says:
+// sym (def + refs, callers, callees), pack (+ package role and purpose, the
+// default) or explain (+ prose walkthrough and warnings). The limits default
+// per depth (sym 20/10/10, pack 5/5/5), so they are pointers: nil = unset.
 type PackCmd struct {
 	Symbols []string `arg:"" optional:"" help:"Symbol name(s), package, or hex ID(s)"`
 
+	Depth        string `default:"pack" enum:"sym,pack,explain" help:"How much to say: sym (def + refs, callers, callees), pack (+ package role and purpose), explain (+ prose walkthrough and warnings)"`
 	At           string `help:"Position to look up (file:line:col)"`
-	RefsLimit    int    `name:"refs-limit" default:"5" help:"Maximum references to return"`
-	CallersLimit int    `name:"callers-limit" default:"5" help:"Maximum callers to return"`
-	CalleesLimit int    `name:"callees-limit" default:"5" help:"Maximum callees to return"`
+	RefsLimit    *int   `name:"refs-limit" help:"Maximum references to return (default: sym 20, pack 5)"`
+	CallersLimit *int   `name:"callers-limit" help:"Maximum callers to return (default: sym 10, pack 5)"`
+	CalleesLimit *int   `name:"callees-limit" help:"Maximum callees to return (default: sym 10, pack 5)"`
+	Mode         string `default:"normal" enum:"brief,normal,deep" help:"--depth explain: analysis depth: brief, normal, deep"`
+	Warnings     string `default:"fast" enum:"none,fast,full" help:"--depth explain: warning level: none, fast, full"`
 }
 
 func (c *PackCmd) Run() error {
-	packAt = c.At
-	packRefsLimit = c.RefsLimit
-	packCallersLimit = c.CallersLimit
-	packCalleesLimit = c.CalleesLimit
-	return runPack(c.Symbols)
+	switch c.Depth {
+	case packDepthSym, packDepthExplain:
+		if len(c.Symbols) > 1 {
+			return fmt.Errorf("pack --depth %s takes one symbol, got %d", c.Depth, len(c.Symbols))
+		}
+	}
+	switch c.Depth {
+	case packDepthSym:
+		symAt = c.At
+		symRefsLimit = limitOr(c.RefsLimit, 20)
+		symCallersLimit = limitOr(c.CallersLimit, 10)
+		symCalleesLimit = limitOr(c.CalleesLimit, 10)
+		return runSym(c.Symbols)
+	case packDepthExplain:
+		explainMode = c.Mode
+		explainWarnings = c.Warnings
+		explainAt = c.At
+		return runExplain(c.Symbols)
+	default:
+		packAt = c.At
+		packRefsLimit = limitOr(c.RefsLimit, 5)
+		packCallersLimit = limitOr(c.CallersLimit, 5)
+		packCalleesLimit = limitOr(c.CalleesLimit, 5)
+		return runPack(c.Symbols)
+	}
 }
 
+// limitOr returns *p when the flag was given, else the depth's default.
+func limitOr(p *int, def int) int {
+	if p != nil {
+		return *p
+	}
+	return def
+}
+
+// SymCmd is a hidden alias of `pack --depth sym`.
 type SymCmd struct {
 	Symbol string `arg:"" optional:"" help:"Symbol name"`
 
 	At           string `help:"Position to look up (file:line:col)"`
-	RefsLimit    int    `name:"refs-limit" default:"20" help:"Maximum references to return"`
-	CallersLimit int    `name:"callers-limit" default:"10" help:"Maximum callers to return"`
-	CalleesLimit int    `name:"callees-limit" default:"10" help:"Maximum callees to return"`
+	RefsLimit    *int   `name:"refs-limit" help:"Maximum references to return (default 20)"`
+	CallersLimit *int   `name:"callers-limit" help:"Maximum callers to return (default 10)"`
+	CalleesLimit *int   `name:"callees-limit" help:"Maximum callees to return (default 10)"`
 }
 
 func (c *SymCmd) Run() error {
-	symAt = c.At
-	symRefsLimit = c.RefsLimit
-	symCallersLimit = c.CallersLimit
-	symCalleesLimit = c.CalleesLimit
-	return runSym(argsOf(c.Symbol))
+	aliasNudge(os.Stderr, "sym", "pack --depth sym")
+	pack := PackCmd{
+		Symbols: argsOf(c.Symbol), Depth: packDepthSym, At: c.At,
+		RefsLimit: c.RefsLimit, CallersLimit: c.CallersLimit, CalleesLimit: c.CalleesLimit,
+	}
+	return pack.Run()
 }
 
+// ExplainCmd is a hidden alias of `pack --depth explain`.
 type ExplainCmd struct {
 	Symbol string `arg:"" optional:"" help:"Symbol name"`
 
@@ -226,10 +271,12 @@ type ExplainCmd struct {
 }
 
 func (c *ExplainCmd) Run() error {
-	explainMode = c.Mode
-	explainWarnings = c.Warnings
-	explainAt = c.At
-	return runExplain(argsOf(c.Symbol))
+	aliasNudge(os.Stderr, "explain", "pack --depth explain")
+	pack := PackCmd{
+		Symbols: argsOf(c.Symbol), Depth: packDepthExplain, At: c.At,
+		Mode: c.Mode, Warnings: c.Warnings,
+	}
+	return pack.Run()
 }
 
 type PkgCmd struct {

@@ -71,7 +71,8 @@ func TestScripts(t *testing.T) {
 	}
 
 	testscript.Run(t, testscript.Params{
-		Dir: filepath.Join("testdata", "script"),
+		Dir:  filepath.Join("testdata", "script"),
+		Cmds: map[string]func(ts *testscript.TestScript, neg bool, args []string){"cmpjson": cmpJSON},
 		Setup: func(env *testscript.Env) error {
 			// Prepend the snipe binary dir so scripts can `exec snipe`.
 			env.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -113,6 +114,31 @@ func TestScripts(t *testing.T) {
 			return nil
 		},
 	})
+}
+
+// cmpJSON is `cmp` for two --format json envelopes, ignoring meta.ms (wall
+// time, the one field that differs between two runs of the same query). It
+// proves an alias and its new form print the same envelope.
+func cmpJSON(ts *testscript.TestScript, neg bool, args []string) {
+	if neg {
+		ts.Fatalf("unsupported: ! cmpjson")
+	}
+	if len(args) != 2 {
+		ts.Fatalf("usage: cmpjson file1 file2")
+	}
+	norm := func(name string) string {
+		var v map[string]any
+		ts.Check(json.Unmarshal([]byte(ts.ReadFile(name)), &v))
+		if meta, ok := v["meta"].(map[string]any); ok {
+			delete(meta, "ms")
+		}
+		out, err := json.MarshalIndent(v, "", "  ")
+		ts.Check(err)
+		return string(out)
+	}
+	if a, b := norm(args[0]), norm(args[1]); a != b {
+		ts.Fatalf("%s and %s differ:\n%s\n---\n%s", args[0], args[1], a, b)
+	}
 }
 
 // writeScriptFixture writes a minimal Go module exercising the features the

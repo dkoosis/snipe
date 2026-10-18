@@ -149,7 +149,7 @@
   ],
   "suggestions": [
     {
-      "command": "snipe explain Widget",
+      "command": "snipe pack --depth explain Widget",
       "description": "Get detailed explanation with mechanism steps",
       "priority": 1
     },

@@ -22,11 +22,11 @@ type CLI struct {
 	Impl    ImplCmd    `cmd:"" group:"Navigate:" help:"Types that implement an interface"`
 	Tests   TestsCmd   `cmd:"" group:"Navigate:" help:"Tests that exercise a symbol"`
 
-	// Read: each step adds to the one before (def < sym < pack < explain).
+	// Read: each step adds to the one before (def < pack --depth sym < pack < pack --depth explain).
 	Show    ShowCmd    `cmd:"" hidden:"" help:"Alias of def <id>"`
-	Sym     SymCmd     `cmd:"" group:"Read:" help:"def + refs, callers, callees"`
-	Pack    PackCmd    `cmd:"" group:"Read:" help:"sym + package role and purpose"`
-	Explain ExplainCmd `cmd:"" group:"Read:" help:"pack + prose walkthrough and warnings"`
+	Sym     SymCmd     `cmd:"" hidden:"" help:"Alias of pack --depth sym"`
+	Pack    PackCmd    `cmd:"" group:"Read:" help:"def + refs, callers, callees, package role; --depth sym|pack|explain"`
+	Explain ExplainCmd `cmd:"" hidden:"" help:"Alias of pack --depth explain"`
 	Pkg     PkgCmd     `cmd:"" group:"Read:" help:"Package overview and exported symbols"`
 
 	Search SearchCmd `cmd:"" group:"Find:" help:"Text search via ripgrep (no index needed)"`

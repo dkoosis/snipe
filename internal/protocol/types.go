@@ -881,7 +881,7 @@ func SuggestionsForPack(result *Result) []Suggestion {
 	}
 	return []Suggestion{
 		{
-			Command:     "snipe explain " + result.Name,
+			Command:     "snipe pack --depth explain " + result.Name,
 			Description: "Get detailed explanation with mechanism steps",
 			Priority:    1,
 		},
