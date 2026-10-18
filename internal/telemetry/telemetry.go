@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 var (
@@ -21,11 +22,13 @@ var (
 	sessionKey string
 )
 
-// Rung is one of the six canonical resolution-strategy buckets emitted on
-// every usage.jsonl row (sn-r1do.1, D2's bare→exact→CI→method→fuzzy→semantic
-// cascade). Downstream consumers (ferret, sn-r1do.2/.3) key on this exact
-// vocabulary — do not introduce new values without updating this comment and
-// those consumers.
+// Rung is one of the canonical resolution-strategy buckets emitted on a
+// usage.jsonl row (sn-r1do.1, D2's bare→exact→CI→method→fuzzy→semantic
+// cascade, plus the two miss buckets). A row carries a rung only when the
+// command went through symbol resolution (sn-r1do.6); verbs with no decision
+// path leave it empty. Downstream consumers (ferret, sn-r1do.2/.3) key on this
+// exact vocabulary — do not introduce new values without updating this
+// comment and those consumers.
 const (
 	RungExact           = "exact"
 	RungCaseInsensitive = "caseinsensitive"
@@ -33,7 +36,21 @@ const (
 	RungFuzzy           = "fuzzy"
 	RungSemantic        = "semantic"
 	RungNotFound        = "notfound"
+	RungAmbiguous       = "ambiguous"
 )
+
+// errorCodeNotFound and errorCodeAmbiguous mirror protocol.ErrNotFound and
+// protocol.ErrAmbiguousSymbol as literals, for the same import-cycle reason as
+// ciMatchDegradedMarker (protocol imports telemetry for ClassifyRung).
+const (
+	errorCodeNotFound  = "NOT_FOUND"
+	errorCodeAmbiguous = "AMBIGUOUS_SYMBOL"
+)
+
+// MaxErrorLen caps the error message logged on an INTERNAL_ERROR row: enough
+// to diagnose without reproducing, short enough that a stack-sized message
+// cannot bloat usage.jsonl.
+const MaxErrorLen = 200
 
 // ciMatchDegradedMarker mirrors output.DegradedCIMatch as a literal to avoid
 // an import cycle (internal/output already imports internal/telemetry for
@@ -52,6 +69,10 @@ type Record struct {
 	IndexState     string   `json:"index_state,omitempty"`
 	SessionKey     string   `json:"session_key,omitempty"`
 	TriedRungs     []string `json:"tried_rungs,omitempty"` // raw decision-path trace, verbatim
+	// CandidateKinds counts an ambiguous outcome's candidates by symbol kind
+	// (e.g. {func:1, method:3}), so a deterministic tie-break is spottable.
+	CandidateKinds map[string]int `json:"candidate_kinds,omitempty"`
+	Error          string         `json:"error,omitempty"` // INTERNAL_ERROR message, truncated to MaxErrorLen
 }
 
 // Fields is the input to Emit — a struct rather than positional args because
@@ -65,6 +86,8 @@ type Fields struct {
 	CandidateCount int
 	IndexState     string
 	TriedRungs     []string
+	CandidateKinds map[string]int
+	Error          string
 }
 
 // SetRoot points the sink at <root>/.snipe/usage.jsonl. Called once the
@@ -101,25 +124,34 @@ func ResolveSessionKey(root string) string {
 }
 
 // ClassifyRung reduces a decision-path trace (plus the degraded-marker list
-// and outcome) to one of the six canonical rung tokens. Pure, total,
-// panic-free: telemetry must never break a query.
+// and outcome) to one canonical rung token, or "" when the row did not go
+// through symbol resolution. Pure, total, panic-free: telemetry must never
+// break a query.
 //
-// Any outcome other than "ok" classifies as RungNotFound — the six-value
-// vocabulary does not distinguish NOT_FOUND from AMBIGUOUS_SYMBOL or other
-// error codes; the row's Outcome field already carries that distinction.
+// Off the "ok" path: NOT_FOUND classifies as RungNotFound and
+// AMBIGUOUS_SYMBOL as RungAmbiguous; every other error code (INTERNAL_ERROR,
+// INVALID_ARGS, ...) resolved nothing, so it gets no rung — the row's Outcome
+// field already says what happened.
 //
-// On the "ok" path: an empty/unrecognized trace defaults to RungExact —
-// decisionPath is only populated on fallback paths today (cmd/def.go,
-// cmd/search.go), so silence means the literal query was served, mirroring
-// the existing DegradedCIMatch/D4 convention (silence = served).
+// On the "ok" path: an empty trace with no ci-match marker means the command
+// has no decision path (boundary, lits, deps, refs, ...), so it gets no rung
+// (sn-r1do.6 — defaulting it to exact made 256 of 257 ok rows say exact). A
+// non-empty but unrecognized trace (e.g. def's lookup:pkg_scoped) did resolve
+// literally, so it stays RungExact.
 //
 // Augment-path tokens (name_augment:*, sim_augment:*) that follow an already
 // -served exact/fuzzy hit are deliberately not special-cased: Rung describes
 // "the deepest resolution work that ran" for this row, not strictly "what
 // answered result #1." Callers needing the precise sequence read TriedRungs.
 func ClassifyRung(decisionPath, degraded []string, outcome string) string {
-	if outcome != "ok" {
+	switch outcome {
+	case "ok":
+	case errorCodeNotFound:
 		return RungNotFound
+	case errorCodeAmbiguous:
+		return RungAmbiguous
+	default:
+		return ""
 	}
 	for _, d := range degraded {
 		if d == ciMatchDegradedMarker {
@@ -139,7 +171,23 @@ func ClassifyRung(decisionPath, degraded []string, outcome string) string {
 			return RungExact
 		}
 	}
+	if len(decisionPath) == 0 {
+		return ""
+	}
 	return RungExact
+}
+
+// TruncateError cuts msg to MaxErrorLen bytes on a rune boundary, marking the
+// cut with "...".
+func TruncateError(msg string) string {
+	if len(msg) <= MaxErrorLen {
+		return msg
+	}
+	cut := MaxErrorLen - len("...")
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return msg[:cut] + "..."
 }
 
 // Emit appends one event. No-op when unconfigured or disabled.
@@ -165,6 +213,8 @@ func Emit(f Fields) {
 		IndexState:     f.IndexState,
 		SessionKey:     sk,
 		TriedRungs:     f.TriedRungs,
+		CandidateKinds: f.CandidateKinds,
+		Error:          TruncateError(f.Error),
 	}
 	line, err := json.Marshal(rec)
 	if err != nil {

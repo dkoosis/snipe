@@ -91,17 +91,20 @@ type Meta struct {
 // to "how it scoped the search" — PrimaryQueryArg picks the first key present
 // so usage.jsonl logs one representative arg per row (sn-r1do.1) instead of
 // a whole map.
-var queryArgPriority = []string{"symbol", "pattern", "package", "pkg", "ids", "file"}
+// id/at/value/query cover def-by-id (and its show alias), --at lookups, lits
+// and sim (sn-r1do.6).
+var queryArgPriority = []string{"symbol", "pattern", "package", "pkg", "id", "ids", "at", "value", "query", "file"}
 
 // PrimaryQueryArg reduces Meta.Query to the single query string telemetry
-// wants. Returns "" if Query is empty/nil/all-blank.
+// wants. boundary's two packages (keys a, b) log as "a b". Returns "" if
+// Query is empty/nil/all-blank.
 func (m Meta) PrimaryQueryArg() string {
 	for _, k := range queryArgPriority {
 		if v, ok := m.Query[k]; ok && v != "" {
 			return v
 		}
 	}
-	return ""
+	return strings.TrimSpace(m.Query["a"] + " " + m.Query["b"])
 }
 
 // DegradedNoEmbed is the stable degraded-marker token emitted (as `! noembed`
