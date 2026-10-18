@@ -23,3 +23,13 @@ stdout 'takes one symbol'
 ! exec snipe pack --depth explain Greet Reply --format json
 stdout '"code":"INVALID_ARGS"'
 stdout 'takes one symbol'
+
+# A flag the chosen depth ignores is a usage error, not a silent no-op:
+# --mode/--warnings belong to explain, the limits to sym and pack.
+! exec snipe pack Greet --mode deep
+stdout 'pack --mode needs --depth explain'
+! exec snipe pack --depth sym Greet --warnings full --format json
+stdout '"code":"INVALID_ARGS"'
+stdout 'pack --warnings needs --depth explain'
+! exec snipe pack --depth explain Greet --refs-limit 3
+stdout '--refs-limit'

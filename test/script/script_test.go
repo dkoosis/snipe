@@ -290,6 +290,7 @@ func TestExitCodeContract(t *testing.T) {
 		{"pack depth arity", []string{"pack", "--depth", "sym", "Greet", "Run"}, 2},
 		{"deps mode flag plus positional", []string{"deps", "--importers", "example.com/fixture/alpha", "extra"}, 2},
 		{"deps empty mode value", []string{"deps", "--file", ""}, 2},
+		{"explain flag at pack depth", []string{"pack", "Greet", "--mode", "deep"}, 2},
 		{"usage error as json", []string{"pack", "--depth", "explain", "Greet", "Run", "--format", "json"}, 2},
 	}
 	for _, tt := range tests {

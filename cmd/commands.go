@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 )
@@ -194,16 +195,18 @@ const (
 // sym (def + refs, callers, callees), pack (+ package role and purpose, the
 // default) or explain (+ prose walkthrough and warnings). The limits default
 // per depth (sym 20/10/10, pack 5/5/5), so they are pointers: nil = unset.
+// Mode and Warnings are pointers for the same reason: a flag the chosen depth
+// ignores is a usage error, not a silent no-op.
 type PackCmd struct {
 	Symbols []string `arg:"" optional:"" help:"Symbol name(s), package, or hex ID(s)"`
 
-	Depth        string `default:"pack" enum:"sym,pack,explain" help:"How much to say: sym (def + refs, callers, callees), pack (+ package role and purpose), explain (+ prose walkthrough and warnings)"`
-	At           string `help:"Position to look up (file:line:col)"`
-	RefsLimit    *int   `name:"refs-limit" help:"Maximum references to return (default: sym 20, pack 5)"`
-	CallersLimit *int   `name:"callers-limit" help:"Maximum callers to return (default: sym 10, pack 5)"`
-	CalleesLimit *int   `name:"callees-limit" help:"Maximum callees to return (default: sym 10, pack 5)"`
-	Mode         string `default:"normal" enum:"brief,normal,deep" help:"--depth explain: analysis depth: brief, normal, deep"`
-	Warnings     string `default:"fast" enum:"none,fast,full" help:"--depth explain: warning level: none, fast, full"`
+	Depth        string  `default:"pack" enum:"sym,pack,explain" help:"How much to say: sym (def + refs, callers, callees), pack (+ package role and purpose), explain (+ prose walkthrough and warnings)"`
+	At           string  `help:"Position to look up (file:line:col)"`
+	RefsLimit    *int    `name:"refs-limit" help:"Maximum references to return (default: sym 20, pack 5)"`
+	CallersLimit *int    `name:"callers-limit" help:"Maximum callers to return (default: sym 10, pack 5)"`
+	CalleesLimit *int    `name:"callees-limit" help:"Maximum callees to return (default: sym 10, pack 5)"`
+	Mode         *string `enum:"brief,normal,deep" help:"--depth explain only: analysis depth: brief, normal (default), deep"`
+	Warnings     *string `enum:"none,fast,full" help:"--depth explain only: warning level: none, fast (default), full"`
 }
 
 func (c *PackCmd) Run() error {
@@ -213,6 +216,9 @@ func (c *PackCmd) Run() error {
 			return usageError(cmdNamePack, "pack --depth %s takes one symbol, got %d", c.Depth, len(c.Symbols))
 		}
 	}
+	if flag := c.ignoredFlag(); flag != "" {
+		return usageError(cmdNamePack, "pack %s needs --depth explain; --depth %s ignores it", flag, c.Depth)
+	}
 	switch c.Depth {
 	case packDepthSym:
 		symAt = c.At
@@ -221,8 +227,8 @@ func (c *PackCmd) Run() error {
 		symCalleesLimit = limitOr(c.CalleesLimit, 10)
 		return runSym(c.Symbols)
 	case packDepthExplain:
-		explainMode = c.Mode
-		explainWarnings = c.Warnings
+		explainMode = cmp.Or(deref(c.Mode), "normal")
+		explainWarnings = cmp.Or(deref(c.Warnings), "fast")
 		explainAt = c.At
 		return runExplain(c.Symbols)
 	default:
@@ -232,6 +238,37 @@ func (c *PackCmd) Run() error {
 		packCalleesLimit = limitOr(c.CalleesLimit, 5)
 		return runPack(c.Symbols)
 	}
+}
+
+// ignoredFlag names a flag given that c.Depth does not read, or "": --mode
+// and --warnings belong to explain, the limits to sym and pack.
+func (c *PackCmd) ignoredFlag() string {
+	if c.Depth == packDepthExplain {
+		switch {
+		case c.RefsLimit != nil:
+			return "--refs-limit"
+		case c.CallersLimit != nil:
+			return "--callers-limit"
+		case c.CalleesLimit != nil:
+			return "--callees-limit"
+		}
+		return ""
+	}
+	switch {
+	case c.Mode != nil:
+		return "--mode"
+	case c.Warnings != nil:
+		return "--warnings"
+	}
+	return ""
+}
+
+// deref returns *p, or "" when the flag was not given.
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 // limitOr returns *p when the flag was given, else the depth's default.
@@ -274,7 +311,7 @@ func (c *ExplainCmd) Run() error {
 	aliasNudge(os.Stderr, "explain", "pack --depth explain")
 	pack := PackCmd{
 		Symbols: argsOf(c.Symbol), Depth: packDepthExplain, At: c.At,
-		Mode: c.Mode, Warnings: c.Warnings,
+		Mode: &c.Mode, Warnings: &c.Warnings,
 	}
 	return pack.Run()
 }
