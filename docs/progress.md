@@ -335,3 +335,25 @@ cobra-search-04, fzf-search-04 each MRR 0.02 — right answer present, ranked
 0.72 (baseline 0.76 with ~0.05 regression headroom). Improving retrieval
 ranking is now how MRR — and the gate headroom — climbs back toward 1.0.
 `make audit` green.
+
+## Risk scorer, resolver hygiene, toolchain repair (2026-10-01 → 10-17)
+
+Twelve PRs merged (#275–#286). sn-qtjl (snipe as the review-routing scorer)
+has all four children merged; it awaits an independent check against its goal
+before close.
+
+| PR | Change |
+|----|--------|
+| #275 | Ambiguity hints name `snipe def <id>`, not the hidden `show` alias |
+| #276 | snipe refuses an index built for another directory; `index` rebuilds it, `doctor` flags it |
+| #277 | A missing argument is a usage error, not INTERNAL_ERROR + "next: snipe doctor" |
+| #278 | `snipe risk` degrades on a stale index and reports `meta.index_state` |
+| #279 | `snipe risk` scores a diff from five factors with visible, versioned weights (breaking) |
+| #280, #281 | Repo carries no vocabulary.md and no "census" wording |
+| #282 | golangci-lint pinned to v2.14.0 (reads Go 1.27) |
+| #284 | Blackbox goldens pass under the local Go toolchain |
+| #286 | Blackbox tests no longer inherit VOYAGE_API_KEY into `snipe index` (no real batches) |
+| #285 | `snipe index --embed` finishes: the voyage-code-3 batch no longer fails at 0/N |
+| #283 | Telemetry rows record the query, the answering rung, and the error reason (sn-r1do.6) |
+
+Eval: not re-run — no change to resolution ranking. `make audit` green on main.
