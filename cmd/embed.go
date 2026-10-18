@@ -102,6 +102,7 @@ func runEmbedStatus() error {
 		state.Failed = batchStatus.RequestCounts.Failed
 		state.OutputFileID = batchStatus.OutputFileID
 		state.ErrorFileID = batchStatus.ErrorFileID
+		state.FailureReason = batchStatus.FailureReason()
 		state.UpdatedAt = time.Now()
 
 		if err := client.SaveState(state); err != nil {
@@ -163,7 +164,7 @@ func runEmbedStatus() error {
 				Failed:    state.Failed,
 				Model:     state.Model,
 				CreatedAt: &state.CreatedAt,
-				Message:   "Batch job failed or was cancelled",
+				Message:   batchFailureMessage(state),
 			}
 			return emitEmbedStatus(w, result)
 		}
@@ -199,6 +200,18 @@ func runEmbedStatus() error {
 		case <-time.After(time.Duration(embedPollSecs) * time.Second):
 		}
 	}
+}
+
+// batchFailureMessage says why a batch ended without results: Voyage's own
+// reason when it gave one, else whether it failed or was cancelled.
+func batchFailureMessage(state *embed.BatchState) string {
+	if state.FailureReason != "" {
+		return fmt.Sprintf("Batch job %s: %s", state.Status, state.FailureReason)
+	}
+	if state.Status == batchStatusCancelled {
+		return "Batch job was cancelled; Voyage gave no reason"
+	}
+	return "Batch job failed; Voyage gave no reason"
 }
 
 // emitEmbedStatus renders one embed-status result. Default (Claude) surface is

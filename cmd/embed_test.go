@@ -170,3 +170,24 @@ func TestRecoveryGuard_ClearsBatchStateOnSuccess(t *testing.T) {
 		t.Fatalf("batch_state.json should be cleared on full success, stat err = %v", statErr)
 	}
 }
+
+// TestBatchFailureMessage: a failed batch names Voyage's reason (sn-dtkq);
+// without one it still says which of failed/cancelled it was.
+func TestBatchFailureMessage(t *testing.T) {
+	cases := []struct {
+		state embed.BatchState
+		want  string
+	}{
+		{
+			embed.BatchState{Status: batchStatusFailed, FailureReason: "duplicate_custom_id at line 7 (1 listed): dup"},
+			"Batch job failed: duplicate_custom_id at line 7 (1 listed): dup",
+		},
+		{embed.BatchState{Status: batchStatusFailed}, "Batch job failed; Voyage gave no reason"},
+		{embed.BatchState{Status: batchStatusCancelled}, "Batch job was cancelled; Voyage gave no reason"},
+	}
+	for _, tc := range cases {
+		if got := batchFailureMessage(&tc.state); got != tc.want {
+			t.Errorf("batchFailureMessage(%+v) = %q, want %q", tc.state, got, tc.want)
+		}
+	}
+}
