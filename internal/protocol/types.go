@@ -879,17 +879,22 @@ func SuggestionsForPack(result *Result) []Suggestion {
 	if result == nil {
 		return nil
 	}
+	ctxSuggestion := Suggestion{
+		Command:     "snipe context",
+		Description: "Get project-level orientation context",
+		Priority:    2,
+	}
+	// explain walks a func or method; on a type it adds nothing to the pack.
+	if result.Kind != KindFunc && result.Kind != KindMethod {
+		return []Suggestion{ctxSuggestion}
+	}
 	return []Suggestion{
 		{
 			Command:     "snipe pack --depth explain " + result.Name,
 			Description: "Get detailed explanation with mechanism steps",
 			Priority:    1,
 		},
-		{
-			Command:     "snipe context",
-			Description: "Get project-level orientation context",
-			Priority:    2,
-		},
+		ctxSuggestion,
 	}
 }
 
