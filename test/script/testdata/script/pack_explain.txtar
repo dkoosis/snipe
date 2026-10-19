@@ -54,3 +54,31 @@ stdout '"ok":true'
 stdout '"definition":\{'
 stdout '"explain_func_only"'
 ! stdout '"mechanism":'
+
+# A file changed since indexing: explain cannot find the func, so it returns
+# the pack and says the walkthrough failed, as pack degrades, instead of an
+# error that drops the pack.
+cp $FIXTURE/beta/beta.go $WORK/beta.go.orig
+exec snipe pack --depth explain Reply --format json
+stdout '"mechanism":'
+cp $WORK/moved.go $FIXTURE/beta/beta.go
+env SNIPE_NO_HEAL=1
+exec snipe pack --depth explain Reply --format json
+stdout '"ok":true'
+stdout '"definition":\{'
+stdout '"explain_failed"'
+! stdout '"mechanism":'
+env SNIPE_NO_HEAL=
+cp $WORK/beta.go.orig $FIXTURE/beta/beta.go
+
+-- moved.go --
+package beta
+
+import "example.com/fixture/alpha"
+
+
+
+// Reply calls across into the alpha package.
+func Reply() string {
+	return alpha.Greet()
+}

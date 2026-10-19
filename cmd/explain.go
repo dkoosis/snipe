@@ -21,6 +21,10 @@ var (
 // is not.
 const degradedExplainFuncOnly = "explain_func_only"
 
+// degradedExplainFailed marks a pack --depth explain answer whose walkthrough
+// could not be built, such as a func whose file changed since indexing.
+const degradedExplainFailed = "explain_failed"
+
 // runExplain is pack --depth explain: the pack for one symbol (runPack's
 // single-symbol path, same limits and body), plus query.Explain's purpose
 // source, mechanism, caller pattern and warnings (sn-lvub.10).
@@ -68,18 +72,16 @@ func runExplain(args []string) error {
 		})
 	}
 
+	// The walkthrough only adds to the pack: when it cannot be built, the
+	// pack still answers and Degraded says why, as pack itself degrades.
 	result := protocol.ExplainPackResult{PackResult: packResult}
-	if kind := packResult.Definition.Kind; kind == protocol.KindFunc || kind == protocol.KindMethod {
-		ex, exErr := query.Explain(s.DB(), symbolID, opts)
-		if exErr != nil {
-			return w.WriteErrorWithMeta(cmdNameExplain, protocol.Meta{Query: queryInfo}.PrimaryQueryArg(), nil, idxState, 0, &protocol.Error{
-				Code:    protocol.ErrInternal,
-				Message: exErr.Error(),
-			})
-		}
-		mergeExplain(&result, ex, enrichedPurpose(s, symbolID))
-	} else {
+	if kind := packResult.Definition.Kind; kind != protocol.KindFunc && kind != protocol.KindMethod {
 		degraded = append(degraded, degradedExplainFuncOnly)
+	} else if ex, exErr := query.Explain(s.DB(), symbolID, opts); exErr != nil {
+		// e.g. the file changed or vanished since indexing (StaleFiles names it).
+		degraded = append(degraded, degradedExplainFailed)
+	} else {
+		mergeExplain(&result, ex, enrichedPurpose(s, symbolID))
 	}
 
 	resp := protocol.Response[protocol.ExplainPackResult]{
