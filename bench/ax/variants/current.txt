@@ -42,10 +42,9 @@ Read:
   pkg     Package overview and exported symbols
 
 Find:
-  search    Text search via ripgrep (no index needed)
-  lits      Every location of a string literal or env var
-  trace     A string literal with its call context
-  sim       Semantic search (needs embeddings)
+  search    Text search via ripgrep (no index needed); --lits literal or env
+            var, --trace literal with call context, --semantic by meaning
+  sim       Near-duplicate symbol pairs: --pairs --within-pkg (needs embeddings)
 
 Change:
   impact       Blast radius of changing a symbol

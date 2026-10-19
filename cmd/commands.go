@@ -329,31 +329,57 @@ func (c *PkgCmd) Run() error {
 
 // --- Find ---
 
+// SearchCmd is the one Find verb (sn-zvoz, nug 67785da834ca). Bare it is ripgrep
+// text search and needs no index; --lits, --trace and --semantic turn it to the
+// questions that lits, trace and sim's query form used to answer.
 type SearchCmd struct {
-	Pattern string `arg:"" help:"Search pattern"`
+	Pattern string `arg:"" help:"Search pattern, literal value, or semantic query"`
 
-	File string `help:"Glob pattern to filter files (e.g., \"*.go\", \"store.go\")"`
+	File      string  `help:"Glob pattern to filter files (e.g., \"*.go\", \"store.go\")"`
+	Lits      bool    `xor:"mode" help:"Every location of a string literal or env var (needs index)"`
+	Trace     bool    `xor:"mode" help:"A string literal with its call context (needs index)"`
+	Semantic  bool    `xor:"mode" help:"Semantic search by meaning (needs index and embeddings)"`
+	Threshold float64 `default:"0.3" help:"Minimum similarity, 0-1 (with --semantic)"`
 }
 
 func (c *SearchCmd) Run() error {
+	if c.File != "" && (c.Lits || c.Trace || c.Semantic) {
+		return usageError(cmdNameSearch, "--file filters text search only; drop it with --lits, --trace or --semantic")
+	}
+	switch {
+	case c.Lits:
+		return runLits([]string{c.Pattern})
+	case c.Trace:
+		return runTrace([]string{c.Pattern})
+	case c.Semantic:
+		simThreshold = c.Threshold
+		simPairs, simWithinPkg, simSharedCallees = false, false, false
+		return runSim([]string{c.Pattern})
+	}
 	searchFile = c.File
 	return runSearch([]string{c.Pattern})
 }
 
+// LitsCmd is a hidden alias of `search --lits`.
 type LitsCmd struct {
 	Value string `arg:"" help:"String literal or env var name"`
 }
 
 func (c *LitsCmd) Run() error {
-	return runLits([]string{c.Value})
+	aliasNudge(os.Stderr, cmdNameLits, "search --lits")
+	search := SearchCmd{Pattern: c.Value, Lits: true}
+	return search.Run()
 }
 
+// TraceCmd is a hidden alias of `search --trace`.
 type TraceCmd struct {
 	Value string `arg:"" help:"String literal value"`
 }
 
 func (c *TraceCmd) Run() error {
-	return runTrace([]string{c.Value})
+	aliasNudge(os.Stderr, cmdNameTrace, "search --trace")
+	search := SearchCmd{Pattern: c.Value, Trace: true}
+	return search.Run()
 }
 
 // --- Graph & Structure ---
@@ -659,7 +685,7 @@ func (c *GuardCmd) Run() error {
 // --- Embeddings ---
 
 type SimCmd struct {
-	Query string `arg:"" optional:"" help:"Query text"`
+	Query string `arg:"" optional:"" help:"Query text (use search --semantic)"`
 
 	Threshold     float64 `default:"0.3" help:"Minimum similarity threshold (0-1)"`
 	WithinPkg     bool    `name:"within-pkg" help:"Restrict pair scan to symbols in the same package (with --pairs)"`
@@ -668,6 +694,10 @@ type SimCmd struct {
 }
 
 func (c *SimCmd) Run() error {
+	if !c.Pairs && c.Query != "" {
+		// The query form moved to search --semantic; --pairs stays here.
+		aliasNudge(os.Stderr, cmdNameSim, "search --semantic")
+	}
 	simThreshold = c.Threshold
 	simWithinPkg = c.WithinPkg
 	simPairs = c.Pairs

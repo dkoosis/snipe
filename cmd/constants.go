@@ -19,6 +19,8 @@ const (
 	cmdNameRisk        = "risk"
 	cmdNameSym         = "sym"
 	cmdNameSearch      = "search"
+	cmdNameLits        = "lits"
+	cmdNameTrace       = "trace"
 	cmdNameTests       = "tests"
 	cmdNameTriage      = "triage"
 	cmdNameTypes       = "types"
