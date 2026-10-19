@@ -20,3 +20,9 @@ exec snipe search --help
 stdout '--lits'
 stdout '--trace'
 stdout '--semantic'
+
+# --threshold belongs to --semantic; an empty semantic query is a usage error.
+! exec snipe search Greet --threshold 0.9
+stdout '--threshold applies to --semantic only'
+! exec snipe search --semantic ''
+stdout 'search --semantic needs a query'

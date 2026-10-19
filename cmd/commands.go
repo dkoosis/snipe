@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // This file holds the kong command structs and their Run methods. Each Run
@@ -335,16 +336,22 @@ func (c *PkgCmd) Run() error {
 type SearchCmd struct {
 	Pattern string `arg:"" help:"Search pattern, literal value, or semantic query"`
 
-	File      string  `help:"Glob pattern to filter files (e.g., \"*.go\", \"store.go\")"`
-	Lits      bool    `xor:"mode" help:"Every location of a string literal or env var (needs index)"`
-	Trace     bool    `xor:"mode" help:"A string literal with its call context (needs index)"`
-	Semantic  bool    `xor:"mode" help:"Semantic search by meaning (needs index and embeddings)"`
-	Threshold float64 `default:"0.3" help:"Minimum similarity, 0-1 (with --semantic)"`
+	File      string   `help:"Glob pattern to filter files (e.g., \"*.go\", \"store.go\")"`
+	Lits      bool     `xor:"mode" help:"Every location of a string literal or env var (needs index)"`
+	Trace     bool     `xor:"mode" help:"A string literal with its call context (needs index)"`
+	Semantic  bool     `xor:"mode" help:"Semantic search by meaning (needs index and embeddings)"`
+	Threshold *float64 `placeholder:"0.3" help:"Minimum similarity, 0-1 (with --semantic; default 0.3)"`
 }
 
 func (c *SearchCmd) Run() error {
 	if c.File != "" && (c.Lits || c.Trace || c.Semantic) {
 		return usageError(cmdNameSearch, "--file filters text search only; drop it with --lits, --trace or --semantic")
+	}
+	if c.Threshold != nil && !c.Semantic {
+		return usageError(cmdNameSearch, "--threshold applies to --semantic only")
+	}
+	if c.Semantic && strings.TrimSpace(c.Pattern) == "" {
+		return usageError(cmdNameSearch, "search --semantic needs a query")
 	}
 	switch {
 	case c.Lits:
@@ -352,7 +359,10 @@ func (c *SearchCmd) Run() error {
 	case c.Trace:
 		return runTrace([]string{c.Pattern})
 	case c.Semantic:
-		simThreshold = c.Threshold
+		simThreshold = 0.3
+		if c.Threshold != nil {
+			simThreshold = *c.Threshold
+		}
 		simPairs, simWithinPkg, simSharedCallees = false, false, false
 		return runSim([]string{c.Pattern})
 	}
