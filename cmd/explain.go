@@ -14,6 +14,7 @@ var (
 	explainMode     string
 	explainWarnings string
 	explainAt       string
+	explainBody     bool
 )
 
 // degradedExplainFuncOnly marks a pack --depth explain answer for a symbol
@@ -26,8 +27,11 @@ const degradedExplainFuncOnly = "explain_func_only"
 const degradedExplainFailed = "explain_failed"
 
 // runExplain is pack --depth explain: the pack for one symbol (runPack's
-// single-symbol path, same limits and body), plus query.Explain's purpose
-// source, mechanism, caller pattern and warnings (sn-lvub.10).
+// single-symbol path, same limits), plus query.Explain's purpose source,
+// mechanism, caller pattern and warnings (sn-lvub.10). The definition body
+// is left out unless --body asks for it (D4, dk 2026-10-18): the walkthrough
+// stands in for reading the code. Without the body there are no context
+// lines either, so the result holds exactly pack's fields minus the body.
 func runExplain(args []string) error {
 	start := time.Now()
 
@@ -60,6 +64,10 @@ func runExplain(args []string) error {
 		return nil
 	}
 
+	withBody = withBody && explainBody
+	if !withBody {
+		contextLines = 0
+	}
 	packResult, degraded, allResults, err := buildPackForSymbol(s, symbolID, packOpts{
 		withBody:     withBody,
 		withSiblings: withSiblings,

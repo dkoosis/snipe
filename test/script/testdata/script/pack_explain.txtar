@@ -1,17 +1,20 @@
-# pack --depth explain — each depth adds to the one before (sn-zvoz, sn-lvub.10).
-# Proves: `pack --depth explain Reply` holds every field and every line that
-# `pack --depth pack Reply` prints, in json and concise, plus the explain
-# sections (purpose source, mechanism, caller pattern), and says the purpose,
-# signature and caller count once (D4).
+# pack --depth explain — each depth adds to the one before (sn-zvoz, sn-lvub.10),
+# except the definition body, which is opt-in under explain (D4, dk 2026-10-18).
+# Proves, in json and concise: (1) `pack --depth explain Reply` holds every
+# field and line of `pack --depth pack Reply` minus the body; (2) with --body
+# it holds every field and line of `pack --depth pack Reply`. Both add the
+# explain sections (purpose source, mechanism, caller pattern) and say the
+# purpose, signature and caller count once (D4).
 cd $FIXTURE
 
-# json: every field of the pack result, same value, plus the explain fields.
-exec snipe pack --depth pack Reply --format json
-cp stdout $WORK/pack.json
+# (1) json: pack minus the body (--no-body --context 0) is a subset of explain.
+exec snipe pack --depth pack Reply --no-body --context 0 --format json
+cp stdout $WORK/pack-nobody.json
 exec snipe pack --depth explain Reply --format json
 cp stdout $WORK/explain.json
-jsonsubset $WORK/pack.json $WORK/explain.json
-! jsonsubset $WORK/explain.json $WORK/pack.json
+jsonsubset $WORK/pack-nobody.json $WORK/explain.json
+! jsonsubset $WORK/explain.json $WORK/pack-nobody.json
+! stdout '"body":'
 stdout '"definition":\{'
 stdout '"references":\['
 stdout '"callers":\['
@@ -26,20 +29,44 @@ stdout '"doc_status":\{'
 # targets. (ExplainPackResult has no symbol, file, kind or signature field.)
 ! stdout '"caller_context":'
 ! stdout '"key_deps":'
+# Full pack is not a subset: explain leaves its body out.
+exec snipe pack --depth pack Reply --format json
+cp stdout $WORK/pack.json
+! jsonsubset $WORK/pack.json $WORK/explain.json
 
-# concise: every line of the pack output, in order, plus the walkthrough.
-exec snipe pack --depth pack Reply
-cp stdout $WORK/pack.txt
+# (2) json: with --body, every field of the full pack, same value.
+exec snipe pack --depth explain Reply --body --format json
+cp stdout $WORK/explain-body.json
+jsonsubset $WORK/pack.json $WORK/explain-body.json
+stdout '"body":"func Reply'
+stdout '"mechanism":'
+
+# (1) concise: every line of pack minus the body, in order, plus the walkthrough.
+exec snipe pack --depth pack Reply --no-body --context 0
+cp stdout $WORK/pack-nobody.txt
 exec snipe pack --depth explain Reply
 cp stdout $WORK/explain.txt
-linesubset $WORK/pack.txt $WORK/explain.txt
-! linesubset $WORK/explain.txt $WORK/pack.txt
+linesubset $WORK/pack-nobody.txt $WORK/explain.txt
+! linesubset $WORK/explain.txt $WORK/pack-nobody.txt
 stdout '^callers: '
 stdout '^mechanism:'
 stdout '^  calls Greet'
 stdout -count=1 '^purpose: '
-stdout -count=1 'func Reply\(\) string'
+! stdout '```go'
 ! stdout '^# Reply$'
+
+# (2) concise: with --body, every line of the full pack.
+exec snipe pack --depth pack Reply
+cp stdout $WORK/pack.txt
+exec snipe pack --depth explain Reply --body
+cp stdout $WORK/explain-body.txt
+linesubset $WORK/pack.txt $WORK/explain-body.txt
+stdout -count=1 'func Reply\(\) string'
+stdout '^mechanism:'
+
+# --body belongs to explain: at another depth it is a usage error.
+! exec snipe pack Reply --body
+stdout 'pack --body needs --depth explain'
 
 # The pack limits reach the embedded pack: --callers-limit 0 leaves no caller
 # rows, as it does at --depth pack.

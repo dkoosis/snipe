@@ -916,7 +916,8 @@ type ExplainResult struct {
 
 // ExplainPackResult is what pack --depth explain returns: every PackResult
 // field, plus the walkthrough and warnings, since each depth adds to the one
-// before (sn-zvoz). It leaves out the ExplainResult fields that repeat the
+// before (sn-zvoz). The one exception is Definition.Body, empty unless
+// --body asks for it (D4, dk 2026-10-18). It leaves out the ExplainResult fields that repeat the
 // pack (D4): symbol, file, kind and signature are in Definition; the caller
 // count and names are in CallerCount and Callers, so only the caller pattern
 // is kept; key_deps mostly repeats the mechanism's targets. The explain fields are empty for a symbol that is not a
