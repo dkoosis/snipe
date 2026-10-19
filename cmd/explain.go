@@ -114,7 +114,7 @@ func runExplain(args []string) error {
 			Degraded:      degraded,
 			Ms:            time.Since(start).Milliseconds(),
 			Total:         1,
-			TokenEstimate: estimatePackTokens(packResult),
+			TokenEstimate: estimateExplainTokens(&result),
 			StaleFiles:    query.CheckFileStaleness(s.DB(), dir, allResults),
 		},
 	}
@@ -194,4 +194,19 @@ func mergeExplain(r *protocol.ExplainPackResult, ex *protocol.ExplainResult, enr
 	}
 	docStatus := ex.DocStatus
 	r.DocStatus = &docStatus
+}
+
+// estimateExplainTokens is estimatePackTokens plus the walkthrough explain
+// adds: purpose, caller pattern, mechanism steps and warnings.
+func estimateExplainTokens(r *protocol.ExplainPackResult) int {
+	n := estimatePackTokens(r.PackResult)
+	n += protocol.EstimateTokens(r.Purpose) + protocol.EstimateTokens(r.CallerPattern)
+	for i := range r.Mechanism {
+		m := &r.Mechanism[i]
+		n += protocol.EstimateTokens(m.Action + " " + m.Target + " " + m.Note)
+	}
+	for i := range r.Warnings {
+		n += protocol.EstimateTokens(r.Warnings[i].Message + r.Warnings[i].Evidence)
+	}
+	return n
 }

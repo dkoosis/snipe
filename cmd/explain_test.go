@@ -54,3 +54,15 @@ func TestMergeExplain(t *testing.T) {
 		})
 	}
 }
+
+// TestEstimateExplainTokens: the estimate counts the walkthrough, not just the
+// embedded pack (pre-push review P3 on #296).
+func TestEstimateExplainTokens(t *testing.T) {
+	r := protocol.ExplainPackResult{PackResult: protocol.PackResult{Definition: &protocol.Result{Name: "Reply"}}}
+	base := estimateExplainTokens(&r)
+	r.Mechanism = []protocol.MechanismStep{{Action: "calls", Target: "GreetEveryoneInTheRoom"}}
+	r.Warnings = []protocol.Warning{{Message: "error return from s.GetMeta explicitly ignored"}}
+	if got := estimateExplainTokens(&r); got <= base {
+		t.Errorf("estimate with walkthrough = %d, want more than %d", got, base)
+	}
+}
