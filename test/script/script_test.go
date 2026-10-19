@@ -46,10 +46,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
+
+	"github.com/dkoosis/snipe/internal/store"
 )
 
 func TestScripts(t *testing.T) {
@@ -72,7 +75,7 @@ func TestScripts(t *testing.T) {
 
 	testscript.Run(t, testscript.Params{
 		Dir:  filepath.Join("testdata", "script"),
-		Cmds: map[string]func(ts *testscript.TestScript, neg bool, args []string){"cmpjson": cmpJSON},
+		Cmds: map[string]func(ts *testscript.TestScript, neg bool, args []string){"cmpjson": cmpJSON, "seedembed": seedEmbed},
 		Setup: func(env *testscript.Env) error {
 			// Prepend the snipe binary dir so scripts can `exec snipe`.
 			env.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -138,6 +141,33 @@ func cmpJSON(ts *testscript.TestScript, neg bool, args []string) {
 	}
 	if a, b := norm(args[0]), norm(args[1]); a != b {
 		ts.Fatalf("%s and %s differ:\n%s\n---\n%s", args[0], args[1], a, b)
+	}
+}
+
+// seedEmbed is `seedembed Name=x,y ...`: it stores a fixed embedding for each
+// named function in the fixture index, since the fixture indexes with
+// --embed-mode=off and no Voyage key. sim --pairs scripts need vectors to score.
+func seedEmbed(ts *testscript.TestScript, neg bool, args []string) {
+	if neg || len(args) == 0 {
+		ts.Fatalf("usage: seedembed Name=x,y ...")
+	}
+	st, err := store.Open(filepath.Join(ts.Getenv("FIXTURE"), ".snipe", "index.db"))
+	ts.Check(err)
+	defer st.Close()
+	for _, a := range args {
+		name, vec, ok := strings.Cut(a, "=")
+		if !ok {
+			ts.Fatalf("bad arg %q", a)
+		}
+		var emb []float32
+		for _, f := range strings.Split(vec, ",") {
+			v, perr := strconv.ParseFloat(f, 32)
+			ts.Check(perr)
+			emb = append(emb, float32(v))
+		}
+		var id string
+		ts.Check(st.DB().QueryRow(`SELECT id FROM symbols WHERE name = ? AND kind = 'func'`, name).Scan(&id))
+		ts.Check(st.SaveEmbedding(id, emb, "test"))
 	}
 }
 
@@ -214,6 +244,15 @@ import "example.com/fixture/alpha"
 // Reply calls across into the alpha package.
 func Reply() string {
 	return alpha.Greet()
+}
+`,
+		"beta/env.go": `package beta
+
+import "os"
+
+// envToken reads an env var, which lits finds by its name.
+func envToken() string {
+	return os.Getenv("FIXTURE_ENV_TOKEN")
 }
 `,
 	}

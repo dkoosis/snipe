@@ -1,10 +1,39 @@
-# sim — semantic similarity search (needs embeddings).
+# sim — near-duplicate pairs (--pairs); the query form is search --semantic.
 # The fixture index is built with --embed-mode=off (zero embeddings) and no
 # Voyage key resolves, so a real semantic hit is impossible here. Per the bead
 # exemption for embedding-backed commands, we assert the graceful no-key path:
-# sim explains embeddings are unavailable and points at doctor. The command
+# the query explains embeddings are unavailable and points at doctor. The command
 # could not fulfil the query, so it emits an error envelope and exits non-zero
 # (exit 1, AXI #6) — distinct from a valid empty result.
 cd $FIXTURE
-! exec snipe sim Greet
+! exec snipe search --semantic Greet
 stdout 'no API key'
+! stderr .
+cp stdout $WORK/new.txt
+
+# The old query form is an alias: one nudge, same stdout.
+! exec snipe sim Greet
+stderr -count=1 'snipe: ''sim'' is now ''search --semantic'''
+cmp stdout $WORK/new.txt
+
+! exec snipe sim Greet --format json
+cp stdout $WORK/old.json
+! exec snipe search --semantic Greet --format json
+cmpjson stdout $WORK/old.json
+
+# --threshold carries over to the new spelling.
+! exec snipe search --semantic Greet --threshold 0.9
+stdout 'no API key'
+
+# --semantic is a mode: it excludes the others.
+! exec snipe search --semantic --lits Greet
+stderr 'can''t be used together'
+
+# sim --pairs is unchanged: JSONL, no nudge. Run and Orphan get one vector, so
+# they pair at similarity 1; --shared-callees counts what each calls.
+seedembed Run=1,0 Orphan=1,0
+exec snipe sim --pairs --within-pkg --shared-callees --threshold 0.9
+! stderr .
+stdout -count=1 '^\{"pkg":"example\.com/fixture","sym_a":"Orphan","sym_b":"Run","id_a":"[0-9a-f]{16}","id_b":"[0-9a-f]{16}","similarity":1,"total_callees_b":2\}\n$'
+# IDs hash the fixture path, so the golden line matches them by shape.
+

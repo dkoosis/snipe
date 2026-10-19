@@ -1,6 +1,19 @@
-# trace — trace a string literal through its call context.
-# Proves: the named const Banner is found by its literal value.
+# trace — hidden alias of search --trace.
+# Proves: the named const Banner is found by its literal value; `trace` prints
+# one stderr nudge and its stdout equals the new form in concise and json.
 cd $FIXTURE
-exec snipe trace banner-token-literal
+exec snipe search --trace banner-token-literal
 stdout '# banner-token-literal — 1 ref'
 stdout 'const Banner = "banner-token-literal"'
+! stderr .
+cp stdout $WORK/new.txt
+
+exec snipe trace banner-token-literal
+stderr -count=1 'snipe: ''trace'' is now ''search --trace'''
+cmp stdout $WORK/new.txt
+
+exec snipe trace banner-token-literal --format json
+cp stdout $WORK/old.json
+exec snipe search --trace banner-token-literal --format json
+cmpjson stdout $WORK/old.json
+! stderr .
