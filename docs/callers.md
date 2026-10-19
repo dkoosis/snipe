@@ -584,3 +584,24 @@ Rows not migrated and why:
 - cc-plugins `lintbrush/linters/solid.md:58` (`sym --kind=interface`): `snipe pack` has no `--kind` flag, and `sym` never had one, so the line fails today and no spelling keeps its behaviour.
 - cc-plugins `go-bug-audit/skills/bug-audit/SKILL.md:60-62` lists `explain`, `importers` and `imports` as verbs; the census has no row for it.
 - trixi (`write-issue/SKILL.md:97` orient, `change-smells-repo.md:164` imports): trixi is not one of the four repos this bead names.
+
+## Migration, phase 2 (sn-lvub.8)
+
+The Find verb landed (sn-lvub.6, #295), so the `lits`, `trace` and `sim` query-form rows moved on 2026-10-19. `sim --pairs` stays as is. The lintbrush rows moved too, phase 1 and phase 2 together, now that lintbrush is its own repo.
+
+| repo | PR | rows migrated |
+|---|---|---|
+| cc-plugins | https://github.com/dkoosis/cc-plugins/pull/438 | `go-bug-audit/agents/pass3-persistence.md:63,64` and `pass1-correctness.md:64` (lits -> `search --lits`, trace -> `search --trace`) |
+| fo | https://github.com/dkoosis/fo/pull/324 (also carries phase 1) | `docs/feedback/review/sim-pair-repo.md:33,37` (sim -> `search --semantic`, flags kept) |
+| lintbrush | https://github.com/dkoosis/lintbrush/pull/9 | 32 lines in 14 files: importers, imports, sym, explain, trace and sim -> `deps --importers`, `deps --file`, `pack --depth sym`, `pack --depth explain`, `search --trace`, `search --semantic` |
+| sdlc | none | no row |
+| snipe | https://github.com/dkoosis/snipe/pull/297 | this record |
+
+Still not migrated:
+
+- lintbrush `linters/solid.md:58` (`sym --kind=interface`): no verb has `--kind`; filed as sn-mg5u.
+- fo `docs/feedback/review/sim-pair-repo.md:10,45`: prose naming `snipe sim` as the pairs primitive (same package, callee overlap). That is `sim --pairs`, which stays.
+- cc-plugins `go-bug-audit/skills/bug-audit/SKILL.md:60-66`: a verb table that lists `explain`, `importers`, `imports` and `sim`; the census has no row for it.
+- trixi (`write-issue/SKILL.md:97` orient, `change-smells-repo.md:164` imports): trixi is not a repo the bead names; its aliases cannot go until it migrates or dk waives it.
+
+Alias removal waits on: fo #324 and cc-plugins #438 and lintbrush #9 merged (cc-plugins #435 and snipe #294 are merged).
