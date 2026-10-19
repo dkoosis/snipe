@@ -576,7 +576,7 @@ Rows whose new verb already exists on main (the Read verbs and `deps`) were migr
 | cc-plugins | https://github.com/dkoosis/cc-plugins/pull/435 | `go-bug-audit/agents/pass1-correctness.md:60,61` and `pass3-persistence.md:45,46` (importers -> `deps --importers`); `legibility/skills/legibility/SKILL.md:30` (sym -> `pack --depth sym`) |
 | fo | https://github.com/dkoosis/fo/pull/324 | `docs/feedback/review/test-effectiveness-repo.md:23` (importers -> `deps --importers`) |
 | sdlc | none | no row in scope |
-| snipe | PR_SNIPE | `.claude/rules/CLAUDE.md:47` already reads `snipe def <hex-id>`; no change |
+| snipe | https://github.com/dkoosis/snipe/pull/294 | `.claude/rules/CLAUDE.md:47` already reads `snipe def <hex-id>`; no change |
 
 Rows not migrated and why:
 
