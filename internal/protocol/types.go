@@ -536,8 +536,8 @@ func SuggestionsForSearch(pattern string, resultCount int, usedFallback bool) []
 
 	if usedFallback && resultCount > 0 {
 		suggestions = append(suggestions, Suggestion{
-			Command:     "snipe sim \"" + pattern + "\"",
-			Description: "Results from semantic similarity — use 'snipe sim' for more control",
+			Command:     "snipe search --semantic \"" + pattern + "\"",
+			Description: "Results from semantic similarity — use 'snipe search --semantic' for more control",
 			Priority:    2,
 			Condition:   "semantic_fallback",
 		})
@@ -546,7 +546,7 @@ func SuggestionsForSearch(pattern string, resultCount int, usedFallback bool) []
 
 	if resultCount == 0 {
 		suggestions = append(suggestions, Suggestion{
-			Command:     "snipe sim \"" + pattern + "\"",
+			Command:     "snipe search --semantic \"" + pattern + "\"",
 			Description: "Try semantic search if you're looking for concepts, not exact text",
 			Priority:    2,
 		})

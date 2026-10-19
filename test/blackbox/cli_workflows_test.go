@@ -1478,18 +1478,18 @@ func TestSearch_NoFallback_WhenNoCredentials(t *testing.T) {
 		t.Fatalf("unexpected decision_path without credentials: %v", dp)
 	}
 
-	// Should suggest snipe sim as alternative
+	// Should suggest snipe search --semantic as alternative
 	if sugg, ok := resp["suggestions"].([]any); ok {
 		found := false
 		for _, s := range sugg {
 			if m, ok := s.(map[string]any); ok {
-				if cmd, ok := m["command"].(string); ok && strings.Contains(cmd, "snipe sim") {
+				if cmd, ok := m["command"].(string); ok && strings.Contains(cmd, "snipe search --semantic") {
 					found = true
 				}
 			}
 		}
 		if !found {
-			t.Error("expected snipe sim suggestion when no results and no fallback")
+			t.Error("expected snipe search --semantic suggestion when no results and no fallback")
 		}
 	}
 }
