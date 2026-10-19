@@ -82,7 +82,7 @@ func runPack(args []string) error {
 	}
 
 	// Single-symbol mode
-	symbolID, queryInfo, err := resolvePackSymbol(w, s, dir, args, packAt, idxState)
+	symbolID, queryInfo, err := resolvePackSymbol(w, s, dir, cmdNamePack, args, packAt, idxState)
 	if err != nil {
 		// resolvePackSymbol already wrote the structured error and flagged
 		// output.ProcessErrored() for the exit code; returning nil here (not
@@ -193,13 +193,14 @@ type packOpts struct {
 	contextLines int
 }
 
-// resolvePackSymbol resolves args/--at into a symbol ID. idxState is threaded
-// through purely for usage.jsonl enrichment on the error path (sn-r1do.1).
-func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []string, at string, idxState protocol.IndexState) (string, map[string]string, error) {
+// resolvePackSymbol resolves args/--at into a symbol ID; cmdName labels the
+// error envelope. idxState is threaded through purely for usage.jsonl
+// enrichment on the error path (sn-r1do.1).
+func resolvePackSymbol(w *output.Writer, s *store.Store, dir, cmdName string, args []string, at string, idxState protocol.IndexState) (string, map[string]string, error) {
 	if at != "" {
 		pos, err := query.ParsePosition(at)
 		if err != nil {
-			w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &protocol.Error{
+			w.WriteErrorWithMeta(cmdName, at, nil, idxState, 0, &protocol.Error{
 				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
@@ -210,7 +211,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		}
 		symbolID, err := query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			w.WriteErrorWithMeta(cmdNamePack, at, nil, idxState, 0, &protocol.Error{
+			w.WriteErrorWithMeta(cmdName, at, nil, idxState, 0, &protocol.Error{
 				Code:    protocol.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -235,7 +236,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 			symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 			if err != nil {
-				w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &protocol.Error{
+				w.WriteErrorWithMeta(cmdName, name, nil, idxState, 0, &protocol.Error{
 					Code:    protocol.ErrInternal,
 					Message: err.Error(),
 				})
@@ -250,7 +251,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 					sym := &symbols[i]
 					candidates[i] = sym.ToCandidate()
 				}
-				w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
+				w.WriteErrorWithMeta(cmdName, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
 				return "", nil, errPackResolveFailed
 			}
 		}
@@ -259,7 +260,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 	// Look up by name
 	symbols, err := query.LookupByName(s.DB(), name)
 	if err != nil {
-		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, &protocol.Error{
+		w.WriteErrorWithMeta(cmdName, name, nil, idxState, 0, &protocol.Error{
 			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
@@ -270,10 +271,10 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 		maxDist := query.DefaultMaxDistance(name)
 		suggestions, sErr := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 		if sErr != nil {
-			w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, 0, protocol.NewNotFoundError(name))
+			w.WriteErrorWithMeta(cmdName, name, nil, idxState, 0, protocol.NewNotFoundError(name))
 			return "", nil, errPackResolveFailed
 		}
-		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(suggestions), protocol.NewNotFoundError(name, suggestions...))
+		w.WriteErrorWithMeta(cmdName, name, nil, idxState, len(suggestions), protocol.NewNotFoundError(name, suggestions...))
 		return "", nil, errPackResolveFailed
 	}
 
@@ -283,7 +284,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir string, args []stri
 			sym := &symbols[i]
 			candidates[i] = sym.ToCandidate()
 		}
-		w.WriteErrorWithMeta(cmdNamePack, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
+		w.WriteErrorWithMeta(cmdName, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
 		return "", nil, errPackResolveFailed
 	}
 
