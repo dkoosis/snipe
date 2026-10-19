@@ -69,6 +69,9 @@ The optional enrichment layer adds semantic embeddings (for similarity search) a
 | `callers [symbol]` | Functions that call a symbol |
 | `callees [symbol]` | Functions called by a symbol |
 | `search <pattern>` | Text search via ripgrep (no index needed) |
+| `search --lits <value>` | Every location of a string literal or env var (was `lits`) |
+| `search --trace <value>` | A string literal with its call context (was `trace`) |
+| `search --semantic <query>` | Search by meaning, needs embeddings (was `sim <query>`; `sim --pairs` stays) |
 
 ### Composite
 

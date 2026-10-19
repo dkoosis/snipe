@@ -33,7 +33,7 @@ func TestLitsCommand_RequiresExactlyOneArgument(t *testing.T) {
 func TestLitsCommand_ReturnsMissingIndexError_WhenIndexDoesNotExist(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	stdout, stderr, err := runCLI(t, "lits", "MY_KEY")
+	stdout, stderr, err := runCLI(t, "search", "--lits", "MY_KEY")
 	if err == nil {
 		t.Fatal("expected error when index is missing")
 	}
@@ -61,7 +61,7 @@ func TestLitsCommand_ReturnsNotFoundResponse_WhenLiteralIsAbsent(t *testing.T) {
 		snippet:     `os.Getenv("EXISTING_KEY")`,
 	}})
 
-	stdout, stderr, err := runCLI(t, "lits", "MISSING_KEY")
+	stdout, stderr, err := runCLI(t, "search", "--lits", "MISSING_KEY")
 	if err != nil {
 		t.Fatalf("expected nil error for not found response envelope, got %v", err)
 	}
@@ -113,7 +113,7 @@ func TestLitsCommand_AppliesValueMatchingAndPagination(t *testing.T) {
 		},
 	})
 
-	stdout, stderr, err := runCLI(t, "--offset", "1", "--limit", "1", "lits", "TARGET")
+	stdout, stderr, err := runCLI(t, "--offset", "1", "--limit", "1", "search", "--lits", "TARGET")
 	if err != nil {
 		t.Fatalf("lits TARGET returned error: %v", err)
 	}

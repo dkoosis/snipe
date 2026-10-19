@@ -29,10 +29,10 @@ type CLI struct {
 	Explain ExplainCmd `cmd:"" hidden:"" help:"Alias of pack --depth explain"`
 	Pkg     PkgCmd     `cmd:"" group:"Read:" help:"Package overview and exported symbols"`
 
-	Search SearchCmd `cmd:"" group:"Find:" help:"Text search via ripgrep (no index needed)"`
-	Lits   LitsCmd   `cmd:"" group:"Find:" help:"Every location of a string literal or env var"`
-	Trace  TraceCmd  `cmd:"" group:"Find:" help:"A string literal with its call context"`
-	Sim    SimCmd    `cmd:"" group:"Find:" help:"Semantic search (needs embeddings)"`
+	Search SearchCmd `cmd:"" group:"Find:" help:"Text search via ripgrep (no index needed); --lits literal or env var, --trace literal with call context, --semantic by meaning"`
+	Lits   LitsCmd   `cmd:"" hidden:"" help:"Alias of search --lits"`
+	Trace  TraceCmd  `cmd:"" hidden:"" help:"Alias of search --trace"`
+	Sim    SimCmd    `cmd:"" group:"Find:" help:"Near-duplicate symbol pairs: --pairs --within-pkg (needs embeddings)"`
 
 	// Change: symbol-scoped first, then diff-scoped, then file-scoped.
 	Impact    ImpactCmd    `cmd:"" group:"Change:" help:"Blast radius of changing a symbol"`

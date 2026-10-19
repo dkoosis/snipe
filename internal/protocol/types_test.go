@@ -709,12 +709,12 @@ func TestSuggestionsForSearch(t *testing.T) {
 		}
 		hasSim := false
 		for _, s := range suggestions {
-			if strings.Contains(s.Command, "snipe sim") {
+			if strings.Contains(s.Command, "snipe search --semantic") {
 				hasSim = true
 			}
 		}
 		if !hasSim {
-			t.Error("should suggest snipe sim when no results")
+			t.Error("should suggest snipe search --semantic when no results")
 		}
 	})
 
@@ -734,10 +734,10 @@ func TestSuggestionsForSearch(t *testing.T) {
 	t.Run("semantic fallback used", func(t *testing.T) {
 		suggestions := SuggestionsForSearch("handle request", 3, true)
 		if len(suggestions) == 0 {
-			t.Fatal("should suggest snipe sim when fallback used")
+			t.Fatal("should suggest snipe search --semantic when fallback used")
 		}
-		if !strings.Contains(suggestions[0].Command, "snipe sim") {
-			t.Error("first suggestion should be snipe sim for fallback results")
+		if !strings.Contains(suggestions[0].Command, "snipe search --semantic") {
+			t.Error("first suggestion should be snipe search --semantic for fallback results")
 		}
 	})
 }

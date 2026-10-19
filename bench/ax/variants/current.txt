@@ -7,7 +7,7 @@ Notes:
     Start:      snipe index, then snipe context (context --out DIR writes the full bundle)
     Flow:       context → pack <symbol> → callers/callees → tests <symbol>
     IDs chain:  every result's 'id' is valid input to the next command; def <id> expands one
-    Index:      every command except search needs one
+    Index:      every command except plain search (no --lits, --trace, --semantic) needs one
     Writes:     only edit modifies files; the rest are read-only
 
 Flags:
@@ -42,10 +42,9 @@ Read:
   pkg     Package overview and exported symbols
 
 Find:
-  search    Text search via ripgrep (no index needed)
-  lits      Every location of a string literal or env var
-  trace     A string literal with its call context
-  sim       Semantic search (needs embeddings)
+  search    Text search via ripgrep (no index needed); --lits literal or env
+            var, --trace literal with call context, --semantic by meaning
+  sim       Near-duplicate symbol pairs: --pairs --within-pkg (needs embeddings)
 
 Change:
   impact       Blast radius of changing a symbol

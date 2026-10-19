@@ -1,6 +1,37 @@
-# lits — locations of a string literal or env var name.
-# Proves: `lits banner-token-literal` resolves the named const Banner.
+# lits — hidden alias of search --lits (locations of a string literal or env var).
+# Proves: `search --lits banner-token-literal` resolves the named const Banner;
+# `lits` prints one stderr nudge and its stdout equals the new form in concise
+# and json, for a literal and for an env var name.
 cd $FIXTURE
-exec snipe lits banner-token-literal
+exec snipe search --lits banner-token-literal
 stdout '# Banner'
 stdout 'const'
+! stderr .
+cp stdout $WORK/new.txt
+
+exec snipe lits banner-token-literal
+stderr -count=1 'snipe: ''lits'' is now ''search --lits'''
+cmp stdout $WORK/new.txt
+
+exec snipe lits banner-token-literal --format json
+cp stdout $WORK/old.json
+exec snipe search --lits banner-token-literal --format json
+cmpjson stdout $WORK/old.json
+! stderr .
+
+# An env var name (read by beta.Reply): same output either way.
+exec snipe lits FIXTURE_ENV_TOKEN
+stdout 'beta'
+cp stdout $WORK/oldenv.txt
+exec snipe search --lits FIXTURE_ENV_TOKEN
+cmp stdout $WORK/oldenv.txt
+exec snipe lits FIXTURE_ENV_TOKEN --format json
+cp stdout $WORK/oldenv.json
+exec snipe search --lits FIXTURE_ENV_TOKEN --format json
+cmpjson stdout $WORK/oldenv.json
+
+# The modes are exclusive, and --file filters text search only.
+! exec snipe search --lits --trace banner-token-literal
+stderr 'can''t be used together'
+! exec snipe search --lits --file '*.go' banner-token-literal
+stdout '--file filters text search only'
