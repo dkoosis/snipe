@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"os"
 	"time"
 
@@ -57,6 +58,15 @@ func runExplain(args []string) error {
 	defer s.Close()
 
 	idxState := query.CheckIndexState(s.DB(), dir, Version)
+
+	// A package path gets the package pack, as at --depth pack: explain
+	// walks funcs, so it has nothing to add to a package.
+	if explainAt == "" && len(args) == 1 {
+		repoRoot, _ := s.GetMeta("repo_root")
+		if looksLikePackagePath(cmp.Or(repoRoot, dir), args[0]) {
+			return runPackPackage(w, s, dir, args[0], start)
+		}
+	}
 
 	symbolID, queryInfo, err := resolvePackSymbol(w, s, dir, cmdNameExplain, args, explainAt, idxState)
 	if err != nil {

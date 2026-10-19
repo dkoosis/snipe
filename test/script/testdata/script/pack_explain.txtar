@@ -98,6 +98,13 @@ stdout '"explain_failed"'
 env SNIPE_NO_HEAL=
 cp $WORK/beta.go.orig $FIXTURE/beta/beta.go
 
+# A package path gets the package pack at --depth explain, as at --depth pack.
+exec snipe pack --depth pack ./beta
+cp stdout $WORK/pkg.txt
+exec snipe pack --depth explain ./beta
+cmp stdout $WORK/pkg.txt
+stdout '^# package '
+
 -- moved.go --
 package beta
 
