@@ -1,29 +1,44 @@
 package cmd
 
 import (
-	"encoding/hex"
+	"cmp"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
+	"github.com/dkoosis/snipe/internal/store"
 )
 
 var (
 	explainMode     string
 	explainWarnings string
 	explainAt       string
+	explainBody     bool
 )
 
+// degradedExplainFuncOnly marks a pack --depth explain answer for a symbol
+// that is not a func or method: the pack fields are there, the walkthrough
+// is not.
+const degradedExplainFuncOnly = "explain_func_only"
+
+// degradedExplainFailed marks a pack --depth explain answer whose walkthrough
+// could not be built, such as a func whose file changed since indexing.
+const degradedExplainFailed = "explain_failed"
+
+// runExplain is pack --depth explain: the pack for one symbol (runPack's
+// single-symbol path, same limits), plus query.Explain's purpose source,
+// mechanism, caller pattern and warnings (sn-lvub.10). The definition body
+// is left out unless --body asks for it (D4, dk 2026-10-18): the walkthrough
+// stands in for reading the code. Without the body there are no context
+// lines either, so the result holds exactly pack's fields minus the body.
 func runExplain(args []string) error {
 	start := time.Now()
 
+	_, _, _, contextLines, withBody, withSiblings := GetOutputConfig()
 	w := output.NewWriter(os.Stdout, GetOutputFormat())
 
-	// Need either a symbol name or --at position
 	if len(args) == 0 && explainAt == "" {
 		return w.WriteError(cmdNameExplain, &protocol.Error{
 			Code:    protocol.ErrInvalidArgs,
@@ -31,111 +46,84 @@ func runExplain(args []string) error {
 		})
 	}
 
-	// Open store
+	opts, optErr := explainOptions()
+	if optErr != nil {
+		return w.WriteError(cmdNameExplain, optErr)
+	}
+
 	s, dir, err := OpenStore(w, cmdNameExplain)
 	if err != nil {
 		return err
 	}
 	defer s.Close()
 
-	var symbolID string
-	var queryInfo map[string]string
+	idxState := query.CheckIndexState(s.DB(), dir, Version)
 
-	if explainAt != "" {
-		// Resolve position
-		pos, err := query.ParsePosition(explainAt)
-		if err != nil {
-			return w.WriteError(cmdNameExplain, &protocol.Error{
-				Code:    protocol.ErrInternal,
-				Message: err.Error(),
-			})
+	// A package path gets the package pack, as at --depth pack: explain
+	// walks funcs, so it has nothing to add to a package.
+	if explainAt == "" && len(args) == 1 {
+		repoRoot, _ := s.GetMeta("repo_root")
+		if looksLikePackagePath(cmp.Or(repoRoot, dir), args[0]) {
+			return runPackPackage(w, s, dir, args[0], start)
 		}
-
-		// Make path absolute if relative
-		if !filepath.IsAbs(pos.File) {
-			pos.File = filepath.Join(dir, pos.File)
-		}
-
-		symbolID, err = query.ResolvePosition(s.DB(), pos)
-		if err != nil {
-			return w.WriteError(cmdNameExplain, &protocol.Error{
-				Code:    protocol.ErrNotFound,
-				Message: err.Error(),
-			})
-		}
-		queryInfo = map[string]string{"at": explainAt}
-	} else {
-		name := args[0]
-
-		// Check if input looks like a symbol ID (16-char hex string)
-		if len(name) == 16 {
-			if _, err := hex.DecodeString(name); err == nil {
-				symbolID = name
-				queryInfo = map[string]string{"id": name}
-				goto explain
-			}
-		}
-
-		// Check for file:Symbol syntax
-		if idx := strings.LastIndex(name, ":"); idx > 0 && !strings.Contains(name[idx:], "/") {
-			filePart := name[:idx]
-			symbolPart := name[idx+1:]
-			if symbolPart != "" && !strings.Contains(symbolPart, ":") {
-				symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
-				if err != nil {
-					return w.WriteError(cmdNameExplain, &protocol.Error{
-						Code:    protocol.ErrInternal,
-						Message: err.Error(),
-					})
-				}
-				if len(symbols) == 1 {
-					symbolID = symbols[0].ID
-					queryInfo = map[string]string{flagSymbol: symbolPart, flagFile: filePart}
-					goto explain
-				} else if len(symbols) > 1 {
-					candidates := make([]protocol.Candidate, len(symbols))
-					for i := range symbols {
-						sym := &symbols[i]
-						candidates[i] = sym.ToCandidate()
-					}
-					return w.WriteError(cmdNameExplain, protocol.NewAmbiguousError(name, candidates))
-				}
-			}
-		}
-
-		// Look up by name
-		symbols, err := query.LookupByName(s.DB(), name)
-		if err != nil {
-			return w.WriteError(cmdNameExplain, &protocol.Error{
-				Code:    protocol.ErrInternal,
-				Message: err.Error(),
-			})
-		}
-
-		if len(symbols) == 0 {
-			maxDist := query.DefaultMaxDistance(name)
-			suggestions, err := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
-			if err != nil {
-				return w.WriteError(cmdNameExplain, protocol.NewNotFoundError(name))
-			}
-			return w.WriteError(cmdNameExplain, protocol.NewNotFoundError(name, suggestions...))
-		}
-
-		if len(symbols) > 1 {
-			candidates := make([]protocol.Candidate, len(symbols))
-			for i := range symbols {
-				sym := &symbols[i]
-				candidates[i] = sym.ToCandidate()
-			}
-			return w.WriteError(cmdNameExplain, protocol.NewAmbiguousError(name, candidates))
-		}
-
-		symbolID = symbols[0].ID
-		queryInfo = map[string]string{flagSymbol: name}
 	}
 
-explain:
-	// Parse options
+	symbolID, queryInfo, err := resolvePackSymbol(w, s, dir, cmdNameExplain, args, explainAt, idxState)
+	if err != nil {
+		// resolvePackSymbol already wrote the error; see runPack.
+		return nil
+	}
+
+	withBody = withBody && explainBody
+	if !withBody {
+		contextLines = 0
+	}
+	packResult, degraded, allResults, err := buildPackForSymbol(s, symbolID, packOpts{
+		withBody:     withBody,
+		withSiblings: withSiblings,
+		contextLines: contextLines,
+	})
+	if err != nil {
+		return w.WriteErrorWithMeta(cmdNameExplain, protocol.Meta{Query: queryInfo}.PrimaryQueryArg(), nil, idxState, 0, &protocol.Error{
+			Code:    protocol.ErrInternal,
+			Message: err.Error(),
+		})
+	}
+
+	// The walkthrough only adds to the pack: when it cannot be built, the
+	// pack still answers and Degraded says why, as pack itself degrades.
+	result := protocol.ExplainPackResult{PackResult: packResult}
+	if kind := packResult.Definition.Kind; kind != protocol.KindFunc && kind != protocol.KindMethod {
+		degraded = append(degraded, degradedExplainFuncOnly)
+	} else if ex, exErr := query.Explain(s.DB(), symbolID, opts); exErr != nil {
+		// e.g. the file changed or vanished since indexing (StaleFiles names it).
+		degraded = append(degraded, degradedExplainFailed)
+	} else {
+		mergeExplain(&result, ex, enrichedPurpose(s, symbolID))
+	}
+
+	resp := protocol.Response[protocol.ExplainPackResult]{
+		Protocol: protocol.ProtocolVersion,
+		Ok:       true,
+		Results:  []protocol.ExplainPackResult{result},
+		Meta: protocol.Meta{
+			Command:       cmdNameExplain,
+			Query:         queryInfo,
+			RepoRoot:      dir,
+			IndexState:    idxState,
+			Degraded:      degraded,
+			Ms:            time.Since(start).Milliseconds(),
+			Total:         1,
+			TokenEstimate: estimateExplainTokens(&result),
+			StaleFiles:    query.CheckFileStaleness(s.DB(), dir, allResults),
+		},
+	}
+
+	return w.WriteResponse(resp)
+}
+
+// explainOptions turns --mode and --warnings into query.ExplainOptions.
+func explainOptions() (query.ExplainOptions, *protocol.Error) {
 	opts := query.DefaultExplainOptions()
 
 	switch explainMode {
@@ -146,10 +134,10 @@ explain:
 	case "deep":
 		opts.Mode = protocol.ExplainDeep
 	default:
-		return w.WriteError(cmdNameExplain, &protocol.Error{
+		return opts, &protocol.Error{
 			Code:    protocol.ErrInvalidArgs,
 			Message: "invalid --mode: use brief, normal, or deep",
-		})
+		}
 	}
 
 	switch explainWarnings {
@@ -160,41 +148,65 @@ explain:
 	case "full":
 		opts.WarningsMode = protocol.WarningsFull
 	default:
-		return w.WriteError(cmdNameExplain, &protocol.Error{
+		return opts, &protocol.Error{
 			Code:    protocol.ErrInvalidArgs,
 			Message: "invalid --warnings: use none, fast, or full",
-		})
+		}
 	}
+	return opts, nil
+}
 
-	// Look up symbol for staleness check (Explain does this internally too)
-	var staleFiles []string
-	if sym, lookupErr := query.LookupByID(s.DB(), symbolID); lookupErr == nil && sym != nil {
-		staleFiles = query.CheckPathStaleness(s.DB(), dir, []string{sym.FilePath})
-	}
-
-	// Run explain
-	result, err := query.Explain(s.DB(), symbolID, opts)
+// enrichedPurpose returns the symbol's LLM-enrichment purpose, or "" when the
+// index has none.
+func enrichedPurpose(s *store.Store, symbolID string) string {
+	p, err := s.GetPurpose(symbolID)
 	if err != nil {
-		return w.WriteError(cmdNameExplain, &protocol.Error{
-			Code:    protocol.ErrInternal,
-			Message: err.Error(),
-		})
+		return ""
 	}
+	return p
+}
 
-	resp := protocol.Response[protocol.ExplainResult]{
-		Protocol: protocol.ProtocolVersion,
-		Ok:       true,
-		Results:  []protocol.ExplainResult{*result},
-		Meta: protocol.Meta{
-			Command:    cmdNameExplain,
-			Query:      queryInfo,
-			RepoRoot:   dir,
-			IndexState: query.CheckIndexState(s.DB(), dir, Version),
-			Ms:         time.Since(start).Milliseconds(),
-			Total:      1,
-			StaleFiles: staleFiles,
-		},
+// mergeExplain adds ex's sections to r without repeating what the pack
+// already holds (D4). The pack's purpose stands (it prefers enrichment, then
+// the doc); explain's fills it only when the pack has none, such as a
+// signature template for an undocumented func. PurposeSource names where the
+// purpose shown came from. A warning's evidence snippet is dropped when the
+// definition body, which holds that line, is already shown.
+func mergeExplain(r *protocol.ExplainPackResult, ex *protocol.ExplainResult, enriched string) {
+	switch {
+	case r.Purpose == "":
+		r.Purpose = ex.Purpose
+		r.PurposeSource = ex.PurposeSource
+	case enriched != "" && r.Purpose == enriched:
+		r.PurposeSource = protocol.PurposeFromEnrichment
+	default:
+		r.PurposeSource = protocol.PurposeFromDoc
 	}
+	r.Mechanism = ex.Mechanism
+	if ex.CallerContext != nil {
+		r.CallerPattern = ex.CallerContext.Pattern
+	}
+	r.Warnings = ex.Warnings
+	if r.Definition != nil && r.Definition.Body != "" {
+		for i := range r.Warnings {
+			r.Warnings[i].Evidence = ""
+		}
+	}
+	docStatus := ex.DocStatus
+	r.DocStatus = &docStatus
+}
 
-	return w.WriteResponse(resp)
+// estimateExplainTokens is estimatePackTokens plus the walkthrough explain
+// adds: purpose, caller pattern, mechanism steps and warnings.
+func estimateExplainTokens(r *protocol.ExplainPackResult) int {
+	n := estimatePackTokens(r.PackResult)
+	n += protocol.EstimateTokens(r.Purpose) + protocol.EstimateTokens(r.CallerPattern)
+	for i := range r.Mechanism {
+		m := &r.Mechanism[i]
+		n += protocol.EstimateTokens(m.Action + " " + m.Target + " " + m.Note)
+	}
+	for i := range r.Warnings {
+		n += protocol.EstimateTokens(r.Warnings[i].Message + r.Warnings[i].Evidence)
+	}
+	return n
 }

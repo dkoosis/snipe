@@ -46,6 +46,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -74,8 +76,13 @@ func TestScripts(t *testing.T) {
 	}
 
 	testscript.Run(t, testscript.Params{
-		Dir:  filepath.Join("testdata", "script"),
-		Cmds: map[string]func(ts *testscript.TestScript, neg bool, args []string){"cmpjson": cmpJSON, "seedembed": seedEmbed},
+		Dir: filepath.Join("testdata", "script"),
+		Cmds: map[string]func(ts *testscript.TestScript, neg bool, args []string){
+			"cmpjson":    cmpJSON,
+			"seedembed":  seedEmbed,
+			"jsonsubset": jsonSubset,
+			"linesubset": lineSubset,
+		},
 		Setup: func(env *testscript.Env) error {
 			// Prepend the snipe binary dir so scripts can `exec snipe`.
 			env.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -168,6 +175,96 @@ func seedEmbed(ts *testscript.TestScript, neg bool, args []string) {
 		var id string
 		ts.Check(st.DB().QueryRow(`SELECT id FROM symbols WHERE name = ? AND kind = 'func'`, name).Scan(&id))
 		ts.Check(st.SaveEmbedding(id, emb, "test"))
+	}
+}
+
+// jsonSubset proves one --format json envelope's results hold every field of
+// another's: each key under results[i] of file1, at any depth, is in file2
+// with the same value (arrays compare whole). It proves a deeper depth keeps
+// every field of a shallower one (sn-lvub.10). ! jsonsubset proves a field is
+// missing or differs.
+func jsonSubset(ts *testscript.TestScript, neg bool, args []string) {
+	if len(args) != 2 {
+		ts.Fatalf("usage: jsonsubset small.json big.json")
+	}
+	results := func(name string) []any {
+		var v struct {
+			Results []any `json:"results"`
+		}
+		ts.Check(json.Unmarshal([]byte(ts.ReadFile(name)), &v))
+		return v.Results
+	}
+	small, big := results(args[0]), results(args[1])
+	missing := ""
+	if len(small) == 0 || len(small) != len(big) {
+		missing = fmt.Sprintf("results: %d vs %d", len(small), len(big))
+	}
+	for i := 0; missing == "" && i < len(small); i++ {
+		missing = subsetDiff(fmt.Sprintf("results[%d]", i), small[i], big[i])
+	}
+	switch {
+	case neg && missing == "":
+		ts.Fatalf("%s holds every field of %s", args[1], args[0])
+	case !neg && missing != "":
+		ts.Fatalf("%s lacks %s's field %s", args[1], args[0], missing)
+	}
+}
+
+// subsetDiff returns the path of the first field of small that big lacks or
+// holds with another value, or "".
+func subsetDiff(path string, small, big any) string {
+	sm, ok := small.(map[string]any)
+	if !ok {
+		if reflect.DeepEqual(small, big) {
+			return ""
+		}
+		return path
+	}
+	bm, ok := big.(map[string]any)
+	if !ok {
+		return path
+	}
+	keys := make([]string, 0, len(sm))
+	for k := range sm {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		bv, ok := bm[k]
+		if !ok {
+			return path + "." + k
+		}
+		if d := subsetDiff(path+"."+k, sm[k], bv); d != "" {
+			return d
+		}
+	}
+	return ""
+}
+
+// lineSubset proves every line of file1 appears in file2, in the same order
+// (file2 may add lines between them). It is jsonsubset for concise output.
+func lineSubset(ts *testscript.TestScript, neg bool, args []string) {
+	if len(args) != 2 {
+		ts.Fatalf("usage: linesubset small.txt big.txt")
+	}
+	small := strings.Split(strings.TrimRight(ts.ReadFile(args[0]), "\n"), "\n")
+	big := strings.Split(strings.TrimRight(ts.ReadFile(args[1]), "\n"), "\n")
+	j, missing := 0, ""
+	for _, line := range small {
+		for j < len(big) && big[j] != line {
+			j++
+		}
+		if j == len(big) {
+			missing = line
+			break
+		}
+		j++
+	}
+	switch {
+	case neg && missing == "":
+		ts.Fatalf("%s holds every line of %s", args[1], args[0])
+	case !neg && missing != "":
+		ts.Fatalf("%s lacks %s's line %q (or has it out of order)", args[1], args[0], missing)
 	}
 }
 

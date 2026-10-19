@@ -149,11 +149,6 @@
   ],
   "suggestions": [
     {
-      "command": "snipe pack --depth explain Widget",
-      "description": "Get detailed explanation with mechanism steps",
-      "priority": 1
-    },
-    {
       "command": "snipe context",
       "description": "Get project-level orientation context",
       "priority": 2

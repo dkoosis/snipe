@@ -120,7 +120,7 @@ func (w *Writer) writeClaude(resp any) error {
 		w.writeClaudePack(&b, r.Results, r.Meta)
 	case protocol.Response[protocol.PackPackageResult]:
 		w.writeClaudePackPackage(&b, r.Results, r.Meta)
-	case protocol.Response[protocol.ExplainResult]:
+	case protocol.Response[protocol.ExplainPackResult]:
 		w.writeClaudeExplain(&b, r.Results, r.Meta)
 	case protocol.Response[protocol.SymResult]:
 		w.writeClaudeSym(&b, r.Results, r.Meta)
@@ -387,46 +387,51 @@ func (w *Writer) writeClaudeSummary(b *strings.Builder, results []protocol.Summa
 
 func (w *Writer) writeClaudePack(b *strings.Builder, results []protocol.PackResult, meta protocol.Meta) {
 	for i := range results {
-		r := &results[i]
-		if r.Definition != nil {
-			writeResultHeader(b, r.Definition)
-			if r.Purpose != "" {
-				b.WriteString("purpose: ")
-				b.WriteString(r.Purpose)
-				b.WriteString("\n")
-			}
-			if r.Role != "" {
-				b.WriteString("role: ")
-				b.WriteString(r.Role)
-				b.WriteString("\n")
-			}
-			if r.Definition.Body != "" {
-				b.WriteString("```go\n")
-				b.WriteString(r.Definition.Body)
-				b.WriteString("\n```\n")
-			}
+		writeClaudePackResult(b, &results[i])
+	}
+	w.writeClaudeMeta(b, meta)
+}
+
+// writeClaudePackResult renders one pack. pack --depth explain renders the
+// same lines first, so the deeper output holds every line of the shallower.
+func writeClaudePackResult(b *strings.Builder, r *protocol.PackResult) {
+	if r.Definition != nil {
+		writeResultHeader(b, r.Definition)
+		if r.Purpose != "" {
+			b.WriteString("purpose: ")
+			b.WriteString(r.Purpose)
+			b.WriteString("\n")
 		}
-		if len(r.Methods) > 0 {
-			b.WriteString("methods:\n")
-			for _, m := range r.Methods {
-				b.WriteString("  ")
-				b.WriteString(m.Name)
-				if m.Signature != "" {
-					b.WriteString(" — ")
-					b.WriteString(m.Signature)
-				}
-				b.WriteString("\n")
-			}
+		if r.Role != "" {
+			b.WriteString("role: ")
+			b.WriteString(r.Role)
+			b.WriteString("\n")
 		}
-		if r.CallerCount > 0 {
-			fmt.Fprintf(b, "%d callers", r.CallerCount)
-			if r.RefCount > 0 {
-				fmt.Fprintf(b, ", %d refs", r.RefCount)
+		if r.Definition.Body != "" {
+			b.WriteString("```go\n")
+			b.WriteString(r.Definition.Body)
+			b.WriteString("\n```\n")
+		}
+	}
+	if len(r.Methods) > 0 {
+		b.WriteString("methods:\n")
+		for _, m := range r.Methods {
+			b.WriteString("  ")
+			b.WriteString(m.Name)
+			if m.Signature != "" {
+				b.WriteString(" — ")
+				b.WriteString(m.Signature)
 			}
 			b.WriteString("\n")
 		}
 	}
-	w.writeClaudeMeta(b, meta)
+	if r.CallerCount > 0 {
+		fmt.Fprintf(b, "%d callers", r.CallerCount)
+		if r.RefCount > 0 {
+			fmt.Fprintf(b, ", %d refs", r.RefCount)
+		}
+		b.WriteString("\n")
+	}
 }
 
 func (w *Writer) writeClaudePackPackage(b *strings.Builder, results []protocol.PackPackageResult, meta protocol.Meta) {
@@ -483,19 +488,15 @@ func (w *Writer) writeClaudePackPackage(b *strings.Builder, results []protocol.P
 	w.writeClaudeMeta(b, meta)
 }
 
-func (w *Writer) writeClaudeExplain(b *strings.Builder, results []protocol.ExplainResult, meta protocol.Meta) {
+// writeClaudeExplain renders pack --depth explain: the pack's lines, then
+// the walkthrough. Purpose and signature are in the pack lines already.
+func (w *Writer) writeClaudeExplain(b *strings.Builder, results []protocol.ExplainPackResult, meta protocol.Meta) {
 	for i := range results {
 		r := &results[i]
-		fmt.Fprintf(b, "# %s\n", r.Symbol)
-		fmt.Fprintf(b, "%s | %s\n", r.File, r.Kind)
-		if r.Signature != "" {
-			b.WriteString("  ")
-			b.WriteString(r.Signature)
-			b.WriteString("\n")
-		}
-		if r.Purpose != "" {
-			b.WriteString("purpose: ")
-			b.WriteString(r.Purpose)
+		writeClaudePackResult(b, &r.PackResult)
+		if r.CallerPattern != "" {
+			b.WriteString("callers: ")
+			b.WriteString(r.CallerPattern)
 			b.WriteString("\n")
 		}
 		if len(r.Mechanism) > 0 {
@@ -508,10 +509,8 @@ func (w *Writer) writeClaudeExplain(b *strings.Builder, results []protocol.Expla
 				b.WriteString("\n")
 			}
 		}
-		if len(r.Warnings) > 0 {
-			for _, warn := range r.Warnings {
-				fmt.Fprintf(b, "! %s L%d: %s\n", warn.Severity, warn.Line, warn.Message)
-			}
+		for _, warn := range r.Warnings {
+			fmt.Fprintf(b, "! %s L%d: %s\n", warn.Severity, warn.Line, warn.Message)
 		}
 	}
 	w.writeClaudeMeta(b, meta)

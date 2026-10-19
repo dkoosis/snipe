@@ -194,20 +194,23 @@ const (
 
 // PackCmd is the one Read verb past def. --depth picks how much it says:
 // sym (def + refs, callers, callees), pack (+ package role and purpose, the
-// default) or explain (+ prose walkthrough and warnings). The limits default
-// per depth (sym 20/10/10, pack 5/5/5), so they are pointers: nil = unset.
-// Mode and Warnings are pointers for the same reason: a flag the chosen depth
-// ignores is a usage error, not a silent no-op.
+// default) or explain (+ prose walkthrough and warnings, minus the definition
+// body, which --body adds back; D4, dk 2026-10-18). The limits default per
+// depth (sym 20/10/10, pack and explain 5/5/5), so they are pointers:
+// nil = unset.
+// Mode, Warnings and Body are pointers for the same reason: a flag the chosen
+// depth ignores is a usage error, not a silent no-op.
 type PackCmd struct {
 	Symbols []string `arg:"" optional:"" help:"Symbol name(s), package, or hex ID(s)"`
 
-	Depth        string  `default:"pack" enum:"sym,pack,explain" help:"How much to say: sym (def + refs, callers, callees), pack (+ package role and purpose), explain (+ prose walkthrough and warnings)"`
+	Depth        string  `default:"pack" enum:"sym,pack,explain" help:"How much to say: sym (def + refs, callers, callees), pack (+ package role and purpose), explain (+ prose walkthrough and warnings; body only with --body)"`
 	At           string  `help:"Position to look up (file:line:col)"`
-	RefsLimit    *int    `name:"refs-limit" help:"Maximum references to return (default: sym 20, pack 5)"`
-	CallersLimit *int    `name:"callers-limit" help:"Maximum callers to return (default: sym 10, pack 5)"`
-	CalleesLimit *int    `name:"callees-limit" help:"Maximum callees to return (default: sym 10, pack 5)"`
+	RefsLimit    *int    `name:"refs-limit" help:"Maximum references to return (default: sym 20, pack and explain 5)"`
+	CallersLimit *int    `name:"callers-limit" help:"Maximum callers to return (default: sym 10, pack and explain 5)"`
+	CalleesLimit *int    `name:"callees-limit" help:"Maximum callees to return (default: sym 10, pack and explain 5)"`
 	Mode         *string `enum:"brief,normal,deep" help:"--depth explain only: analysis depth: brief, normal (default), deep"`
 	Warnings     *string `enum:"none,fast,full" help:"--depth explain only: warning level: none, fast (default), full"`
+	Body         *bool   `help:"--depth explain only: include the definition body, as pack does"`
 }
 
 func (c *PackCmd) Run() error {
@@ -220,39 +223,32 @@ func (c *PackCmd) Run() error {
 	if flag := c.ignoredFlag(); flag != "" {
 		return usageError(cmdNamePack, "pack %s needs --depth explain; --depth %s ignores it", flag, c.Depth)
 	}
-	switch c.Depth {
-	case packDepthSym:
+	if c.Depth == packDepthSym {
 		symAt = c.At
 		symRefsLimit = limitOr(c.RefsLimit, 20)
 		symCallersLimit = limitOr(c.CallersLimit, 10)
 		symCalleesLimit = limitOr(c.CalleesLimit, 10)
 		return runSym(c.Symbols)
-	case packDepthExplain:
+	}
+	// explain builds the pack first, so it reads the pack limits too.
+	packRefsLimit = limitOr(c.RefsLimit, 5)
+	packCallersLimit = limitOr(c.CallersLimit, 5)
+	packCalleesLimit = limitOr(c.CalleesLimit, 5)
+	if c.Depth == packDepthExplain {
 		explainMode = cmp.Or(deref(c.Mode), "normal")
 		explainWarnings = cmp.Or(deref(c.Warnings), "fast")
 		explainAt = c.At
+		explainBody = c.Body != nil && *c.Body
 		return runExplain(c.Symbols)
-	default:
-		packAt = c.At
-		packRefsLimit = limitOr(c.RefsLimit, 5)
-		packCallersLimit = limitOr(c.CallersLimit, 5)
-		packCalleesLimit = limitOr(c.CalleesLimit, 5)
-		return runPack(c.Symbols)
 	}
+	packAt = c.At
+	return runPack(c.Symbols)
 }
 
 // ignoredFlag names a flag given that c.Depth does not read, or "": --mode
-// and --warnings belong to explain, the limits to sym and pack.
+// --warnings and --body belong to explain; every depth reads the limits.
 func (c *PackCmd) ignoredFlag() string {
 	if c.Depth == packDepthExplain {
-		switch {
-		case c.RefsLimit != nil:
-			return "--refs-limit"
-		case c.CallersLimit != nil:
-			return "--callers-limit"
-		case c.CalleesLimit != nil:
-			return "--callees-limit"
-		}
 		return ""
 	}
 	switch {
@@ -260,6 +256,8 @@ func (c *PackCmd) ignoredFlag() string {
 		return "--mode"
 	case c.Warnings != nil:
 		return "--warnings"
+	case c.Body != nil:
+		return "--body"
 	}
 	return ""
 }

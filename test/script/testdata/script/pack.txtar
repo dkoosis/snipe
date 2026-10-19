@@ -25,11 +25,11 @@ stdout '"code":"INVALID_ARGS"'
 stdout 'takes one symbol'
 
 # A flag the chosen depth ignores is a usage error, not a silent no-op:
-# --mode/--warnings belong to explain, the limits to sym and pack.
+# --mode/--warnings belong to explain. Every depth reads the limits.
 ! exec snipe pack Greet --mode deep
 stdout 'pack --mode needs --depth explain'
 ! exec snipe pack --depth sym Greet --warnings full --format json
 stdout '"code":"INVALID_ARGS"'
 stdout 'pack --warnings needs --depth explain'
-! exec snipe pack --depth explain Greet --refs-limit 3
-stdout '--refs-limit'
+exec snipe pack --depth explain Greet --refs-limit 3
+! stderr .

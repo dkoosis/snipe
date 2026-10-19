@@ -879,22 +879,27 @@ func SuggestionsForPack(result *Result) []Suggestion {
 	if result == nil {
 		return nil
 	}
+	ctxSuggestion := Suggestion{
+		Command:     "snipe context",
+		Description: "Get project-level orientation context",
+		Priority:    2,
+	}
+	// explain walks a func or method; on a type it adds nothing to the pack.
+	if result.Kind != KindFunc && result.Kind != KindMethod {
+		return []Suggestion{ctxSuggestion}
+	}
 	return []Suggestion{
 		{
 			Command:     "snipe pack --depth explain " + result.Name,
 			Description: "Get detailed explanation with mechanism steps",
 			Priority:    1,
 		},
-		{
-			Command:     "snipe context",
-			Description: "Get project-level orientation context",
-			Priority:    2,
-		},
+		ctxSuggestion,
 	}
 }
 
-// ExplainResult contains structured explanation of a symbol.
-// Designed for LLM consumption with explicit confidence and source tracking.
+// ExplainResult contains structured explanation of a symbol: query.Explain's
+// analysis. pack --depth explain folds it into an ExplainPackResult.
 type ExplainResult struct {
 	Symbol        string          `json:"symbol"`
 	File          string          `json:"file"`           // file:line format
@@ -909,6 +914,23 @@ type ExplainResult struct {
 	KeyDeps       []string        `json:"key_deps,omitempty"` // Key dependencies
 }
 
+// ExplainPackResult is what pack --depth explain returns: every PackResult
+// field, plus the walkthrough and warnings, since each depth adds to the one
+// before (sn-zvoz). The one exception is Definition.Body, empty unless
+// --body asks for it (D4, dk 2026-10-18). It leaves out the ExplainResult fields that repeat the
+// pack (D4): symbol, file, kind and signature are in Definition; the caller
+// count and names are in CallerCount and Callers, so only the caller pattern
+// is kept; key_deps mostly repeats the mechanism's targets. The explain fields are empty for a symbol that is not a
+// func or method; Meta.Degraded says so.
+type ExplainPackResult struct {
+	PackResult
+	PurposeSource PurposeSource   `json:"purpose_source,omitempty"`
+	Mechanism     []MechanismStep `json:"mechanism,omitempty"`
+	CallerPattern string          `json:"caller_pattern,omitempty"`
+	Warnings      []Warning       `json:"warnings,omitempty"`
+	DocStatus     *DocStatus      `json:"doc_status,omitempty"`
+}
+
 // PurposeSource indicates how the purpose field was derived.
 type PurposeSource string
 
@@ -919,6 +941,9 @@ const (
 	PurposeFromTemplate PurposeSource = "template"
 	// PurposeMissing means no purpose could be determined.
 	PurposeMissing PurposeSource = "missing"
+	// PurposeFromEnrichment means purpose came from the LLM enrichment pass
+	// (the symbol_purposes table), as pack reports it.
+	PurposeFromEnrichment PurposeSource = "enriched"
 )
 
 // MechanismStep describes one observable execution step.
