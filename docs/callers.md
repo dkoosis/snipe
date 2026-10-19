@@ -566,3 +566,21 @@ Every verb in `snipe --help` (2026-09-30) that has no row above:
 `verify`, `plan`, `guard`, `sensitive`, `c4`, `deadcode`, `report`, `edit`, `version`
 
 Of the verbs the seed list expected to be uncalled, these gained a caller and have rows above: `orient`, `sym`, `explain`, `show`, `lits`, `trace`, `imports`, `types`. Check the rows: some are prose mentions in skills, not runs.
+
+## Migration, phase 1 (sn-lvub.8)
+
+Rows whose new verb already exists on main (the Read verbs and `deps`) were migrated on 2026-10-18. Each PR is open until dk merges it. The `sim`, `lits` and `trace` rows wait for the Find verb (sn-lvub.6) and stay for phase 2; the aliases stay until every caller PR is merged.
+
+| repo | PR | rows migrated |
+|---|---|---|
+| cc-plugins | https://github.com/dkoosis/cc-plugins/pull/435 | `go-bug-audit/agents/pass1-correctness.md:60,61` and `pass3-persistence.md:45,46` (importers -> `deps --importers`); `legibility/skills/legibility/SKILL.md:30` (sym -> `pack --depth sym`) |
+| fo | https://github.com/dkoosis/fo/pull/324 | `docs/feedback/review/test-effectiveness-repo.md:23` (importers -> `deps --importers`) |
+| sdlc | none | no row in scope |
+| snipe | PR_SNIPE | `.claude/rules/CLAUDE.md:47` already reads `snipe def <hex-id>`; no change |
+
+Rows not migrated and why:
+
+- cc-plugins `lintbrush/*` and `go-test-architect/*` rows (importers, imports, sym, explain): those files are no longer in cc-plugins (lintbrush moved to its own repo, cc-plugins #377). They are now in `~/projects/dk/lintbrush`, which the census did not list as a repo; it still holds 17 old-verb lines.
+- cc-plugins `lintbrush/linters/solid.md:58` (`sym --kind=interface`): `snipe pack` has no `--kind` flag, and `sym` never had one, so the line fails today and no spelling keeps its behaviour.
+- cc-plugins `go-bug-audit/skills/bug-audit/SKILL.md:60-62` lists `explain`, `importers` and `imports` as verbs; the census has no row for it.
+- trixi (`write-issue/SKILL.md:97` orient, `change-smells-repo.md:164` imports): trixi is not one of the four repos this bead names.
