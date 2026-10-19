@@ -1,0 +1,56 @@
+# pack --depth explain — each depth adds to the one before (sn-zvoz, sn-lvub.10).
+# Proves: `pack --depth explain Reply` holds every field and every line that
+# `pack --depth pack Reply` prints, in json and concise, plus the explain
+# sections (purpose source, mechanism, caller pattern), and says the purpose,
+# signature and caller count once (D4).
+cd $FIXTURE
+
+# json: every field of the pack result, same value, plus the explain fields.
+exec snipe pack --depth pack Reply --format json
+cp stdout $WORK/pack.json
+exec snipe pack --depth explain Reply --format json
+cp stdout $WORK/explain.json
+jsonsubset $WORK/pack.json $WORK/explain.json
+! jsonsubset $WORK/explain.json $WORK/pack.json
+stdout '"definition":\{'
+stdout '"references":\['
+stdout '"callers":\['
+stdout '"callees":\['
+stdout '"role":"'
+stdout '"purpose":"Reply calls across into the alpha package."'
+stdout '"purpose_source":"doc"'
+stdout '"mechanism":\[\{"action":"calls","target":"Greet"'
+stdout '"caller_pattern":"'
+stdout '"doc_status":\{'
+# D4: no second copy of the caller count and names, nor of the mechanism's
+# targets. (ExplainPackResult has no symbol, file, kind or signature field.)
+! stdout '"caller_context":'
+! stdout '"key_deps":'
+
+# concise: every line of the pack output, in order, plus the walkthrough.
+exec snipe pack --depth pack Reply
+cp stdout $WORK/pack.txt
+exec snipe pack --depth explain Reply
+cp stdout $WORK/explain.txt
+linesubset $WORK/pack.txt $WORK/explain.txt
+! linesubset $WORK/explain.txt $WORK/pack.txt
+stdout '^callers: '
+stdout '^mechanism:'
+stdout '^  calls Greet'
+stdout -count=1 '^purpose: '
+stdout -count=1 'func Reply\(\) string'
+! stdout '^# Reply$'
+
+# The pack limits reach the embedded pack: --callers-limit 0 leaves no caller
+# rows, as it does at --depth pack.
+exec snipe pack --depth explain Reply --callers-limit 0 --format json
+! stdout '"callers":\['
+stdout '"caller_count":1'
+
+# A type has no walkthrough: explain returns the pack and says why the
+# explain fields are missing, instead of failing.
+exec snipe pack --depth explain shape.go:Box --format json
+stdout '"ok":true'
+stdout '"definition":\{'
+stdout '"explain_func_only"'
+! stdout '"mechanism":'
