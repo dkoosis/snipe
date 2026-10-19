@@ -595,7 +595,7 @@ The Find verb landed (sn-lvub.6, #295), so the `lits`, `trace` and `sim` query-f
 | fo | https://github.com/dkoosis/fo/pull/324 (also carries phase 1) | `docs/feedback/review/sim-pair-repo.md:33,37` (sim -> `search --semantic`, flags kept) |
 | lintbrush | https://github.com/dkoosis/lintbrush/pull/9 | 32 lines in 14 files: importers, imports, sym, explain, trace and sim -> `deps --importers`, `deps --file`, `pack --depth sym`, `pack --depth explain`, `search --trace`, `search --semantic` |
 | sdlc | none | no row |
-| snipe | PR_SNIPE2 | this record |
+| snipe | https://github.com/dkoosis/snipe/pull/297 | this record |
 
 Still not migrated:
 
