@@ -5,7 +5,7 @@ How to work on snipe. Stable — only update when the workflow itself changes.
 ## Startup
 
 1. Read `docs/progress.md` — orient on what's been built
-2. Read boot.md "do next" — pick ONE task
+2. Read the sdlc banner ("Last time", "Next") and run `bd ready` — pick ONE task
 3. Run `make` (build + lint + test) to confirm green baseline
 4. If red: fix first, that's the session's task
 
@@ -33,13 +33,18 @@ How to work on snipe. Stable — only update when the workflow itself changes.
 - Prefix: `feat:`, `fix:`, `refactor:`, `chore:`, `test:`, `docs:`
 - One logical change per commit
 
+### Test traps
+
+- ‡ Git-fixture tests set `core.hooksPath=/dev/null`; keep it on any new throwaway-repo test, or the global commit-msg hook rejects fixture commits.
+- ‡ Tests that exec the `snipe` binary set `KEYRING_DISABLE`, or an unlocked-keychain `/usr/bin/security` exec can prompt or hang the suite.
+- ‡ Blackbox `run()` must not pass `VOYAGE_API_KEY` through to `snipe index` (#286), or the suite submits real Voyage batches.
+
 ## Shutdown
 
 1. Run `make audit` — must pass
 2. Update `docs/progress.md` — mark completed tasks, add notes
-3. Rewrite `boot.md` — new SHA, new "do next", move completions to "done"
-4. If eval was affected: run eval, record score in progress.md
-5. Commit the PM file updates: `chore: wrap session — <what changed>`
+3. If eval was affected: run eval, record score in progress.md
+4. Commit the PM file updates: `chore: wrap session — <what changed>`
 
 ## Constraints
 
