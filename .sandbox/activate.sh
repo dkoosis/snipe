@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Source this to activate Go dev environment for trixi
+# Source this to activate Go dev environment for snipe
 # Usage: source .sandbox/activate.sh
 # Resolves own path — works from any working directory.
 

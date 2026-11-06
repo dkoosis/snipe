@@ -795,14 +795,14 @@ func TestWritePackageDocsSweepsOrphans(t *testing.T) {
 
 	// First pass: package lives at old path.
 	if err := s.WritePackageDocs([]index.PackageDoc{
-		{PkgPath: "example.com/proj/cmd/trixi", Doc: "old doc"},
+		{PkgPath: "example.com/proj/cmd/app", Doc: "old doc"},
 	}); err != nil {
 		t.Fatalf("first WritePackageDocs: %v", err)
 	}
 
 	// Second pass: package moved to new path; only the new path is reported.
 	if err := s.WritePackageDocs([]index.PackageDoc{
-		{PkgPath: "example.com/proj/app/cmd/trixi", Doc: "new doc"},
+		{PkgPath: "example.com/proj/app/cmd/app", Doc: "new doc"},
 	}); err != nil {
 		t.Fatalf("second WritePackageDocs: %v", err)
 	}
@@ -824,7 +824,7 @@ func TestWritePackageDocsSweepsOrphans(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("want 1 row after sweep, got %d: %+v", len(got), got)
 	}
-	if got[0].path != "example.com/proj/app/cmd/trixi" || got[0].doc != "new doc" {
+	if got[0].path != "example.com/proj/app/cmd/app" || got[0].doc != "new doc" {
 		t.Errorf("orphan not swept; got %+v", got[0])
 	}
 }

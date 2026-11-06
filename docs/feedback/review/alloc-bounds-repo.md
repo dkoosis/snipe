@@ -22,4 +22,3 @@ None at action tier. Closest borderline candidate (`DownloadFile` error-path `io
 
 Zero findings is the honest call here. Re-run alloc-bounds if snipe ever exposes a server surface (LSP, daemon, MCP HTTP) — the threat model flips at that point and `internal/embed/batch.go:319` (Scanner.Buffer max=1 MiB on remote JSONL) plus the three `io.ReadAll(resp.Body)` error paths in `internal/embed/batch.go` and `internal/embed/client.go:183` become worth a second look.
 
-trixi log-skill alloc-bounds findings 0 --run-id "ecebe5258308"

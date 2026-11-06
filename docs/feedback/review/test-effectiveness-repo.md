@@ -81,5 +81,4 @@ Tier: P1 evergreen 🟢 (3, all minor) · P1 over-broad 🟢 (0) · P1 mock-misu
 ## After
 
 ```
-trixi log-skill test-effectiveness findings 3 --run-id "ecebe5258308"
 ```

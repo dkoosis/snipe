@@ -5,7 +5,7 @@
 #   checkout M (head) in an ISOLATED worktree → snipe index → snipe risk M^1 M
 # and tabulates the verdict-tier distribution. Reindexing at each head is REQUIRED:
 # a stale index can't map an old diff's file:line to symbols, so every historical
-# PR falsely reads 0-symbol "low" (see sn-tgra). ~15s/reindex on trixi-sized repos.
+# PR falsely reads 0-symbol "low" (see sn-tgra). ~15s/reindex on a repo of a few hundred Go files.
 #
 # Usage: scripts/risk-replay.sh <target-repo> [N] [snipe-bin]
 #   target-repo : path to the Go repo to replay (must have a .snipe index buildable)

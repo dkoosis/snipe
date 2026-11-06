@@ -112,4 +112,3 @@ Caveat to verify before shipping: confirm Voyage AI's per-key concurrency limit,
 
 One actionable finding. The only real network-I/O surface in snipe is Voyage AI, and `generateEmbeddings` is the only place that issues independent calls in series. Everything else is SQLite (rule-exempted) or CPU-bound AST work.
 
-trixi log-skill io-parallel findings 1 --run-id "ecebe5258308"
