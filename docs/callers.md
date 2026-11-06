@@ -545,4 +545,4 @@ Still not migrated:
 - fo `docs/feedback/review/sim-pair-repo.md:10,45`: prose naming `snipe sim` as the pairs primitive (same package, callee overlap). That is `sim --pairs`, which stays.
 - cc-plugins `go-bug-audit/skills/bug-audit/SKILL.md:60-66`: a verb table that lists `explain`, `importers`, `imports` and `sim`; the census has no row for it.
 
-Alias removal waits on no caller: cc-plugins #435 and #438, fo #324, lintbrush #9 and snipe #294 are merged (checked 2026-11-05).
+Alias removal waits on the two callers still listed: lintbrush `linters/solid.md:58` (sn-mg5u) and the cc-plugins bug-audit verb table. Every caller PR is merged: cc-plugins #435 and #438, fo #324, lintbrush #9, snipe #294 (gh pr view, 2026-11-05).
