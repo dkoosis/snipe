@@ -1,7 +1,7 @@
 # Snipe — Progress
 
 Cumulative record of what's been built. Append-only — never delete history.
-Read first every session, then pick ONE task from boot.md.
+Read first every session, then read the sdlc banner, run `bd ready`, and pick ONE task.
 
 ## Project
 
