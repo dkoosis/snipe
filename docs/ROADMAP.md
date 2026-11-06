@@ -1,6 +1,6 @@
 # snipe
 
-★ Maps a Go codebase for LLMs orientation and navigation: symbols, callers, hotspots, metrics. Terse prose by default; JSON on request.
+★ Maps a Go codebase so an agent orients and navigates in the fewest calls and tokens: symbols, callers, hotspots, metrics. The default output's shape is whatever wins snipe's agent bench (bench/ax) on current models; JSON on request.
 
 (mirrors the nugbase's `projects/dk/snipe/NORTH_STAR.md`, which owns the line — dk
 edits that file and nothing else is a source.)
