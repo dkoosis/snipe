@@ -10,7 +10,7 @@ Replacement column: the command each row runs under the verb set dk ratified on 
 
 Kinds: hook, shell script, Go exec, agent prompt (agents and linters), skill, rule, doc. A `doc` or `rule` row is prose that tells a reader to run the verb; a hook or script row runs it.
 
-486 rows.
+487 rows.
 
 | repo | file:line | verb | flags | format consumed | kind | replacement |
 |---|---|---|---|---|---|---|
