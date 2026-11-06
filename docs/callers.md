@@ -2,15 +2,15 @@
 
 A list of every program, hook, skill, rule and doc outside snipe that runs a snipe verb, so a verb rename is checked against callers instead of memory. Built 2026-09-30 for sn-lvub.1 (Every snipe verb is one an agent picks right the first time). Read-only record: it changes no caller and decides no verb (that is sn-zvoz).
 
-Scope: every git repo under `~/projects/dk/` plus skills and rules under `~/nugbases/dk/`. Excluded: snipe's own tree (except `snipe/.claude/rules/CLAUDE.md`, a seed site), `.eval-repos/`, `node_modules/`, git worktrees and session logs. Paths are relative to `~/projects/dk/`. orca is retired (dk, 2026-09-30) and has no row.
+Scope: every git repo under `~/projects/dk/` plus skills and rules under `~/nugbases/dk/`. Excluded: snipe's own tree (except `snipe/.claude/rules/CLAUDE.md`, a seed site), `.eval-repos/`, `node_modules/`, git worktrees and session logs. Paths are relative to `~/projects/dk/`. orca is retired (dk, 2026-09-30) and has no row. trixi, trixi-bot and itzy are defunct (dk, 2026-11-05): no rows, and no census or migration touches them.
 
-Method: `rg -n -e '"snipe"' -e 'snipe <verb>\b'` over `*.{go,md,sh,yaml,yml,json}`, then one row per (file:line, verb). Flags and format are read from the same line; `concise (default)` means the line names no `--format`. Go test files that only fake snipe (sdlc `risk_test.go`, ferret and itzy fixtures) and ferret's transcript classifiers (`internal/event`, `internal/reach`, `internal/analyst`) name snipe as data, not as an invocation, so they have no row. Nugbase skills and rules hold no verb call.
+Method: `rg -n -e '"snipe"' -e 'snipe <verb>\b'` over `*.{go,md,sh,yaml,yml,json}`, then one row per (file:line, verb). Flags and format are read from the same line; `concise (default)` means the line names no `--format`. Go test files that only fake snipe (sdlc `risk_test.go`, ferret fixtures) and ferret's transcript classifiers (`internal/event`, `internal/reach`, `internal/analyst`) name snipe as data, not as an invocation, so they have no row. Nugbase skills and rules hold no verb call.
 
 Replacement column: the command each row runs under the verb set dk ratified on sn-zvoz (2026-10-18, decision nug 67785da834ca; evidence: axbench baseline, `bench/ax/results/2026-10-18T0022`). `unchanged` means the verb survives as is. A changed row keeps working through a hidden alias until its caller migrates (sn-lvub.8).
 
 Kinds: hook, shell script, Go exec, agent prompt (agents and linters), skill, rule, doc. A `doc` or `rule` row is prose that tells a reader to run the verb; a hook or script row runs it.
 
-543 rows.
+487 rows.
 
 | repo | file:line | verb | flags | format consumed | kind | replacement |
 |---|---|---|---|---|---|---|
@@ -461,25 +461,6 @@ Kinds: hook, shell script, Go exec, agent prompt (agents and linters), skill, ru
 | fo | docs/feedback/review/sim-pair-repo.md:48 | index | --embed | concise (default) | doc | unchanged |
 | fo | docs/feedback/review/test-effectiveness-repo.md:23 | importers |  | concise (default) | doc | deps --importers |
 | fo | docs/feedback/review/tx-boundary-repo.md:30 | metrics |  | concise (default) | doc | unchanged |
-| itzy | docs/diagrams/arch.md:1 | diagram |  | concise (default) | doc | unchanged |
-| itzy | docs/diagrams/arch.md:122 | arch |  | concise (default) | doc | unchanged |
-| itzy | docs/diagrams/datastore-map.md:1 | diagram |  | concise (default) | doc | unchanged |
-| itzy | docs/diagrams/seam-map.md:1 | diagram |  | concise (default) | doc | unchanged |
-| itzy | docs/diagrams/system-map.md:1 | diagram |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:153 | context |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:154 | pack |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:155 | def |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:156 | callers |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:157 | callees |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:158 | refs |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:159 | tests |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:160 | lifecycle |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:161 | impl |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-avl.17-bundle-static.md:165 | callers |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-r8r-bundle-static.md:108 | impact |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-sz0.2-bundle-static.md:37 | pack |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-sz0.2-pass-2-persistence.md:63 | tests |  | concise (default) | doc | unchanged |
-| itzy | docs/plans/reviews/iz-sz0.6-bundle-static.md:35 | impact |  | concise (default) | doc | unchanged |
 | mnemd | .sandbox/lib/lib-activate.sh:64 | def |  | concise (default) | shell script | unchanged |
 | mnemd | .sandbox/lib/lib-activate.sh:65 | callers |  | concise (default) | shell script | unchanged |
 | mnemd | .sandbox/lib/lib-activate.sh:66 | search |  | concise (default) | shell script | unchanged |
@@ -511,44 +492,6 @@ Kinds: hook, shell script, Go exec, agent prompt (agents and linters), skill, ru
 | snipe | .claude/rules/CLAUDE.md:49 | context |  | concise (default) | rule | unchanged |
 | snipe | .claude/rules/CLAUDE.md:50 | context | --full | concise (default) | rule | unchanged |
 | snipe | .claude/rules/CLAUDE.md:51 | context | --out DIR | concise (default) | rule | unchanged |
-| trixi | AGENTS.md:214 | def |  | concise (default) | rule | unchanged |
-| trixi | AGENTS.md:215 | callers |  | concise (default) | rule | unchanged |
-| trixi | AGENTS.md:216 | refs |  | concise (default) | rule | unchanged |
-| trixi | AGENTS.md:217 | search |  | concise (default) | rule | unchanged |
-| trixi | AGENTS.md:218 | pack |  | concise (default) | rule | unchanged |
-| trixi | AGENTS.md:219 | context | --boot | concise (default) | rule | unchanged |
-| trixi | AGENTS.md:224 | def |  | concise (default) | rule | unchanged |
-| trixi | AGENTS.md:224 | search |  | concise (default) | rule | unchanged |
-| trixi | config/skills/issue-gate/SKILL.md:19 | context |  | concise (default) | skill | unchanged |
-| trixi | config/skills/issue-gate/SKILL.md:20 | pack |  | concise (default) | skill | unchanged |
-| trixi | config/skills/issue-gate/SKILL.md:21 | callers |  | concise (default) | skill | unchanged |
-| trixi | config/skills/issue-gate/SKILL.md:22 | tests |  | concise (default) | skill | unchanged |
-| trixi | config/skills/write-issue/SKILL.md:21 | context |  | concise (default) | skill | unchanged |
-| trixi | config/skills/write-issue/SKILL.md:22 | pack |  | concise (default) | skill | unchanged |
-| trixi | config/skills/write-issue/SKILL.md:23 | tests |  | concise (default) | skill | unchanged |
-| trixi | config/skills/write-issue/SKILL.md:97 | orient |  | concise (default) | skill | context |
-| trixi | docs/feedback/review-all-2026-05-17.md:6 | context |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review-all-2026-05-17.md:6 | context | --full | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review-all-2026-05-17.md:75 | context | --full | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review-all-2026-05-17.md:75 | context |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/arch-modules-persistence-store.md:28 | index |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/arch-modules-persistence-store.md:39 | metrics | --kind=cycles | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/arch-modules-persistence-store.md:43 | lifecycle |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/arch-project.md:11 | metrics | --kind=cycles | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/arch-repo.md:104 | boundary |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/change-smells-repo.md:164 | imports |  | concise (default) | doc | deps --file |
-| trixi | docs/feedback/review/sqlite-go-review-2026-07-15.md:74 | context |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/sqlite-go-review-2026-07-15.md:74 | doctor |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/sqlite-go-review-2026-07-15.md:74 | index |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/sqlite-go-review-2026-07-15.md:75 | context |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/sqlite-go-review-2026-07-15.md:75 | doctor |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/sqlite-go-review-2026-07-15.md:75 | index |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/sqlite-go-review-2026-07-15.md:76 | search |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/truthful-names-project.md:53 | pack |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/truthful-names-repo.md:156 | context | --pkg | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/truthful-names-repo.md:156 | metrics | --kind=pagerank | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/vestige-pair-nug.md:44 | refs |  | concise (default) | doc | unchanged |
-| trixi | docs/feedback/review/vestige-pair-nug.md:90 | callers |  | concise (default) | doc | unchanged |
 | upcheck | .sandbox/lib/lib-activate.sh:64 | def |  | concise (default) | shell script | unchanged |
 | upcheck | .sandbox/lib/lib-activate.sh:65 | callers |  | concise (default) | shell script | unchanged |
 | upcheck | .sandbox/lib/lib-activate.sh:66 | search |  | concise (default) | shell script | unchanged |
@@ -583,7 +526,6 @@ Rows not migrated and why:
 - cc-plugins `lintbrush/*` and `go-test-architect/*` rows (importers, imports, sym, explain): those files are no longer in cc-plugins (lintbrush moved to its own repo, cc-plugins #377). They are now in `~/projects/dk/lintbrush`, which the census did not list as a repo; it still holds 17 old-verb lines.
 - cc-plugins `lintbrush/linters/solid.md:58` (`sym --kind=interface`): `snipe pack` has no `--kind` flag, and `sym` never had one, so the line fails today and no spelling keeps its behaviour.
 - cc-plugins `go-bug-audit/skills/bug-audit/SKILL.md:60-62` lists `explain`, `importers` and `imports` as verbs; the census has no row for it.
-- trixi (`write-issue/SKILL.md:97` orient, `change-smells-repo.md:164` imports): trixi is not one of the four repos this bead names.
 
 ## Migration, phase 2 (sn-lvub.8)
 
@@ -602,6 +544,5 @@ Still not migrated:
 - lintbrush `linters/solid.md:58` (`sym --kind=interface`): no verb has `--kind`; filed as sn-mg5u.
 - fo `docs/feedback/review/sim-pair-repo.md:10,45`: prose naming `snipe sim` as the pairs primitive (same package, callee overlap). That is `sim --pairs`, which stays.
 - cc-plugins `go-bug-audit/skills/bug-audit/SKILL.md:60-66`: a verb table that lists `explain`, `importers`, `imports` and `sim`; the census has no row for it.
-- trixi (`write-issue/SKILL.md:97` orient, `change-smells-repo.md:164` imports): trixi is not a repo the bead names; its aliases cannot go until it migrates or dk waives it.
 
-Alias removal waits on: fo #324 and cc-plugins #438 and lintbrush #9 merged (cc-plugins #435 and snipe #294 are merged).
+Alias removal waits on the two callers still listed: lintbrush `linters/solid.md:58` (sn-mg5u) and the cc-plugins bug-audit verb table. Every caller PR is merged: cc-plugins #435 and #438, fo #324, lintbrush #9, snipe #294 (gh pr view, 2026-11-05).

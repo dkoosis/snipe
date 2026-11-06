@@ -1,6 +1,6 @@
 # CI On-Demand — bot review is app-based, not pipeline-based
 
-*Superseded 2026-08-02: the judge-gated `cc-plugins` pipeline never worked on this repo — GitHub forbids a public repository from calling a reusable workflow in a private one, and cc-plugins is private. Every run failed instantly with zero jobs from day one (#215). Removed `bot-review.yml` + `refresh-vendored-snipe.yml`; that pipeline still works fine on dk's other (private) repos, e.g. `trixi`, `canapay` — this is a snipe-specific constraint, not a pipeline bug.*
+*Superseded 2026-08-02: the judge-gated `cc-plugins` pipeline never worked on this repo — GitHub forbids a public repository from calling a reusable workflow in a private one, and cc-plugins is private. Every run failed instantly with zero jobs from day one (#215). Removed `bot-review.yml` + `refresh-vendored-snipe.yml`; that pipeline still works fine on dk's other (private) repos, e.g. `canapay` — this is a snipe-specific constraint, not a pipeline bug.*
 
 ## Bot review — GitHub Apps, no repo workflow
 

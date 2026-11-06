@@ -181,7 +181,7 @@ Default output changed from JSON envelope to Claude-optimized structured text.
 |--------|--------|-------|
 | Fuzzy method name resolution | 34dca70 | Bare name → method match across receivers (#120) |
 | Claude-optimized default output | 083667f | D1/D4: text default, JSON opt-in |
-| Decision table D1-D6 + guard-rails | 64df431 | Trixi-style, do-not-revisit |
+| Decision table D1-D6 + guard-rails | 64df431 | do-not-revisit |
 | Issues #120-#123 | — | fuzzy names, search fallback, human format, root detection |
 
 ---
@@ -279,7 +279,7 @@ trust-killing failures, staleness tax. All 8 children shipped in one session:
 | Qualified names round-trip | g0d.5 | pkg.Type.Method, pkg.(*T).Method; display (*T).Method = query form |
 | Usage telemetry | g0d.7 | .snipe/usage.jsonl + metrics --kind=usage; ground truth for eval constraint |
 | cc-plugins/snipe hooks | g0d.1/.6 | SessionStart context inject; Grep symbol-nudge (once/session) |
-| Dogfood rules lines | g0d.8 | trixi/loto/fo/snipe + fixed stale --with-body in global tools.md |
+| Dogfood rules lines | g0d.8 | loto/fo/snipe + fixed stale --with-body in global tools.md |
 
 Measure: re-mine transcripts ~mid-July; compare snipe:rg ratio against
 4:1 baseline (2026-06-12) via `snipe metrics --kind=usage`.

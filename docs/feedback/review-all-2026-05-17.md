@@ -95,4 +95,3 @@ _Files cited by 3+ distinct linters. One fix may close multiple findings._
 ## Next steps
 
 - `/assess-feedback <linter>` per row to rate findings & log accept-ratios.
-- Note: `trixi log-skill` was reported by every reviewer as `unknown command` — the closing-hook telemetry call is broken on this trixi build. Either add the subcommand or update the harness to use the right invocation.

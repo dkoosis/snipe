@@ -7,7 +7,7 @@
 
 `go list ./...` from a go.work workspace root only enumerates packages in the root module. Packages in sibling workspace modules (e.g., `./graph`, `./store`) are invisible. snipe hardcodes `["./..."]` as the load pattern, so indexing misses all non-root modules.
 
-Verified against trixi (7 modules): `go list ./...` returns 2 packages; explicit per-module patterns return 23.
+Verified against a 7-module go.work repo: `go list ./...` returns 2 packages; explicit per-module patterns return 23.
 
 ## Solution
 
@@ -100,12 +100,12 @@ if len(cfg.Patterns) == 0 {
 - Unit: malformed go.work returns error
 - Unit: `use` dir that doesn't exist (still returns pattern, go/packages errors)
 - Blackbox: multi-module fixture with `go.work`, verify `snipe index` + `snipe def` finds symbols from all modules
-- Manual: run `snipe index` on trixi, verify all 23 packages indexed
+- Manual: run `snipe index` on a multi-module go.work repo, verify all 23 packages indexed
 
 ## Non-goals
 
 - `FindProjectRoot` changes (already works — `.git` and `go.work` co-located)
 - Per-command changes (all query the index DB — fixed by fixing indexing)
-- Cross-repo test fixtures (trixi is external)
+- Cross-repo test fixtures (the verification repo is external)
 - `use ../sibling` support (outside git root)
 - Handling `GOWORK=off` gracefully (user's explicit choice)

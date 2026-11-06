@@ -447,14 +447,14 @@ git commit -m "test: blackbox test for go.work workspace indexing (#132)"
 Run: `mage qa`
 Expected: PASS — all checks including race detector and blackbox tests.
 
-- [ ] **Step 2: Manual verification on trixi**
+- [ ] **Step 2: Manual verification on a multi-module go.work repo**
 
-Run: `cd /Users/vcto/Projects/trixi && /Users/vcto/Projects/snipe/snipe index . 2>&1`
+Run: `cd <go.work repo> && /Users/vcto/Projects/snipe/snipe index . 2>&1`
 Expected: stderr shows loading 23+ packages (not 2), "Found N symbols" where N is significantly higher than root-module-only count.
 
-- [ ] **Step 3: Verify cross-module lookup on trixi**
+- [ ] **Step 3: Verify cross-module lookup**
 
-Run: `cd /Users/vcto/Projects/trixi && /Users/vcto/Projects/snipe/snipe def Hello` (or any symbol from a non-root module)
+Run: `cd <go.work repo> && /Users/vcto/Projects/snipe/snipe def Hello` (or any symbol from a non-root module)
 Expected: Symbol found in the correct module.
 
 - [ ] **Step 4: Run go mod tidy**
