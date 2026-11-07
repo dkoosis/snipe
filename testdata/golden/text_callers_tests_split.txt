@@ -1,0 +1,18 @@
+4 results
+# caller0 [0000000000000000]
+cmd/root.go:10 | func
+  func caller0() error
+
+# caller1 [0000000000000001]
+cmd/root.go:11 | func
+  func caller1() error
+
+2 in _test.go files
+
+# TestCase0 [0000000000000064]
+store/store_test.go:10 | func
+  func TestCase0(t *testing.T)
+
+# TestCase1 [0000000000000065]
+store/store_test.go:11 | func
+  func TestCase1(t *testing.T)
