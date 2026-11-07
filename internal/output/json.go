@@ -189,12 +189,14 @@ func (w *Writer) writeClaudeResults(b *strings.Builder, results []protocol.Resul
 			writeClaudeResult(b, &tests[i])
 		}
 	}
-	if hidden := len(results) - shownCode - shownTests; hidden > 0 {
+	// Total can exceed the page when a verb counts past its fetch limit.
+	total := max(meta.Total, len(results))
+	if hidden := total - shownCode - shownTests; hidden > 0 {
 		fmt.Fprintf(b, "\n… %d more", hidden)
 		if shownTests == 0 && len(tests) > 0 {
 			fmt.Fprintf(b, ", %d in _test.go files", len(tests))
 		}
-		fmt.Fprintf(b, " (--limit %d)\n", max(meta.Total, len(results)))
+		fmt.Fprintf(b, " (--limit %d)\n", total)
 	}
 
 	w.writeClaudeMeta(b, meta)
