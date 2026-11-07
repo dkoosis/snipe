@@ -50,7 +50,9 @@ type Writer struct {
 	start  time.Time
 	// embedMissing, when set, appends `! noembed` to the meta line of Claude
 	// output — an index-global self-assessment marker stamped once at store
-	// open (see OpenStore) so every query command emits it uniformly.
+	// open (see OpenStore). Only search and sim print it: they are the verbs
+	// whose answer can depend on embeddings; the rest read the symbol and call
+	// tables alone.
 	embedMissing bool
 }
 
@@ -153,40 +155,112 @@ func (w *Writer) writeClaudeResults(b *strings.Builder, results []protocol.Resul
 
 	// Lead with a total (AXI #4: pre-computed aggregates eliminate a
 	// header-counting round trip), matching diagram's "N packages · M edges"
-	// convention.
-	if meta.Total > 0 {
-		if meta.Total == 1 {
-			b.WriteString("1 result\n")
-		} else {
-			fmt.Fprintf(b, "%d results\n", meta.Total)
-		}
+	// convention. An empty answer says so and echoes the query.
+	switch q := meta.PrimaryQueryArg(); {
+	case meta.Total == 1:
+		b.WriteString("1 result\n")
+	case meta.Total > 1:
+		fmt.Fprintf(b, "%d results\n", meta.Total)
+	case q != "":
+		fmt.Fprintf(b, "0 results for %q\n", q)
+	default:
+		b.WriteString("0 results\n")
 	}
 
-	for i := range results {
-		r := &results[i]
+	// Code results first; _test.go results follow under a count line, or
+	// fold into the cap line when code alone fills the cap (sn-lvub.13).
+	code, tests := splitTestResults(results)
+	room := textCap(meta.Command, len(results))
+	shownCode := min(len(code), room)
+	for i := range code[:shownCode] {
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		writeResultHeader(b, r)
-
-		if r.Body != "" {
-			b.WriteString("```go\n")
-			b.WriteString(r.Body)
-			b.WriteString("\n```\n")
-		} else if r.Match != "" && (r.Kind == protocol.KindFunc || r.Kind == protocol.KindMethod) {
-			// Signature line only for func/method — struct/type/const match is just the qualified name, redundant
-			b.WriteString("  ")
-			b.WriteString(r.Match)
+		writeClaudeResult(b, &code[i])
+	}
+	shownTests := 0
+	if room > len(code) {
+		shownTests = room - len(code)
+		if shownCode > 0 {
 			b.WriteString("\n")
 		}
+		fmt.Fprintf(b, "%d in _test.go files\n", len(tests))
+		for i := range tests[:shownTests] {
+			b.WriteString("\n")
+			writeClaudeResult(b, &tests[i])
+		}
 	}
-
-	if meta.Total == 0 && respErr == nil {
-		b.WriteString("No results.\n")
+	// Total can exceed the page when a verb counts past its fetch limit.
+	total := max(meta.Total, len(results))
+	if hidden := total - shownCode - shownTests; hidden > 0 {
+		// A page cut at its fetch limit holds an unknown number more: the
+		// count is a floor, and the truncated line below names the lever.
+		more := fmt.Sprintf("%d more", hidden)
+		if meta.Truncated {
+			more = fmt.Sprintf("%d+ more", hidden)
+		}
+		fmt.Fprintf(b, "\n… %s", more)
+		if shownTests == 0 && len(tests) > 0 {
+			fmt.Fprintf(b, ", %d in _test.go files", len(tests))
+		}
+		if meta.Truncated {
+			b.WriteString("\n")
+		} else {
+			fmt.Fprintf(b, " (--limit %d)\n", total)
+		}
 	}
 
 	w.writeClaudeMeta(b, meta)
 	writeClaudeSuggestions(b, suggestions)
+}
+
+// writeClaudeResult renders one result: its header, then its body or, for a
+// func or method, its signature.
+func writeClaudeResult(b *strings.Builder, r *protocol.Result) {
+	writeResultHeader(b, r)
+	if r.Body != "" {
+		b.WriteString("```go\n")
+		b.WriteString(r.Body)
+		b.WriteString("\n```\n")
+	} else if r.Match != "" && (r.Kind == protocol.KindFunc || r.Kind == protocol.KindMethod) {
+		// Signature line only for func/method — struct/type/const match is just the qualified name, redundant
+		b.WriteString("  ")
+		b.WriteString(r.Match)
+		b.WriteString("\n")
+	}
+}
+
+// splitTestResults returns the results from code files and from _test.go
+// files, each in its original order.
+func splitTestResults(results []protocol.Result) (code, tests []protocol.Result) {
+	for i := range results {
+		if strings.HasSuffix(results[i].File, "_test.go") {
+			tests = append(tests, results[i])
+		} else {
+			code = append(code, results[i])
+		}
+	}
+	return code, tests
+}
+
+// DefaultListCap is how many items a list prints in default text before one
+// "… N more (--limit N)" line (sn-lvub.13).
+const DefaultListCap = 8
+
+// listCap is the cap in force; 0 prints every item. The CLI sets 0 when
+// --limit is passed, so an explicit limit prints in full.
+var listCap = DefaultListCap
+
+// SetListCap sets how many items a list prints in default text; 0 prints all.
+func SetListCap(n int) { listCap = n }
+
+// textCap is how many of n items command prints in default text. def is not
+// a list: it prints every definition asked for.
+func textCap(command string, n int) int {
+	if listCap <= 0 || command == "def" {
+		return n
+	}
+	return min(n, listCap)
 }
 
 func writeResultHeader(b *strings.Builder, r *protocol.Result) {
@@ -290,7 +364,7 @@ func (w *Writer) writeClaudeMeta(b *strings.Builder, meta protocol.Meta) {
 	if len(meta.Degraded) > 0 {
 		parts = append(parts, meta.Degraded...)
 	}
-	if w.embedMissing {
+	if w.embedMissing && (meta.Command == "search" || meta.Command == "sim") {
 		parts = append(parts, protocol.DegradedNoEmbed)
 	}
 	for _, p := range parts {
@@ -556,18 +630,8 @@ func (w *Writer) writeClaudeDeps(b *strings.Builder, results []protocol.DepsResu
 	for i := range results {
 		r := &results[i]
 		fmt.Fprintf(b, "# %s\n", r.Package)
-		if len(r.Dependencies) > 0 {
-			fmt.Fprintf(b, "imports (%d):\n", len(r.Dependencies))
-			for _, d := range r.Dependencies {
-				fmt.Fprintf(b, "  %s (%d files)\n", d.Package, d.FileCount)
-			}
-		}
-		if len(r.Dependents) > 0 {
-			fmt.Fprintf(b, "imported by (%d):\n", len(r.Dependents))
-			for _, d := range r.Dependents {
-				fmt.Fprintf(b, "  %s (%d files)\n", d.Package, d.FileCount)
-			}
-		}
+		writeDepList(b, "imports", r.Dependencies)
+		writeDepList(b, "imported by", r.Dependents)
 		if len(r.Cycles) > 0 {
 			b.WriteString("! cycles:\n")
 			for _, c := range r.Cycles {
@@ -576,6 +640,21 @@ func (w *Writer) writeClaudeDeps(b *strings.Builder, results []protocol.DepsResu
 		}
 	}
 	w.writeClaudeMeta(b, meta)
+}
+
+// writeDepList renders one of deps' package lists, capped like any list.
+func writeDepList(b *strings.Builder, label string, deps []protocol.DepRef) {
+	if len(deps) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "%s (%d):\n", label, len(deps))
+	shown := textCap("deps", len(deps))
+	for _, d := range deps[:shown] {
+		fmt.Fprintf(b, "  %s (%d files)\n", d.Package, d.FileCount)
+	}
+	if shown < len(deps) {
+		fmt.Fprintf(b, "  … %d more (--limit %d)\n", len(deps)-shown, len(deps))
+	}
 }
 
 func (w *Writer) writeClaudeTypes(b *strings.Builder, results []protocol.TypesResult, meta protocol.Meta) {

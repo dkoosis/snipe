@@ -145,6 +145,14 @@ func (g *Globals) AfterApply() error {
 	// Wire suggestion opt-in into output package
 	output.SetShowSuggestions(showSuggestions)
 
+	// An explicit --limit prints every result it asked for; without one, a
+	// list's default text stops at the cap with an "… N more" line.
+	if flagPassed("limit") {
+		output.SetListCap(0)
+	} else {
+		output.SetListCap(output.DefaultListCap)
+	}
+
 	return nil
 }
 

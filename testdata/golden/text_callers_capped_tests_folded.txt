@@ -1,0 +1,34 @@
+17 results
+# caller0 [0000000000000000]
+cmd/root.go:10 | func
+  func caller0() error
+
+# caller1 [0000000000000001]
+cmd/root.go:11 | func
+  func caller1() error
+
+# caller2 [0000000000000002]
+cmd/root.go:12 | func
+  func caller2() error
+
+# caller3 [0000000000000003]
+cmd/root.go:13 | func
+  func caller3() error
+
+# caller4 [0000000000000004]
+cmd/root.go:14 | func
+  func caller4() error
+
+# caller5 [0000000000000005]
+cmd/root.go:15 | func
+  func caller5() error
+
+# caller6 [0000000000000006]
+cmd/root.go:16 | func
+  func caller6() error
+
+# caller7 [0000000000000007]
+cmd/root.go:17 | func
+  func caller7() error
+
+… 9 more, 5 in _test.go files (--limit 17)

@@ -1,0 +1,4 @@
+# The root help's Index note exempts only plain search (no --lits, --trace, --semantic).
+cd $FIXTURE
+exec snipe --help
+stdout 'Index: +every command except plain search \(no --lits, --trace, --semantic\) needs one'
