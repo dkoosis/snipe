@@ -132,10 +132,10 @@ eval-setup: ## Clone and index benchmark repos
 			echo "$$name: already cloned"; \
 		else \
 			echo "$$name: cloning..."; \
-			git clone --depth=1 "$$url" ".eval-repos/$$name"; \
+			git clone --depth=1 "$$url" ".eval-repos/$$name" || exit 1; \
 		fi; \
 		echo "$$name: indexing..."; \
-		snipe index "$$(cd .eval-repos/$$name && pwd)" --enrich=false --embed-mode=off; \
+		snipe index "$$(cd .eval-repos/$$name && pwd)" --enrich=false --embed-mode=off || exit 1; \
 	done
 
 eval: ## Run localization benchmark

@@ -28,7 +28,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
       - name: eval-setup
-        run: make eval-setup
+        run: |
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          make eval-setup
 
       - name: eval
         run: make eval
