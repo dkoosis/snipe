@@ -1,0 +1,18 @@
+# The hidden aliases are gone (sn-lvub.8): each old verb exits 2 with kong's unknown-command error.
+cd $FIXTURE
+! exec snipe orient x
+stderr 'unexpected argument orient'
+! exec snipe show x
+stderr 'unexpected argument show'
+! exec snipe sym x
+stderr 'unexpected argument sym'
+! exec snipe explain x
+stderr 'unexpected argument explain'
+! exec snipe lits x
+stderr 'unexpected argument lits'
+! exec snipe trace x
+stderr 'unexpected argument trace'
+! exec snipe importers x
+stderr 'unexpected argument importers'
+! exec snipe imports x
+stderr 'unexpected argument imports'

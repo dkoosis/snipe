@@ -6,7 +6,7 @@ Scope: every git repo under `~/projects/dk/` plus skills and rules under `~/nugb
 
 Method: `rg -n -e '"snipe"' -e 'snipe <verb>\b'` over `*.{go,md,sh,yaml,yml,json}`, then one row per (file:line, verb). Flags and format are read from the same line; `concise (default)` means the line names no `--format`. Go test files that only fake snipe (sdlc `risk_test.go`, ferret fixtures) and ferret's transcript classifiers (`internal/event`, `internal/reach`, `internal/analyst`) name snipe as data, not as an invocation, so they have no row. Nugbase skills and rules hold no verb call.
 
-Replacement column: the command each row runs under the verb set dk ratified on sn-zvoz (2026-10-18, decision nug 67785da834ca; evidence: axbench baseline, `bench/ax/results/2026-10-18T0022`). `unchanged` means the verb survives as is. A changed row keeps working through a hidden alias until its caller migrates (sn-lvub.8).
+Replacement column: the command each row runs under the verb set dk ratified on sn-zvoz (2026-10-18, decision nug 67785da834ca; evidence: axbench baseline, `bench/ax/results/2026-10-18T0022`). `unchanged` means the verb survives as is. The hidden aliases were removed 2026-11-06 (sn-lvub.8).
 
 Kinds: hook, shell script, Go exec, agent prompt (agents and linters), skill, rule, doc. A `doc` or `rule` row is prose that tells a reader to run the verb; a hook or script row runs it.
 
@@ -539,10 +539,6 @@ The Find verb landed (sn-lvub.6, #295), so the `lits`, `trace` and `sim` query-f
 | sdlc | none | no row |
 | snipe | https://github.com/dkoosis/snipe/pull/297 | this record |
 
-Still not migrated:
+Every caller is migrated: lintbrush #19 fixed `linters/solid.md` and the bug-audit verb table (sn-mg5u). The remaining prose naming `snipe sim` in fo `docs/feedback/review/sim-pair-repo.md:10,45` is `sim --pairs`, which stays. Every caller PR is merged (gh pr view, 2026-11-06): cc-plugins #435 and #438, fo #324, lintbrush #9 and #19, snipe #294.
 
-- lintbrush `linters/solid.md:58` (`sym --kind=interface`): no verb has `--kind`; filed as sn-mg5u.
-- fo `docs/feedback/review/sim-pair-repo.md:10,45`: prose naming `snipe sim` as the pairs primitive (same package, callee overlap). That is `sim --pairs`, which stays.
-- cc-plugins `go-bug-audit/skills/bug-audit/SKILL.md:60-66`: a verb table that lists `explain`, `importers`, `imports` and `sim`; the census has no row for it.
-
-Alias removal waits on the two callers still listed: lintbrush `linters/solid.md:58` (sn-mg5u) and the cc-plugins bug-audit verb table. Every caller PR is merged: cc-plugins #435 and #438, fo #324, lintbrush #9, snipe #294 (gh pr view, 2026-11-05).
+Hidden aliases removed 2026-11-06 (sn-lvub.8): `snipe orient|show|sym|explain|lits|trace|importers|imports` exit 2 with kong's unknown-command error.

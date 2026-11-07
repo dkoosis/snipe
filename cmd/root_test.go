@@ -119,11 +119,6 @@ func TestRoot_IsKnownSubcommandOrFlag_ReturnsExpectedValue_When_InputVaries(t *t
 			want: true,
 		},
 		{
-			name: "orient is known without manual registration",
-			arg:  "orient",
-			want: true,
-		},
-		{
 			name: "help is known",
 			arg:  "help",
 			want: true,

@@ -486,7 +486,7 @@ func TestMissingArgument_IsInvalidArgs(t *testing.T) {
 
 	commands := []string{
 		"def", "refs", "callers", "callees", "impact", "tests", "impl", "types",
-		"sym", "pack", "explain", "lifecycle", "boundary", "sim",
+		"pack", "lifecycle", "boundary", "sim",
 	}
 	for _, name := range commands {
 		t.Run(name, func(t *testing.T) {

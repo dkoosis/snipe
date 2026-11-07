@@ -57,17 +57,6 @@ func (c *ContextCmd) Run() error {
 	return runContext(argsOf(c.Path))
 }
 
-// OrientCmd is a hidden alias of `context --out`.
-type OrientCmd struct {
-	Out string `help:"Output directory (created if missing)"`
-}
-
-func (c *OrientCmd) Run() error {
-	aliasNudge(os.Stderr, "orient", "context --out")
-	ctx := ContextCmd{Out: c.Out, KeySymbols: 15}
-	return ctx.Run()
-}
-
 // --- Navigate ---
 
 type DefCmd struct {
@@ -174,17 +163,6 @@ func (c *ImpactCmd) Run() error {
 
 // --- Read ---
 
-// ShowCmd is a hidden alias of `def <id>`: def already resolves a 16-char hex id.
-type ShowCmd struct {
-	ID string `arg:"" help:"Symbol ID"`
-}
-
-func (c *ShowCmd) Run() error {
-	aliasNudge(os.Stderr, "show", "def")
-	def := DefCmd{Symbol: c.ID}
-	return def.Run()
-}
-
 // Pack depths: each step adds to the one before (sn-zvoz, nug 67785da834ca).
 const (
 	packDepthSym     = "sym"
@@ -278,43 +256,6 @@ func limitOr(p *int, def int) int {
 	return def
 }
 
-// SymCmd is a hidden alias of `pack --depth sym`.
-type SymCmd struct {
-	Symbol string `arg:"" optional:"" help:"Symbol name"`
-
-	At           string `help:"Position to look up (file:line:col)"`
-	RefsLimit    *int   `name:"refs-limit" help:"Maximum references to return (default 20)"`
-	CallersLimit *int   `name:"callers-limit" help:"Maximum callers to return (default 10)"`
-	CalleesLimit *int   `name:"callees-limit" help:"Maximum callees to return (default 10)"`
-}
-
-func (c *SymCmd) Run() error {
-	aliasNudge(os.Stderr, "sym", "pack --depth sym")
-	pack := PackCmd{
-		Symbols: argsOf(c.Symbol), Depth: packDepthSym, At: c.At,
-		RefsLimit: c.RefsLimit, CallersLimit: c.CallersLimit, CalleesLimit: c.CalleesLimit,
-	}
-	return pack.Run()
-}
-
-// ExplainCmd is a hidden alias of `pack --depth explain`.
-type ExplainCmd struct {
-	Symbol string `arg:"" optional:"" help:"Symbol name"`
-
-	Mode     string `default:"normal" enum:"brief,normal,deep" help:"Analysis depth: brief, normal, deep"`
-	Warnings string `default:"fast" enum:"none,fast,full" help:"Warning level: none, fast, full"`
-	At       string `help:"Position to explain (file:line:col)"`
-}
-
-func (c *ExplainCmd) Run() error {
-	aliasNudge(os.Stderr, "explain", "pack --depth explain")
-	pack := PackCmd{
-		Symbols: argsOf(c.Symbol), Depth: packDepthExplain, At: c.At,
-		Mode: &c.Mode, Warnings: &c.Warnings,
-	}
-	return pack.Run()
-}
-
 type PkgCmd struct {
 	Name string `arg:"" help:"Package name"`
 
@@ -368,28 +309,6 @@ func (c *SearchCmd) Run() error {
 	return runSearch([]string{c.Pattern})
 }
 
-// LitsCmd is a hidden alias of `search --lits`.
-type LitsCmd struct {
-	Value string `arg:"" help:"String literal or env var name"`
-}
-
-func (c *LitsCmd) Run() error {
-	aliasNudge(os.Stderr, cmdNameLits, "search --lits")
-	search := SearchCmd{Pattern: c.Value, Lits: true}
-	return search.Run()
-}
-
-// TraceCmd is a hidden alias of `search --trace`.
-type TraceCmd struct {
-	Value string `arg:"" help:"String literal value"`
-}
-
-func (c *TraceCmd) Run() error {
-	aliasNudge(os.Stderr, cmdNameTrace, "search --trace")
-	search := SearchCmd{Pattern: c.Value, Trace: true}
-	return search.Run()
-}
-
 // --- Graph & Structure ---
 
 // DepsCmd is the one Structure verb for import edges (sn-zvoz, nug
@@ -424,28 +343,6 @@ func (c *DepsCmd) Run() error {
 	}
 	depsTreeFlag = c.Tree
 	return runDeps(argsOf(c.Package))
-}
-
-// ImportersCmd is a hidden alias of `deps --importers`.
-type ImportersCmd struct {
-	Package string `arg:"" help:"Package path"`
-}
-
-func (c *ImportersCmd) Run() error {
-	aliasNudge(os.Stderr, cmdNameImporters, "deps --importers")
-	deps := DepsCmd{Importers: &c.Package}
-	return deps.Run()
-}
-
-// ImportsCmd is a hidden alias of `deps --file`.
-type ImportsCmd struct {
-	File string `arg:"" help:"File path"`
-}
-
-func (c *ImportsCmd) Run() error {
-	aliasNudge(os.Stderr, cmdNameImports, "deps --file")
-	deps := DepsCmd{File: &c.File}
-	return deps.Run()
 }
 
 type TypesCmd struct {

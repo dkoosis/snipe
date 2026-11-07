@@ -274,7 +274,7 @@ func TestSym(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
 
-	stdout, _, _ := run(t, repoDir, "sym", "Callee")
+	stdout, _, _ := run(t, repoDir, "pack", "--depth", "sym", "Callee")
 	resp := assertEnvelope(t, stdout, "sym")
 	results := requireSlice(t, resp["results"], "results")
 	if len(results) == 0 {
@@ -304,11 +304,8 @@ func TestShow(t *testing.T) {
 
 	t.Run("valid_id", func(t *testing.T) {
 		id := firstResultID(t, repoDir, "Callee")
-		stdout, stderr, _ := run(t, repoDir, "show", id)
+		stdout, _, _ := run(t, repoDir, "def", id)
 		resp := assertEnvelope(t, stdout, "def")
-		if got := strings.Count(string(stderr), "snipe: 'show' is now 'def'"); got != 1 {
-			t.Fatalf("expected one alias nudge on stderr, got %d: %s", got, stderr)
-		}
 		if !getBool(t, resp["ok"], "ok") {
 			t.Fatalf("expected ok true")
 		}
@@ -319,7 +316,7 @@ func TestShow(t *testing.T) {
 	})
 
 	t.Run("invalid_id", func(t *testing.T) {
-		stdout, _, _ := run(t, repoDir, "show", "1234abcd")
+		stdout, _, _ := run(t, repoDir, "def", "1234abcd")
 		resp := assertEnvelope(t, stdout, "def")
 		if getBool(t, resp["ok"], "ok") {
 			t.Fatalf("expected ok false")
@@ -497,7 +494,7 @@ func TestImpl(t *testing.T) {
 func TestImporters(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
-	stdout, _, _ := run(t, repoDir, "importers", "example.com/fixture/greet")
+	stdout, _, _ := run(t, repoDir, "deps", "--importers", "example.com/fixture/greet")
 	resp := assertEnvelope(t, stdout, "importers")
 	if !getBool(t, resp["ok"], "ok") {
 		t.Fatalf("expected ok true")
@@ -514,7 +511,7 @@ func TestImports(t *testing.T) {
 	indexRepo(t, repoDir)
 
 	t.Run("known_file", func(t *testing.T) {
-		stdout, _, _ := run(t, repoDir, "imports", paths["main"])
+		stdout, _, _ := run(t, repoDir, "deps", "--file", paths["main"])
 		resp := assertEnvelope(t, stdout, "imports")
 		if !getBool(t, resp["ok"], "ok") {
 			t.Fatalf("expected ok true")
@@ -540,7 +537,7 @@ func TestImports(t *testing.T) {
 	})
 
 	t.Run("unknown_file", func(t *testing.T) {
-		stdout, _, _ := run(t, repoDir, "imports", "missing.go")
+		stdout, _, _ := run(t, repoDir, "deps", "--file", "missing.go")
 		resp := assertEnvelope(t, stdout, "imports")
 		if getBool(t, resp["ok"], "ok") {
 			results := requireSlice(t, resp["results"], "results")
@@ -636,7 +633,7 @@ func TestTypes(t *testing.T) {
 func TestExplain(t *testing.T) {
 	repoDir, _ := writeFixture(t)
 	indexRepo(t, repoDir)
-	stdout, _, _ := run(t, repoDir, "explain", "CallMany")
+	stdout, _, _ := run(t, repoDir, "pack", "--depth", "explain", "CallMany")
 	resp := assertEnvelope(t, stdout, "explain")
 	if !getBool(t, resp["ok"], "ok") {
 		t.Fatalf("expected ok true")

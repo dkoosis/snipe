@@ -9,27 +9,6 @@ import (
 	"github.com/dkoosis/snipe/internal/store"
 )
 
-func TestLitsCmd_Registered(t *testing.T) {
-	parser := newTestParser(t)
-	for _, n := range parser.Model.Children {
-		if n.Name == "lits" {
-			return
-		}
-	}
-	t.Error("lits command not registered")
-}
-
-func TestLitsCommand_RequiresExactlyOneArgument(t *testing.T) {
-	_, _, err := runCLI(t, "lits")
-	if err == nil {
-		t.Fatal("expected error when lits is called without required argument")
-	}
-	// kong reports a missing required positional as: expected "<value>"
-	if !strings.Contains(err.Error(), "value") {
-		t.Fatalf("err = %q, want it to mention the missing value argument", err.Error())
-	}
-}
-
 func TestLitsCommand_ReturnsMissingIndexError_WhenIndexDoesNotExist(t *testing.T) {
 	t.Chdir(t.TempDir())
 

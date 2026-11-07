@@ -1,0 +1,15 @@
+# pack --depth explain (purpose, mechanism, callers).
+# Proves: `pack --depth explain Run` renders the purpose and mechanism sections
+# and names a call, in concise and json; --mode and --warnings reach it.
+cd $FIXTURE
+exec snipe pack --depth explain Run
+stdout 'purpose:'
+stdout 'mechanism:'
+stdout 'calls Greet'
+! stderr .
+
+exec snipe pack --depth explain Run --format json
+stdout '"results"'
+
+exec snipe pack --depth explain Run --mode brief --warnings none
+stdout 'purpose:'

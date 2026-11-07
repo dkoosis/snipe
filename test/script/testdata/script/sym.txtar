@@ -1,28 +1,20 @@
-# sym — hidden alias of pack --depth sym (def+refs+callers+callees, no package context).
-# Proves: `sym Greet` renders the definition, prints one stderr nudge, and its
-# stdout equals `pack --depth sym Greet` in concise and json.
+# pack --depth sym (def+refs+callers+callees, no package context).
+# Proves: `pack --depth sym Greet` renders the definition in concise and json,
+# --refs-limit narrows it, and a bare symbol routes to the same output.
 cd $FIXTURE
-exec snipe sym Greet
+exec snipe pack --depth sym Greet
 stdout '# Greet'
 stdout 'func Greet\(\) string'
-stderr -count=1 'snipe: ''sym'' is now ''pack --depth sym'''
-cp stdout $WORK/old.txt
-exec snipe pack --depth sym Greet
-cmp stdout $WORK/old.txt
 ! stderr .
+cp stdout $WORK/sym.txt
 
-exec snipe sym Greet --format json
-cp stdout $WORK/old.json
 exec snipe pack --depth sym Greet --format json
-cmpjson stdout $WORK/old.json
+stdout '"results"'
 
-# Old limit flags still map: --refs-limit narrows the alias and the new form alike.
-exec snipe sym Greet --refs-limit 1
-cp stdout $WORK/old1.txt
 exec snipe pack --depth sym Greet --refs-limit 1
-cmp stdout $WORK/old1.txt
+stdout '# Greet'
 
 # A bare symbol routes to pack --depth sym with no nudge.
 exec snipe Greet
-cmp stdout $WORK/old.txt
+cmp stdout $WORK/sym.txt
 ! stderr .

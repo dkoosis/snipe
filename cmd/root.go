@@ -176,6 +176,13 @@ func flagPassed(name string) bool {
 // "snipe pack --depth sym X". Derived from the kong grammar at Parse time.
 var knownSubcommandNames = map[string]bool{}
 
+// removedVerbs are the retired hidden aliases (sn-lvub.8). Naming one is a
+// usage error, not a symbol to look up, so the bare-symbol fallback skips them.
+var removedVerbs = map[string]bool{
+	"orient": true, "show": true, "sym": true, "explain": true,
+	"lits": true, "trace": true, "importers": true, "imports": true,
+}
+
 // isKnownSubcommandOrFlag checks if arg is a subcommand or flag.
 func isKnownSubcommandOrFlag(arg string) bool {
 	// Flags start with -
@@ -267,7 +274,7 @@ func Execute() {
 	}
 
 	// Bare-symbol fallback: "snipe Store" -> "snipe pack --depth sym Store".
-	if len(args) > 0 && !isKnownSubcommandOrFlag(args[0]) {
+	if len(args) > 0 && !isKnownSubcommandOrFlag(args[0]) && !removedVerbs[args[0]] {
 		args = append([]string{cmdNamePack, "--depth", packDepthSym}, args...)
 	}
 
