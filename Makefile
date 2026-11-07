@@ -123,19 +123,22 @@ baseline: ## Capture performance/quality metrics
 bench: ## Run Go benchmarks
 	go test -bench=. -benchmem ./test/bench/
 
-eval-setup: ## Clone and index benchmark repos
+# Bump the four SHAs together, then re-run `make eval` (benchmark.yaml and the floors were measured on them).
+eval-setup: ## Clone and index benchmark repos, each pinned to a commit
 	@go install . && \
 	mkdir -p .eval-repos && \
-	for repo in "chi:https://github.com/go-chi/chi" "cobra:https://github.com/spf13/cobra" "bbolt:https://github.com/etcd-io/bbolt" "fzf:https://github.com/junegunn/fzf"; do \
-		name=$${repo%%:*}; url=$${repo#*:}; \
+	for repo in "chi:https://github.com/go-chi/chi@9f8adb1aabaa8a91180a821111d3f8e668d1c0bf" "cobra:https://github.com/spf13/cobra@adbc8813901bba65827259daa8e22ff94ec1f30e" "bbolt:https://github.com/etcd-io/bbolt@da9d57a74ae81821605f402975b22d28d95a2b7e" "fzf:https://github.com/junegunn/fzf@96028e2a54023a8ff8240e985ae9c8e4f25c0089"; do \
+		name=$${repo%%:*}; spec=$${repo#*:}; url=$${spec%@*}; sha=$${spec#*@}; \
 		if [ -d ".eval-repos/$$name" ]; then \
 			echo "$$name: already cloned"; \
 		else \
 			echo "$$name: cloning..."; \
-			git clone --depth=1 "$$url" ".eval-repos/$$name"; \
+			git init -q ".eval-repos/$$name" && \
+			git -C ".eval-repos/$$name" fetch -q --depth=1 "$$url" "$$sha" && \
+			git -C ".eval-repos/$$name" checkout -q FETCH_HEAD || exit 1; \
 		fi; \
 		echo "$$name: indexing..."; \
-		snipe index "$$(cd .eval-repos/$$name && pwd)" --enrich=false --embed-mode=off; \
+		snipe index "$$(cd .eval-repos/$$name && pwd)" --enrich=false --embed-mode=off || exit 1; \
 	done
 
 eval: ## Run localization benchmark
