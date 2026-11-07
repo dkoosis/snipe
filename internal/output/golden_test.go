@@ -1,8 +1,10 @@
 package output
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -263,6 +265,95 @@ func TestGoldenStaleIndexOutput(t *testing.T) {
 	}
 
 	testGolden(t, goldenStaleIndexOutput, resp)
+}
+
+// callerResults returns nCode callers from code files, then nTest from
+// _test.go files, interleaved so the writer's split is what orders them.
+func callerResults(nCode, nTest int) []protocol.Result {
+	var rs []protocol.Result
+	for i := range max(nCode, nTest) {
+		if i < nTest {
+			rs = append(rs, protocol.Result{
+				ID: fmt.Sprintf("%016x", 100+i), Name: fmt.Sprintf("TestCase%d", i), Kind: "func",
+				File: "store/store_test.go", Range: protocol.Range{Start: protocol.Position{Line: 10 + i}},
+				Match: fmt.Sprintf("func TestCase%d(t *testing.T)", i),
+			})
+		}
+		if i < nCode {
+			rs = append(rs, protocol.Result{
+				ID: fmt.Sprintf("%016x", i), Name: fmt.Sprintf("caller%d", i), Kind: "func",
+				File: "cmd/root.go", Range: protocol.Range{Start: protocol.Position{Line: 10 + i}},
+				Match: fmt.Sprintf("func caller%d() error", i),
+			})
+		}
+	}
+	return rs
+}
+
+// TestGoldenText_ListCap pins the default text of a list (sn-lvub.13): the
+// cap line, code results before _test.go results, the empty state, and no
+// `! noembed` on verbs that never read embeddings.
+func TestGoldenText_ListCap(t *testing.T) {
+	cases := []struct {
+		name          string
+		command       string
+		nCode, nTest  int
+		limitExplicit bool
+	}{
+		{"callers_capped_tests_folded", "callers", 12, 5, false},
+		{"callers_tests_split_capped", "callers", 3, 9, false},
+		{"callers_tests_split", "callers", 2, 2, false},
+		{"callers_limit_shows_all", "callers", 9, 2, true},
+		{"refs_empty", "refs", 0, 0, false},
+		{"def_uncapped", "def", 10, 0, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.limitExplicit {
+				SetListCap(0)
+				t.Cleanup(func() { SetListCap(DefaultListCap) })
+			}
+			results := callerResults(tc.nCode, tc.nTest)
+			resp := protocol.Response[protocol.Result]{
+				Protocol: protocol.ProtocolVersion,
+				Ok:       true,
+				Results:  results,
+				Meta: protocol.Meta{
+					Command:    tc.command,
+					Query:      map[string]string{"symbol": "Open"},
+					IndexState: protocol.IndexFresh,
+					Total:      len(results),
+					Limit:      50,
+				},
+			}
+			var buf bytes.Buffer
+			w := NewWriter(&buf, OutputClaude)
+			w.SetEmbedMissing(true)
+			if err := w.WriteResponse(resp); err != nil {
+				t.Fatalf("WriteResponse: %v", err)
+			}
+			testGoldenText(t, "text_"+tc.name+".txt", buf.String())
+		})
+	}
+}
+
+// testGoldenText compares rendered text against a golden file.
+func testGoldenText(t *testing.T, filename, got string) {
+	t.Helper()
+	goldenPath := filepath.Join(goldenDir, filename)
+	if *update {
+		if err := os.WriteFile(goldenPath, []byte(got), 0o644); err != nil {
+			t.Fatalf("Failed to update golden file: %v", err)
+		}
+		return
+	}
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden %s: %v (run with -update to create it)", goldenPath, err)
+	}
+	if got != string(want) {
+		t.Errorf("text does not match %s\n\nGot:\n%s\nWant:\n%s", filename, got, want)
+	}
 }
 
 // testGolden compares a response against a golden file

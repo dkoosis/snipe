@@ -4,4 +4,4 @@
 # text surface: the command runs and renders its no-coverage sentinel, exit 0.
 cd $FIXTURE
 exec snipe tests Greet
-stdout 'No results'
+stdout '^0 results for "Greet"$'
