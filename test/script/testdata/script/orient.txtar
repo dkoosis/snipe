@@ -1,9 +1,0 @@
-# orient — hidden alias of context --out; prints one stderr nudge, then runs it.
-# Proves: the bundle is written, the nudge appears once on stderr, stdout is the new command's.
-cd $FIXTURE
-exec snipe orient --out $WORK/obundle
-stdout 'orient bundle · \d+ files'
-stderr -count=1 'snipe: ''orient'' is now ''context --out'''
-exists $WORK/obundle/manifest.json
-exec snipe context --out $WORK/cbundle
-exists $WORK/cbundle/manifest.json

@@ -2,3 +2,8 @@
 # Proves: the command prints a version line and exits 0.
 exec snipe version
 stdout 'snipe version'
+
+# version --json lists no retired verb and does list deps.
+exec snipe version --json
+! stdout '"(explain|sym|imports|importers)"'
+stdout '"deps"'

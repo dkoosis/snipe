@@ -23,7 +23,7 @@ Use snipe to answer these questions about the codebase:
 Answer these as if a developer asked you. Use snipe commands, and note when you had to supplement with other tools.
 
 4. "Who implements the most important interface in this codebase?" Use `snipe impl`. Did it find the right types?
-5. "What does [pick a non-trivial function with 50+ lines] actually do?" Use `snipe explain`, then `snipe pack`. Which gave you more useful information? What was missing?
+5. "What does [pick a non-trivial function with 50+ lines] actually do?" Use `snipe pack --depth explain`, then `snipe pack`. Which gave you more useful information? What was missing?
 6. "I want to understand the data flow from [entry point] to [storage/output]." Trace it using `snipe callees` iteratively. How far did you get before you needed to read source?
 7. "What would break if I changed the signature of [pick a widely-referenced type or function]?" Use `snipe refs` and `snipe callers` to assess blast radius.
 
@@ -38,10 +38,10 @@ Answer these as if a developer asked you. Use snipe commands, and note when you 
 
 ### Phase 4: Advanced Features (5 min)
 
-9. Use `snipe show <hex-id>` to recall a symbol you looked at earlier. Was the ID easy to grab from previous output?
+9. Use `snipe def <hex-id>` to recall a symbol you looked at earlier. Was the ID easy to grab from previous output?
 10. Use `snipe search` for a string pattern. Compare the experience to `rg`. What did snipe add (or lose)?
 11. Try `snipe types <type-name>` on a struct. Was the output useful?
-12. Try `snipe importers <package>` to understand package dependencies.
+12. Try `snipe deps --importers <package>` to understand package dependencies.
 
 ### Phase 5: Friction Report
 

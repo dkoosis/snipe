@@ -268,7 +268,7 @@ func TestShow_ByID_ReturnsExpandedContext_When_UsingPriorResultID(t *testing.T) 
 	first := requireMap(t, results[0], "results[0]")
 	id := getString(t, first["id"], "id")
 
-	stdout, stderr, exitCode := run(t, repoDir, "show", id)
+	stdout, stderr, exitCode := run(t, repoDir, "def", id)
 	if exitCode != 0 {
 		t.Fatalf("show exit %d stderr=%s", exitCode, string(stderr))
 	}

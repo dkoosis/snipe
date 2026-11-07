@@ -19,8 +19,8 @@ var versionJSON bool
 // Hardcoded for stability.
 var Features = []string{
 	cmdNameDef, cmdNameRefs, cmdNameCallers, cmdNameCallees, cmdNameSearch,
-	"context", cmdNameExplain, cmdNameSym, cmdNameIndex,
-	cmdNameSim, cmdNameTypes, cmdNameImpl, cmdNameImports, cmdNameImporters,
+	"context", cmdNameIndex,
+	cmdNameSim, cmdNameTypes, cmdNameImpl, cmdNameDeps,
 	cmdNamePkg, cmdNameEdit, cmdNamePack,
 }
 

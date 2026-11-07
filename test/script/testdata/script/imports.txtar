@@ -1,23 +1,13 @@
-# imports — hidden alias of deps --file (packages a file imports).
-# Proves: `deps --file main.go` lists the packages main.go imports; `imports
-# main.go` prints one stderr nudge and its stdout equals the new form in
-# concise and json.
+# deps --file (packages a file imports).
+# Proves: `deps --file main.go` lists the packages main.go imports, in concise and json.
 cd $FIXTURE
 exec snipe deps --file main.go
 stdout 'example\.com/fixture/alpha'
 stdout 'main\.go:4 \| import'
 ! stderr .
-cp stdout $WORK/new.txt
 
-exec snipe imports main.go
-stderr -count=1 'snipe: ''imports'' is now ''deps --file'''
-cmp stdout $WORK/new.txt
-
-exec snipe imports main.go --format json
-cp stdout $WORK/old.json
 exec snipe deps --file main.go --format json
-cmpjson stdout $WORK/old.json
-! stderr .
+stdout '"results"'
 
 # --importers and --file answer different questions; asking both is an error.
 ! exec snipe deps --importers example.com/fixture/alpha --file main.go

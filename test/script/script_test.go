@@ -421,6 +421,14 @@ func TestExitCodeContract(t *testing.T) {
 		{"valid empty (no callers)", []string{"callers", "Orphan"}, 0},
 		{"symbol not found", []string{"def", "ZZZNotARealSymbol"}, 1},
 		{"unknown bare command", []string{"frobnicatezzz"}, 1},
+		{"retired alias orient", []string{"orient", "x"}, 2},
+		{"retired alias show", []string{"show", "x"}, 2},
+		{"retired alias sym", []string{"sym", "x"}, 2},
+		{"retired alias explain", []string{"explain", "x"}, 2},
+		{"retired alias lits", []string{"lits", "x"}, 2},
+		{"retired alias trace", []string{"trace", "x"}, 2},
+		{"retired alias importers", []string{"importers", "x"}, 2},
+		{"retired alias imports", []string{"imports", "x"}, 2},
 		{"bad flag", []string{"def", "--definitely-not-a-flag"}, 2},
 		// Usage errors found in Run, not by kong, still exit 2.
 		{"pack depth arity", []string{"pack", "--depth", "sym", "Greet", "Run"}, 2},
@@ -486,7 +494,7 @@ func TestMissingArgument_IsInvalidArgs(t *testing.T) {
 
 	commands := []string{
 		"def", "refs", "callers", "callees", "impact", "tests", "impl", "types",
-		"sym", "pack", "explain", "lifecycle", "boundary", "sim",
+		"pack", "lifecycle", "boundary", "sim",
 	}
 	for _, name := range commands {
 		t.Run(name, func(t *testing.T) {

@@ -13,7 +13,6 @@ type CLI struct {
 	Globals
 
 	Context ContextCmd `cmd:"" group:"Orient:" help:"Start here — repo map: entry points, flows, boundaries"`
-	Orient  OrientCmd  `cmd:"" hidden:"" help:"Alias of context --out"`
 
 	Def     DefCmd     `cmd:"" group:"Navigate:" help:"Where a symbol is defined"`
 	Refs    RefsCmd    `cmd:"" group:"Navigate:" help:"Every reference to a symbol"`
@@ -23,15 +22,10 @@ type CLI struct {
 	Tests   TestsCmd   `cmd:"" group:"Navigate:" help:"Tests that exercise a symbol"`
 
 	// Read: each step adds to the one before (def < pack --depth sym < pack < pack --depth explain).
-	Show    ShowCmd    `cmd:"" hidden:"" help:"Alias of def <id>"`
-	Sym     SymCmd     `cmd:"" hidden:"" help:"Alias of pack --depth sym"`
-	Pack    PackCmd    `cmd:"" group:"Read:" help:"def + refs, callers, callees, package role; --depth sym|pack|explain"`
-	Explain ExplainCmd `cmd:"" hidden:"" help:"Alias of pack --depth explain"`
-	Pkg     PkgCmd     `cmd:"" group:"Read:" help:"Package overview and exported symbols"`
+	Pack PackCmd `cmd:"" group:"Read:" help:"def + refs, callers, callees, package role; --depth sym|pack|explain"`
+	Pkg  PkgCmd  `cmd:"" group:"Read:" help:"Package overview and exported symbols"`
 
 	Search SearchCmd `cmd:"" group:"Find:" help:"Text search via ripgrep (no index needed); --lits literal or env var, --trace literal with call context, --semantic by meaning"`
-	Lits   LitsCmd   `cmd:"" hidden:"" help:"Alias of search --lits"`
-	Trace  TraceCmd  `cmd:"" hidden:"" help:"Alias of search --trace"`
 	Sim    SimCmd    `cmd:"" group:"Find:" help:"Near-duplicate symbol pairs: --pairs --within-pkg (needs embeddings)"`
 
 	// Change: symbol-scoped first, then diff-scoped, then file-scoped.
@@ -44,8 +38,6 @@ type CLI struct {
 	Guard     GuardCmd     `cmd:"" group:"Change:" help:"Check architecture rules; exit non-zero on violation"`
 
 	Deps      DepsCmd      `cmd:"" group:"Structure:" help:"Package dependency graph; --importers <pkg> files that import a package; --file <f> packages a file imports"`
-	Importers ImportersCmd `cmd:"" hidden:"" help:"Alias of deps --importers"`
-	Imports   ImportsCmd   `cmd:"" hidden:"" help:"Alias of deps --file"`
 	Types     TypesCmd     `cmd:"" group:"Structure:" help:"Type relationships"`
 	Boundary  BoundaryCmd  `cmd:"" group:"Structure:" help:"Symbols whose refs cross two package sets"`
 	Lifecycle LifecycleCmd `cmd:"" group:"Structure:" help:"Functions that create, mutate, read or delete a type"`

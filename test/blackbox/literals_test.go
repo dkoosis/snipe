@@ -16,7 +16,7 @@ func TestLits_EnvVarCallSites(t *testing.T) {
 	// lits does not classify that as an env call site.
 	indexRepo(t, repoRoot)
 
-	stdout, stderr, exitCode := run(t, repoRoot, "lits", "VOYAGE_API_KEY")
+	stdout, stderr, exitCode := run(t, repoRoot, "search", "--lits", "VOYAGE_API_KEY")
 	if exitCode != 0 {
 		t.Fatalf("lits exit %d stderr=%s stdout=%s", exitCode, string(stderr), string(stdout))
 	}
