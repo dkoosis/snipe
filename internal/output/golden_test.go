@@ -299,13 +299,15 @@ func TestGoldenText_ListCap(t *testing.T) {
 		command       string
 		nCode, nTest  int
 		limitExplicit bool
+		truncated     bool
 	}{
-		{"callers_capped_tests_folded", "callers", 12, 5, false},
-		{"callers_tests_split_capped", "callers", 3, 9, false},
-		{"callers_tests_split", "callers", 2, 2, false},
-		{"callers_limit_shows_all", "callers", 9, 2, true},
-		{"refs_empty", "refs", 0, 0, false},
-		{"def_uncapped", "def", 10, 0, false},
+		{"callers_capped_tests_folded", "callers", 12, 5, false, false},
+		{"callers_tests_split_capped", "callers", 3, 9, false, false},
+		{"callers_tests_split", "callers", 2, 2, false, false},
+		{"callers_limit_shows_all", "callers", 9, 2, true, false},
+		{"refs_empty", "refs", 0, 0, false, false},
+		{"def_uncapped", "def", 10, 0, false, false},
+		{"callers_fetch_truncated", "callers", 12, 3, false, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -324,7 +326,11 @@ func TestGoldenText_ListCap(t *testing.T) {
 					IndexState: protocol.IndexFresh,
 					Total:      len(results),
 					Limit:      50,
+					Truncated:  tc.truncated,
 				},
+			}
+			if tc.truncated {
+				resp.Meta.Limit = len(results)
 			}
 			var buf bytes.Buffer
 			w := NewWriter(&buf, OutputClaude)

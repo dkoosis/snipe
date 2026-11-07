@@ -50,8 +50,9 @@ type Writer struct {
 	start  time.Time
 	// embedMissing, when set, appends `! noembed` to the meta line of Claude
 	// output — an index-global self-assessment marker stamped once at store
-	// open (see OpenStore); only verbs whose answer can depend on embeddings
-	// print it (usesEmbeddings).
+	// open (see OpenStore). Only search and sim print it: they are the verbs
+	// whose answer can depend on embeddings; the rest read the symbol and call
+	// tables alone.
 	embedMissing bool
 }
 
@@ -192,11 +193,21 @@ func (w *Writer) writeClaudeResults(b *strings.Builder, results []protocol.Resul
 	// Total can exceed the page when a verb counts past its fetch limit.
 	total := max(meta.Total, len(results))
 	if hidden := total - shownCode - shownTests; hidden > 0 {
-		fmt.Fprintf(b, "\n… %d more", hidden)
+		// A page cut at its fetch limit holds an unknown number more: the
+		// count is a floor, and the truncated line below names the lever.
+		more := fmt.Sprintf("%d more", hidden)
+		if meta.Truncated {
+			more = fmt.Sprintf("%d+ more", hidden)
+		}
+		fmt.Fprintf(b, "\n… %s", more)
 		if shownTests == 0 && len(tests) > 0 {
 			fmt.Fprintf(b, ", %d in _test.go files", len(tests))
 		}
-		fmt.Fprintf(b, " (--limit %d)\n", total)
+		if meta.Truncated {
+			b.WriteString("\n")
+		} else {
+			fmt.Fprintf(b, " (--limit %d)\n", total)
+		}
 	}
 
 	w.writeClaudeMeta(b, meta)
@@ -250,13 +261,6 @@ func textCap(command string, n int) int {
 		return n
 	}
 	return min(n, listCap)
-}
-
-// usesEmbeddings reports whether command's answer can depend on embeddings,
-// so that `! noembed` means something on it. Every other verb answers from
-// the symbol and call tables alone.
-func usesEmbeddings(command string) bool {
-	return command == "search" || command == "sim"
 }
 
 func writeResultHeader(b *strings.Builder, r *protocol.Result) {
@@ -360,7 +364,7 @@ func (w *Writer) writeClaudeMeta(b *strings.Builder, meta protocol.Meta) {
 	if len(meta.Degraded) > 0 {
 		parts = append(parts, meta.Degraded...)
 	}
-	if w.embedMissing && usesEmbeddings(meta.Command) {
+	if w.embedMissing && (meta.Command == "search" || meta.Command == "sim") {
 		parts = append(parts, protocol.DegradedNoEmbed)
 	}
 	for _, p := range parts {
