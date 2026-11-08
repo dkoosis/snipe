@@ -43,7 +43,7 @@ func writeReport(out string, stdout io.Writer) error {
 }
 
 type cell struct {
-	n, right, errs, tokens, answered int
+	n, right, errs, tokens int
 	samples                          map[string]int // per case
 	missed                           map[string]int // per case
 }
@@ -79,7 +79,6 @@ func report(rows []call) string {
 		}
 		if r.Err == "" {
 			c.tokens += r.InputTokens
-			c.answered++
 		}
 	}
 	name := func(m string) string {
@@ -102,7 +101,7 @@ func report(rows []call) string {
 			for _, s := range c.samples {
 				minS = min(minS, s)
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%d/%d\t%.0f%%\t%d\t%d\t%d\n", name(m), arm, c.right, c.n, 100*float64(c.right)/float64(c.n), c.tokens/max(c.answered, 1), minS, c.errs)
+			fmt.Fprintf(tw, "%s\t%s\t%d/%d\t%.0f%%\t%d\t%d\t%d\n", name(m), arm, c.right, c.n, 100*float64(c.right)/float64(c.n), c.tokens/max(c.n-c.errs, 1), minS, c.errs)
 		}
 	}
 	tw.Flush()
