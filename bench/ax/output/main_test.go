@@ -202,3 +202,29 @@ func TestParseClaude_RecordedReply(t *testing.T) {
 		t.Errorf("got %+v", r)
 	}
 }
+
+// A failed call bills no tokens it reports, so the mean is over answered calls
+// only; the failure still counts against accuracy.
+func TestRun_ReportMeansTokensOverAnsweredCalls(t *testing.T) {
+	dir := t.TempDir()
+	rows := `{"model":"sonnet","arm":"text","case":"a","sample":1,"correct":true,"input_tokens":1000}
+{"model":"sonnet","arm":"text","case":"a","sample":2,"correct":true,"input_tokens":1000}
+{"model":"sonnet","arm":"text","case":"a","sample":3,"input_tokens":0,"err":"claude -p: signal: killed"}
+`
+	if err := os.WriteFile(filepath.Join(dir, "calls.jsonl"), []byte(rows), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := run(t.Context(), []string{"report", dir}, &stdout, &stderr, nil); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	for line := range strings.SplitSeq(stdout.String(), "\n") {
+		if f := strings.Fields(line); len(f) == 7 && f[0] == "sonnet" {
+			if f[2] != "2/3" || f[4] != "1000" || f[6] != "1" {
+				t.Errorf("got %q, want 2/3 right, 1000 mean tokens, 1 error", line)
+			}
+			return
+		}
+	}
+	t.Errorf("no sonnet row in:\n%s", stdout.String())
+}

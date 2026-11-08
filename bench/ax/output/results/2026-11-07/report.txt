@@ -1,4 +1,4 @@
-SUMMARY — accuracy and mean input tokens per call (prompt overhead is the same in every arm)
+SUMMARY — accuracy and mean input tokens per answered call (prompt overhead is the same in every arm)
 model              arm      right  accuracy  mean input tokens  min samples/case  errors
 claude-sonnet-5-5  text     27/30  90%       1038               3                 0
 claude-sonnet-5-5  oneline  26/30  87%       1011               3                 0

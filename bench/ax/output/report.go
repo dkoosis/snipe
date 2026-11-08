@@ -43,9 +43,9 @@ func writeReport(out string, stdout io.Writer) error {
 }
 
 type cell struct {
-	n, right, errs, tokens int
-	samples                map[string]int // per case
-	missed                 map[string]int // per case
+	n, right, errs, tokens, answered int
+	samples                          map[string]int // per case
+	missed                           map[string]int // per case
 }
 
 func report(rows []call) string {
@@ -68,7 +68,6 @@ func report(rows []call) string {
 		}
 		c.n++
 		c.samples[r.Case]++
-		c.tokens += r.InputTokens
 		switch {
 		case r.Err != "":
 			c.errs++
@@ -78,6 +77,10 @@ func report(rows []call) string {
 		default:
 			c.missed[r.Case]++
 		}
+		if r.Err == "" {
+			c.tokens += r.InputTokens
+			c.answered++
+		}
 	}
 	name := func(m string) string {
 		if id := ids[m]; id != "" {
@@ -86,7 +89,7 @@ func report(rows []call) string {
 		return m
 	}
 	var b strings.Builder
-	b.WriteString("SUMMARY — accuracy and mean input tokens per call (prompt overhead is the same in every arm)\n")
+	b.WriteString("SUMMARY — accuracy and mean input tokens per answered call (prompt overhead is the same in every arm)\n")
 	tw := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "model\tarm\tright\taccuracy\tmean input tokens\tmin samples/case\terrors")
 	for _, m := range models {
@@ -99,7 +102,7 @@ func report(rows []call) string {
 			for _, s := range c.samples {
 				minS = min(minS, s)
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%d/%d\t%.0f%%\t%d\t%d\t%d\n", name(m), arm, c.right, c.n, 100*float64(c.right)/float64(c.n), c.tokens/c.n, minS, c.errs)
+			fmt.Fprintf(tw, "%s\t%s\t%d/%d\t%.0f%%\t%d\t%d\t%d\n", name(m), arm, c.right, c.n, 100*float64(c.right)/float64(c.n), c.tokens/max(c.answered, 1), minS, c.errs)
 		}
 	}
 	tw.Flush()
