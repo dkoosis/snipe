@@ -1,0 +1,12 @@
+3 results
+# lookupMethod [54ec74c4a790c234]
+internal/query/lookup.go:359-412 | func
+  func lookupMethod(db *sql.DB, name string) ([]SymbolRow, error)
+
+# lookupQualified [15d667f4dbaf1b0e]
+internal/query/lookup.go:329-357 | func
+  func lookupQualified(db *sql.DB, pkgPath string, name string) ([]SymbolRow, error)
+
+# lookupSimple [76e355f86daa5f30]
+internal/query/lookup.go:273-327 | func
+  func lookupSimple(db *sql.DB, name string) ([]SymbolRow, error)

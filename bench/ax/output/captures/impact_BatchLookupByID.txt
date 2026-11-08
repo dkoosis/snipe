@@ -1,0 +1,42 @@
+20 results
+# runCallees [3ecae1e48948e095]
+cmd/callees.go:15-220 | func
+hints: direct_caller
+  func runCallees(args []string) error
+
+# runCallers [a8a8ca184e4a5e6a]
+cmd/callers.go:15-222 | func
+hints: direct_caller
+  func runCallers(args []string) error
+
+# runDiagramFlow [060cf485e4e0ae99]
+cmd/diagram.go:344-451 | func
+hints: direct_caller
+  func runDiagramFlow(args []string) error
+
+# runImpact [277a02a1ada26b35]
+cmd/impact.go:21-390 | func
+hints: direct_caller
+  func runImpact(args []string) error
+
+# runRefs [7b73f27973dadab2]
+cmd/refs.go:25-332 | func
+hints: direct_caller
+  func runRefs(args []string) error
+
+# runTests [993a75252d02717d]
+cmd/tests.go:21-247 | func
+hints: direct_caller
+  func runTests(args []string) error
+
+# Search [61201af9f9f6b15c]
+internal/embed/search.go:34-97 | func
+hints: direct_caller, exported
+  func Search(ctx context.Context, queryText string, s *store.Store, client Embedder, limit int, threshold float32) ([]protocol.Result, time.Duration, error)
+
+# (*CalleesCmd).Run [1c1154d88e8d76a0]
+cmd/commands.go:111-114 | method
+hints: transitive_caller, exported
+  func (c *CalleesCmd) Run() error
+
+… 12 more, 5 in _test.go files (--limit 20)

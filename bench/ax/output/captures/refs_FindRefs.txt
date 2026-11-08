@@ -1,0 +1,26 @@
+11 results
+# FindRefs [3b0aa4b6924de188]
+cmd/sym.go:224 | ref
+
+# FindRefs [47c65ae8dc79da44]
+cmd/pack.go:442 | ref
+
+# FindRefs [ba33bb04927d056d]
+cmd/refs.go:132 | ref
+
+# FindRefs [c6b23a53b21eb898]
+cmd/refs.go:391 | ref
+
+# FindRefs [968f7260ca4efeb5]
+cmd/diagram.go:668 | ref
+
+# FindRefs [7e7b90e847d3981c]
+cmd/seammap.go:178 | ref
+
+# FindRefs [06243bc8e0263b19]
+cmd/lifecycle.go:128 | ref
+
+# FindRefs [3d8f3b28d1f23e55]
+cmd/datastoremap.go:176 | ref
+
+… 3 more, 2 in _test.go files (--limit 11)

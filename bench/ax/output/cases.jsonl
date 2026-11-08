@@ -1,0 +1,10 @@
+{"id":"callers-loc","args":["callers","CheckFileStaleness"],"question":"At which file and line is the caller runPkg? Answer as file:line.","accept":["cmd/pkg.go:104"]}
+{"id":"callers-count-file","args":["callers","CheckFileStaleness"],"question":"How many of the listed callers are in cmd/def.go? Answer with a number.","accept":["2"]}
+{"id":"callees-longest","args":["callees","LookupByName"],"question":"Which callee spans the most lines? Answer with its name.","accept":["lookupSimple"]}
+{"id":"refs-total","args":["refs","FindRefs"],"question":"How many references to FindRefs exist in total, counting those not shown? Answer with a number.","accept":["11"]}
+{"id":"refs-file","args":["refs","FindRefs"],"question":"How many of the shown references are in cmd/refs.go? Answer with a number.","accept":["2"]}
+{"id":"impact-id","args":["impact","BatchLookupByID"],"question":"What is the id of runImpact? Answer with the id.","accept":["277a02a1ada26b35"]}
+{"id":"impact-longest","args":["impact","BatchLookupByID"],"question":"Which listed function has the longest body in lines? Answer with its name.","accept":["runImpact"]}
+{"id":"tests-span","args":["tests","ParsePosition"],"question":"Which lines of its file does the test span? Answer as start-end.","accept":["5-96"]}
+{"id":"impl-names","args":["impl","Embedder"],"question":"Which types implement Embedder? Answer with their names, comma-separated, in the order listed.","accept":["Client, mockEmbedder","Client,mockEmbedder"]}
+{"id":"callers-sig","args":["callers","CheckFileStaleness"],"question":"Which listed caller takes a parameter named lim? Answer with its name.","accept":["runSimQuery"]}

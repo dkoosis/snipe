@@ -1,0 +1,34 @@
+28 results
+# runDef [fbae2a08b2396e2b]
+cmd/def.go:274 | func
+  func runDef(args []string) error
+
+# runDefScoped [ed024897d24576aa]
+cmd/def.go:463 | func
+  func runDefScoped(w *output.Writer, start time.Time, withBody bool, contextLines int) error
+
+# runPkg [6055c78432015e07]
+cmd/pkg.go:104 | func
+  func runPkg(args []string) error
+
+# runSimQuery [febbf75016bfff02]
+cmd/sim.go:122 | func
+  func runSimQuery(args []string, start time.Time, lim int, off int, contextLines int, withBody bool) error
+
+# runSym [4e58b5b62151a775]
+cmd/sym.go:345 | func
+  func runSym(args []string) error
+
+# runImpl [599ecf354c1c7456]
+cmd/impl.go:160 | func
+  func runImpl(args []string) error
+
+# runPack [759c776a63f60c23]
+cmd/pack.go:102 | func
+  func runPack(args []string) error
+
+# runPackMulti [d29125eda302422e]
+cmd/pack.go:165 | func
+  func runPackMulti(w *output.Writer, s *store.Store, dir string, args []string, opts packOpts, start time.Time) error
+
+… 20 more, 12 in _test.go files (--limit 28)
