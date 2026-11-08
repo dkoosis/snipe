@@ -1,0 +1,9 @@
+2 results
+# Client [b1dbb8e61227efd4]
+internal/embed/client.go:82-87 | struct
+  Client handles embedding requests to Voyage AI.
+
+1 in _test.go files
+
+# mockEmbedder [0a7c59d375874d32]
+internal/embed/search_test.go:12-15 | struct

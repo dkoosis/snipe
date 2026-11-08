@@ -1,0 +1,7 @@
+1 result
+1 in _test.go files
+
+# TestParsePosition [7f6e2b0943bc99f8]
+internal/query/position_test.go:5-96 | func
+hints: direct_test
+  func TestParsePosition(t *testing.T)
