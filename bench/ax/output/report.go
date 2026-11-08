@@ -44,8 +44,8 @@ func writeReport(out string, stdout io.Writer) error {
 
 type cell struct {
 	n, right, errs, tokens int
-	samples                          map[string]int // per case
-	missed                           map[string]int // per case
+	samples                map[string]int // per case
+	missed                 map[string]int // per case
 }
 
 func report(rows []call) string {
