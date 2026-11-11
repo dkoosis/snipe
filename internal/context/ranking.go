@@ -42,12 +42,6 @@ type RankedSymbol struct {
 	Doc       string   `json:"doc,omitempty"`
 }
 
-// CalculatePriority computes the priority score for a symbol from its structural
-// role alone. Formula: priority = (log(ref_count) + 1) * role_weight.
-func CalculatePriority(refCount int, role Role) float64 {
-	return calcPriority(refCount, effectiveWeight(role, nil))
-}
-
 // calcPriority balances reference count with a supplied architectural weight.
 // Uses log(ref_count + 1) to handle zero refs and dampen high ref counts;
 // adding 1 ensures log is never negative for ref_count >= 0.

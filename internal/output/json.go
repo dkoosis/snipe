@@ -39,10 +39,6 @@ var processErrored = false
 // ProcessErrored reports whether an error envelope was emitted this run.
 func ProcessErrored() bool { return processErrored }
 
-// ResetProcessErrored clears the error flag; for in-process tests that reuse
-// the package across cases.
-func ResetProcessErrored() { processErrored = false }
-
 // Writer handles output formatting for LLM consumers.
 type Writer struct {
 	out    io.Writer

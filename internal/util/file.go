@@ -87,13 +87,6 @@ func (fc *FileCache) evictOldest() {
 	}
 }
 
-// Clear removes all entries from the cache.
-func (fc *FileCache) Clear() {
-	fc.mu.Lock()
-	fc.cache = make(map[string]*cachedFile)
-	fc.mu.Unlock()
-}
-
 // Size returns the number of cached files.
 func (fc *FileCache) Size() int {
 	fc.mu.RLock()

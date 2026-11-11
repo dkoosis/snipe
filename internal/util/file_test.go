@@ -125,42 +125,6 @@ func TestFileCache_EvictsOldestEntry_When_CapacityExceeded(t *testing.T) {
 	}
 }
 
-func TestFileCache_RemovesEntries_When_ClearIsCalled(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		maxFiles int
-	}{
-		{
-			name:     "success: clear removes all cached entries",
-			maxFiles: 2,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			dir := t.TempDir()
-			fileA := filepath.Join(dir, "a.txt")
-			fileB := filepath.Join(dir, "b.txt")
-			writeTempFile(t, fileA, "alpha")
-			writeTempFile(t, fileB, "bravo")
-
-			cache := util.NewFileCache(tc.maxFiles)
-			_, err := cache.LoadLines(fileA)
-			require.NoError(t, err)
-			_, err = cache.LoadLines(fileB)
-			require.NoError(t, err)
-
-			cache.Clear()
-
-			assert.Zero(t, cache.Size(), "clearing should drop all cached entries")
-		})
-	}
-}
-
 func writeTempFile(t *testing.T, path, contents string) {
 	t.Helper()
 
