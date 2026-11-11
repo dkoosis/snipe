@@ -54,7 +54,7 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 	}
 
 	if _, err := exec.LookPath("rg"); err != nil {
-		return nil, fmt.Errorf("ripgrep (rg) not found: install from https://github.com/BurntSushi/ripgrep")
+		return nil, errors.New("ripgrep (rg) not found: install from https://github.com/BurntSushi/ripgrep")
 	}
 
 	if limit <= 0 {
@@ -180,8 +180,7 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return results, ctxErr
 		}
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			switch code := exitErr.ExitCode(); {
 			case code == 1:
 				return results, nil

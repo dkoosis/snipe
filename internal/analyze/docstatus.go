@@ -248,7 +248,7 @@ func extractFirstSentence(doc string) string {
 	doc = strings.TrimSpace(doc)
 
 	// Find first sentence (ends with . ! or ? followed by space or end)
-	for i := 0; i < len(doc); i++ {
+	for i := range len(doc) {
 		if doc[i] == '.' || doc[i] == '!' || doc[i] == '?' {
 			if i+1 >= len(doc) || doc[i+1] == ' ' || doc[i+1] == '\n' {
 				sentence := strings.TrimSpace(doc[:i+1])

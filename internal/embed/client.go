@@ -172,7 +172,7 @@ func resolveCredentials() (string, string, string, error) {
 	endpoint := os.Getenv("VOYAGE_API_URL")
 
 	if apiKey == "" {
-		return "", "", "", fmt.Errorf("no API key: set VOYAGE_API_KEY or store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY)")
+		return "", "", "", errors.New("no API key: set VOYAGE_API_KEY or store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY)")
 	}
 	if model == "" {
 		model = "voyage-code-3"
@@ -219,7 +219,7 @@ func (c *Client) Embed(ctx context.Context, texts []string, inputType string) ([
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.endpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -281,7 +281,7 @@ func (c *Client) EmbedOne(ctx context.Context, text string, inputType string) ([
 		return nil, err
 	}
 	if len(results) == 0 {
-		return nil, fmt.Errorf("no embedding returned")
+		return nil, errors.New("no embedding returned")
 	}
 	return results[0], nil
 }

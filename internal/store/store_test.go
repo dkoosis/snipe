@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -122,7 +123,7 @@ func TestSchemaCreation(t *testing.T) {
 	}
 	// Compare against the constant, not a literal: every migration would
 	// otherwise fail this test for no reason.
-	want := fmt.Sprintf("%d", schemaVersion)
+	want := strconv.Itoa(schemaVersion)
 	if version != want {
 		t.Errorf("schema_version = %q, want %q", version, want)
 	}
@@ -193,11 +194,11 @@ func TestConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	errChan := make(chan error, numGoroutines*opsPerGoroutine)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < opsPerGoroutine; j++ {
+			for j := range opsPerGoroutine {
 				key := fmt.Sprintf("key_%d_%d", id, j)
 				value := fmt.Sprintf("value_%d_%d", id, j)
 

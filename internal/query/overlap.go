@@ -155,10 +155,7 @@ func FindOverlappingSymbols(db *sql.DB, repoRoot string, changes map[string][]Li
 
 	var allRows []SymbolRow
 	for start := 0; start < len(predSQL); start += overlapBatchPredicates {
-		end := start + overlapBatchPredicates
-		if end > len(predSQL) {
-			end = len(predSQL)
-		}
+		end := min(start+overlapBatchPredicates, len(predSQL))
 
 		query := overlapQueryPrefix + strings.Join(predSQL[start:end], " OR ") + overlapQuerySuffix
 

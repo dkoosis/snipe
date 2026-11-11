@@ -150,9 +150,11 @@ func renderOneLine(l listing) string {
 			parts = append(parts, strings.Join(it.Sig, " "))
 		}
 		line := strings.Join(parts, " ")
+		var lineSb153 strings.Builder
 		for _, e := range it.Extra {
-			line += " · " + e
+			lineSb153.WriteString(" · " + e)
 		}
+		line += lineSb153.String()
 		if it.Hints != "" {
 			line += " · hints: " + it.Hints
 		}

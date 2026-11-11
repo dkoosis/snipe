@@ -140,7 +140,7 @@ func runPkg(args []string) error {
 		fileCount, loc, _ := computePackageStats(s.DB(), fullPkgPath, pkgDir)
 		displayPkg := pkgPattern
 		if mod := query.DetectModulePath(s.DB()); mod != "" {
-			if trim := strings.TrimPrefix(pkgPattern, mod); trim != pkgPattern {
+			if trim, ok := strings.CutPrefix(pkgPattern, mod); ok {
 				displayPkg = strings.TrimPrefix(trim, "/")
 			}
 		}

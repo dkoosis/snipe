@@ -93,7 +93,7 @@ func TestBuildReportManifestJSONRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal manifest: %v", err)
 	}
-	var decoded map[string]interface{}
+	var decoded map[string]any
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("unmarshal manifest: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestBuildReportManifestJSONRoundTrip(t *testing.T) {
 			t.Errorf("manifest JSON missing field %q: %s", field, data)
 		}
 	}
-	slots, ok := decoded["slots"].([]interface{})
+	slots, ok := decoded["slots"].([]any)
 	if !ok || len(slots) != 3 {
 		t.Fatalf("manifest JSON slots = %v, want array of 3", decoded["slots"])
 	}

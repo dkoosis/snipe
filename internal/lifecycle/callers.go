@@ -78,10 +78,7 @@ func frontierCallers(db *sql.DB, ids []string) ([]callerEdge, error) {
 	const maxVars = 999
 	var edges []callerEdge
 	for start := 0; start < len(ids); start += maxVars {
-		end := start + maxVars
-		if end > len(ids) {
-			end = len(ids)
-		}
+		end := min(start+maxVars, len(ids))
 		chunk := ids[start:end]
 		if err := func() error {
 			placeholders := make([]string, len(chunk))

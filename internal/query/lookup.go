@@ -566,7 +566,7 @@ func docFirstSentence(doc string) string {
 		return ""
 	}
 	// Find end of first sentence (period followed by space or end)
-	for i := 0; i < len(doc); i++ {
+	for i := range len(doc) {
 		if doc[i] == '.' && (i+1 == len(doc) || doc[i+1] == ' ' || doc[i+1] == '\n') {
 			return strings.TrimSpace(doc[:i+1])
 		}

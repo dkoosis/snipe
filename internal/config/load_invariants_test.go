@@ -79,7 +79,6 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			projectRoot := tc.setup(t)
 			got, err := config.Load(projectRoot)

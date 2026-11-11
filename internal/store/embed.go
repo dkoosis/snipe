@@ -214,7 +214,7 @@ func (s *Store) GetCalleesForSymbols(symbolIDs []string) (map[string]map[string]
 		return map[string]map[string]struct{}{}, nil
 	}
 	placeholders := make([]byte, 0, len(symbolIDs)*2)
-	args := make([]interface{}, 0, len(symbolIDs))
+	args := make([]any, 0, len(symbolIDs))
 	for i, id := range symbolIDs {
 		if i > 0 {
 			placeholders = append(placeholders, ',')

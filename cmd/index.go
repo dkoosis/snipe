@@ -357,10 +357,7 @@ func generateEmbeddings(ctx context.Context, s *store.Store, symbols []index.Sym
 	total := 0
 
 	for i := 0; i < len(toEmbed); i += batchSize {
-		end := i + batchSize
-		if end > len(toEmbed) {
-			end = len(toEmbed)
-		}
+		end := min(i+batchSize, len(toEmbed))
 		batch := toEmbed[i:end]
 
 		// Build texts for embedding

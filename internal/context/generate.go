@@ -1123,8 +1123,8 @@ func inferProjectPurpose(db *sql.DB, repoRoot string, projectName string) string
 
 // extractReadmePurpose extracts the first non-heading, non-empty paragraph from README content.
 func extractReadmePurpose(content string) string {
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(content, "\n")
+	for line := range lines {
 		trimmed := strings.TrimSpace(line)
 		// Skip headings, badges, empty lines
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "[!") || strings.HasPrefix(trimmed, "[![") {

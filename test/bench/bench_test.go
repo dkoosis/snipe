@@ -21,7 +21,7 @@ func BenchmarkIndex(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		dbPath := filepath.Join(b.TempDir(), "snipe.db")
 		s, err := store.Open(dbPath)
 		if err != nil {
@@ -69,7 +69,7 @@ func BenchmarkDefByName(b *testing.B) {
 	defer s.Close()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = query.LookupByName(s.DB(), "Symbol")
 	}
 }
@@ -89,7 +89,7 @@ func BenchmarkDefByPosition(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = query.ResolvePosition(s.DB(), pos)
 	}
 }
@@ -110,7 +110,7 @@ func BenchmarkRefsBySymbolID(b *testing.B) {
 	symbolID := syms[0].ID
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = query.FindRefs(s.DB(), symbolID, 100, 0)
 	}
 }
@@ -122,7 +122,7 @@ func BenchmarkSearch(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = search.Search(context.Background(), dir, "func", 50, 0)
 	}
 }
@@ -134,7 +134,7 @@ func BenchmarkSearchRegex(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = search.Search(context.Background(), dir, "func.*Error", 50, 0)
 	}
 }

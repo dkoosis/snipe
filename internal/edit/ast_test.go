@@ -1,10 +1,8 @@
 package edit_test
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -265,7 +263,7 @@ func TestFindSymbol_ReturnsWrappedError_When_FileCannotBeRead(t *testing.T) {
 
 	_, err := edit.FindSymbol(filepath.Join(t.TempDir(), "missing.go"), "X", 0)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, os.ErrNotExist))
+	assert.ErrorIs(t, err, os.ErrNotExist)
 	assert.Contains(t, err.Error(), "read file")
-	assert.False(t, strings.Contains(err.Error(), "panic"))
+	assert.NotContains(t, err.Error(), "panic")
 }

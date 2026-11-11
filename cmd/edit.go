@@ -241,7 +241,7 @@ doEdit:
 				Message: err.Error(),
 			})
 		}
-		durabilityWarn = []string{fmt.Sprintf("edit_not_durable:%s", symbolName)}
+		durabilityWarn = []string{"edit_not_durable:" + symbolName}
 	}
 
 	// Build response
@@ -312,11 +312,11 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 		// Resolve symbol
 		symbols, err := query.LookupByName(s.DB(), req.Symbol)
 		if err != nil || len(symbols) == 0 {
-			degraded = append(degraded, fmt.Sprintf("symbol_not_found:%s", req.Symbol))
+			degraded = append(degraded, "symbol_not_found:"+req.Symbol)
 			continue
 		}
 		if len(symbols) > 1 && req.File == "" {
-			degraded = append(degraded, fmt.Sprintf("ambiguous:%s", req.Symbol))
+			degraded = append(degraded, "ambiguous:"+req.Symbol)
 			continue
 		}
 
@@ -365,7 +365,7 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 				degraded = append(degraded, fmt.Sprintf("edit_failed:%s:%s", req.Symbol, err.Error()))
 				continue
 			}
-			degraded = append(degraded, fmt.Sprintf("edit_not_durable:%s", req.Symbol))
+			degraded = append(degraded, "edit_not_durable:"+req.Symbol)
 		}
 
 		relPath, _ := filepath.Rel(dir, filePath)

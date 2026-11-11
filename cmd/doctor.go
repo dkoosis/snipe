@@ -166,7 +166,7 @@ func checkRipgrep() DoctorCheck {
 	version := strings.TrimSpace(strings.Split(string(out), "\n")[0])
 	check.OK = true
 	check.Message = version
-	check.Details = fmt.Sprintf("Path: %s", path)
+	check.Details = "Path: " + path
 
 	return check
 }
@@ -198,7 +198,7 @@ func checkIndex() DoctorCheck {
 		check.Code = DoctorIndexMissing
 		check.Message = "index not found"
 		check.Remediation = remediationReindex
-		check.Details = fmt.Sprintf("Expected at: %s", indexPath)
+		check.Details = "Expected at: " + indexPath
 		return check
 	}
 
@@ -281,7 +281,7 @@ func checkGoToolchain() DoctorCheck {
 	version := strings.TrimSpace(string(out))
 	check.OK = true
 	check.Message = version
-	check.Details = fmt.Sprintf("Path: %s", goPath)
+	check.Details = "Path: " + goPath
 	return check
 }
 

@@ -167,7 +167,7 @@ func seedEmbed(ts *testscript.TestScript, neg bool, args []string) {
 			ts.Fatalf("bad arg %q", a)
 		}
 		var emb []float32
-		for _, f := range strings.Split(vec, ",") {
+		for f := range strings.SplitSeq(vec, ",") {
 			v, perr := strconv.ParseFloat(f, 32)
 			ts.Check(perr)
 			emb = append(emb, float32(v))
@@ -403,8 +403,7 @@ func TestExitCodeContract(t *testing.T) {
 		cmd.Dir = fixtureDir
 		cmd.Env = snipeEnv()
 		if err := cmd.Run(); err != nil {
-			var ee *exec.ExitError
-			if errors.As(err, &ee) {
+			if ee, ok := errors.AsType[*exec.ExitError](err); ok {
 				return ee.ExitCode()
 			}
 			t.Fatalf("run %v: %v", args, err)

@@ -496,7 +496,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 					Message: fmt.Sprintf("index found at %s but project root is %s — run: snipe index", cwd, root),
 				})
 			}
-			return nil, root, fmt.Errorf("index root mismatch")
+			return nil, root, errors.New("index root mismatch")
 		}
 	}
 
@@ -505,7 +505,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		if w != nil {
 			_ = w.WriteError(cmdName, protocol.NewIndexInProgressError())
 		}
-		return nil, root, fmt.Errorf("indexing in progress")
+		return nil, root, errors.New("indexing in progress")
 	}
 
 	// Check for missing index
@@ -513,7 +513,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		if w != nil {
 			_ = w.WriteError(cmdName, protocol.NewMissingIndexError())
 		}
-		return nil, root, fmt.Errorf("index missing")
+		return nil, root, errors.New("index missing")
 	}
 
 	s, err := store.Open(dbPath)
@@ -539,7 +539,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 				Message: fmt.Sprintf("index was built for %s but this repo is at %s — run: snipe index", storedRoot, root),
 			})
 		}
-		return nil, root, fmt.Errorf("index root moved")
+		return nil, root, errors.New("index root moved")
 	}
 
 	// Small drift heals inline so queries answer from current code; the

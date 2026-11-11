@@ -144,7 +144,7 @@ func TestSearch_ContextCancelled(t *testing.T) {
 	// With a cancelled context, exec.CommandContext kills rg immediately, so
 	// Search must return well under the deadline below.
 	body := strings.Repeat("aaaaaaaaaaaaaaaaaaaaaaaa\n", 2000)
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		f := filepath.Join(dir, "file"+strconv.Itoa(i)+".txt")
 		if err := os.WriteFile(f, []byte(body), 0644); err != nil {
 			t.Fatalf("write file: %v", err)
@@ -184,7 +184,7 @@ func TestSearch_ContextCancelled(t *testing.T) {
 func TestSearch_ContextDeadline(t *testing.T) {
 	dir := t.TempDir()
 	body := strings.Repeat("aaaaaaaaaaaaaaaaaaaaaaaa\n", 2000)
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		f := filepath.Join(dir, "file"+strconv.Itoa(i)+".txt")
 		if err := os.WriteFile(f, []byte(body), 0644); err != nil {
 			t.Fatalf("write file: %v", err)

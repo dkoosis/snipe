@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"golang.org/x/mod/modfile"
@@ -219,9 +220,9 @@ func detectCycles(edges []DepGraphEdge) [][]string {
 				// Found a cycle — extract from path stack
 				// Find where `next` appears in the current path
 				var cycle []string
-				for i := len(path) - 1; i >= 0; i-- {
-					cycle = append(cycle, path[i])
-					if path[i] == next {
+				for _, p := range slices.Backward(path) {
+					cycle = append(cycle, p)
+					if p == next {
 						break
 					}
 				}

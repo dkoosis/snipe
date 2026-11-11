@@ -41,7 +41,7 @@ func newC4TestRepo(t *testing.T) (*store.Store, string) {
 	return s, dir
 }
 
-func addSymbol(t *testing.T, db *sql.DB, id, name, kind, pkgPath, filePath string, lineStart int) { //nolint:unparam // general-purpose test fixture helper; every call site happens to pass "main" today
+func addSymbol(t *testing.T, db *sql.DB, id, name, kind, pkgPath, filePath string, lineStart int) {
 	t.Helper()
 	_, err := db.Exec(`
 		INSERT INTO symbols (id, name, kind, pkg_path, file_path, line_start, col_start, line_end, col_end)

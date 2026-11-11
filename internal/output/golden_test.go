@@ -368,7 +368,7 @@ func testGoldenText(t *testing.T, filename, got string) {
 }
 
 // testGolden compares a response against a golden file
-func testGolden(t *testing.T, filename string, resp interface{}) {
+func testGolden(t *testing.T, filename string, resp any) {
 	t.Helper()
 
 	goldenPath := filepath.Join(goldenDir, filename)
@@ -395,7 +395,7 @@ func testGolden(t *testing.T, filename string, resp interface{}) {
 		t.Fatalf("Failed to read golden file: %v", err)
 	}
 
-	if string(got) != string(want) {
+	if !bytes.Equal(got, want) {
 		t.Errorf("Output does not match golden file %s\n\nGot:\n%s\n\nWant:\n%s\n\nRun with -update flag to regenerate golden files",
 			filename, string(got), string(want))
 	}
@@ -430,7 +430,7 @@ func TestGoldenSchemaConsistency(t *testing.T) {
 	}
 
 	// Verify required top-level fields exist
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
 		t.Fatalf("Unmarshal failed: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestGoldenSchemaConsistency(t *testing.T) {
 	}
 
 	// Verify meta structure
-	meta, ok := raw["meta"].(map[string]interface{})
+	meta, ok := raw["meta"].(map[string]any)
 	if !ok {
 		t.Fatal("meta is not an object")
 	}
@@ -455,11 +455,11 @@ func TestGoldenSchemaConsistency(t *testing.T) {
 	}
 
 	// Verify result structure
-	results, ok := raw["results"].([]interface{})
+	results, ok := raw["results"].([]any)
 	if !ok || len(results) == 0 {
 		t.Fatal("results is not a non-empty array")
 	}
-	result, ok := results[0].(map[string]interface{})
+	result, ok := results[0].(map[string]any)
 	if !ok {
 		t.Fatal("result is not an object")
 	}

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 
 	"github.com/dkoosis/snipe/internal/telemetry"
@@ -78,6 +79,6 @@ func p50(ms []int64) int64 {
 	if len(ms) == 0 {
 		return 0
 	}
-	sort.Slice(ms, func(i, j int) bool { return ms[i] < ms[j] })
+	slices.Sort(ms)
 	return ms[len(ms)/2]
 }

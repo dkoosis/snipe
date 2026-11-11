@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -153,13 +154,11 @@ func ClassifyRung(decisionPath, degraded []string, outcome string) string {
 	default:
 		return ""
 	}
-	for _, d := range degraded {
-		if d == ciMatchDegradedMarker {
-			return RungCaseInsensitive
-		}
+	if slices.Contains(degraded, ciMatchDegradedMarker) {
+		return RungCaseInsensitive
 	}
-	for i := len(decisionPath) - 1; i >= 0; i-- {
-		tok := decisionPath[i]
+	for _, tok := range slices.Backward(decisionPath) {
+
 		switch {
 		case strings.HasPrefix(tok, "sim:"), strings.HasPrefix(tok, "sim_augment:"):
 			return RungSemantic

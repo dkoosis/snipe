@@ -228,7 +228,7 @@ func buildSeamMap(seams []Seam, totalInterfaces int) (summary, d2src string) {
 			pos, s.Interface.Name, len(s.Impls), s.FanInPkgs, s.FanInDeg, s.Score,
 			s.Interface.FilePathRel, s.Interface.LineStart)
 
-		nodeID := diagram.SanitizeID(fmt.Sprintf("seam_%s", s.Interface.ID))
+		nodeID := diagram.SanitizeID("seam_" + s.Interface.ID)
 		label := fmt.Sprintf("%s  (impl=%d fan=%d)", s.Interface.Name, len(s.Impls), s.FanInPkgs)
 		b.AddNode(nodeID, label, "diamond", seamNodeStyle(pos))
 

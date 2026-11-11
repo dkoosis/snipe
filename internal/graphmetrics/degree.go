@@ -41,7 +41,7 @@ func EigenvectorCentrality(g *Graph, maxIter int) map[string]float64 {
 	for _, v := range nodes {
 		x[v] = init
 	}
-	for iter := 0; iter < maxIter; iter++ {
+	for range maxIter {
 		for _, v := range nodes {
 			next[v] = 0
 		}

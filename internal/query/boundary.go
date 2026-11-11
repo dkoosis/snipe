@@ -34,8 +34,8 @@ func MatchPackagePatterns(universe, patterns []string) []string {
 }
 
 func matches(pkg, pattern string) bool {
-	if strings.HasSuffix(pattern, "/...") {
-		base := strings.TrimSuffix(pattern, "/...")
+	if before, ok := strings.CutSuffix(pattern, "/..."); ok {
+		base := before
 		return strings.HasSuffix(pkg, "/"+base) || pkg == base ||
 			strings.Contains(pkg, "/"+base+"/")
 	}

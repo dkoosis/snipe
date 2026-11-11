@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -106,13 +107,7 @@ func runWatch() error {
 			}
 
 			// Avoid duplicates
-			found := false
-			for _, f := range pendingFiles {
-				if f == relPath {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(pendingFiles, relPath)
 			if !found {
 				pendingFiles = append(pendingFiles, relPath)
 			}

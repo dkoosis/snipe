@@ -3,9 +3,11 @@ package graphmetrics
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -48,11 +50,8 @@ func (g *Graph) InEdges(n string) []string {
 	}
 	sort.Strings(srcs)
 	for _, s := range srcs {
-		for _, dst := range g.Adj[s] {
-			if dst == n {
-				in = append(in, s)
-				break
-			}
+		if slices.Contains(g.Adj[s], n) {
+			in = append(in, s)
 		}
 	}
 	return in
@@ -74,7 +73,7 @@ func LoadImportsGraphOpts(s *store.Store, includeTests bool) (*Graph, error) {
 		return nil, err
 	}
 	if modPath == "" {
-		return nil, fmt.Errorf("could not determine module path for intra-repo filter")
+		return nil, errors.New("could not determine module path for intra-repo filter")
 	}
 	prefix := modPath + "/"
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -149,7 +150,7 @@ func writeMetricsJSON(rows []store.MetricRow, dir string, start time.Time) error
 		Results:  out,
 		Meta: protocol.Meta{
 			Command:  cmdNameMetrics,
-			Query:    map[string]string{cmdKindGraph: metricsGraph, jsonKeyKind: metricsKind, "top": fmt.Sprintf("%d", metricsTopN)},
+			Query:    map[string]string{cmdKindGraph: metricsGraph, jsonKeyKind: metricsKind, "top": strconv.Itoa(metricsTopN)},
 			RepoRoot: dir,
 			Ms:       time.Since(start).Milliseconds(),
 			Total:    len(out),
@@ -624,7 +625,7 @@ func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error 
 				Query: map[string]string{
 					cmdKindGraph: metricsGraph,
 					jsonKeyKind:  metricsKind,
-					"top":        fmt.Sprintf("%d", metricsTopN),
+					"top":        strconv.Itoa(metricsTopN),
 				},
 				RepoRoot: dir,
 				Ms:       time.Since(startedAt).Milliseconds(),

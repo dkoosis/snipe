@@ -1,7 +1,9 @@
 package protocol
 
 import (
+	"bytes"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -245,7 +247,7 @@ func TestAmbiguousSymbolJSONFormat(t *testing.T) {
 	}
 
 	// Verify structure by parsing
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if unmarshalErr := json.Unmarshal(data, &parsed); unmarshalErr != nil {
 		t.Fatalf("Unmarshal failed: %v", unmarshalErr)
 	}
@@ -263,14 +265,14 @@ func TestAmbiguousSymbolJSONFormat(t *testing.T) {
 	}
 
 	// Verify candidates array exists with correct structure
-	candidatesRaw, ok := parsed["candidates"].([]interface{})
+	candidatesRaw, ok := parsed["candidates"].([]any)
 	if !ok || len(candidatesRaw) != 2 {
 		t.Fatalf("candidates should be an array of 2, got %v", parsed["candidates"])
 	}
 
 	// Verify each candidate has required fields per SPEC
 	for i, cRaw := range candidatesRaw {
-		c, ok := cRaw.(map[string]interface{})
+		c, ok := cRaw.(map[string]any)
 		if !ok {
 			t.Errorf("candidate[%d] should be an object", i)
 			continue
@@ -302,7 +304,7 @@ func TestAmbiguousSymbolDeterminism(t *testing.T) {
 	data2, _ := json.Marshal(err2)
 
 	// Verify identical output
-	if string(data1) != string(data2) {
+	if !bytes.Equal(data1, data2) {
 		t.Error("NewAmbiguousError should produce deterministic output")
 	}
 }
@@ -415,9 +417,9 @@ func TestTruncateBodySemantic(t *testing.T) {
 		}
 		lines := strings.Split(result.Body, "\n")
 		lastContentLine := ""
-		for i := len(lines) - 1; i >= 0; i-- {
-			if !strings.HasPrefix(strings.TrimSpace(lines[i]), "// ...") && strings.TrimSpace(lines[i]) != "" {
-				lastContentLine = strings.TrimSpace(lines[i])
+		for _, line := range slices.Backward(lines) {
+			if !strings.HasPrefix(strings.TrimSpace(line), "// ...") && strings.TrimSpace(line) != "" {
+				lastContentLine = strings.TrimSpace(line)
 				break
 			}
 		}
@@ -800,12 +802,12 @@ func TestSuggestionJSONFormat(t *testing.T) {
 		t.Fatalf("Marshal failed: %v", err)
 	}
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("Unmarshal failed: %v", err)
 	}
 
-	suggestions, ok := parsed["suggestions"].([]interface{})
+	suggestions, ok := parsed["suggestions"].([]any)
 	if !ok {
 		t.Fatal("suggestions should be an array")
 	}
@@ -813,7 +815,7 @@ func TestSuggestionJSONFormat(t *testing.T) {
 		t.Errorf("expected 1 suggestion, got %d", len(suggestions))
 	}
 
-	s := suggestions[0].(map[string]interface{})
+	s := suggestions[0].(map[string]any)
 	if s["command"] != "snipe refs foo" {
 		t.Errorf("command = %v, want 'snipe refs foo'", s["command"])
 	}

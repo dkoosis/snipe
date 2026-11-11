@@ -72,7 +72,7 @@ func writeBaselineFiles(t *testing.T, repoDir, baselineName, historyName string,
 		t.Logf("Warning: could not write history line: %v", err)
 		return
 	}
-	if _, err := f.Write([]byte("\n")); err != nil {
+	if _, err := f.WriteString("\n"); err != nil {
 		t.Logf("Warning: could not write history newline: %v", err)
 	}
 	t.Logf("History appended to: %s", historyFile)

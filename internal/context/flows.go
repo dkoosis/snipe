@@ -398,7 +398,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 	`
 
 	// Build args: IDs first, then repoRoot for LIKE clause
-	args := make([]interface{}, len(ids)+1)
+	args := make([]any, len(ids)+1)
 	for i, id := range ids {
 		args[i] = id
 	}
@@ -705,10 +705,7 @@ func compressToCommandTable(details []EntryPointRef) *CommandTable {
 	}
 
 	// Boilerplate = callees appearing in >25% of commands (minimum 2)
-	threshold := len(commands) * 25 / 100
-	if threshold < 2 {
-		threshold = 2
-	}
+	threshold := max(len(commands)*25/100, 2)
 	boilerplate := make(map[string]bool)
 	var boilerplateList []string
 	for name, count := range calleeFreq {

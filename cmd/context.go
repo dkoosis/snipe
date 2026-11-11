@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,7 +43,7 @@ func runContext(args []string) error {
 	// Find project root
 	projectRoot := util.FindProjectRoot(absDir)
 	if projectRoot == "" {
-		return fmt.Errorf("not in a git repository")
+		return errors.New("not in a git repository")
 	}
 
 	// Open index
@@ -110,7 +111,7 @@ func runContext(args []string) error {
 	return outputContext(orientCtx, contextFormat)
 }
 
-func outputContext(output interface{}, format string) error {
+func outputContext(output any, format string) error {
 	switch format {
 	case "yaml":
 		enc := yaml.NewEncoder(os.Stdout)

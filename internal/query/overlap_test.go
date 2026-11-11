@@ -281,7 +281,7 @@ func TestFindOverlappingSymbols_Batches_When_ManyHunks(t *testing.T) {
 
 	const hunkCount = 1200
 	ranges := make([]LineRange, hunkCount)
-	for i := 0; i < hunkCount; i++ {
+	for i := range hunkCount {
 		line := 3*i + 1
 		ranges[i] = LineRange{Start: line, End: line}
 	}

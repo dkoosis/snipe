@@ -205,7 +205,7 @@ func colorForComplexity(norm float64) string {
 	if norm > 1 {
 		norm = 1
 	}
-	for i := 0; i < len(treemapColorScale)-1; i++ {
+	for i := range len(treemapColorScale) - 1 {
 		lo, hi := treemapColorScale[i], treemapColorScale[i+1]
 		if norm >= lo.stop && norm <= hi.stop {
 			span := hi.stop - lo.stop

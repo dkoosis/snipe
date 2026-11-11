@@ -132,7 +132,7 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 
 	displayPkg := fullPkgPath
 	if modulePath != "" {
-		if trim := strings.TrimPrefix(fullPkgPath, modulePath); trim != fullPkgPath {
+		if trim, ok := strings.CutPrefix(fullPkgPath, modulePath); ok {
 			displayPkg = strings.TrimPrefix(trim, "/")
 			if displayPkg == "" {
 				displayPkg = "."

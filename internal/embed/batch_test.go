@@ -315,7 +315,7 @@ func TestUploadFile_NoGoroutineLeakOnTransportError(t *testing.T) {
 	runtime.GC()
 	before := runtime.NumGoroutine()
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if _, err := c.UploadFile(context.Background(), jsonl); err == nil {
 			t.Fatalf("expected error on iteration %d", i)
 		}

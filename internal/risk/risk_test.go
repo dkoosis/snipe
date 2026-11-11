@@ -2,7 +2,8 @@ package risk
 
 import "testing"
 
-func intp(n int) *int { return &n }
+//go:fix inline
+func intp(n int) *int { return new(n) }
 
 func TestCurve_HalfAtMidpoint(t *testing.T) {
 	t.Parallel()
@@ -21,7 +22,7 @@ func TestScore_IsTheWeightedMeanOfTheFactors(t *testing.T) {
 	t.Parallel()
 	m := Measures{
 		Reach:      Reach{Callers: midCallers, Importers: midImporters}, // 0.5, 0.5 → 0.5
-		Difficulty: Difficulty{CycloMax: intp(midCyclo), CognitiveMax: intp(midCognitive)},
+		Difficulty: Difficulty{CycloMax: new(midCyclo), CognitiveMax: new(midCognitive)},
 		History:    &History{BugCommits: midBugCommits, Churn: midChurn},
 		Kind:       Kind{RiskFlags: map[string]int{"concurrency": midRiskFlags}, Roles: map[string]int{"persistence": midRoles}, Exported: midExported},
 		Tests:      Tests{ChangedFuncs: 2, Untested: []string{"p.a"}},

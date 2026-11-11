@@ -78,7 +78,7 @@ func runOrient() error {
 
 	// 2. deps --tree (use the same FindDepGraph path runDepsTree uses)
 	modulePath := query.DetectModulePath(s.DB())
-	depsPayload := map[string]interface{}{}
+	depsPayload := map[string]any{}
 	if modulePath != "" {
 		if graph, err := query.FindDepGraph(s.DB(), modulePath); err == nil {
 			edges := make([]protocol.DepTreeEdge, len(graph.Edges))
@@ -136,7 +136,7 @@ func runOrient() error {
 	return nil
 }
 
-func writeJSONFile(path string, v interface{}) error {
+func writeJSONFile(path string, v any) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("create %s: %w", path, err)

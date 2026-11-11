@@ -2,6 +2,7 @@ package context
 
 import (
 	"database/sql"
+	"slices"
 	"strings"
 )
 
@@ -73,7 +74,7 @@ func loadPackageDocs(db *sql.DB, pkgPaths []string) map[string]string {
 	}
 
 	placeholders := make([]string, len(pkgPaths))
-	args := make([]interface{}, len(pkgPaths))
+	args := make([]any, len(pkgPaths))
 	for i, p := range pkgPaths {
 		placeholders[i] = "?"
 		args[i] = p
@@ -113,11 +114,11 @@ func tersePurpose(s string) string {
 	}
 	// Find the verb after "Package <name> "
 	rest := strings.TrimPrefix(s, "Package ")
-	spaceIdx := strings.IndexByte(rest, ' ')
-	if spaceIdx < 0 {
+	_, after, ok := strings.Cut(rest, " ")
+	if !ok {
 		return s
 	}
-	afterName := rest[spaceIdx+1:]
+	afterName := after
 	// Common godoc verbs — strip and capitalize the remainder
 	for _, verb := range []string{"provides ", "handles ", "implements ", "contains ", "defines ", "manages ", "offers ", "exposes "} {
 		if strings.HasPrefix(afterName, verb) {
@@ -155,12 +156,7 @@ func isPlaceholderPurpose(purpose string) bool {
 		"implementation",
 		"package",
 	}
-	for _, p := range placeholders {
-		if lower == p {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(placeholders, lower)
 }
 
 // normalizePackageName cleans up package names for display.

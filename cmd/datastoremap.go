@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/c4"
@@ -341,7 +342,7 @@ func addRoleNodes(b *diagram.Builder, container string, entries []datastoremap.E
 		if name == "" {
 			name = "(file scope)"
 		}
-		id := container + "." + diagram.SanitizeID(name+fmt.Sprintf("%d", e.Line))
+		id := container + "." + diagram.SanitizeID(name+strconv.Itoa(e.Line))
 		label := fmt.Sprintf("%s · %s:%d", name, e.File, e.Line)
 		b.AddNode(id, label, "", nil)
 		edge(id)

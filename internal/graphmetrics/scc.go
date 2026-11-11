@@ -1,6 +1,9 @@
 package graphmetrics
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // SCC returns the nontrivial strongly-connected components of g, computed via
 // Tarjan's 1972 algorithm. A component is nontrivial when it contains 2+ nodes,
@@ -38,13 +41,7 @@ func SCC(g *Graph) [][]string {
 		}
 		// Single-node component: keep only if there is a self-loop.
 		v := comp[0]
-		hasSelfLoop := false
-		for _, w := range g.OutEdges(v) {
-			if w == v {
-				hasSelfLoop = true
-				break
-			}
-		}
+		hasSelfLoop := slices.Contains(g.OutEdges(v), v)
 		if hasSelfLoop {
 			out = append(out, comp)
 		}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -279,7 +280,7 @@ type embeddingStreamParser func(r io.Reader, fn embed.EmbeddingHandler) error
 // rows actually saved alongside that error.
 func downloadAndSaveEmbeddings(ctx context.Context, client *embed.BatchClient, state *embed.BatchState, saver embeddingSaver) (int, error) {
 	if state.OutputFileID == "" {
-		return 0, fmt.Errorf("no output file available")
+		return 0, errors.New("no output file available")
 	}
 
 	fmt.Fprintf(os.Stderr, "Downloading results from file %s...\n", state.OutputFileID)

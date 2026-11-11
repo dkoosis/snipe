@@ -128,7 +128,7 @@ func detectTopLevelSQL(repoRoot string) (DBSchema, bool) {
 		if err != nil {
 			continue
 		}
-		if !ddlRe.MatchString(string(content)) {
+		if !ddlRe.Match(content) {
 			continue
 		}
 		name := strings.TrimSuffix(filepath.Base(candidate), ".sql")
@@ -337,11 +337,8 @@ func leadingWhitespace(s string) string {
 }
 
 func commonPrefix(a, b string) string {
-	n := len(a)
-	if len(b) < n {
-		n = len(b)
-	}
-	for i := 0; i < n; i++ {
+	n := min(len(b), len(a))
+	for i := range n {
 		if a[i] != b[i] {
 			return a[:i]
 		}

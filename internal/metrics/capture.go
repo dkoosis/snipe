@@ -197,7 +197,7 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	}
 
 	start := time.Now()
-	for i := 0; i < runs; i++ {
+	for range runs {
 		_, _ = query.LookupByName(s.DB(), testSymbol)
 	}
 	baseline.Query.DefByNameMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
@@ -210,7 +210,7 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 			Col:  syms[0].ColStart,
 		}
 		start = time.Now()
-		for i := 0; i < runs; i++ {
+		for range runs {
 			_, _ = query.ResolvePosition(s.DB(), pos)
 		}
 		baseline.Query.DefByPosMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
@@ -221,7 +221,7 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	if len(foundSyms) > 0 {
 		symbolID := foundSyms[0].ID
 		start = time.Now()
-		for i := 0; i < runs; i++ {
+		for range runs {
 			_, _ = query.FindRefs(s.DB(), symbolID, 100, 0)
 		}
 		baseline.Query.RefsByIDMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
@@ -229,13 +229,13 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 
 	// Search metrics
 	start = time.Now()
-	for i := 0; i < runs; i++ {
+	for range runs {
 		_, _ = search.Search(context.Background(), cfg.Dir, "func", 50, 0) //nolint:forbidigo // one-shot baseline capture; no caller ctx and not a cancellable request path
 	}
 	baseline.Search.SimplePatternMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
 
 	start = time.Now()
-	for i := 0; i < runs; i++ {
+	for range runs {
 		_, _ = search.Search(context.Background(), cfg.Dir, "func.*Error", 50, 0) //nolint:forbidigo // one-shot baseline capture; no caller ctx and not a cancellable request path
 	}
 	baseline.Search.RegexPatternMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0

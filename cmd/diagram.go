@@ -60,7 +60,7 @@ func emit(summary, d2src string) error {
 func renderSVG(d2src string) error {
 	bin, err := exec.LookPath("d2")
 	if err != nil {
-		return fmt.Errorf("d2 CLI not found in PATH (install from https://d2lang.com); falling back: rerun without --format=svg to get D2 source")
+		return errors.New("d2 CLI not found in PATH (install from https://d2lang.com); falling back: rerun without --format=svg to get D2 source")
 	}
 	c := exec.Command(bin, "-", "-") // #nosec G204 -- bin resolved via LookPath
 	c.Stdin = strings.NewReader(d2src)
@@ -323,12 +323,9 @@ func pkgsCommonPrefix(pkgs []string) string {
 func commonPathPrefix(a, b string) string {
 	as := strings.Split(a, "/")
 	bs := strings.Split(b, "/")
-	n := len(as)
-	if len(bs) < n {
-		n = len(bs)
-	}
+	n := min(len(bs), len(as))
 	var out []string
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if as[i] != bs[i] {
 			break
 		}
@@ -447,7 +444,7 @@ func runDiagramFlow(args []string) error {
 	// (*Bar).Process) produce distinct docs instead of silently clobbering each
 	// other (writeDiagramDocTo does an unconditional WriteFile). displayLabel is
 	// the same disambiguator used for node labels above.
-	return emitDoc(fmt.Sprintf("flow-%s", diagram.SanitizeID(displayLabel(&root))), sb.String(), b.Render())
+	return emitDoc("flow-"+diagram.SanitizeID(displayLabel(&root)), sb.String(), b.Render())
 }
 
 // pickFlowEntry resolves a bare entry name to a single symbol suitable as a
@@ -691,7 +688,7 @@ func runDiagramLifecycle(args []string) error {
 	}
 
 	var b diagram.Builder
-	b.Title = fmt.Sprintf("snipe lifecycle · %s", typeName)
+	b.Title = "snipe lifecycle · " + typeName
 	b.Direction = diagramDirRight
 
 	// Center node: the type.
@@ -764,7 +761,7 @@ func runDiagramLifecycle(args []string) error {
 		fmt.Fprintf(&sb, "  %s (%d)\n", role, len(fns))
 	}
 
-	return emitDoc(fmt.Sprintf("lifecycle-%s", diagram.SanitizeID(sym.Name)), sb.String(), b.Render())
+	return emitDoc("lifecycle-"+diagram.SanitizeID(sym.Name), sb.String(), b.Render())
 }
 
 // edgeFromType picks edge direction depending on role: Create/Mutate/Delete

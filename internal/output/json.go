@@ -1095,8 +1095,8 @@ func (w *Writer) WriteClaudePkgGrouped(results []protocol.Result, meta protocol.
 	var standaloneFuncs []protocol.Result
 	for i := range funcs {
 		f := &funcs[i]
-		if strings.HasPrefix(f.Name, "New") {
-			typeName := strings.TrimPrefix(f.Name, "New")
+		if after, ok := strings.CutPrefix(f.Name, "New"); ok {
+			typeName := after
 			if _, ok := typesByName[typeName]; ok {
 				constructorsByType[typeName] = append(constructorsByType[typeName], *f)
 				continue

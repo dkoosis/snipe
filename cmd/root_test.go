@@ -126,7 +126,6 @@ func TestRoot_IsKnownSubcommandOrFlag_ReturnsExpectedValue_When_InputVaries(t *t
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := isKnownSubcommandOrFlag(tc.arg)
 			if got != tc.want {
@@ -202,7 +201,6 @@ func TestRoot_ApplyFormatOverrides_ReturnsExpectedConfig_When_FormatModeChanges(
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -240,7 +238,6 @@ func TestRoot_UniqueStrings_PreservesOrderAndUniqueness_When_InputContainsDuplic
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -305,7 +302,6 @@ func TestRoot_ApplySelection_ReturnsExpectedWindow_When_SelectModeVaries(t *test
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			selectMode = tc.mode
 			got := ApplySelection(tc.input)
@@ -372,7 +368,6 @@ func TestRoot_GetOutputConfig_DisablesBodyAndContext_When_SignatureOnlyEnabled(t
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			signatureOnly = tc.signatureOnly
 

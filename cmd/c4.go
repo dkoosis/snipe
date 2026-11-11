@@ -216,11 +216,8 @@ func writeC4Text(results []protocol.C4Result) error {
 // writeC4Capped writes at most c4TextCap lines from render(i), i in [0,n),
 // appending a "+N more" marker when truncated.
 func writeC4Capped(b *strings.Builder, n int, render func(i int) string) {
-	limit := n
-	if limit > c4TextCap {
-		limit = c4TextCap
-	}
-	for i := 0; i < limit; i++ {
+	limit := min(n, c4TextCap)
+	for i := range limit {
 		b.WriteString(render(i))
 	}
 	if n > limit {

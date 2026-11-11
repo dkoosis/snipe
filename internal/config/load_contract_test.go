@@ -68,7 +68,6 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			projectRoot := tc.setup(t)
 			got, err := config.Load(projectRoot)

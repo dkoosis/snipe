@@ -115,9 +115,9 @@ func parseMakefileTargets(content string) []string {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if strings.HasPrefix(line, ".PHONY:") {
-			rest := strings.TrimPrefix(line, ".PHONY:")
-			for _, t := range strings.Fields(rest) {
+		if after, ok := strings.CutPrefix(line, ".PHONY:"); ok {
+			rest := after
+			for t := range strings.FieldsSeq(rest) {
 				if isValidMakeTarget(t) && !seen[t] {
 					seen[t] = true
 					phony = append(phony, t)

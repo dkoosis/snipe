@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -155,7 +156,7 @@ func (r *BatchCreateResponse) FailureReason() string {
 		}
 		n++
 		if len(lines) < failureReasonLines {
-			lines = append(lines, fmt.Sprint(e.Line))
+			lines = append(lines, strconv.Itoa(e.Line))
 		}
 	}
 	if n > failureReasonLines {
@@ -238,7 +239,7 @@ func (c *BatchClient) UploadFile(ctx context.Context, jsonlPath string) (*FileUp
 		<-done
 	}()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/files", pr)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/files", pr)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -279,7 +280,7 @@ func (c *BatchClient) CreateBatch(ctx context.Context, inputFileID string) (*Bat
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/batches", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/batches", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -308,7 +309,7 @@ func (c *BatchClient) CreateBatch(ctx context.Context, inputFileID string) (*Bat
 
 // GetBatchStatus retrieves the current status of a batch.
 func (c *BatchClient) GetBatchStatus(ctx context.Context, batchID string) (*BatchCreateResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/batches/"+batchID, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/batches/"+batchID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -338,7 +339,7 @@ func (c *BatchClient) GetBatchStatus(ctx context.Context, batchID string) (*Batc
 // Caller must close the returned ReadCloser.
 // Uses a separate client that follows redirects (Voyage API returns redirect to S3).
 func (c *BatchClient) DownloadFile(ctx context.Context, fileID string) (io.ReadCloser, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/files/"+fileID+"/content", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/files/"+fileID+"/content", nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -397,7 +398,7 @@ func (c *BatchClient) ParseBatchResults(r io.Reader, fn EmbeddingHandler) error 
 			continue // Skip errors, they'll be in error file
 		}
 
-		if resp.Response == nil || resp.Response.StatusCode != 200 {
+		if resp.Response == nil || resp.Response.StatusCode != http.StatusOK {
 			continue // Skip non-200 responses
 		}
 

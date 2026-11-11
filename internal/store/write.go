@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -674,10 +675,10 @@ func (s *Store) WriteIndexIncremental(
 	if err := tx.QueryRow(`SELECT COUNT(*) FROM refs WHERE NOT EXISTS (SELECT 1 FROM symbols WHERE symbols.id = refs.symbol_id)`).Scan(&orphanCount); err != nil {
 		return nil, fmt.Errorf("count orphaned refs: %w", err)
 	}
-	if _, err := tx.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('orphaned_refs', ?)`, fmt.Sprintf("%d", orphanCount)); err != nil {
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('orphaned_refs', ?)`, strconv.Itoa(orphanCount)); err != nil {
 		return nil, fmt.Errorf("set orphaned_refs: %w", err)
 	}
-	if _, err := tx.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('incremental_count', ?)`, fmt.Sprintf("%d", incCount)); err != nil {
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('incremental_count', ?)`, strconv.Itoa(incCount)); err != nil {
 		return nil, fmt.Errorf("set incremental_count: %w", err)
 	}
 

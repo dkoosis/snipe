@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/graphmetrics"
@@ -250,10 +251,10 @@ func writeTriageText(resp triageResponse) error {
 			score = fmt.Sprintf("%.2f", *f.Score)
 		}
 		if f.FanIn != nil {
-			fanIn = fmt.Sprintf("%d", *f.FanIn)
+			fanIn = strconv.Itoa(*f.FanIn)
 		}
 		if f.Cyclo != nil {
-			cyclo = fmt.Sprintf("%d", *f.Cyclo)
+			cyclo = strconv.Itoa(*f.Cyclo)
 		}
 		fmt.Fprintf(&b, "  %6s %6s %6s  %-24s %s\n", score, fanIn, cyclo, f.Package, f.Path)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/dkoosis/snipe/internal/diagram"
@@ -77,7 +78,7 @@ func runDiagramSystem() error {
 	for _, e := range groupEdges {
 		label := ""
 		if e.count > 1 {
-			label = fmt.Sprintf("%d", e.count)
+			label = strconv.Itoa(e.count)
 		}
 		b.AddEdge(systemNodeID(e.from), systemNodeID(e.to), label, nil)
 	}

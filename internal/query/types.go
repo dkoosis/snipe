@@ -2,6 +2,7 @@ package query
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -76,7 +77,7 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 // LookupByName) to avoid an N+1 lookup pattern.
 func GetTypeInfoFromSymbol(db *sql.DB, sym *SymbolRow) (*TypeInfo, error) {
 	if sym == nil {
-		return nil, fmt.Errorf("symbol is nil")
+		return nil, errors.New("symbol is nil")
 	}
 
 	// Only struct, interface, type alias kinds are valid

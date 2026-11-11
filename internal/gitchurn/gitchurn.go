@@ -85,7 +85,7 @@ const (
 // which carry no type) is untyped: never guessed into a named bucket.
 func classifyBeadTypes(values string) beadType {
 	best := typeUntyped
-	for _, v := range strings.Split(values, trailerSeparator) {
+	for v := range strings.SplitSeq(values, trailerSeparator) {
 		var t beadType
 		switch strings.TrimSpace(v) {
 		case "bug":

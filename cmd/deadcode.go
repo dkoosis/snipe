@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,7 +46,7 @@ func runDeadcode() error {
 			Results:  out,
 			Meta: protocol.Meta{
 				Command:  "deadcode",
-				Query:    map[string]string{"include_tests": fmt.Sprintf("%t", deadIncludeTests), flagPkg: deadPkg},
+				Query:    map[string]string{"include_tests": strconv.FormatBool(deadIncludeTests), flagPkg: deadPkg},
 				RepoRoot: dir,
 				Ms:       time.Since(start).Milliseconds(),
 				Total:    len(out),

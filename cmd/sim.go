@@ -217,7 +217,7 @@ func runSimPairs(s *store.Store, dir string, startedAt time.Time) error {
 	threshold := float32(simThreshold)
 	var pairs []simPairRow
 	for pkg, syms := range byPkg {
-		for i := 0; i < len(syms); i++ {
+		for i := range syms {
 			for j := i + 1; j < len(syms); j++ {
 				sim := vector.CosineSimilarity(syms[i].Embedding, syms[j].Embedding)
 				if sim < threshold {
