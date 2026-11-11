@@ -76,7 +76,7 @@ func buildTriageFixture(t *testing.T) string {
 	_, err = s.DB().Exec(`
 		INSERT INTO call_graph (caller_id, callee_id, file_path, line, col)
 		VALUES ('sym-testfoo', 'sym-foo', ?, 6, 1)
-	`, filepath.Join(root, "internal/store/store_test.go"))
+	`, filepath.Join(root, "internal", "store", "store_test.go"))
 	if err != nil {
 		t.Fatalf("insert call_graph: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestTriage_ExactPathMatch_NoSubstringCollision(t *testing.T) {
 	if _, err := s.DB().Exec(`
 		INSERT INTO call_graph (caller_id, callee_id, file_path, line, col)
 		VALUES ('sym-testbar', 'sym-bar', ?, 6, 1)
-	`, filepath.Join(root, "tools/cmd/other_test.go")); err != nil {
+	`, filepath.Join(root, "tools", "cmd", "other_test.go")); err != nil {
 		t.Fatalf("insert call_graph: %v", err)
 	}
 
@@ -317,7 +317,7 @@ func TestTriage_ResolvesPackageForSymbolFreeFile(t *testing.T) {
 	// file_packages, written the way a real `snipe index` run would via
 	// index.ExtractFilePackages / WriteFilePackages(source="loader").
 	if err := s.WriteFilePackages([]index.FilePackage{
-		{Path: filepath.Join(root, "cmd/doc.go"), PkgPath: "example.com/newpkg"},
+		{Path: filepath.Join(root, "cmd", "doc.go"), PkgPath: "example.com/newpkg"},
 	}, root, store.FilePackageSourceLoader); err != nil {
 		t.Fatalf("write file_packages: %v", err)
 	}

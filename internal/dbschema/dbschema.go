@@ -158,6 +158,7 @@ func detectEmbeddedGo(repoRoot string) []DBSchema {
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
+		//nolint:gosec // reads files under the repo root the user asked to index; a symlink swap races only the user's own checkout
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return err

@@ -2,9 +2,6 @@ package risk
 
 import "testing"
 
-//go:fix inline
-func intp(n int) *int { return new(n) }
-
 func TestCurve_HalfAtMidpoint(t *testing.T) {
 	t.Parallel()
 	if got := curve(20, 20); got != 0.5 {

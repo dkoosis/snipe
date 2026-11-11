@@ -124,7 +124,7 @@ func TestLoad_MalformedGlobalConfig(t *testing.T) {
 
 func TestProjectConfigPath(t *testing.T) {
 	got := projectConfigPath("/home/user/project")
-	want := filepath.Join("/home/user/project", ".snipe.json")
+	want := filepath.FromSlash("/home/user/project/.snipe.json")
 	if got != want {
 		t.Errorf("projectConfigPath() = %q, want %q", got, want)
 	}

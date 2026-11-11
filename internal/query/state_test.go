@@ -319,7 +319,7 @@ func TestCheckFileStaleness_Sorted(t *testing.T) {
 	// All stale (old mtimes)
 	oldMtime := time.Now().Add(-1 * time.Hour).Unix()
 	fileInfos := make([]index.FileInfo, len(files))
-	var results []protocol.Result
+	results := make([]protocol.Result, 0, len(files))
 	for i, name := range files {
 		abs := filepath.Join(dir, name)
 		fileInfos[i] = index.FileInfo{Path: abs, Mtime: oldMtime}

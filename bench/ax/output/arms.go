@@ -45,7 +45,7 @@ func parseText(s string) (listing, error) {
 		switch m := itemHead.FindStringSubmatch(line); {
 		case m != nil:
 			l.Items = append(l.Items, item{Section: pending, Name: m[1], ID: m[2]})
-			pending = nil
+			pending = nil //nolint:prealloc // pending collects lines until the next item head; its length is unknown
 			cur, wantLoc = &l.Items[len(l.Items)-1], true
 		case wantLoc:
 			lm := locLine.FindStringSubmatch(line)

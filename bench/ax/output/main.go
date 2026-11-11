@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/dkoosis/atomicfile"
 )
 
 // main runs each claude call in a fresh empty directory, so no CLAUDE.md or
@@ -101,6 +103,7 @@ func capturePath(bench string, args []string) string {
 }
 
 func loadCases(bench string) ([]benchCase, error) {
+	//nolint:gosec // operator-supplied path in a developer benchmark tool, not served input
 	f, err := os.Open(filepath.Join(bench, "cases.jsonl"))
 	if err != nil {
 		return nil, err
@@ -166,7 +169,7 @@ func capture(ctx context.Context, bench, snipe, repo string, stdout io.Writer) e
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, out, 0o600); err != nil {
+		if err := atomicfile.WriteFile(path, out, 0o600); err != nil {
 			return err
 		}
 		fmt.Fprintln(stdout, "wrote", path)

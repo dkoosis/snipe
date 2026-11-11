@@ -105,7 +105,7 @@ func changedSymbols(db *sql.DB, repoRoot string, changes []FileChange) []changed
 			c.pkgPath = pkg.String
 			out = append(out, c)
 		}
-		_ = rows.Close()
+		_ = rows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
 	}
 	return out
 }

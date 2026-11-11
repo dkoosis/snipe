@@ -882,7 +882,7 @@ func findComponents(s *store.Store) ([]Component, error) {
 // design field's zero-inference AC rules out).
 func loadPackageDocFirstSentences(db *sql.DB, pkgs []string) (map[string]string, error) {
 	if len(pkgs) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 	placeholders := strings.Repeat("?,", len(pkgs))
 	placeholders = placeholders[:len(placeholders)-1]
@@ -891,6 +891,7 @@ func loadPackageDocFirstSentences(db *sql.DB, pkgs []string) (map[string]string,
 		args[i] = p
 	}
 	// #nosec G201 -- placeholders are positional parameters
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := "SELECT pkg_path, doc FROM package_docs WHERE pkg_path IN (" + placeholders + ")"
 	rows, err := db.Query(q, args...)
 	if err != nil {

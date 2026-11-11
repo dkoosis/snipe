@@ -371,7 +371,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 		entryPoints = append(entryPoints, ep)
 	}
 	rowsErr := rows.Err()
-	_ = rows.Close()
+	_ = rows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
 	if rowsErr != nil {
 		return nil, rowsErr
 	}
@@ -388,6 +388,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 	}
 
 	// Fetch all callees (no LIMIT) — we rank by significance in Go
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	calleeQuery := `
 		SELECT DISTINCT cg.caller_id, callee.name, COALESCE(callee.receiver, '') as receiver
 		FROM call_graph cg

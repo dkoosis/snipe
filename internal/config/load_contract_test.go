@@ -22,6 +22,7 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 		{
 			name: "error: project root as file surfaces filesystem error",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				home := t.TempDir()
 				t.Setenv("HOME", home)
 				projectRoot := filepath.Join(t.TempDir(), "project-root-file")
@@ -33,6 +34,7 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 		{
 			name: "boundary: zero-valued project fields do not override defaults",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				home := t.TempDir()
 				t.Setenv("HOME", home)
 				project := t.TempDir()
@@ -44,6 +46,7 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 		{
 			name: "happy path: project overrides global while preserving unspecified global value",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				home := t.TempDir()
 				t.Setenv("HOME", home)
 				globalDir := filepath.Join(home, ".config", "snipe")
@@ -59,6 +62,7 @@ func TestLoad_MergesConfiguration_When_SourcesPresent(t *testing.T) {
 		{
 			name: "happy path: missing config files returns defaults",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				home := t.TempDir()
 				t.Setenv("HOME", home)
 				return t.TempDir()

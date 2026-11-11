@@ -90,7 +90,7 @@ func TestExists(t *testing.T) {
 
 func TestDefaultIndexPath(t *testing.T) {
 	got := DefaultIndexPath("/home/user/project")
-	want := filepath.Join("/home/user/project", ".snipe", "index.db")
+	want := filepath.FromSlash("/home/user/project/.snipe/index.db")
 	if got != want {
 		t.Errorf("DefaultIndexPath() = %q, want %q", got, want)
 	}
@@ -295,7 +295,7 @@ func TestAcquireLockRecoversStaleLock(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock should recover stale lock, got: %v", err)
 	}
-	defer func() { _ = ReleaseLock(dbPath) }()
+	t.Cleanup(func() { _ = ReleaseLock(dbPath) })
 }
 
 func TestAcquireLockRecoversEmptyLockFile(t *testing.T) {
@@ -315,7 +315,7 @@ func TestAcquireLockRecoversEmptyLockFile(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock should recover empty lock file, got: %v", err)
 	}
-	defer func() { _ = ReleaseLock(dbPath) }()
+	t.Cleanup(func() { _ = ReleaseLock(dbPath) })
 }
 
 // TestIsIndexingFalseWhenNoLock confirms a missing lock file reports not-indexing.

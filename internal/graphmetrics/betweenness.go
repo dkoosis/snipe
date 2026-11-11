@@ -56,7 +56,6 @@ func Betweenness(g *Graph) map[string]float64 {
 		// Accumulation — reverse BFS order.
 		delta := make(map[string]float64, n)
 		for _, w := range slices.Backward(stack) {
-
 			for _, v := range pred[w] {
 				delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w])
 			}

@@ -260,9 +260,9 @@ func use(n *Nug) {
 	wantByLine := map[int]string{
 		6:  CtxTypeDecl,     // field type in Box
 		9:  CtxSignature,    // return type of MakeNug
-		10: CtxCompositeLit, // &Nug{ID: "x"}
+		10: CtxCompositeLit, // a composite literal of Nug
 		11: CtxNew,          // new(Nug)
-		12: CtxMake,         // make([]Nug, 0)
+		12: CtxMake,         // a made slice of Nug
 	}
 	got := map[int]string{}
 	for _, r := range refs {

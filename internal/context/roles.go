@@ -1,4 +1,3 @@
-// Package context provides role inference for symbols.
 package context
 
 import (
@@ -188,6 +187,7 @@ func RolesForSymbols(db *sql.DB, repoRoot string, ids []string) (map[string]Symb
 		for i, id := range batch {
 			args[i] = id
 		}
+		//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 		rows, err := db.Query(`
 			SELECT id, name, kind, signature, pkg_path, file_path
 			FROM symbols
@@ -198,7 +198,7 @@ func RolesForSymbols(db *sql.DB, repoRoot string, ids []string) (map[string]Symb
 			return nil, err
 		}
 		symbols, err := scanSymbolInfos(rows)
-		_ = rows.Close()
+		_ = rows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
 		if err != nil {
 			return nil, err
 		}
@@ -633,6 +633,7 @@ func loadImportsCache(db *sql.DB, repoRoot string) (importsCache, error) {
 		args = append(args, p)
 	}
 	args = append(args, repoRoot)
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	rows, err := db.Query(
 		`SELECT file_path, pkg_path FROM imports
 		 WHERE pkg_path IN (`+placeholders+`) AND file_path LIKE ? || '/%'`,

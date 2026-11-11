@@ -51,7 +51,7 @@ func TestWriteJSONL_WritesExpectedRequests(t *testing.T) {
 		t.Fatalf("line count = %d, want 2", len(lines))
 	}
 
-	var got []BatchRequest
+	got := make([]BatchRequest, 0, len(lines))
 	for i, line := range lines {
 		var req BatchRequest
 		if err := json.Unmarshal([]byte(line), &req); err != nil {

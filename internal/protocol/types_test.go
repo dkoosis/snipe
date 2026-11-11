@@ -78,7 +78,7 @@ func TestMetaEmitsZeroOffsetLimit(t *testing.T) {
 			t.Errorf("meta missing %q at zero value — omitempty dropped a meaningful zero (snipe-0xt)", field)
 			continue
 		}
-		if v.(float64) != 0 {
+		if f, ok := v.(float64); !ok || f != 0 {
 			t.Errorf("meta %q = %v, want 0", field, v)
 		}
 	}
@@ -815,7 +815,10 @@ func TestSuggestionJSONFormat(t *testing.T) {
 		t.Errorf("expected 1 suggestion, got %d", len(suggestions))
 	}
 
-	s := suggestions[0].(map[string]any)
+	s, ok := suggestions[0].(map[string]any)
+	if !ok {
+		t.Fatalf("suggestions[0] = %T, want map", suggestions[0])
+	}
 	if s["command"] != "snipe refs foo" {
 		t.Errorf("command = %v, want 'snipe refs foo'", s["command"])
 	}

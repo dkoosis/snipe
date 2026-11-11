@@ -157,6 +157,7 @@ func FindOverlappingSymbols(db *sql.DB, repoRoot string, changes map[string][]Li
 	for start := 0; start < len(predSQL); start += overlapBatchPredicates {
 		end := min(start+overlapBatchPredicates, len(predSQL))
 
+		//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 		query := overlapQueryPrefix + strings.Join(predSQL[start:end], " OR ") + overlapQuerySuffix
 
 		var args []any
@@ -169,7 +170,7 @@ func FindOverlappingSymbols(db *sql.DB, repoRoot string, changes map[string][]Li
 			return nil, fmt.Errorf("query overlapping symbols: %w", err)
 		}
 		batch, err := scanSymbolRows(rows)
-		rows.Close()
+		rows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
 		if err != nil {
 			return nil, err
 		}

@@ -29,12 +29,8 @@ func TestCheckRipgrep_Available(t *testing.T) {
 }
 
 func TestCheckRipgrep_MissingRg(t *testing.T) {
-	// Save original PATH
-	origPath := os.Getenv("PATH")
-	defer os.Setenv("PATH", origPath)
-
 	// Set PATH to empty to simulate missing rg
-	os.Setenv("PATH", "")
+	t.Setenv("PATH", "")
 
 	check := checkRipgrep()
 

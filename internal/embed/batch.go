@@ -454,14 +454,14 @@ func (c *BatchClient) SaveState(state *BatchState) error {
 // recover by simply re-running instead of manually deleting .snipe/batch_state.json.
 func (c *BatchClient) LoadState() (*BatchState, error) {
 	if c.stateDir == "" {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 
 	path := filepath.Join(c.stateDir, "batch_state.json")
 	data, err := os.ReadFile(path) // #nosec G304 -- path derived from stateDir (batch state)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 		}
 		return nil, fmt.Errorf("read state: %w", err)
 	}
@@ -470,7 +470,7 @@ func (c *BatchClient) LoadState() (*BatchState, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: batch_state.json is corrupt (%v); discarding and starting fresh.\n", err)
 		_ = os.Remove(path)
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 
 	return &state, nil

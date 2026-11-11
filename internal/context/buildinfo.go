@@ -112,6 +112,7 @@ func parseMakefileTargets(content string) []string {
 	seen := make(map[string]bool)
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
+	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLine)
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -151,6 +152,7 @@ func parseTaskfileTargets(content string) []string {
 	inTasks := false
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
+	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLine)
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
@@ -179,6 +181,7 @@ func parseJustfileRecipes(content string) []string {
 	seen := make(map[string]bool)
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
+	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLine)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
@@ -288,3 +291,6 @@ func fileHasGoGenerate(path string) bool {
 	}
 	return false
 }
+
+// maxScanLine caps one scanned line of a build file at 1 MiB.
+const maxScanLine = 1 << 20

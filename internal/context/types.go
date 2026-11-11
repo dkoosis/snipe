@@ -7,7 +7,7 @@ import "github.com/dkoosis/snipe/internal/dbschema"
 type ProjectContext struct {
 	Project      Project             `json:"project" yaml:"project"`
 	Architecture Architecture        `json:"architecture" yaml:"architecture"`
-	Files        Files               `json:"files,omitempty" yaml:"files,omitempty"`
+	Files        Files               `json:"files" yaml:"files,omitempty"`
 	Symbols      Symbols             `json:"symbols" yaml:"symbols"`
 	DBSchemas    []dbschema.DBSchema `json:"db_schemas,omitempty" yaml:"db_schemas,omitempty"`
 	Meta         Meta                `json:"meta" yaml:"meta"`

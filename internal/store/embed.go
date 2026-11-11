@@ -222,6 +222,7 @@ func (s *Store) GetCalleesForSymbols(symbolIDs []string) (map[string]map[string]
 		placeholders = append(placeholders, '?')
 		args = append(args, id)
 	}
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := `SELECT caller_id, callee_id FROM call_graph WHERE caller_id IN (` + string(placeholders) + `)`
 	rows, err := s.db.Query(q, args...)
 	if err != nil {

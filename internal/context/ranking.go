@@ -1,4 +1,3 @@
-// Package context provides role-weighted symbol ranking for boot context generation.
 package context
 
 import (

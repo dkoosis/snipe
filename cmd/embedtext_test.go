@@ -72,8 +72,8 @@ func TestEmbedTextComposition(t *testing.T) {
 // TestEmbedTextCallerCap keeps the token budget bounded: at most
 // embedMaxCallers callers are named.
 func TestEmbedTextCallerCap(t *testing.T) {
-	symbols := []index.Symbol{{ID: "t", Name: "Target", Kind: index.KindFunc, FilePath: "a.go", PkgPath: "m/a", Signature: "func Target()"}}
-	var edges []index.CallEdge
+	symbols := append(make([]index.Symbol, 0, 6), index.Symbol{ID: "t", Name: "Target", Kind: index.KindFunc, FilePath: "a.go", PkgPath: "m/a", Signature: "func Target()"})
+	edges := make([]index.CallEdge, 0, 5)
 	for _, n := range []string{"a1", "a2", "a3", "a4", "a5"} {
 		symbols = append(symbols, index.Symbol{ID: n, Name: n, Kind: index.KindFunc, FilePath: "b.go", PkgPath: "m/b", Signature: "func " + n + "()"})
 		edges = append(edges, index.CallEdge{CallerID: n, CalleeID: "t"})

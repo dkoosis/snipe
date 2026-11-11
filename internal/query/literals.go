@@ -113,6 +113,7 @@ func FindChurnLiterals(db *sql.DB, testFiles []string, limit int) (paths []strin
 	// file (thousands of testdata/ consts) would stream every row into Go before
 	// the cap applied — the cap would bound the output but not the work, defeating
 	// the point of limit for exactly the const registries this feature targets.
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	countQ := fmt.Sprintf(`
 		SELECT COUNT(*) FROM (
 			SELECT DISTINCT value
@@ -132,6 +133,7 @@ func FindChurnLiterals(db *sql.DB, testFiles []string, limit int) (paths []strin
 	// DISTINCT collapses the same path referenced by two covering tests; ORDER BY
 	// value (a plain column) both sorts the output and satisfies the ORDER BY
 	// guard test. LIMIT bounds the rows SQLite streams back, not just the slice.
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := fmt.Sprintf(`
 		SELECT DISTINCT value
 		FROM string_refs

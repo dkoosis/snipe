@@ -119,7 +119,7 @@ func (g *Globals) AfterApply() error {
 		signal.Stop(sigCh)
 	}()
 
-	cmdCtx = ctx
+	cmdCtx = ctx //nolint:fatcontext // one assignment per process: the command context lives for the whole invocation
 
 	// Load config and apply defaults if flags weren't explicitly set
 	cwd, err := os.Getwd()

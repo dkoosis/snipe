@@ -73,7 +73,7 @@ func Load(projectRoot string) (*Config, error) {
 func loadFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path) // #nosec G304 -- path from globalConfigPath/projectConfigPath
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)

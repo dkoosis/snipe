@@ -99,9 +99,11 @@ func runBench(ctx context.Context, bench, out string, p plan, dry bool, a ask, s
 			return fmt.Errorf("%w (%s replied: %s)", errLeak, m, strings.TrimSpace(r.Text))
 		}
 	}
+	//nolint:gosec // operator-supplied path in a developer benchmark tool, not served input
 	if err := os.MkdirAll(out, 0o750); err != nil {
 		return err
 	}
+	//nolint:gosec // operator-supplied path in a developer benchmark tool, not served input
 	f, err := os.Create(filepath.Join(out, "calls.jsonl"))
 	if err != nil {
 		return err

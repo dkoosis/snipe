@@ -138,8 +138,8 @@ func TestRankSeams_EmptyInput(t *testing.T) {
 
 func gotNames(seams []Seam) []string {
 	out := make([]string, len(seams))
-	for i, s := range seams {
-		out[i] = s.Interface.Name
+	for i := range seams {
+		out[i] = seams[i].Interface.Name
 	}
 	return out
 }

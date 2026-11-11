@@ -62,7 +62,7 @@ func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 		&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query symbol by id: %w", err)
@@ -238,6 +238,7 @@ func LookupByNameInFile(db *sql.DB, name, filePattern string) ([]SymbolRow, erro
 // The pkgPattern can be a full path or suffix (e.g. "query" matches "github.com/foo/internal/query").
 func LookupByNameInPkg(db *sql.DB, name, pkgPattern string) ([]SymbolRow, error) {
 	tryQuery := func(whereClause string, args ...any) ([]SymbolRow, error) {
+		//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 		rows, err := db.Query(`
 			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 			       s.signature, s.doc, s.receiver, f.hash
@@ -1144,6 +1145,7 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 	// Group by (type_name, pkg_path) to avoid merging same-named types from different packages.
 	// Exclude the interface itself by matching BOTH name and package (not just name,
 	// since a struct in another package may share the interface's name).
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	candidateQuery := fmt.Sprintf(`
 		SELECT
 		  CASE
@@ -1172,7 +1174,7 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 	for candRows.Next() {
 		var c candidate
 		if err := candRows.Scan(&c.name, &c.pkgPath); err != nil {
-			candRows.Close()
+			candRows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
 			return nil, fmt.Errorf("scan candidate type: %w", err)
 		}
 		candidates = append(candidates, c)

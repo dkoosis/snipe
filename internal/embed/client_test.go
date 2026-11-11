@@ -84,6 +84,7 @@ func TestEmbed_ErrorBehavior(t *testing.T) {
 				return testClient("http://unused")
 			},
 			assertFn: func(t *testing.T, got [][]float32, err error) {
+				t.Helper()
 				if err != nil {
 					t.Fatalf("Embed error: %v", err)
 				}
@@ -105,6 +106,7 @@ func TestEmbed_ErrorBehavior(t *testing.T) {
 				return testClient(server.URL)
 			},
 			assertFn: func(t *testing.T, _ [][]float32, err error) {
+				t.Helper()
 				if err == nil {
 					t.Fatal("expected error")
 				}

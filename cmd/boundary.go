@@ -260,7 +260,7 @@ func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
 	// One FindBoundaryCrossings per ordered pair (i->j and j->i are both
 	// reported via the directional A→B/B→A split inside FindBoundaryCrossings).
 	rows := make([]layerCrossingRow, 0, len(layers)*(len(layers)-1))
-	for i := range len(layers) {
+	for i := range layers {
 		for j := i + 1; j < len(layers); j++ {
 			if len(layers[i].pkgs) == 0 || len(layers[j].pkgs) == 0 {
 				continue

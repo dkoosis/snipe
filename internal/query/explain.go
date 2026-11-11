@@ -326,7 +326,7 @@ func buildCallerContext(db *sql.DB, symbolID string, limit int) (*protocol.Calle
 	}
 
 	if count == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 
 	// Get top callers

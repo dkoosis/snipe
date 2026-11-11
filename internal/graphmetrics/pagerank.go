@@ -1,4 +1,3 @@
-// Package graphmetrics computes graph centrality metrics over the symbol graph.
 package graphmetrics
 
 import "math"

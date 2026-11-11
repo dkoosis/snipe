@@ -93,6 +93,7 @@ func queryDirection(db *sql.DB, srcPkgs, dstPkgs []string) ([]BoundaryRef, error
 	srcPlace := placeholders(len(srcPkgs))
 	dstPlace := placeholders(len(dstPkgs))
 
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := fmt.Sprintf(`
 		SELECT tgt.name, tgt.kind, enc.pkg_path, tgt.pkg_path, COUNT(*) AS n
 		FROM refs r
@@ -153,6 +154,7 @@ func fillLocations(db *sql.DB, refs []BoundaryRef, srcPkgs, dstPkgs []string) er
 	srcPlace := placeholders(len(srcPkgs))
 	dstPlace := placeholders(len(dstPkgs))
 
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := fmt.Sprintf(`
 		SELECT tgt.name, r.file_path_rel, r.line
 		FROM refs r

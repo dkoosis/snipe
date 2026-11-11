@@ -136,7 +136,7 @@ type fileMeta struct {
 // queryFileMetadata queries the files table for stored mtimes and hashes.
 func queryFileMetadata(db *sql.DB, paths []string) (map[string]fileMeta, error) {
 	if len(paths) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 
 	placeholders := make([]string, len(paths))
@@ -146,6 +146,7 @@ func queryFileMetadata(db *sql.DB, paths []string) (map[string]fileMeta, error) 
 		args[i] = p
 	}
 
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := "SELECT path, mtime, COALESCE(hash, '') FROM files WHERE path IN (" + strings.Join(placeholders, ",") + ")"
 	rows, err := db.Query(q, args...)
 	if err != nil {

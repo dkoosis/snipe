@@ -56,6 +56,7 @@ func FindTests(db *sql.DB, symbolID string, direct bool, limit, offset int) ([]T
 			ORDER BY s.file_path, s.name
 			LIMIT ? OFFSET ?`
 	} else {
+		//nolint:unqueryvet // SELECT * reads the CTEs above, whose column lists are fixed in this query
 		q = `
 			WITH direct_tests AS (
 				SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
@@ -143,6 +144,7 @@ func FindTestsMulti(db *sql.DB, symbolIDs []string, direct bool, limit, offset i
 		for _, id := range symbolIDs {
 			args = append(args, id)
 		}
+		//nolint:unqueryvet // SELECT * reads the CTEs above, whose column lists are fixed in this query
 		q = fmt.Sprintf(`
 			WITH direct_tests AS (
 				SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel,

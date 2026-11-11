@@ -391,7 +391,7 @@ func TestRoot_GetContext_ReturnsCommandContext_When_Configured(t *testing.T) {
 	})
 
 	t.Run("error path returns background when command context is unset", func(t *testing.T) {
-		cmdCtx = nil
+		cmdCtx = nil //nolint:fatcontext // test resets the package-level command context
 		got := GetContext()
 		if got == nil {
 			t.Fatal("GetContext() returned nil, want non-nil background context")
@@ -404,7 +404,7 @@ func TestRoot_GetContext_ReturnsCommandContext_When_Configured(t *testing.T) {
 	t.Run("configured context is returned unchanged", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		t.Cleanup(cancel)
-		cmdCtx = ctx
+		cmdCtx = ctx //nolint:fatcontext // test sets the package-level command context
 		got := GetContext()
 		if got != ctx {
 			t.Fatal("GetContext() did not return the configured command context")

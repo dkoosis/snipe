@@ -117,7 +117,7 @@ func groupSystemMap(pkgs []string, edges [][2]string, module string) ([]systemGr
 		pkgGroup[p] = name
 	}
 
-	var groups []systemGroup
+	groups := make([]systemGroup, 0, len(members))
 	for name, ps := range members {
 		sort.Strings(ps)
 		groups = append(groups, systemGroup{name: name, pkgs: ps})
@@ -132,7 +132,7 @@ func groupSystemMap(pkgs []string, edges [][2]string, module string) ([]systemGr
 		}
 		counts[[2]string{from, to}]++
 	}
-	var groupEdges []groupEdge
+	groupEdges := make([]groupEdge, 0, len(counts))
 	for k, c := range counts {
 		groupEdges = append(groupEdges, groupEdge{from: k[0], to: k[1], count: c})
 	}

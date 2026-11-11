@@ -556,7 +556,7 @@ func inferBoundaries(db *sql.DB, modulePath string) []Boundary {
 		seen[shortName] = true
 		packages = append(packages, pkgInfo{fullPath: pkgPath, shortName: shortName})
 	}
-	_ = rows.Close() // G104: close after iteration (defer not used to avoid nested query issues)
+	_ = rows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
 
 	// Now build boundaries with exports (safe to query now)
 	var boundaries []Boundary
@@ -951,6 +951,7 @@ func buildRoleRiskMaps(db *sql.DB, repoRoot string) (map[string]Role, map[string
 // The kindClause is a SQL IN expression like "('func', 'method')".
 func querySymbolRefsByKind(db *sql.DB, repoRoot, kindClause string, limit int, roleMap map[string]Role, riskMap map[string][]string) []SymbolRef {
 	// #nosec G201 -- kindClause is a hardcoded literal from caller
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	rows, err := db.Query(`
 		SELECT s.id, s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
 		FROM symbols s

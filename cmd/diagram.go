@@ -500,7 +500,7 @@ func loadCallsPageRank(s *store.Store) (map[string]float64, error) {
 		return nil, fmt.Errorf("read pagerank: %w", err)
 	}
 	if len(rows) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 	out := make(map[string]float64, len(rows))
 	for _, r := range rows {

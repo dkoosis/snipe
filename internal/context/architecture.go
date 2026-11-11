@@ -81,6 +81,7 @@ func loadPackageDocs(db *sql.DB, pkgPaths []string) map[string]string {
 	}
 
 	// #nosec G201 -- placeholders are positional parameters
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	query := "SELECT pkg_path, doc FROM package_docs WHERE pkg_path IN (" +
 		strings.Join(placeholders, ",") + ")"
 

@@ -88,6 +88,7 @@ func frontierCallers(db *sql.DB, ids []string) ([]callerEdge, error) {
 				args[i] = id
 			}
 			// #nosec G201 -- placeholders are "?" literals; args carry the values (parameterized).
+			//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 			q := `
 				SELECT DISTINCT cg.caller_id, caller.name, caller.file_path_rel
 				FROM call_graph cg

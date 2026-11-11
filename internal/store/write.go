@@ -780,6 +780,7 @@ func deleteByFilePaths(tx *sql.Tx, table childTable, files []string, repoRoot st
 }
 
 func deleteOptionalTable(tx *sql.Tx, table string) error {
+	//nolint:gosec // table is a package-internal constant name, never caller text
 	_, err := tx.Exec("DELETE FROM " + table)
 	if err == nil {
 		return nil
@@ -824,6 +825,7 @@ func (s *Store) WritePackageDocs(docs []index.PackageDoc) (err error) {
 		for _, d := range docs {
 			args = append(args, d.PkgPath)
 		}
+		//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 		query := `DELETE FROM package_docs WHERE pkg_path NOT IN (` + placeholders + `)`
 		if _, err := tx.Exec(query, args...); err != nil {
 			return fmt.Errorf("sweep package_docs orphans: %w", err)

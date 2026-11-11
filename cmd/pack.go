@@ -428,7 +428,7 @@ func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (protoco
 	}
 
 	// Collect all results for staleness check
-	var allResults []protocol.Result
+	allResults := make([]protocol.Result, 0, 1+len(refResults)+len(callerResults)+len(calleeResults))
 	allResults = append(allResults, defResult)
 	allResults = append(allResults, refResults...)
 	allResults = append(allResults, callerResults...)

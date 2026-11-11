@@ -92,7 +92,7 @@ func TestFindSymbol_ReturnsError_When_SymbolDoesNotExistOrLineFilterMismatches(t
 
 			_, err := edit.FindSymbol(path, tc.symbol, tc.line)
 			require.Error(t, err)
-			assert.ErrorIs(t, err, edit.ErrSymbolNotFound)
+			require.ErrorIs(t, err, edit.ErrSymbolNotFound)
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
@@ -148,6 +148,7 @@ func TestApply_ReturnsEditedCode_When_UsingSupportedOperations(t *testing.T) {
 			req:       edit.Request{Symbol: "Add", Operation: edit.OpReplaceBody, NewCode: "return a - b"},
 			wantInNew: "{\nreturn a - b\n}",
 			inspect: func(t *testing.T, got *edit.Result) {
+				t.Helper()
 				assert.Contains(t, got.OriginalCode, "return a + b")
 				assert.False(t, got.Applied)
 				assert.Greater(t, got.NewLineEnd, got.LineStart)
@@ -158,6 +159,7 @@ func TestApply_ReturnsEditedCode_When_UsingSupportedOperations(t *testing.T) {
 			req:       edit.Request{Symbol: "Add", Operation: edit.OpReplaceFull, NewCode: "func Add(a, b int) int {\n\treturn a*b\n}"},
 			wantInNew: "func Add(a, b int) int",
 			inspect: func(t *testing.T, got *edit.Result) {
+				t.Helper()
 				assert.Contains(t, got.NewCode, "return a*b")
 				assert.Contains(t, got.Diff, "@@")
 			},
@@ -263,7 +265,7 @@ func TestFindSymbol_ReturnsWrappedError_When_FileCannotBeRead(t *testing.T) {
 
 	_, err := edit.FindSymbol(filepath.Join(t.TempDir(), "missing.go"), "X", 0)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, os.ErrNotExist)
+	require.ErrorIs(t, err, os.ErrNotExist)
 	assert.Contains(t, err.Error(), "read file")
 	assert.NotContains(t, err.Error(), "panic")
 }

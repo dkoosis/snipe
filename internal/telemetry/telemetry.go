@@ -158,7 +158,6 @@ func ClassifyRung(decisionPath, degraded []string, outcome string) string {
 		return RungCaseInsensitive
 	}
 	for _, tok := range slices.Backward(decisionPath) {
-
 		switch {
 		case strings.HasPrefix(tok, "sim:"), strings.HasPrefix(tok, "sim_augment:"):
 			return RungSemantic
@@ -215,6 +214,7 @@ func Emit(f Fields) {
 		CandidateKinds: f.CandidateKinds,
 		Error:          TruncateError(f.Error),
 	}
+	//nolint:gosec // session_key is a local join id for telemetry, not a credential
 	line, err := json.Marshal(rec)
 	if err != nil {
 		return
