@@ -19,12 +19,10 @@ linters:
   default: standard
   enable:
     # Error handling
-    - err113
     - errchkjson
     - errorlint
     - nilerr
     - nilnesserr
-    - wrapcheck
 
     # Safety
     - bodyclose
@@ -32,19 +30,12 @@ linters:
     - forbidigo
     - forcetypeassert
     - gosec
-    - noctx
     - predeclared
     - rowserrcheck
     - sqlclosecheck
     - unqueryvet
 
     # Complexity and duplication
-    - cyclop
-    - dupl
-    - funlen
-    - gocognit
-    - gocyclo
-    - nestif
 
     # Enum and type safety
     - exhaustive
@@ -98,6 +89,9 @@ linters:
     - thelper
     - usetesting
 
+  # Dropped for snipe, each by exception in docs/repo-standard.json (burn-down
+  # beads sn-*): noctx, wrapcheck, err113, cyclop, gocyclo, gocognit, nestif, funlen, dupl.
+  # noctx is also on the lint-floor exception.
   disable:
     - godox
     - wsl

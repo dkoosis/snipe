@@ -84,6 +84,7 @@ func changedSymbols(db *sql.DB, repoRoot string, changes []FileChange) []changed
 		if !strings.HasSuffix(fc.Path, ".go") || strings.HasSuffix(fc.Path, "_test.go") || len(fc.LineRanges) == 0 {
 			continue
 		}
+		//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 		rows, err := db.Query(`
 			SELECT id, name, kind, pkg_path, COALESCE(receiver, ''), line_start, line_end
 			FROM symbols

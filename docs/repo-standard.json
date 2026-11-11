@@ -1,6 +1,23 @@
 {
   "profile": "tool",
   "exceptions": [
-    {"rule": "lint-floor", "reason": "linter-debt burn-down is sd-a32e (deferred): enabling default:standard/errcheck/noctx today drops hundreds of known findings into make check; exception retires when sd-a32e merges the floor"}
+    {
+      "rule": "lint-floor",
+      "reason": "noctx is on the floor but snipe's store and query APIs take no context: 281 database/sql and exec.Command calls would each need ctx threaded through the API; burn-down is bead sn-hdkm, and the exception retires when it merges"
+    },
+    {
+      "rule": "lint-set",
+      "drop": {
+        "noctx": "281 database/sql and exec.Command calls lack a context because the store and query APIs take none; threading ctx is a repo-wide API change (bead sn-hdkm)",
+        "wrapcheck": "213 findings of unwrapped errors from database/sql, os and json; each needs hand-written wrap context (bead sn-otg6)",
+        "err113": "76 inline fmt.Errorf/errors.New errors that want sentinels; changing them alters which errors callers can match (bead sn-jjvz)",
+        "cyclop": "63 functions over cyclomatic complexity 15; refactor burn-down (bead sn-w0c3, shared with gocyclo)",
+        "gocyclo": "61 functions over cyclomatic complexity 15; refactor burn-down (bead sn-w0c3, shared with cyclop)",
+        "gocognit": "121 functions over cognitive complexity 15 in production code; refactor burn-down (bead sn-45q0)",
+        "nestif": "26 deeply nested if blocks; refactor burn-down (bead sn-4cw8)",
+        "funlen": "73 functions over 80 lines or 40 statements; refactor burn-down (bead sn-1vlh)",
+        "dupl": "6 duplicated command and query bodies; extraction burn-down (bead sn-yzkf)"
+      }
+    }
   ]
 }

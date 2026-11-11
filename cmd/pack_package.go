@@ -254,6 +254,7 @@ func fileHeadersForDir(db *sql.DB, pkgDir, pkgDoc string) []protocol.FileHeader 
 	if pkgDir == "" {
 		return nil
 	}
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT path, COALESCE(header, '') FROM files
 		WHERE path LIKE ? AND path NOT LIKE ?

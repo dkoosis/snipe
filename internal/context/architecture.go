@@ -85,6 +85,7 @@ func loadPackageDocs(db *sql.DB, pkgPaths []string) map[string]string {
 	query := "SELECT pkg_path, doc FROM package_docs WHERE pkg_path IN (" +
 		strings.Join(placeholders, ",") + ")"
 
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil

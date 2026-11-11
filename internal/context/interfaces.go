@@ -162,6 +162,9 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 		}
 		candidates = append(candidates, c)
 	}
+	if err := candRows.Err(); err != nil {
+		return nil, err
+	}
 
 	if len(candidates) == 0 {
 		return nil, nil

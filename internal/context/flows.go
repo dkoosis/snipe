@@ -432,6 +432,9 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 			calleeMap[callerID] = append(calleeMap[callerID], displayName)
 		}
 	}
+	if err := calleeRows.Err(); err != nil {
+		return nil, err
+	}
 
 	// Backfill purposes from Cobra Short descriptions when doc comments are empty
 	cobraShorts := extractCobraShorts(repoRoot)

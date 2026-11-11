@@ -154,6 +154,7 @@ func buildArchWarnings(db *sql.DB) []ArchWarning {
 	rows := make(map[string]*ai)
 
 	scan := func(metric string, set func(*ai, float64)) {
+		//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 		rs, err := db.Query(
 			`SELECT node_id, value FROM graph_metrics
 			 WHERE graph_kind = ? AND metric = ?`,
@@ -327,6 +328,7 @@ func rankedToSymbolRefs(ranked []RankedSymbol, repoRoot string) []SymbolRef {
 func getEntryPoints(db *sql.DB, repoRoot string) []string {
 	var entryPoints []string
 
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT DISTINCT file_path
 		FROM symbols
@@ -359,6 +361,7 @@ func getEntryPoints(db *sql.DB, repoRoot string) []string {
 func getKeySymbolsByRefCount(db *sql.DB, repoRoot string, limit int) []SymbolRef {
 	var symbols []SymbolRef
 
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT s.name, s.file_path, s.line_start,
 			COUNT(DISTINCT r.file_path) as file_spread,
@@ -447,6 +450,7 @@ func generateArchitecture(db *sql.DB, repoRoot string) Architecture {
 // inferDataFlows analyzes imports to determine data flow between packages.
 func inferDataFlows(db *sql.DB, modulePath string) []DataFlow {
 	// Query inter-package imports within the repository
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT
 			importer_pkg,
@@ -525,6 +529,7 @@ func extractPkgShortName(pkgPath, modulePath string) string {
 // inferBoundaries determines what each package owns/exports.
 func inferBoundaries(db *sql.DB, modulePath string) []Boundary {
 	// Get distinct internal packages
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT DISTINCT pkg_path
 		FROM symbols
@@ -576,6 +581,7 @@ func inferBoundaries(db *sql.DB, modulePath string) []Boundary {
 
 // getExportedSymbols returns the top exported symbols for a package.
 func getExportedSymbols(db *sql.DB, pkgPath string, limit int) []string {
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT s.name
 		FROM symbols s
@@ -633,6 +639,7 @@ type packageInfo struct {
 
 func getPackageInfo(db *sql.DB, repoRoot string) []packageInfo {
 	// Query for distinct directories containing Go files
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT DISTINCT
 			SUBSTR(file_path, LENGTH(?) + 2,
@@ -715,6 +722,7 @@ func generateFiles(db *sql.DB, repoRoot string) Files {
 	}
 
 	// Query files with exported symbols (key files only)
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT
 			file_path,
@@ -951,7 +959,7 @@ func buildRoleRiskMaps(db *sql.DB, repoRoot string) (map[string]Role, map[string
 // The kindClause is a SQL IN expression like "('func', 'method')".
 func querySymbolRefsByKind(db *sql.DB, repoRoot, kindClause string, limit int, roleMap map[string]Role, riskMap map[string][]string) []SymbolRef {
 	// #nosec G201 -- kindClause is a hardcoded literal from caller
-	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
+	//nolint:gosec,rowserrcheck // SQL text is built only from fixed fragments and '?' placeholders, every value bound as a parameter; best-effort context section, so a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT s.id, s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
 		FROM symbols s
@@ -1002,6 +1010,7 @@ func getExtensionPoints(db *sql.DB, repoRoot string) []ExtensionPoint {
 	var points []ExtensionPoint
 
 	// Query for interfaces and high-centrality symbols
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT
 			s.name,

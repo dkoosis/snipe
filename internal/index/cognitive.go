@@ -41,7 +41,6 @@ func (c *cognitiveCounter) walkStmts(stmts []ast.Stmt, nesting int) {
 	}
 }
 
-//nolint:gocyclo // one flat switch over statement kinds; splitting it would scatter the counting rules
 func (c *cognitiveCounter) walkStmt(stmt ast.Stmt, nesting int) {
 	switch s := stmt.(type) {
 	case *ast.IfStmt:

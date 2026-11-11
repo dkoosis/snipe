@@ -79,6 +79,7 @@ func mageTargetsFromIndex(db *sql.DB, repoRoot string) []string {
 		return nil
 	}
 	magefilePath := filepath.Join(repoRoot, "magefile.go")
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT name FROM symbols
 		WHERE file_path = ?
