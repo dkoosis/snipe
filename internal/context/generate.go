@@ -1079,7 +1079,10 @@ func generateMeta(db *sql.DB) Meta {
 
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
+	if err != nil || info == nil {
+		return false
+	}
+	return !info.IsDir()
 }
 
 // inferProjectPurpose extracts a one-line project purpose from the main package doc,

@@ -243,6 +243,12 @@ doEdit:
 		}
 		durabilityWarn = []string{"edit_not_durable:" + symbolName}
 	}
+	if result == nil {
+		return w.WriteError(cmdNameEdit, &protocol.Error{
+			Code:    protocol.ErrInternal,
+			Message: "edit returned no result",
+		})
+	}
 
 	// Build response
 	relPath, _ := filepath.Rel(dir, filePath) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root
@@ -366,6 +372,10 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 				continue
 			}
 			degraded = append(degraded, "edit_not_durable:"+req.Symbol)
+		}
+		if result == nil {
+			degraded = append(degraded, "edit_failed:"+req.Symbol+":no result")
+			continue
 		}
 
 		relPath, _ := filepath.Rel(dir, filePath) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root

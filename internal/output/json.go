@@ -229,6 +229,8 @@ func writeClaudeResult(b *strings.Builder, r *protocol.Result) {
 // splitTestResults returns the results from code files and from _test.go
 // files, each in its original order.
 func splitTestResults(results []protocol.Result) (code, tests []protocol.Result) {
+	code = make([]protocol.Result, 0, len(results))
+	tests = make([]protocol.Result, 0, len(results))
 	for i := range results {
 		if strings.HasSuffix(results[i].File, "_test.go") {
 			tests = append(tests, results[i])

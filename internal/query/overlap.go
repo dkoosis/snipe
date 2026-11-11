@@ -118,7 +118,7 @@ func FindOverlappingSymbols(db *sql.DB, repoRoot string, changes map[string][]Li
 	// Flattening lets stale and fresh predicates share one uniform batching
 	// loop below, and puts a hard, countable cap on params/depth per batch.
 	var predSQL []string
-	var predArgs [][]any
+	predArgs := [][]any{}
 
 	for _, p := range paths {
 		if _, ok := staleSet[toRelPath(p, repoRoot)]; ok {

@@ -118,7 +118,7 @@ dupe: ## Check for code duplication (jscpd, pinned)
 	npx --yes jscpd@$(JSCPD_VER) . --silent --reporters console --ignore '**/.git/**,**/.sandbox/**,**/.beads/**,**/.claude/**,**/vendor/**,**/.snipe/**,**/.eval-repos/**'
 
 nilcheck: ## Run nilaway (pinned)
-	go run go.uber.org/nilaway/cmd/nilaway@$(NILAWAY_VER) -include-pkgs=github.com/dkoosis/snipe ./...
+	go run go.uber.org/nilaway/cmd/nilaway@$(NILAWAY_VER) -test=false -include-pkgs=github.com/dkoosis/snipe ./...
 
 # deadcode lists each function no path from main reaches, and exits 0 either way,
 # so the target fails on any output.

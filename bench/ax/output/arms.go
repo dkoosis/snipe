@@ -49,6 +49,9 @@ func parseText(s string) (listing, error) {
 			cur, wantLoc = &l.Items[len(l.Items)-1], true
 		case wantLoc:
 			lm := locLine.FindStringSubmatch(line)
+			if cur == nil {
+				return listing{}, fmt.Errorf("location line %q has no item", line)
+			}
 			if lm == nil {
 				return listing{}, fmt.Errorf("item %s: want a file:line | kind line, got %q", cur.Name, line)
 			}
@@ -68,7 +71,11 @@ func parseText(s string) (listing, error) {
 	}
 	l.Tail = pending
 	if wantLoc {
-		return listing{}, fmt.Errorf("item %s has no location line", cur.Name)
+		name := ""
+		if cur != nil {
+			name = cur.Name
+		}
+		return listing{}, fmt.Errorf("item %s has no location line", name)
 	}
 	if len(l.Items) == 0 {
 		return listing{}, fmt.Errorf("no items in %q", s)

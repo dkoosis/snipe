@@ -46,6 +46,9 @@ func runCyclesMetrics(s *store.Store, dir string, start time.Time) error {
 	groups := make([]sccGroup, 0, len(order))
 	for _, id := range order {
 		g := groupMap[id]
+		if g == nil {
+			continue
+		}
 		if g.Size == 1 && len(g.Nodes) == 1 {
 			g.SelfLoop = true
 		}

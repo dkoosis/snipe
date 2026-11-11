@@ -16,7 +16,7 @@ import (
 // optional single positional value (empty string => no args).
 func argsOf(pos string) []string {
 	if pos == "" {
-		return nil
+		return []string{}
 	}
 	return []string{pos}
 }

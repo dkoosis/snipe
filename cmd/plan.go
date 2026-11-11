@@ -399,6 +399,7 @@ func planBuildCallSites(refs []query.RefRow, maxSites int) (groups []PlanPkgGrou
 		truncated = len(refs) - maxSites
 		refs = refs[:maxSites]
 	}
+	groups = []PlanPkgGroup{}
 	idx := map[string]int{}
 	for i := range refs {
 		r := &refs[i]

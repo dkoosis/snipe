@@ -390,7 +390,10 @@ func findDatastores(db *sql.DB) ([]Datastore, map[string][]importerEvidence, err
 	out := make([]Datastore, 0, len(order))
 	importerEvidenceByName := make(map[string][]importerEvidence, len(order))
 	for _, name := range order {
-		g := groups[name]
+		g, ok := groups[name]
+		if !ok || g == nil {
+			continue
+		}
 		evidence := make([]string, 0, len(g.importers))
 		perImporter := make([]importerEvidence, 0, len(g.importers))
 		for pkg, ev := range g.importers {
@@ -466,7 +469,10 @@ func externalFromEnv(db *sql.DB, modulePath string) ([]ExternalSystem, error) {
 	sort.Strings(order)
 	out := make([]ExternalSystem, 0, len(order))
 	for _, key := range order {
-		g := groups[key]
+		g, ok := groups[key]
+		if !ok || g == nil {
+			continue
+		}
 		evidence := slices.Clone(g.names)
 		sort.Strings(evidence)
 		out = append(out, ExternalSystem{

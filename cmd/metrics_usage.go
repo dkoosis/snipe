@@ -63,6 +63,9 @@ func runUsageMetrics() error {
 	fmt.Printf("usage: %d invocations, %d errors (%.0f%%)\n", total, totalErr, pct(totalErr, total))
 	for _, c := range cmds {
 		a := byCmd[c]
+		if a == nil {
+			continue
+		}
 		fmt.Printf("  %-12s %5d calls  %3d err  p50 %dms\n", c, a.calls, a.errors, p50(a.ms))
 	}
 	return nil
