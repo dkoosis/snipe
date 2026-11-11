@@ -3,11 +3,14 @@ package context
 import (
 	"bufio"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // flowNode represents a symbol in the call flow graph.
@@ -130,7 +133,7 @@ func queryEntryPointSymbols(db *sql.DB, repoRoot string) ([]flowNode, error) {
 		  name, file_path
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -142,7 +145,7 @@ func queryEntryPointSymbols(db *sql.DB, repoRoot string) ([]flowNode, error) {
 		}
 		nodes = append(nodes, n)
 	}
-	return nodes, rows.Err()
+	return nodes, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // queryCallGraphBatch fetches the entire call graph for the repo in one query.
@@ -157,7 +160,7 @@ func queryCallGraphBatch(db *sql.DB, repoRoot string) (map[string][]string, erro
 		  AND callee.file_path LIKE ? || '/%'
 	`, repoRoot, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -169,7 +172,7 @@ func queryCallGraphBatch(db *sql.DB, repoRoot string) (map[string][]string, erro
 		}
 		graph[callerID] = append(graph[callerID], calleeID)
 	}
-	return graph, rows.Err()
+	return graph, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // querySymbolNamesBatch fetches all symbol names in one query.
@@ -182,7 +185,7 @@ func querySymbolNamesBatch(db *sql.DB, repoRoot string) (map[string]string, erro
 		  AND kind IN ('func', 'method')
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -200,7 +203,7 @@ func querySymbolNamesBatch(db *sql.DB, repoRoot string) (map[string]string, erro
 			names[id] = name
 		}
 	}
-	return names, rows.Err()
+	return names, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // buildFlowPath constructs a flow string from an entry point using pre-fetched data.
@@ -290,7 +293,7 @@ func GetChangeBoundaries(db *sql.DB, repoRoot string) (map[string][]string, erro
 		ORDER BY concern, rank
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -303,7 +306,7 @@ func GetChangeBoundaries(db *sql.DB, repoRoot string) (map[string][]string, erro
 		boundaries[concern] = append(boundaries[concern], name)
 	}
 
-	return boundaries, rows.Err()
+	return boundaries, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // GetEntryPointDetails returns entry points with their doc comment and immediate callees.
@@ -337,7 +340,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 		  s.name, s.file_path
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 
 	// Collect entry points and their IDs for callee lookup
@@ -373,7 +376,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 	rowsErr := rows.Err()
 	_ = rows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
 	if rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("rows err: %w", rowsErr)
 	}
 
 	if len(entryPoints) == 0 {
@@ -407,7 +410,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 
 	calleeRows, err := db.Query(calleeQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer calleeRows.Close()
 
@@ -433,7 +436,7 @@ func GetEntryPointDetails(db *sql.DB, repoRoot string) ([]EntryPointRef, error) 
 		}
 	}
 	if err := calleeRows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	// Backfill purposes from Cobra Short descriptions when doc comments are empty

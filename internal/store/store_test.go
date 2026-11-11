@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -215,7 +216,7 @@ func TestConcurrentAccess(t *testing.T) {
 					return
 				}
 				if got != value {
-					errChan <- fmt.Errorf("got %q, want %q", got, value)
+					errChan <- fmt.Errorf("got %q, want %q: %w", got, value, errFixtureMismatchstore)
 					return
 				}
 			}
@@ -525,3 +526,8 @@ func TestBusyTimeoutPragma(t *testing.T) {
 		t.Errorf("busy_timeout = %d, want 5000", timeout)
 	}
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixtureMismatchstore = errors.New("fixture mismatch")
+)

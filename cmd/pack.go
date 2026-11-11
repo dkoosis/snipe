@@ -302,7 +302,7 @@ func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (protoco
 		return protocol.PackResult{}, nil, nil, err
 	}
 	if sym == nil {
-		return protocol.PackResult{}, nil, nil, fmt.Errorf("symbol %s not found", symbolID)
+		return protocol.PackResult{}, nil, nil, fmt.Errorf("symbol %s not found: %w", symbolID, errNotFound)
 	}
 
 	// Build definition result

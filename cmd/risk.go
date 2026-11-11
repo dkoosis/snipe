@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/risk"
@@ -89,7 +91,7 @@ func writeRiskJSON(m risk.Measures, root string, state protocol.IndexState, star
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(resp)
+	return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 }
 
 // untestedShown caps the untested names in text output; JSON carries all.
@@ -105,7 +107,7 @@ func writeRiskText(m risk.Measures) error {
 	if m.Degraded || m.Score == nil {
 		fmt.Fprintf(&b, "risk · %s\n  degraded: %s\n", size, m.Note)
 		_, err := os.Stdout.WriteString(b.String())
-		return err
+		return errwrap.Wrap(err, "file write string")
 	}
 
 	fmt.Fprintf(&b, "risk %.2f ·", *m.Score)
@@ -152,7 +154,7 @@ func writeRiskText(m risk.Measures) error {
 		fmt.Fprintf(&b, "  look first at: %s\n", strings.Join(parts, " · "))
 	}
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 // counts renders a name→count map as "a 2, b 1", most first, then by name.

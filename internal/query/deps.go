@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"golang.org/x/mod/modfile"
 
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -119,7 +121,7 @@ func FindPackageDeps(db *sql.DB, pkgPath, modulePath string) (*PackageDeps, erro
 func scanDepEdges(db *sql.DB, query, modulePath string, args ...any) ([]protocol.DepRef, error) {
 	rows, err := db.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -128,12 +130,12 @@ func scanDepEdges(db *sql.DB, query, modulePath string, args ...any) ([]protocol
 		var fullPath string
 		var e protocol.DepRef
 		if err := rows.Scan(&fullPath, &e.FileCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		e.Package = trimModulePath(fullPath, modulePath)
 		result = append(result, e)
 	}
-	return result, rows.Err()
+	return result, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // FindDepGraph builds the full internal dependency graph for a module.

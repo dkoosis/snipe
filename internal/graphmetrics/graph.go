@@ -3,7 +3,6 @@ package graphmetrics
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,7 +72,7 @@ func LoadImportsGraphOpts(s *store.Store, includeTests bool) (*Graph, error) {
 		return nil, err
 	}
 	if modPath == "" {
-		return nil, errors.New("could not determine module path for intra-repo filter")
+		return nil, ErrNoModulePath
 	}
 	prefix := modPath + "/"
 
@@ -217,5 +216,5 @@ func moduleImportPath(s *store.Store) (string, error) {
 	if err := scanner.Err(); err != nil {
 		return "", fmt.Errorf("scan go.mod: %w", err)
 	}
-	return "", fmt.Errorf("module directive not found in %s", goModPath)
+	return "", fmt.Errorf("module directive not found in %s: %w", goModPath, ErrNoModuleDirective)
 }

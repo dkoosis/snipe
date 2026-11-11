@@ -2,6 +2,7 @@ package context
 
 import (
 	"database/sql"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -112,7 +113,7 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 		GROUP BY s.id
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -140,7 +141,7 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 		results = append(results, rs)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	// Step 4: Sort by priority descending

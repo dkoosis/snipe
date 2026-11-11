@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/atomicfile"
 )
 
@@ -210,7 +212,7 @@ func writeMultipartBody(writer *multipart.Writer, file *os.File, jsonlPath strin
 	if err := writer.WriteField("purpose", "batch"); err != nil {
 		return fmt.Errorf("write purpose field: %w", err)
 	}
-	return writer.Close()
+	return errwrap.Wrap(writer.Close(), "close multipart writer")
 }
 
 // UploadFile uploads a JSONL file for batch processing.
@@ -257,7 +259,7 @@ func (c *BatchClient) UploadFile(ctx context.Context, jsonlPath string) (*FileUp
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API error %d: %s: %w", resp.StatusCode, string(body), ErrAPI)
 	}
 
 	var result FileUploadResponse
@@ -298,7 +300,7 @@ func (c *BatchClient) CreateBatch(ctx context.Context, inputFileID string) (*Bat
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API error %d: %s: %w", resp.StatusCode, string(body), ErrAPI)
 	}
 
 	var result BatchCreateResponse
@@ -326,7 +328,7 @@ func (c *BatchClient) GetBatchStatus(ctx context.Context, batchID string) (*Batc
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API error %d: %s: %w", resp.StatusCode, string(body), ErrAPI)
 	}
 
 	var result BatchCreateResponse
@@ -365,7 +367,7 @@ func (c *BatchClient) DownloadFile(ctx context.Context, fileID string) (io.ReadC
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
 		resp.Body.Close()
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API error %d: %s: %w", resp.StatusCode, string(body), ErrAPI)
 	}
 
 	return resp.Body, nil
@@ -418,7 +420,7 @@ func (c *BatchClient) ParseBatchResults(r io.Reader, fn EmbeddingHandler) error 
 		// (sn-7xp) — error instead of forwarding an empty vector to fn, which
 		// would otherwise be saved as a zero embedding.
 		if len(embResult.Data) == 0 || len(embResult.Data[0].Embedding) == 0 {
-			return fmt.Errorf("embed: empty or missing embedding for %s in batch response", resp.CustomID)
+			return fmt.Errorf("embed: empty or missing embedding for %s in batch response: %w", resp.CustomID, ErrNoEmbedding)
 		}
 
 		if err := fn(resp.CustomID, embResult.Data[0].Embedding); err != nil {
@@ -426,7 +428,7 @@ func (c *BatchClient) ParseBatchResults(r io.Reader, fn EmbeddingHandler) error 
 		}
 	}
 
-	return scanner.Err()
+	return errwrap.Wrap(scanner.Err(), "scanner err")
 }
 
 // SaveState persists the batch state to disk.
@@ -447,7 +449,7 @@ func (c *BatchClient) SaveState(state *BatchState) error {
 
 	// Atomic write: a SIGKILL mid-write would otherwise leave a truncated
 	// batch_state.json that wedges every subsequent command on unmarshal error.
-	return atomicfile.WriteFile(path, data, 0600)
+	return errwrap.Wrap(atomicfile.WriteFile(path, data, 0600), "atomicfile write file")
 }
 
 // LoadState loads the batch state from disk.
@@ -465,7 +467,7 @@ func (c *BatchClient) LoadState() (*BatchState, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 		}
-		return nil, fmt.Errorf("read state: %w", err)
+		return nil, errwrap.Wrap(err, "read state")
 	}
 
 	var state BatchState
@@ -510,7 +512,7 @@ func (c *BatchClient) WriteJSONL(symbols []SymbolText, outputDir string) (string
 	encoder := json.NewEncoder(&buf)
 	for _, sym := range symbols {
 		if seen[sym.ID] {
-			return "", fmt.Errorf("duplicate symbol ID %s: Voyage would fail the batch", sym.ID)
+			return "", fmt.Errorf("duplicate symbol ID %s: Voyage would fail the batch: %w", sym.ID, ErrDuplicateID)
 		}
 		seen[sym.ID] = true
 		req := BatchRequest{

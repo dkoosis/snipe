@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/sensitive"
@@ -101,7 +103,7 @@ func runHotspots(top int, pkg, file string) error {
 			return writeHotspotsJSON(nil, dir, start)
 		}
 		_, werr := os.Stdout.WriteString("hotspots · (no complexity data — run `snipe index` to populate)\n")
-		return werr
+		return errwrap.Wrap(werr, "file write string")
 	}
 
 	rows = filterHotspots(rows, pkg, file)
@@ -218,7 +220,7 @@ func writeHotspotsJSON(rows []hotspotRow, dir string, start time.Time) error {
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(resp)
+	return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 }
 
 // zoneSuffix renders a sensitive-zone marker appended to a hotspot's path,
@@ -241,7 +243,7 @@ func writeHotspotsText(rows []hotspotRow, haveChurn bool) error {
 	if len(rows) == 0 {
 		b.WriteString("  (no rows)\n")
 		_, err := os.Stdout.WriteString(b.String())
-		return err
+		return errwrap.Wrap(err, "file write string")
 	}
 	if haveChurn {
 		fmt.Fprintf(&b, "  %5s %5s %5s %5s %5s %5s %5s  %s\n", "risk", "cx", "cxmax", "cog", "chn", "auth", "in", "path")
@@ -256,5 +258,5 @@ func writeHotspotsText(rows []hotspotRow, haveChurn bool) error {
 		}
 	}
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }

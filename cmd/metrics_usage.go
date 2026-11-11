@@ -18,7 +18,7 @@ const kindUsage = "usage"
 func runUsageMetrics() error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return err
+		return fmt.Errorf("os getwd: %w", err)
 	}
 	root := util.FindProjectRoot(cwd)
 	if root == "" {

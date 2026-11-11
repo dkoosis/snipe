@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -189,7 +191,7 @@ func runWatch() error {
 				Event:     "stopped",
 				Timestamp: time.Now().Format(time.RFC3339),
 			})
-			return GetContext().Err()
+			return errwrap.Wrap(GetContext().Err(), "context err")
 		}
 	}
 }
@@ -274,7 +276,7 @@ func drainOnCancelWith(
 
 // addWatchDirs recursively adds directories to the watcher.
 func addWatchDirs(watcher *fsnotify.Watcher, root string) error {
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	return errwrap.Wrap(filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil //nolint:nilerr // Skip inaccessible directories gracefully
 		}
@@ -298,7 +300,7 @@ func addWatchDirs(watcher *fsnotify.Watcher, root string) error {
 		}
 
 		return nil
-	})
+	}), "walk watch dirs")
 }
 
 // runReindex runs 'snipe index' as a subprocess, bound to ctx.
@@ -314,8 +316,7 @@ func runReindex(ctx context.Context, dir string) error {
 	cmd.Dir = dir
 	cmd.Stdout = os.Stderr // Redirect index output to stderr
 	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+	return errwrap.Wrap(cmd.Run(), "run index")
 }
 
 // emitEvent outputs a JSON event to stdout.

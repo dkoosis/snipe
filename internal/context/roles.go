@@ -2,8 +2,11 @@ package context
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 	"unicode"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // Role represents an architectural role classification for a symbol.
@@ -122,7 +125,7 @@ func scanSymbolInfos(rows *sql.Rows) ([]symbolInfo, error) {
 		}
 		symbols = append(symbols, s)
 	}
-	return symbols, rows.Err()
+	return symbols, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // InferRoles analyzes symbols in the database and classifies them by architectural role.
@@ -139,7 +142,7 @@ func InferRoles(db *sql.DB, repoRoot string) ([]SymbolRole, error) {
 		  AND file_path NOT LIKE '%\_test.go' ESCAPE '\'
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -195,7 +198,7 @@ func RolesForSymbols(db *sql.DB, repoRoot string, ids []string) (map[string]Symb
 			  AND kind IN ('func', 'method', 'struct', 'interface', 'type')
 		`, args...)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("db query: %w", err)
 		}
 		symbols, err := scanSymbolInfos(rows)
 		_ = rows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
@@ -640,7 +643,7 @@ func loadImportsCache(db *sql.DB, repoRoot string) (importsCache, error) {
 		args...,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 	cache := make(importsCache)
@@ -656,7 +659,7 @@ func loadImportsCache(db *sql.DB, repoRoot string) (importsCache, error) {
 		}
 		set[pp] = true
 	}
-	return cache, rows.Err()
+	return cache, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // fileImportsAny reports whether filePath imports any of the given package paths.

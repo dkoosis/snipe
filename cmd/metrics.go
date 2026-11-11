@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -158,7 +160,7 @@ func writeMetricsJSON(rows []store.MetricRow, dir string, start time.Time) error
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(resp)
+	return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 }
 
 // topoResult is a JSON-friendly view of a topo-sort result.
@@ -191,7 +193,7 @@ func runTopoMetrics(s *store.Store, dir string, start time.Time) error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -207,7 +209,7 @@ func runTopoMetrics(s *store.Store, dir string, start time.Time) error {
 		}
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 // filterRowsByPkg keeps rows whose NodeID matches pkg (suffix match against
@@ -242,7 +244,7 @@ func runCouplingMetrics(s *store.Store, dir string, startedAt time.Time) error {
 	}
 	if len(caRows) == 0 && len(ceRows) == 0 {
 		_, werr := os.Stdout.WriteString("imports graph · coupling · (no rows — run `snipe index` to populate)\n")
-		return werr
+		return errwrap.Wrap(werr, "file write string")
 	}
 
 	byPkg := make(map[string]*couplingRow, len(caRows))
@@ -298,7 +300,7 @@ func runCouplingMetrics(s *store.Store, dir string, startedAt time.Time) error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -308,7 +310,7 @@ func runCouplingMetrics(s *store.Store, dir string, startedAt time.Time) error {
 		fmt.Fprintf(&b, "  %4d %4d %5.2f  %s\n", r.Ca, r.Ce, r.I, r.Pkg)
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 // distanceRow is the JSON shape for a per-package A/I/D row.
@@ -335,7 +337,7 @@ func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
 	}
 	if len(aRows) == 0 && len(iRows) == 0 {
 		_, werr := os.Stdout.WriteString("imports graph · distance · (no rows — run `snipe index` to populate)\n")
-		return werr
+		return errwrap.Wrap(werr, "file write string")
 	}
 
 	// Join on pkg. Packages without an abstractness row (zero-type pkgs) are
@@ -390,7 +392,7 @@ func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -404,7 +406,7 @@ func runDistanceMetrics(s *store.Store, dir string, startedAt time.Time) error {
 		fmt.Fprintf(&b, "%s%5.2f %5.2f %5.2f  %s\n", flag, r.A, r.I, r.D, r.Pkg)
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 // cycloRow is the JSON shape for a per-package cyclomatic-complexity row.
@@ -443,7 +445,7 @@ func runComplexityRollupMetrics(s *store.Store, dir string, startedAt time.Time,
 	}
 	if len(sumRows) == 0 && len(p95Rows) == 0 && len(maxRows) == 0 {
 		_, werr := fmt.Fprintf(os.Stdout, "imports graph · %s · (no rows — run `snipe index` to populate)\n", label)
-		return werr
+		return errwrap.Wrap(werr, "fmt fprintf")
 	}
 
 	byPkg := make(map[string]*cycloRow, len(sumRows))
@@ -503,7 +505,7 @@ func runComplexityRollupMetrics(s *store.Store, dir string, startedAt time.Time,
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -517,7 +519,7 @@ func runComplexityRollupMetrics(s *store.Store, dir string, startedAt time.Time,
 		fmt.Fprintf(&b, "%s%5d %5.1f %5d  %s\n", flag, r.Sum, r.P95, r.Max, r.Pkg)
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func writeMetricsText(rows []store.MetricRow) error {
@@ -539,7 +541,7 @@ func writeMetricsText(rows []store.MetricRow) error {
 		}
 	}
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 // multiKindRow is one node with its values across the requested kinds.
@@ -634,7 +636,7 @@ func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error 
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -652,7 +654,7 @@ func runMultiKindMetrics(s *store.Store, dir string, startedAt time.Time) error 
 		b.WriteString("\n")
 	}
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func splitAndTrim(csv string) []string {

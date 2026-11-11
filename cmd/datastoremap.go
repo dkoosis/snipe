@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/c4"
 	"github.com/dkoosis/snipe/internal/datastoremap"
 	"github.com/dkoosis/snipe/internal/dbschema"
@@ -210,7 +212,7 @@ func findPackageTypes(db *sql.DB, pkg string) ([]pkgType, error) {
 		}
 		out = append(out, t)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // renderDatastoreSummary renders the Claude-facing plain-text section:

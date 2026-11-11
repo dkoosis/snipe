@@ -457,7 +457,7 @@ func findRepoRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("could not find repo root from %s", wd)
+			return "", fmt.Errorf("could not find repo root from %s: %w", wd, errFixtureMismatchscript)
 		}
 		dir = parent
 	}
@@ -534,3 +534,8 @@ func snipeEnv() []string {
 	}
 	return append(env, "KEYRING_DISABLE=1")
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixtureMismatchscript = errors.New("fixture mismatch")
+)

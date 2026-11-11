@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
@@ -126,7 +127,7 @@ func runEmbedStatus() error {
 			if err != nil {
 				// Save failed (locked rows, parse error) — keep batch_state.json
 				// so the paid batch stays recoverable. Do NOT ClearState.
-				return fmt.Errorf("download embeddings: %w", err)
+				return errwrap.Wrap(err, "download embeddings")
 			}
 			if closeErr != nil {
 				return fmt.Errorf("close store: %w", closeErr)
@@ -197,7 +198,7 @@ func runEmbedStatus() error {
 		// wedging for the full poll interval.
 		select {
 		case <-GetContext().Done():
-			return GetContext().Err()
+			return errwrap.Wrap(GetContext().Err(), "context err")
 		case <-time.After(time.Duration(embedPollSecs) * time.Second):
 		}
 	}
@@ -252,7 +253,7 @@ func emitEmbedStatus(w *output.Writer, result EmbedStatusResult) error {
 	}
 	b.WriteByte('\n')
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 // embeddingSaver is the persistence seam downloadAndSaveEmbeddings writes
@@ -280,7 +281,7 @@ type embeddingStreamParser func(r io.Reader, fn embed.EmbeddingHandler) error
 // rows actually saved alongside that error.
 func downloadAndSaveEmbeddings(ctx context.Context, client *embed.BatchClient, state *embed.BatchState, saver embeddingSaver) (int, error) {
 	if state.OutputFileID == "" {
-		return 0, errors.New("no output file available")
+		return 0, errNoOutputFile
 	}
 
 	fmt.Fprintf(os.Stderr, "Downloading results from file %s...\n", state.OutputFileID)
@@ -317,7 +318,7 @@ func persistEmbeddings(body io.Reader, parse embeddingStreamParser, saver embedd
 		count++
 		return nil
 	}); err != nil {
-		return count, fmt.Errorf("parse results: %w", err)
+		return count, errwrap.Wrap(err, "parse results")
 	}
 
 	fmt.Fprintf(os.Stderr, "Saved %d embeddings to index\n", count)

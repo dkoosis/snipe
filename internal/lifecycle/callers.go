@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 )
 
@@ -98,14 +99,14 @@ func frontierCallers(db *sql.DB, ids []string) ([]callerEdge, error) {
 
 			rows, err := db.Query(q, args...)
 			if err != nil {
-				return err
+				return fmt.Errorf("db query: %w", err)
 			}
 			defer rows.Close()
 
 			for rows.Next() {
 				var e callerEdge
 				if err := rows.Scan(&e.callerID, &e.callerName, &e.callerFileRel); err != nil {
-					return err
+					return fmt.Errorf("rows scan: %w", err)
 				}
 				edges = append(edges, e)
 			}

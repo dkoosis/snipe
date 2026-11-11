@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -82,7 +84,7 @@ func queryRepoInterfaces(db *sql.DB, repoRoot string) ([]ifaceInfo, error) {
 		LIMIT 50
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -94,7 +96,7 @@ func queryRepoInterfaces(db *sql.DB, repoRoot string) ([]ifaceInfo, error) {
 		}
 		ifaces = append(ifaces, iface)
 	}
-	return ifaces, rows.Err()
+	return ifaces, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 func queryImplementorsBatch(db *sql.DB, repoRoot string, ifaces []ifaceInfo) map[string][]ImplementorRef {
@@ -146,7 +148,7 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 
 	candRows, err := db.Query(candidateQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer candRows.Close()
 
@@ -163,7 +165,7 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 		candidates = append(candidates, c)
 	}
 	if err := candRows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	if len(candidates) == 0 {
@@ -190,7 +192,7 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 		LIMIT 20
 	`, strings.Join(conditions, " OR ")), typeArgs...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -209,5 +211,5 @@ func scanImplementorRefs(rows *sql.Rows, repoRoot string) ([]ImplementorRef, err
 		ref.File = strings.TrimPrefix(filePath, repoRoot+"/")
 		refs = append(refs, ref)
 	}
-	return refs, rows.Err()
+	return refs, errwrap.Wrap(rows.Err(), "rows err")
 }

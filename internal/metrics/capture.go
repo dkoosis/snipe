@@ -165,7 +165,7 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 
 	peakMemMB := (memAfter.TotalAlloc - memBefore.TotalAlloc) / 1024 / 1024
 	if peakMemMB > math.MaxInt {
-		return nil, fmt.Errorf("peak memory %d MB overflows int", peakMemMB)
+		return nil, fmt.Errorf("peak memory %d MB overflows int: %w", peakMemMB, ErrOverflow)
 	}
 	baseline.Index.PeakMemMB = int(peakMemMB)
 
@@ -277,19 +277,27 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 
 // ToJSON converts baseline to JSON
 func (b *Baseline) ToJSON() ([]byte, error) {
-	return json.MarshalIndent(b, "", "  ")
+	data, err := json.MarshalIndent(b, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("encode baseline: %w", err)
+	}
+	return data, nil
 }
 
 // ToJSONL converts baseline to single-line JSON (for appending to history)
 func (b *Baseline) ToJSONL() ([]byte, error) {
-	return json.Marshal(b)
+	data, err := json.Marshal(b)
+	if err != nil {
+		return nil, fmt.Errorf("encode baseline line: %w", err)
+	}
+	return data, nil
 }
 
 func getGitCommit(dir string) (string, error) {
 	cmd := exec.Command("git", "-C", dir, "rev-parse", "--short", "HEAD")
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cmd output: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }

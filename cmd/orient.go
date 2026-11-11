@@ -154,7 +154,7 @@ func hashOrientFiles(dir string) (map[string]string, error) {
 	out := map[string]string{}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("os read dir: %w", err)
 	}
 	for _, e := range entries {
 		if e.IsDir() || e.Name() == "manifest.json" {
@@ -162,7 +162,7 @@ func hashOrientFiles(dir string) (map[string]string, error) {
 		}
 		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("os read file: %w", err)
 		}
 		sum := sha256.Sum256(data)
 		out[e.Name()] = hex.EncodeToString(sum[:])

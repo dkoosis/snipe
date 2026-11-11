@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/protocol"
 )
 
@@ -98,5 +100,5 @@ func FindLiteralRefsSubstring(db *sql.DB, value string) ([]LiteralRef, error) {
 		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }

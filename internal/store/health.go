@@ -9,7 +9,7 @@ import (
 func (s *Store) IntegrityCheck() (string, error) {
 	var result string
 	if err := s.db.QueryRow("PRAGMA integrity_check").Scan(&result); err != nil {
-		return "", err // unwrapped: snipe doctor prints it in the check details
+		return "", fmt.Errorf("row scan: %w", err) // unwrapped: snipe doctor prints it in the check details
 	}
 	return result, nil
 }

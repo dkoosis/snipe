@@ -150,7 +150,7 @@ func TestParseBatchResults_PropagatesCallbackError(t *testing.T) {
 		Response: &BatchRespBody{StatusCode: 200, Body: embBody},
 	})
 
-	wantErr := errors.New("stop")
+	wantErr := errFixture1batch
 	err := testBatchClient("").ParseBatchResults(bytes.NewReader(append(line, '\n')), func(string, []float32) error {
 		return wantErr
 	})
@@ -309,7 +309,7 @@ func TestUploadFile_NoGoroutineLeakOnTransportError(t *testing.T) {
 	}
 
 	c := testBatchClient(dir)
-	c.client = &http.Client{Transport: &failingTransport{err: errors.New("boom")}}
+	c.client = &http.Client{Transport: &failingTransport{err: errFixture2batch}}
 
 	// Settle pre-existing goroutines (test runner spawns some lazily).
 	runtime.GC()
@@ -338,3 +338,9 @@ func mustMarshal(t *testing.T, v any) []byte {
 	}
 	return b
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixture1batch = errors.New("stop")
+	errFixture2batch = errors.New("boom")
+)

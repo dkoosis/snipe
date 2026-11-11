@@ -12,6 +12,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
@@ -477,7 +479,7 @@ func writePlanJSON(p PlanResult, root string, start time.Time) error {
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(resp)
+	return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 }
 
 func writePlanText(p PlanResult) error {
@@ -486,7 +488,7 @@ func writePlanText(p PlanResult) error {
 	if p.Message != "" {
 		fmt.Fprintln(&b, p.Message)
 		_, err := os.Stdout.WriteString(b.String())
-		return err
+		return errwrap.Wrap(err, "file write string")
 	}
 
 	writePlanHeader(&b, p)
@@ -513,7 +515,7 @@ func writePlanText(p PlanResult) error {
 	fmt.Fprintln(&b, planClaimNote)
 
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func writePlanHeader(b *strings.Builder, p PlanResult) {

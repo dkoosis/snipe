@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // FileInfo represents file metadata for change detection
@@ -49,7 +51,7 @@ func ExtractFileInfo(repoRoot string) ([]FileInfo, error) {
 // walkGoFiles walks a directory tree visiting each .go file, skipping hidden
 // directories and excluded directory names. Shared by WalkFileInfo and DetectChanges.
 func walkGoFiles(dir string, exclude []string, fn func(path string, d os.DirEntry) error) error {
-	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	return errwrap.Wrap(filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil //nolint:nilerr // Skip unreadable entries
 		}
@@ -67,7 +69,7 @@ func walkGoFiles(dir string, exclude []string, fn func(path string, d os.DirEntr
 			return nil
 		}
 		return fn(path, d)
-	})
+	}), "walk go files")
 }
 
 // computeFileInfo computes the hash and mtime for a file
@@ -102,7 +104,7 @@ func computeFileInfo(path string) (FileInfo, error) {
 func extractFileHeader(path string) (header, pkgName string, err error) {
 	f, err := os.Open(path) // #nosec G304 -- path from indexer walk
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("os open: %w", err)
 	}
 	defer f.Close()
 

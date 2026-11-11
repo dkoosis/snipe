@@ -2,6 +2,7 @@ package context
 
 import (
 	"database/sql"
+	"fmt"
 	"slices"
 	"strings"
 )
@@ -20,7 +21,7 @@ func getPackagePurposes(db *sql.DB, repoRoot string) ([]PackagePurpose, error) {
 		ORDER BY pkg_path
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -33,7 +34,7 @@ func getPackagePurposes(db *sql.DB, repoRoot string) ([]PackagePurpose, error) {
 		pkgPaths = append(pkgPaths, pkgPath)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	// Batch load package docs

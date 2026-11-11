@@ -3,10 +3,13 @@ package query
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -150,7 +153,7 @@ func queryFileMetadata(db *sql.DB, paths []string) (map[string]fileMeta, error) 
 	q := "SELECT path, mtime, COALESCE(hash, '') FROM files WHERE path IN (" + strings.Join(placeholders, ",") + ")"
 	rows, err := db.Query(q, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -163,7 +166,7 @@ func queryFileMetadata(db *sql.DB, paths []string) (map[string]fileMeta, error) 
 		}
 		result[path] = m
 	}
-	return result, rows.Err()
+	return result, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // toRelPath converts an absolute file path to a repo-relative path.

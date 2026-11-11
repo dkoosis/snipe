@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // LiteralRef is a resolved string_ref row returned by queries.
@@ -44,7 +46,7 @@ func FindLiteralRefs(db *sql.DB, value string) ([]LiteralRef, error) {
 		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // FindLiteralsByKind returns every string_refs row of the given kind ("env",
@@ -75,7 +77,7 @@ func FindLiteralsByKind(db *sql.DB, kind string) ([]LiteralRef, error) {
 		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // FindChurnLiterals returns the distinct golden/testdata fixture paths named as
@@ -160,7 +162,7 @@ func FindChurnLiterals(db *sql.DB, testFiles []string, limit int) (paths []strin
 		paths = append(paths, value)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("rows err: %w", err)
 	}
 
 	return paths, total - len(paths), nil

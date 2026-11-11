@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/protocol"
 )
 
@@ -99,7 +101,7 @@ func FindTests(db *sql.DB, symbolID string, direct bool, limit, offset int) ([]T
 		rows, err = db.Query(q, symbolID, symbolID, limit, offset)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -182,7 +184,7 @@ func FindTestsMulti(db *sql.DB, symbolIDs []string, direct bool, limit, offset i
 
 	rows, err := db.Query(q, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -202,14 +204,14 @@ func scanTestRows(rows *sql.Rows) ([]TestRow, error) {
 			&r.Hop,
 		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		r.FilePathRel = filePathRel.String
 		r.PkgPath = pkgPath.String
 		r.FileHash = fileHash.String
 		results = append(results, r)
 	}
-	return results, rows.Err()
+	return results, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // ToResult converts a TestRow to an output.Result.

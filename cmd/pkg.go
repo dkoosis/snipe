@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
@@ -253,7 +255,7 @@ func runPkgDigest(s *store.Store, dir, pkgPattern string, startedAt time.Time) e
 	if GetOutputFormat() == output.OutputJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 	// Default text rendering: short single-line digest for grep-friendly use.
 	_, _ = fmt.Fprintf(os.Stdout,

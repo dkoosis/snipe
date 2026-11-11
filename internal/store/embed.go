@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/vector"
 )
@@ -243,7 +245,7 @@ func (s *Store) GetCalleesForSymbols(symbolIDs []string) (map[string]map[string]
 		}
 		set[callee] = struct{}{}
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // CountEmbeddings returns the number of stored embeddings.

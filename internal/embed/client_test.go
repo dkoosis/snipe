@@ -221,7 +221,7 @@ func TestCredentials_EnvFirst(t *testing.T) {
 	t.Cleanup(func() { credStore = orig })
 	credStore = func() (*keyring.Store, error) {
 		t.Error("credStore opened despite VOYAGE_API_KEY being set — this can exec `security` and hang headless agents")
-		return nil, errors.New("credStore must not be opened when the env key is set")
+		return nil, errFixture1client
 	}
 
 	if !HasCredentials() {
@@ -313,3 +313,8 @@ func TestEmbedOne_ReturnsFirstEmbedding(t *testing.T) {
 		t.Fatalf("embedding length = %d, want 3", len(got))
 	}
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixture1client = errors.New("credStore must not be opened when the env key is set")
+)

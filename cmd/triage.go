@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/graphmetrics"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -60,7 +62,7 @@ func runTriage(files []string) error {
 	if GetOutputFormat() == output.OutputJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 	return writeTriageText(resp)
 }
@@ -232,7 +234,7 @@ func triageFileSymbols(db *sql.DB, rel string) ([]triageSymbol, error) {
 		}
 		out = append(out, s)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 func writeTriageText(resp triageResponse) error {
@@ -242,7 +244,7 @@ func writeTriageText(resp triageResponse) error {
 	if len(resp.Files) == 0 {
 		b.WriteString("  (no files)\n")
 		_, err := os.Stdout.WriteString(b.String())
-		return err
+		return errwrap.Wrap(err, "file write string")
 	}
 	fmt.Fprintf(&b, "  %6s %6s %6s  %-24s %s\n", "score", "fan_in", "cyclo", "package", "path")
 	for _, f := range resp.Files {
@@ -259,5 +261,5 @@ func writeTriageText(resp triageResponse) error {
 		fmt.Fprintf(&b, "  %6s %6s %6s  %-24s %s\n", score, fanIn, cyclo, f.Package, f.Path)
 	}
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }

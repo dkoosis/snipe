@@ -21,6 +21,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/diagram"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -130,7 +132,7 @@ func findInterfaceSymbols(db *sql.DB) ([]seamInterface, error) {
 		}
 		out = append(out, si)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // fileToPkgMap builds an absolute-file-path -> package-path lookup from the
@@ -151,7 +153,7 @@ func fileToPkgMap(db *sql.DB) (map[string]string, error) {
 		}
 		out[file] = pkg
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // buildSeams enumerates every in-repo interface, finds its implementations

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -104,7 +106,7 @@ func Open(path string) (*Store, error) {
 
 // Close closes the database connection
 func (s *Store) Close() error {
-	return s.db.Close()
+	return errwrap.Wrap(s.db.Close(), "close db")
 }
 
 // DB returns the underlying database connection for advanced queries
@@ -156,11 +158,11 @@ func AcquireLock(dbPath string) error {
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600) // #nosec G304
 	if err != nil {
 		if !errors.Is(err, fs.ErrExist) {
-			return fmt.Errorf("create lock file: %w", err)
+			return errwrap.Wrap(err, "create lock file")
 		}
 		// Lock exists — check if holder is still alive
 		if !tryRemoveStaleLock(lockPath) {
-			return fmt.Errorf("index is locked by another process (see %s)", lockPath)
+			return fmt.Errorf("index is locked by another process (see %s): %w", lockPath, ErrLocked)
 		}
 		// Stale lock removed, retry once
 		f, err = os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600) // #nosec G304
@@ -169,7 +171,7 @@ func AcquireLock(dbPath string) error {
 		}
 	}
 	fmt.Fprintf(f, "%d\n", os.Getpid())
-	return f.Close()
+	return errwrap.Wrap(f.Close(), "close lock file")
 }
 
 // lockHeldByDeadProcess reports whether the lock at lockPath is stale: its holder
@@ -297,7 +299,7 @@ func verifyPragmaString(db *sql.DB, pragma, want string) error {
 		return fmt.Errorf("verify %s pragma: %w", pragma, err)
 	}
 	if got != want {
-		return fmt.Errorf("verify %s pragma: got %q, want %q", pragma, got, want)
+		return fmt.Errorf("verify %s pragma: got %q, want %q: %w", pragma, got, want, ErrPragmaMismatch)
 	}
 	return nil
 }
@@ -308,7 +310,7 @@ func verifyPragmaInt(db *sql.DB, pragma string, want int) error {
 		return fmt.Errorf("verify %s pragma: %w", pragma, err)
 	}
 	if got != want {
-		return fmt.Errorf("verify %s pragma: got %d, want %d", pragma, got, want)
+		return fmt.Errorf("verify %s pragma: got %d, want %d: %w", pragma, got, want, ErrPragmaMismatch)
 	}
 	return nil
 }

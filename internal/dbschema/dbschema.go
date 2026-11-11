@@ -4,6 +4,7 @@
 package dbschema
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -161,7 +162,7 @@ func detectEmbeddedGo(repoRoot string) []DBSchema {
 		//nolint:gosec // reads files under the repo root the user asked to index; a symlink swap races only the user's own checkout
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return err
+			return fmt.Errorf("os read file: %w", err)
 		}
 		ddl := extractGoDDL(string(content))
 		if ddl == "" {

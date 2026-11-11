@@ -221,7 +221,7 @@ func TestWithinRoot(t *testing.T) {
 		{"root itself", ".", nil, true},
 		{"parent", "..", nil, false},
 		{"escapes to cache", ".." + sep + ".." + sep + "Library" + sep + "Caches" + sep + "go-build" + sep + "x", nil, false},
-		{"rel error", "anything", errors.New("Rel failed"), false},
+		{"rel error", "anything", errFixture1rg, false},
 		// A dir named "..foo" must NOT be treated as an escape.
 		{"dotdot prefix not separator", "..foo" + sep + "x.go", nil, true},
 	}
@@ -233,3 +233,8 @@ func TestWithinRoot(t *testing.T) {
 		})
 	}
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixture1rg = errors.New("rel failed")
+)

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/atomicfile"
 )
 
@@ -21,7 +23,7 @@ func writeReport(out string, stdout io.Writer) error {
 	//nolint:gosec // operator-supplied path in a developer benchmark tool, not served input
 	f, err := os.Open(filepath.Join(out, "calls.jsonl"))
 	if err != nil {
-		return err
+		return fmt.Errorf("os open: %w", err)
 	}
 	defer f.Close()
 	var rows []call
@@ -35,14 +37,14 @@ func writeReport(out string, stdout io.Writer) error {
 		rows = append(rows, c)
 	}
 	if err := sc.Err(); err != nil {
-		return err
+		return fmt.Errorf("scanner err: %w", err)
 	}
 	text := report(rows)
 	if err := atomicfile.WriteFile(filepath.Join(out, "report.txt"), []byte(text), 0o600); err != nil {
-		return err
+		return fmt.Errorf("atomicfile write file: %w", err)
 	}
 	_, err = io.WriteString(stdout, text)
-	return err
+	return errwrap.Wrap(err, "io write string")
 }
 
 type cell struct {

@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
@@ -135,5 +137,5 @@ func emitStatus(w *output.Writer, resp protocol.Response[StatusResponse]) error 
 	}
 	b.WriteByte('\n')
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }

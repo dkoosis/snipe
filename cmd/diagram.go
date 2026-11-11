@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -53,14 +52,14 @@ func emit(summary, d2src string) error {
 	case "svg":
 		return renderSVG(d2src)
 	default:
-		return fmt.Errorf("unknown --format %q (want d2 or svg)", diagramFormat)
+		return fmt.Errorf("unknown --format %q (want d2 or svg): %w", diagramFormat, errInvalidArgument)
 	}
 }
 
 func renderSVG(d2src string) error {
 	bin, err := exec.LookPath("d2")
 	if err != nil {
-		return errors.New("d2 CLI not found in PATH (install from https://d2lang.com); falling back: rerun without --format=svg to get D2 source")
+		return errD2Missing
 	}
 	c := exec.Command(bin, "-", "-") // #nosec G204 -- bin resolved via LookPath
 	c.Stdin = strings.NewReader(d2src)
@@ -98,7 +97,7 @@ func emitDoc(name, summary, d2src string) error {
 	case "":
 		return writeDiagramDoc(name, summary, d2src)
 	default:
-		return fmt.Errorf("unknown --format %q (want d2 or svg)", diagramFormat)
+		return fmt.Errorf("unknown --format %q (want d2 or svg): %w", diagramFormat, errInvalidArgument)
 	}
 }
 
@@ -458,7 +457,7 @@ func runDiagramFlow(args []string) error {
 // return a clear error rather than silently picking a foreign cache symbol.
 func pickFlowEntry(entry string, syms []query.SymbolRow) (query.SymbolRow, error) {
 	if len(syms) == 0 {
-		return query.SymbolRow{}, fmt.Errorf("symbol %q not found (try 'snipe search' to confirm name)", entry)
+		return query.SymbolRow{}, fmt.Errorf("symbol %q not found (try 'snipe search' to confirm name): %w", entry, errNotFound)
 	}
 
 	isFn := func(k string) bool { return k == cmdKindFunc || k == "method" }
@@ -482,7 +481,7 @@ func pickFlowEntry(entry string, syms []query.SymbolRow) (query.SymbolRow, error
 	// Nothing in-repo: refuse rather than diagram a stale cache hit.
 	return query.SymbolRow{}, fmt.Errorf(
 		"symbol %q resolved only to symbols outside this repo (e.g. stale go-build cache); "+
-			"no in-repo func/method candidate found", entry)
+			"no in-repo func/method candidate found: %w", entry, errNotFound)
 }
 
 func displayLabel(sym *query.SymbolRow) string {
@@ -655,10 +654,10 @@ func runDiagramLifecycle(args []string) error {
 		return fmt.Errorf("lookup %q: %w", typeName, err)
 	}
 	if len(syms) == 0 {
-		return fmt.Errorf("type %q not found", typeName)
+		return fmt.Errorf("type %q not found: %w", typeName, errNotFound)
 	}
 	if len(syms) > 1 {
-		return errors.New("ambiguous type — use a more specific name")
+		return errAmbiguousType
 	}
 	sym := syms[0]
 

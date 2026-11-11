@@ -233,7 +233,7 @@ func Emit(f Fields) {
 func ReadAll(root string) ([]Record, error) {
 	data, err := os.ReadFile(filepath.Join(root, ".snipe", "usage.jsonl")) // #nosec G304 -- path derived from project root
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("os read file: %w", err)
 	}
 	var out []Record
 	start := 0

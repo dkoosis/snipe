@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // ImpactRow represents a symbol in the impact blast radius.
@@ -27,11 +29,11 @@ func FindMethodIDs(db *sql.DB, typeName string) ([]string, error) {
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		ids = append(ids, id)
 	}
-	return ids, rows.Err()
+	return ids, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // FindImpactCallersMulti returns non-test callers for multiple symbol IDs (a type + its methods).
@@ -108,7 +110,7 @@ func FindImpactCallersMulti(db *sql.DB, symbolIDs []string, direct bool, limit, 
 
 	rows, err := db.Query(q, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -210,7 +212,7 @@ func FindImpactCallers(db *sql.DB, symbolID string, direct bool, limit, offset i
 		rows, err = db.Query(q, symbolID, symbolID, limit, offset)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 

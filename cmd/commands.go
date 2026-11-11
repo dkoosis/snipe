@@ -542,7 +542,7 @@ type DiagramClassMapCmd struct {
 
 func (c *DiagramClassMapCmd) Run() error {
 	if c.Top < 0 {
-		return fmt.Errorf("--top must be >= 0 (0 = no cap), got %d", c.Top)
+		return fmt.Errorf("--top must be >= 0 (0 = no cap), got %d: %w", c.Top, errInvalidArgument)
 	}
 	diagramClassMapTopN = c.Top
 	return runDiagramClassMap()

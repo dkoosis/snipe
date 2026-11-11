@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
@@ -361,7 +363,7 @@ func writeVerifyJSON(v VerifyResult, root string, start time.Time) error {
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(resp)
+	return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 }
 
 func writeVerifyText(v VerifyResult) error {
@@ -370,7 +372,7 @@ func writeVerifyText(v VerifyResult) error {
 	if v.Message != "" {
 		fmt.Fprintln(&b, v.Message)
 		_, err := os.Stdout.WriteString(b.String())
-		return err
+		return errwrap.Wrap(err, "file write string")
 	}
 
 	fmt.Fprintf(&b, "%d symbol%s changed · %d test%s cover them\n",
@@ -401,7 +403,7 @@ func writeVerifyText(v VerifyResult) error {
 	fmt.Fprintln(&b, verifyClaimNote)
 
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func verifyPlural(n int) string {

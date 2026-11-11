@@ -30,7 +30,7 @@ func defaultConfig() *Config {
 func globalConfigPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("os user home dir: %w", err)
 	}
 	return filepath.Join(home, ".config", "snipe", "config.json"), nil
 }

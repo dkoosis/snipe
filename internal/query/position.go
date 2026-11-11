@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // PositionQuery represents a file:line:col query
@@ -41,7 +43,7 @@ func ParsePosition(s string) (*PositionQuery, error) {
 func parsePositionRaw(s string) (*PositionQuery, error) {
 	parts := strings.Split(s, ":")
 	if len(parts) < 2 {
-		return nil, fmt.Errorf("invalid position format: %s (expected file:line or file:line:col)", s)
+		return nil, fmt.Errorf("invalid position format: %s (expected file:line or file:line:col): %w", s, ErrInvalidPosition)
 	}
 
 	line, err := strconv.Atoi(parts[len(parts)-2])
@@ -50,7 +52,7 @@ func parsePositionRaw(s string) (*PositionQuery, error) {
 		if len(parts) == 2 {
 			line, err = strconv.Atoi(parts[1])
 			if err != nil {
-				return nil, fmt.Errorf("invalid line number: %s", parts[1])
+				return nil, fmt.Errorf("invalid line number: %s: %w", parts[1], ErrInvalidPosition)
 			}
 			return &PositionQuery{
 				File: parts[0],
@@ -68,14 +70,14 @@ func parsePositionRaw(s string) (*PositionQuery, error) {
 				}, nil
 			}
 		}
-		return nil, fmt.Errorf("invalid line number: %s", parts[len(parts)-2])
+		return nil, fmt.Errorf("invalid line number: %s: %w", parts[len(parts)-2], ErrInvalidPosition)
 	}
 
 	col := 1
 	if len(parts) >= 3 {
 		col, err = strconv.Atoi(parts[len(parts)-1])
 		if err != nil {
-			return nil, fmt.Errorf("invalid column number: %s", parts[len(parts)-1])
+			return nil, fmt.Errorf("invalid column number: %s: %w", parts[len(parts)-1], ErrInvalidPosition)
 		}
 		// Reconstruct file path (might contain colons on Windows)
 		return &PositionQuery{
@@ -110,7 +112,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("query symbols by name position: %w", err)
+		return "", errwrap.Wrap(err, "query symbols by name position")
 	}
 
 	// Try to find a reference at exactly this position
@@ -126,7 +128,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("query refs: %w", err)
+		return "", errwrap.Wrap(err, "query refs")
 	}
 
 	// Try to find a symbol whose identifier is on this line, closest to the column
@@ -142,7 +144,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("query symbols by name line: %w", err)
+		return "", errwrap.Wrap(err, "query symbols by name line")
 	}
 
 	// Try to find a reference on this line, closest to the column
@@ -158,7 +160,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("query refs by line: %w", err)
+		return "", errwrap.Wrap(err, "query refs by line")
 	}
 
 	// Try to find a symbol definition whose display range contains this position
@@ -174,7 +176,7 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("query symbols: %w", err)
+		return "", errwrap.Wrap(err, "query symbols")
 	}
 
 	// Try to find a symbol that spans this line (smallest enclosing)
@@ -187,8 +189,8 @@ func ResolvePosition(db *sql.DB, pos *PositionQuery) (symbolID string, err error
 	`, pos.File, pos.Line, pos.Line).Scan(&symbolID)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("no symbol found at %s:%d:%d", pos.File, pos.Line, pos.Col)
+		return "", fmt.Errorf("no symbol found at %s:%d:%d: %w", pos.File, pos.Line, pos.Col, ErrSymbolNotFound)
 	}
 
-	return symbolID, err
+	return symbolID, errwrap.Wrap(err, "row scan")
 }

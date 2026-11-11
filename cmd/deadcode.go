@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
@@ -54,7 +56,7 @@ func runDeadcode() error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -67,7 +69,7 @@ func runDeadcode() error {
 		fmt.Fprintf(&b, "  %s\t%s\t%s:%d\t%s\n", r.Kind, r.Pkg+"."+r.Name, r.File, r.Line, refsHint(r.RefsAll, deadIncludeTests))
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func refsHint(refsAll int, includeTests bool) string {

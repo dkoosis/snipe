@@ -172,7 +172,7 @@ func resolveCredentials() (string, string, string, error) {
 	endpoint := os.Getenv("VOYAGE_API_URL")
 
 	if apiKey == "" {
-		return "", "", "", errors.New("no API key: set VOYAGE_API_KEY or store one in the keychain (security add-generic-password -U -s snipe -a voyage -w KEY)")
+		return "", "", "", ErrNoAPIKey
 	}
 	if model == "" {
 		model = "voyage-code-3"
@@ -235,7 +235,7 @@ func (c *Client) Embed(ctx context.Context, texts []string, inputType string) ([
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API error %d: %s: %w", resp.StatusCode, string(body), ErrAPI)
 	}
 
 	// Decoding stays tolerant of unknown fields on purpose: Voyage is an
@@ -268,7 +268,7 @@ func (c *Client) Embed(ctx context.Context, texts []string, inputType string) ([
 		}
 	}
 	if missing > 0 {
-		return nil, fmt.Errorf("embed: %d of %d responses missing or empty from API", missing, len(texts))
+		return nil, fmt.Errorf("embed: %d of %d responses missing or empty from API: %w", missing, len(texts), ErrNoEmbedding)
 	}
 
 	return result, nil
@@ -281,7 +281,7 @@ func (c *Client) EmbedOne(ctx context.Context, text string, inputType string) ([
 		return nil, err
 	}
 	if len(results) == 0 {
-		return nil, errors.New("no embedding returned")
+		return nil, ErrNoEmbeddingReturned
 	}
 	return results[0], nil
 }

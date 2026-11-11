@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"golang.org/x/mod/modfile"
 
 	"github.com/dkoosis/snipe/internal/embed"
@@ -652,7 +654,7 @@ func startBatchEmbeddings(ctx context.Context, s *store.Store, repoRoot string, 
 		if clearErr := client.ClearState(); clearErr != nil {
 			fmt.Fprintf(os.Stderr, "  Warning: failed to clear creating-state breadcrumb: %v\n", clearErr)
 		}
-		return "", fmt.Errorf("create batch: %w", err)
+		return "", errwrap.Wrap(err, "create batch")
 	}
 	// Log batch_id to stderr IMMEDIATELY so a SaveState crash still leaves a recovery trail.
 	fmt.Fprintf(os.Stderr, "  Created batch_id: %s (status: %s)\n", batchResp.ID, batchResp.Status)
@@ -848,7 +850,7 @@ func emitIndex(w *output.Writer, resp protocol.Response[any]) error {
 		b.WriteByte('\n')
 	}
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func indexResponse(absDir string, start time.Time, symCount int, suggestions []protocol.Suggestion) protocol.Response[any] {

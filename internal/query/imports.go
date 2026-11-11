@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // ImportRow represents an import record from the database
@@ -84,14 +86,14 @@ func scanImportRows(rows *sql.Rows) ([]ImportRow, error) {
 		var imp ImportRow
 		err := rows.Scan(&imp.FilePath, &imp.PkgPath, &imp.Name, &imp.Line, &imp.Col, &imp.ImporterPkg)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		if isBuildCachePath(imp.FilePath) {
 			continue
 		}
 		imports = append(imports, imp)
 	}
-	return imports, rows.Err()
+	return imports, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // isBuildCachePath reports whether a file path came from the Go build cache

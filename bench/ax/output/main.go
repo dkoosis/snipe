@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -17,6 +16,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 
 	"github.com/dkoosis/atomicfile"
 )
@@ -66,19 +67,19 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, a ask) in
 		err = show(*bench, fs.Args(), stdout)
 	case "run":
 		if fs.NArg() != 1 {
-			err = errors.New("run wants one OUTDIR")
+			err = fmt.Errorf("run wants one OUTDIR: %w", errUsage)
 			break
 		}
 		p := plan{Models: strings.Split(*models, ","), Samples: *samples, Parallel: *parallel}
 		err = runBench(ctx, *bench, fs.Arg(0), p, *dry, a, stdout, stderr)
 	case "report":
 		if fs.NArg() != 1 {
-			err = errors.New("report wants one OUTDIR")
+			err = fmt.Errorf("report wants one OUTDIR: %w", errUsage)
 			break
 		}
 		err = writeReport(fs.Arg(0), stdout)
 	default:
-		err = fmt.Errorf("unknown command %q\n%s", args[0], usage)
+		err = fmt.Errorf("unknown command %q\n%s: %w", args[0], usage, errUsage)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "output:", err)
@@ -106,7 +107,7 @@ func loadCases(bench string) ([]benchCase, error) {
 	//nolint:gosec // operator-supplied path in a developer benchmark tool, not served input
 	f, err := os.Open(filepath.Join(bench, "cases.jsonl"))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("os open: %w", err)
 	}
 	defer f.Close()
 	var cs []benchCase
@@ -121,11 +122,11 @@ func loadCases(bench string) ([]benchCase, error) {
 			return nil, fmt.Errorf("cases.jsonl: %w", err)
 		}
 		if c.ID == "" || len(c.Args) == 0 || c.Question == "" || len(c.Accept) == 0 {
-			return nil, fmt.Errorf("cases.jsonl: case %q needs id, args, question and accept", c.ID)
+			return nil, fmt.Errorf("cases.jsonl: case %q needs id, args, question and accept: %w", c.ID, errListing)
 		}
 		cs = append(cs, c)
 	}
-	return cs, sc.Err()
+	return cs, errwrap.Wrap(sc.Err(), "scanner err")
 }
 
 // loadListing reads and parses a case's capture.
@@ -167,10 +168,10 @@ func capture(ctx context.Context, bench, snipe, repo string, stdout io.Writer) e
 			return fmt.Errorf("snipe %s: %w", strings.Join(c.Args, " "), err)
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-			return err
+			return fmt.Errorf("os mkdir all: %w", err)
 		}
 		if err := atomicfile.WriteFile(path, out, 0o600); err != nil {
-			return err
+			return fmt.Errorf("atomicfile write file: %w", err)
 		}
 		fmt.Fprintln(stdout, "wrote", path)
 	}
@@ -179,7 +180,7 @@ func capture(ctx context.Context, bench, snipe, repo string, stdout io.Writer) e
 
 func show(bench string, args []string, stdout io.Writer) error {
 	if len(args) != 2 {
-		return errors.New("show wants CASE ARM")
+		return fmt.Errorf("show wants CASE ARM: %w", errUsage)
 	}
 	cs, err := loadCases(bench)
 	if err != nil {
@@ -200,7 +201,7 @@ func show(bench string, args []string, stdout io.Writer) error {
 		fmt.Fprintln(stdout, prompt(c, body))
 		return nil
 	}
-	return fmt.Errorf("no case %q", args[0])
+	return fmt.Errorf("no case %q: %w", args[0], errUsage)
 }
 
 // systemPrompt is the same for every arm: no arm is told how its shape reads.

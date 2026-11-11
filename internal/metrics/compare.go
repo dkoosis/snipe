@@ -124,5 +124,9 @@ func (c *Comparison) addCheck(name string, current, reference, threshold float64
 
 // ToJSON converts comparison to JSON
 func (c *Comparison) ToJSON() ([]byte, error) {
-	return json.MarshalIndent(c, "", "  ")
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("encode comparison: %w", err)
+	}
+	return data, nil
 }

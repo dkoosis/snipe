@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/telemetry"
 )
@@ -102,7 +104,7 @@ func (w *Writer) WriteResponse(resp any) error {
 // writeJSON writes the full JSON envelope (legacy format) as compact,
 // single-line JSON — the shape toolchain subprocesses already consume.
 func (w *Writer) writeJSON(resp any) error {
-	return json.NewEncoder(w.out).Encode(resp)
+	return errwrap.Wrap(json.NewEncoder(w.out).Encode(resp), "encoder encode")
 }
 
 // writeClaude renders a response as terse structured text optimized for Claude.
@@ -140,7 +142,7 @@ func (w *Writer) writeClaude(resp any) error {
 	}
 
 	_, err := io.WriteString(w.out, b.String())
-	return err
+	return errwrap.Wrap(err, "io write string")
 }
 
 func (w *Writer) writeClaudeResults(b *strings.Builder, results []protocol.Result, meta protocol.Meta, suggestions []protocol.Suggestion, respErr *protocol.Error) {
@@ -1021,13 +1023,13 @@ func (w *Writer) WriteErrorWithMeta(command, arg string, decisionPath []string, 
 		var b strings.Builder
 		writeHumanError(&b, err)
 		_, writeErr := io.WriteString(w.out, b.String())
-		return writeErr
+		return errwrap.Wrap(writeErr, "io write string")
 	}
 	if w.format != OutputJSON {
 		var b strings.Builder
 		w.writeClaudeError(&b, err)
 		_, writeErr := io.WriteString(w.out, b.String())
-		return writeErr
+		return errwrap.Wrap(writeErr, "io write string")
 	}
 	resp := protocol.Response[any]{
 		Protocol: protocol.ProtocolVersion,

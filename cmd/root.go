@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/alecthomas/kong"
 
 	"github.com/dkoosis/snipe/internal/config"
@@ -469,7 +471,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 				Message: "failed to get working directory: " + err.Error(),
 			})
 		}
-		return nil, "", err
+		return nil, "", errwrap.Wrap(err, "os getwd")
 	}
 
 	// Resolve to git/go.mod root — index always lives at project root (D3)
@@ -496,7 +498,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 					Message: fmt.Sprintf("index found at %s but project root is %s — run: snipe index", cwd, root),
 				})
 			}
-			return nil, root, errors.New("index root mismatch")
+			return nil, root, errIndexMismatch
 		}
 	}
 
@@ -505,7 +507,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		if w != nil {
 			_ = w.WriteError(cmdName, protocol.NewIndexInProgressError()) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 		}
-		return nil, root, errors.New("indexing in progress")
+		return nil, root, errIndexInProgress
 	}
 
 	// Check for missing index
@@ -513,7 +515,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		if w != nil {
 			_ = w.WriteError(cmdName, protocol.NewMissingIndexError()) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 		}
-		return nil, root, errors.New("index missing")
+		return nil, root, errIndexMissing
 	}
 
 	s, err := store.Open(dbPath)
@@ -539,7 +541,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 				Message: fmt.Sprintf("index was built for %s but this repo is at %s — run: snipe index", storedRoot, root),
 			})
 		}
-		return nil, root, errors.New("index root moved")
+		return nil, root, errIndexMoved
 	}
 
 	// Small drift heals inline so queries answer from current code; the

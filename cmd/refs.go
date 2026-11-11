@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
@@ -421,8 +423,8 @@ func runRefsBatch(w *output.Writer, _ time.Time) error {
 		}
 		row.Count = len(row.Refs)
 		if err := enc.Encode(row); err != nil {
-			return err
+			return fmt.Errorf("encoder encode: %w", err)
 		}
 	}
-	return scanner.Err()
+	return errwrap.Wrap(scanner.Err(), "scanner err")
 }

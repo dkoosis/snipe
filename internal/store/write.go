@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/index"
 
 	"modernc.org/sqlite"
@@ -582,7 +584,7 @@ func (s *Store) WriteIndexIncremental(
 		// Delete embeddings + purposes for symbols in affected files
 		if err := deleteByFilePaths(tx, childEmbeddings, allAffected, repoRoot); err != nil {
 			if !isNoSuchTableErr(err, "embeddings") {
-				return nil, fmt.Errorf("delete embeddings: %w", err)
+				return nil, errwrap.Wrap(err, "delete embeddings")
 			}
 		}
 		if err := deleteByFilePaths(tx, childSymbolPurposes, allAffected, repoRoot); err != nil {
@@ -600,7 +602,7 @@ func (s *Store) WriteIndexIncremental(
 		}
 		if err := deleteFromFileSet(tx, "imports", allAffected); err != nil {
 			if !isNoSuchTableErr(err, "imports") {
-				return nil, fmt.Errorf("delete imports: %w", err)
+				return nil, errwrap.Wrap(err, "delete imports")
 			}
 		}
 		if err := deleteFromFileSet(tx, "symbols", allAffected); err != nil {
@@ -700,7 +702,7 @@ func deleteFromFileSet(tx *sql.Tx, table string, files []string) error {
 	placeholders, args := toPlaceholders(files)
 	query := fmt.Sprintf("DELETE FROM %s WHERE file_path IN (%s)", table, strings.Join(placeholders, ",")) // #nosec G201 -- table name is hardcoded constant
 	_, err := tx.Exec(query, args...)
-	return err
+	return errwrap.Wrap(err, "tx exec")
 }
 
 // childTable names a symbol-owned child table whose rows are purged when the
@@ -728,7 +730,7 @@ func deleteByFilePaths(tx *sql.Tx, table childTable, files []string, repoRoot st
 	query := fmt.Sprintf("%s WHERE file_path IN (%s)", selectQuery, strings.Join(placeholders, ",")) // #nosec G201 -- selectQuery is a const; placeholders are '?'
 	rows, err := tx.Query(query, args...)
 	if err != nil {
-		return err
+		return fmt.Errorf("tx query: %w", err)
 	}
 	defer rows.Close()
 
@@ -741,7 +743,7 @@ func deleteByFilePaths(tx *sql.Tx, table childTable, files []string, repoRoot st
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return err
+		return fmt.Errorf("rows err: %w", err)
 	}
 
 	if len(ids) == 0 {
@@ -753,7 +755,7 @@ func deleteByFilePaths(tx *sql.Tx, table childTable, files []string, repoRoot st
 		query = fmt.Sprintf("%s WHERE file_path_rel IN (%s)", selectQuery, strings.Join(placeholders, ",")) // #nosec G201 -- selectQuery is a const; placeholders are '?'
 		rows2, err := tx.Query(query, relArgs...)
 		if err != nil {
-			return err
+			return fmt.Errorf("tx query: %w", err)
 		}
 		defer rows2.Close()
 		for rows2.Next() {
@@ -764,7 +766,7 @@ func deleteByFilePaths(tx *sql.Tx, table childTable, files []string, repoRoot st
 			ids = append(ids, id)
 		}
 		if err := rows2.Err(); err != nil {
-			return err
+			return fmt.Errorf("rows err: %w", err)
 		}
 	}
 
@@ -776,7 +778,7 @@ func deleteByFilePaths(tx *sql.Tx, table childTable, files []string, repoRoot st
 	idPlaceholders, idArgs := toPlaceholders(ids)
 	delQuery := fmt.Sprintf("%s (%s)", deleteQuery, strings.Join(idPlaceholders, ",")) // #nosec G201 -- deleteQuery is enum-built; placeholders are '?'
 	_, err = tx.Exec(delQuery, idArgs...)
-	return err
+	return errwrap.Wrap(err, "tx exec")
 }
 
 func deleteOptionalTable(tx *sql.Tx, table string) error {
@@ -888,7 +890,7 @@ func (s *Store) WriteLiterals(refs []index.StringRef, repoRoot string) (err erro
 		return err
 	}
 
-	return tx.Commit()
+	return errwrap.Wrap(tx.Commit(), "commit")
 }
 
 // WriteLiteralsForFiles deletes string_refs for the given files and inserts fresh ones.
@@ -913,7 +915,7 @@ func (s *Store) WriteLiteralsForFiles(refs []index.StringRef, changedFiles, dele
 		return err
 	}
 
-	return tx.Commit()
+	return errwrap.Wrap(tx.Commit(), "commit")
 }
 
 func insertLiterals(tx *sql.Tx, refs []index.StringRef, repoRoot string) error {

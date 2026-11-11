@@ -3,6 +3,8 @@ package query
 import (
 	"database/sql"
 	"fmt"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // FindCallSites returns every non-def, non-concurrency reference to symbolID
@@ -52,5 +54,5 @@ func FindCallSites(db *sql.DB, symbolID string) ([]RefRow, error) {
 		refs = append(refs, r)
 	}
 
-	return refs, rows.Err()
+	return refs, errwrap.Wrap(rows.Err(), "rows err")
 }

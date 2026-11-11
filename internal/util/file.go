@@ -3,9 +3,12 @@ package util
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // FileCache provides LRU-cached file line reading.
@@ -99,7 +102,7 @@ func (fc *FileCache) Size() int {
 func LoadFileLines(path string) ([]string, error) {
 	f, err := os.Open(path) // #nosec G304 -- path from caller (file cache, indexing)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("os open: %w", err)
 	}
 	defer f.Close()
 
@@ -110,5 +113,5 @@ func LoadFileLines(path string) ([]string, error) {
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
-	return lines, scanner.Err()
+	return lines, errwrap.Wrap(scanner.Err(), "scanner err")
 }
