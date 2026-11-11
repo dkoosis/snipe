@@ -1,6 +1,8 @@
 package util_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,7 +27,7 @@ func TestLoadFileLines_ReturnsExpectedLines_When_FileExists(t *testing.T) {
 		{
 			name:       "error: missing file returns not-exist error",
 			wantErr:    true,
-			errMatcher: os.IsNotExist,
+			errMatcher: func(err error) bool { return errors.Is(err, fs.ErrNotExist) },
 		},
 		{
 			name:     "success: multi-line file returns split lines",

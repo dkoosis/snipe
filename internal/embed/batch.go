@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -460,7 +462,7 @@ func (c *BatchClient) LoadState() (*BatchState, error) {
 	path := filepath.Join(c.stateDir, "batch_state.json")
 	data, err := os.ReadFile(path) // #nosec G304 -- path derived from stateDir (batch state)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 		}
 		return nil, fmt.Errorf("read state: %w", err)
@@ -483,7 +485,7 @@ func (c *BatchClient) ClearState() error {
 	}
 
 	path := filepath.Join(c.stateDir, "batch_state.json")
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("remove state: %w", err)
 	}
 	return nil
