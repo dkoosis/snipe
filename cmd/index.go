@@ -69,7 +69,7 @@ func runIndex(args []string) error {
 	if err := store.AcquireLock(dbPath); err != nil {
 		return fmt.Errorf("acquire lock: %w", err)
 	}
-	defer store.ReleaseLock(dbPath) // Always release on exit
+	defer store.ReleaseLock(dbPath) //nolint:errcheck // release on exit; the next run reclaims a stale lock by PID liveness
 
 	// Compute fingerprint
 	fp, err := index.ComputeFingerprint(absDir, Version)
@@ -88,7 +88,7 @@ func runIndex(args []string) error {
 	// stores every file under the old path; an incremental run would see all
 	// of them as deleted and re-added. Rebuild it from scratch instead.
 	force := forceIndex
-	if prevRoot, _ := s.GetMeta("repo_root"); util.RootMoved(prevRoot, absDir) {
+	if prevRoot := s.MetaOrEmpty("repo_root"); util.RootMoved(prevRoot, absDir) {
 		fmt.Fprintf(os.Stderr, "Index was built for %s; repo is now at %s — running full reindex\n", prevRoot, absDir)
 		force = true
 	}
@@ -104,7 +104,9 @@ func runIndex(args []string) error {
 	// heuristic finds nothing.
 	if data, err := os.ReadFile(filepath.Join(absDir, "go.mod")); err == nil {
 		if mp := modfile.ModulePath(data); mp != "" {
-			_ = s.SetMeta("module_path", mp)
+			if err := s.SetMeta("module_path", mp); err != nil {
+				return fmt.Errorf("store module path: %w", err)
+			}
 		}
 	}
 
@@ -294,8 +296,12 @@ func runIndex(args []string) error {
 	}
 	// repo_root is set earlier (before WriteIndex) so file_path_rel is computed correctly.
 	// Reset incremental counter on full reindex
-	_ = s.SetMeta("incremental_count", "0")
-	_ = s.SetMeta("orphaned_refs", "0")
+	if err := s.SetMeta("incremental_count", "0"); err != nil {
+		return fmt.Errorf("reset incremental count: %w", err)
+	}
+	if err := s.SetMeta("orphaned_refs", "0"); err != nil {
+		return fmt.Errorf("reset orphaned refs: %w", err)
+	}
 
 	// Determine effective embedding mode
 	effectiveMode := resolveEmbedMode(embedMode, withEmbed, s)
@@ -786,7 +792,7 @@ func runIncrementalIndex(s *store.Store, result *index.LoadResult, allSymbols []
 	fmt.Fprintf(os.Stderr, "Incremental: updated %d files (%d modified, %d added, %d deleted)\n",
 		nMod+nAdd+nDel, nMod, nAdd, nDel)
 
-	symCount, _, _, _ := s.GetStats()
+	symCount, _, _, _ := s.GetStats() //nolint:errcheck // display count only; zero on error
 	return emitIndex(w, indexResponse(absDir, start, symCount, orphanSuggestion(incResult)))
 }
 
@@ -819,7 +825,7 @@ func runDeleteOnlyIndex(s *store.Store, changes *index.ChangeResult, absDir stri
 
 	fmt.Fprintf(os.Stderr, "Deleted %d files\n", nDel)
 
-	symCount, _, _, _ := s.GetStats()
+	symCount, _, _, _ := s.GetStats() //nolint:errcheck // display count only; zero on error
 	return emitIndex(w, indexResponse(absDir, start, symCount, orphanSuggestion(incResult)))
 }
 
@@ -915,7 +921,7 @@ func trySkipIndex(s *store.Store, fp *index.Fingerprint, absDir string, start ti
 	if !changes.HasChanges {
 		// No changes — skip indexing
 		fmt.Fprintf(os.Stderr, "Index up to date: %s\n", changes.Summary())
-		symCount, _, _, _ := s.GetStats()
+		symCount, _, _, _ := s.GetStats() //nolint:errcheck // display count only; zero on error
 		resp := protocol.Response[any]{
 			Protocol: protocol.ProtocolVersion,
 			Ok:       true,

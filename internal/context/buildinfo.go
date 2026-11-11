@@ -25,7 +25,7 @@ func DetectBuildInfo(repoRoot string, db *sql.DB) BuildInfo {
 			GoGenerate: goGen,
 		}
 	case fileExists(filepath.Join(repoRoot, "Makefile")):
-		content, _ := os.ReadFile(filepath.Join(repoRoot, "Makefile"))
+		content, _ := os.ReadFile(filepath.Join(repoRoot, "Makefile")) //nolint:errcheck // an unreadable build file means no build info
 		return BuildInfo{
 			System:     "make",
 			Build:      "make",
@@ -39,7 +39,7 @@ func DetectBuildInfo(repoRoot string, db *sql.DB) BuildInfo {
 		if !fileExists(taskfile) {
 			taskfile = filepath.Join(repoRoot, "Taskfile.yaml")
 		}
-		content, _ := os.ReadFile(taskfile)
+		content, _ := os.ReadFile(taskfile) //nolint:errcheck // an unreadable build file means no build info
 		return BuildInfo{
 			System:     "task",
 			Build:      "task build",
@@ -53,7 +53,7 @@ func DetectBuildInfo(repoRoot string, db *sql.DB) BuildInfo {
 		if !fileExists(justfile) {
 			justfile = filepath.Join(repoRoot, "Justfile")
 		}
-		content, _ := os.ReadFile(justfile)
+		content, _ := os.ReadFile(justfile) //nolint:errcheck // an unreadable build file means no build info
 		return BuildInfo{
 			System:     "just",
 			Build:      "just build",

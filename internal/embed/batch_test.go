@@ -84,7 +84,7 @@ func TestWriteJSONL_RejectsDuplicateID(t *testing.T) {
 }
 
 func TestParseBatchResults_Behavior(t *testing.T) {
-	embBody, _ := json.Marshal(EmbeddingResponse{
+	embBody := mustMarshal(t, EmbeddingResponse{
 		Data: []struct {
 			Object    string    `json:"object"`
 			Embedding []float32 `json:"embedding"`
@@ -114,7 +114,7 @@ func TestParseBatchResults_Behavior(t *testing.T) {
 
 	var payload bytes.Buffer
 	for _, resp := range lines {
-		line, _ := json.Marshal(resp)
+		line := mustMarshal(t, resp)
 		payload.Write(line)
 		payload.WriteByte('\n')
 	}
@@ -137,14 +137,14 @@ func TestParseBatchResults_Behavior(t *testing.T) {
 }
 
 func TestParseBatchResults_PropagatesCallbackError(t *testing.T) {
-	embBody, _ := json.Marshal(EmbeddingResponse{
+	embBody := mustMarshal(t, EmbeddingResponse{
 		Data: []struct {
 			Object    string    `json:"object"`
 			Embedding []float32 `json:"embedding"`
 			Index     int       `json:"index"`
 		}{{Embedding: []float32{1}, Index: 0}},
 	})
-	line, _ := json.Marshal(BatchResponse{
+	line := mustMarshal(t, BatchResponse{
 		BatchID:  "batch-1",
 		CustomID: "sym1",
 		Response: &BatchRespBody{StatusCode: 200, Body: embBody},
@@ -327,4 +327,14 @@ func TestUploadFile_NoGoroutineLeakOnTransportError(t *testing.T) {
 		runtime.GC()
 		return runtime.NumGoroutine() <= before+1
 	}, 2*time.Second, 10*time.Millisecond, "goroutine leak: goroutine count did not settle within 2s (before=%d)", before)
+}
+
+// mustMarshal marshals v or fails the test.
+func mustMarshal(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return b
 }

@@ -25,7 +25,7 @@ func runImporters(args []string) error {
 	}
 	defer s.Close()
 
-	repoRoot, _ := s.GetMeta("repo_root")
+	repoRoot := s.MetaOrEmpty("repo_root")
 	pkgPath = query.ResolvePkgPattern(s.DB(), pkgPath, dir, repoRoot)
 
 	// Use directory matching if it looks like a local path
@@ -65,7 +65,7 @@ func runImporters(args []string) error {
 			End:   protocol.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
 		}
 		// Compute relative path for output
-		filePathRel, _ := filepath.Rel(dir, imp.FilePath)
+		filePathRel, _ := filepath.Rel(dir, imp.FilePath) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root
 		if filePathRel == "" {
 			filePathRel = imp.FilePath
 		}

@@ -71,13 +71,13 @@ func DetectModulePath(db *sql.DB) string {
 // Otherwise tries modulePath + "/" + pkgPath.
 func ResolveFullPkgPath(db *sql.DB, pkgPath, modulePath string) string {
 	var exists int
-	_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? OR pkg_path = ? LIMIT 1`,
+	_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? OR pkg_path = ? LIMIT 1`, //nolint:errcheck // a missing or unreadable row reads as the zero value
 		pkgPath, pkgPath).Scan(&exists)
 	if exists == 1 {
 		return pkgPath
 	}
 	candidate := modulePath + "/" + pkgPath
-	_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? OR pkg_path = ? LIMIT 1`,
+	_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? OR pkg_path = ? LIMIT 1`, //nolint:errcheck // a missing or unreadable row reads as the zero value
 		candidate, candidate).Scan(&exists)
 	if exists == 1 {
 		return candidate

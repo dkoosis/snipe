@@ -234,7 +234,7 @@ func (c *Client) Embed(ctx context.Context, texts []string, inputType string) ([
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 

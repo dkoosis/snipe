@@ -245,7 +245,7 @@ doEdit:
 	}
 
 	// Build response
-	relPath, _ := filepath.Rel(dir, filePath)
+	relPath, _ := filepath.Rel(dir, filePath) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root
 	if relPath == "" {
 		relPath = filePath
 	}
@@ -368,7 +368,7 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 			degraded = append(degraded, "edit_not_durable:"+req.Symbol)
 		}
 
-		relPath, _ := filepath.Rel(dir, filePath)
+		relPath, _ := filepath.Rel(dir, filePath) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root
 		if relPath == "" {
 			relPath = filePath
 		}

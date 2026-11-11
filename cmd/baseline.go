@@ -80,10 +80,10 @@ func runBaseline() error {
 	historyDir := filepath.Join(dir, ".snipe")
 	if err := os.MkdirAll(historyDir, 0750); err == nil {
 		historyFile := filepath.Join(historyDir, "metrics.jsonl")
-		jsonl, _ := baseline.ToJSONL()
+		jsonl, _ := baseline.ToJSONL()                                                                 //nolint:errcheck // marshals plain structs; cannot fail
 		if f, err := os.OpenFile(historyFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600); err == nil { // #nosec G304 -- path derived from cwd
-			_, _ = f.Write(jsonl)      // G104: best-effort append to history
-			_, _ = f.WriteString("\n") // G104: best-effort append
+			_, _ = f.Write(jsonl)      //nolint:errcheck // best-effort append; a lost line is acceptable
+			_, _ = f.WriteString("\n") //nolint:errcheck // best-effort append; a lost line is acceptable
 			_ = f.Close()              // G104: close in cleanup path
 		}
 	}

@@ -51,11 +51,8 @@ func TestCheckRipgrep_MissingRg(t *testing.T) {
 
 func TestCheckIndex_NotInGitRepo(t *testing.T) {
 	// Use temp dir which is not a git repo
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-
 	tmpDir := t.TempDir()
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	check := checkIndex()
 
@@ -87,9 +84,6 @@ func TestDoctorCheck_Fields(t *testing.T) {
 
 func TestCheckIndex_ValidDB(t *testing.T) {
 	// Create a temp dir with .git and a valid snipe index
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-
 	tmpDir := t.TempDir()
 	// Create .git marker
 	if err := os.Mkdir(tmpDir+"/.git", 0750); err != nil {
@@ -108,7 +102,7 @@ func TestCheckIndex_ValidDB(t *testing.T) {
 	}
 	s.Close()
 
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 	check := checkIndex()
 
 	if !check.OK {
@@ -118,9 +112,6 @@ func TestCheckIndex_ValidDB(t *testing.T) {
 
 func TestCheckIndex_CorruptDB(t *testing.T) {
 	// Create a temp dir with .git and a corrupt index
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-
 	tmpDir := t.TempDir()
 	if err := os.Mkdir(tmpDir+"/.git", 0750); err != nil {
 		t.Fatal(err)
@@ -136,7 +127,7 @@ func TestCheckIndex_CorruptDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 	check := checkIndex()
 
 	if check.OK {

@@ -37,7 +37,7 @@ func runPkg(args []string) error {
 	}
 	defer s.Close()
 
-	repoRoot, _ := s.GetMeta("repo_root")
+	repoRoot := s.MetaOrEmpty("repo_root")
 	pkgPattern = query.ResolvePkgPattern(s.DB(), pkgPattern, dir, repoRoot)
 
 	if pkgDigest {

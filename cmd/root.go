@@ -464,7 +464,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		if w != nil {
-			_ = w.WriteError(cmdName, &protocol.Error{
+			_ = w.WriteError(cmdName, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 				Code:    protocol.ErrInternal,
 				Message: "failed to get working directory: " + err.Error(),
 			})
@@ -491,7 +491,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		cwdPath := store.DefaultIndexPath(cwd)
 		if store.Exists(cwdPath) {
 			if w != nil {
-				_ = w.WriteError(cmdName, &protocol.Error{
+				_ = w.WriteError(cmdName, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 					Code:    protocol.ErrIndexMismatch,
 					Message: fmt.Sprintf("index found at %s but project root is %s — run: snipe index", cwd, root),
 				})
@@ -503,7 +503,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	// Check if indexing is in progress
 	if store.IsIndexing(dbPath) {
 		if w != nil {
-			_ = w.WriteError(cmdName, protocol.NewIndexInProgressError())
+			_ = w.WriteError(cmdName, protocol.NewIndexInProgressError()) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 		}
 		return nil, root, errors.New("indexing in progress")
 	}
@@ -511,7 +511,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	// Check for missing index
 	if !dbExists {
 		if w != nil {
-			_ = w.WriteError(cmdName, protocol.NewMissingIndexError())
+			_ = w.WriteError(cmdName, protocol.NewMissingIndexError()) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 		}
 		return nil, root, errors.New("index missing")
 	}
@@ -519,7 +519,7 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	s, err := store.Open(dbPath)
 	if err != nil {
 		if w != nil {
-			_ = w.WriteError(cmdName, &protocol.Error{
+			_ = w.WriteError(cmdName, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 				Code:    protocol.ErrInternal,
 				Message: "failed to open index: " + err.Error(),
 			})
@@ -531,10 +531,10 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	// old directory: every path-based lookup misses, and self-heal (which
 	// works from the stored root) cannot repair it. Refuse it rather than
 	// answer from it.
-	if storedRoot, _ := s.GetMeta("repo_root"); util.RootMoved(storedRoot, root) {
+	if storedRoot := s.MetaOrEmpty("repo_root"); util.RootMoved(storedRoot, root) {
 		_ = s.Close()
 		if w != nil {
-			_ = w.WriteError(cmdName, &protocol.Error{
+			_ = w.WriteError(cmdName, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 				Code:    protocol.ErrIndexMismatch,
 				Message: fmt.Sprintf("index was built for %s but this repo is at %s — run: snipe index", storedRoot, root),
 			})

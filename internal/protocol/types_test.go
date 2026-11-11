@@ -300,8 +300,8 @@ func TestAmbiguousSymbolDeterminism(t *testing.T) {
 	err2 := NewAmbiguousError("Config", candidates)
 
 	// Marshal both
-	data1, _ := json.Marshal(err1)
-	data2, _ := json.Marshal(err2)
+	data1 := mustMarshal(t, err1)
+	data2 := mustMarshal(t, err2)
 
 	// Verify identical output
 	if !bytes.Equal(data1, data2) {
@@ -923,4 +923,14 @@ func TestResponseTelemetryMeta_ClassifiesRung(t *testing.T) {
 	if idxState != string(IndexFresh) {
 		t.Errorf("idxState = %q, want %q", idxState, IndexFresh)
 	}
+}
+
+// mustMarshal marshals v or fails the test.
+func mustMarshal(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return b
 }

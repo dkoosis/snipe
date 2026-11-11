@@ -145,7 +145,7 @@ func detectTopLevelSQL(repoRoot string) (DBSchema, bool) {
 // Each file containing DDL produces one DBSchema, named after its parent directory.
 func detectEmbeddedGo(repoRoot string) []DBSchema {
 	var out []DBSchema
-	_ = filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error { //nolint:errcheck // the callback never returns an error
 		if err != nil {
 			return err
 		}

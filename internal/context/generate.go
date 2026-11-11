@@ -247,8 +247,8 @@ func buildDepDAG(db *sql.DB) *DepDAG {
 
 // countSymbolsAndPkgs returns the total symbol count and distinct package count from the index.
 func countSymbolsAndPkgs(db *sql.DB) (symbols, pkgs int) {
-	_ = db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbols)
-	_ = db.QueryRow(`SELECT COUNT(DISTINCT pkg_path) FROM symbols`).Scan(&pkgs)
+	_ = db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbols)              //nolint:errcheck // a missing or unreadable row reads as the zero value
+	_ = db.QueryRow(`SELECT COUNT(DISTINCT pkg_path) FROM symbols`).Scan(&pkgs) //nolint:errcheck // a missing or unreadable row reads as the zero value
 	return
 }
 
@@ -273,7 +273,7 @@ func isTestPkg(pkg string) bool {
 // generateBootViews creates the three orientation views for boot context.
 func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 	// Get entry point details using batch queries
-	entryPointDetails, _ := GetEntryPointDetails(db, repoRoot)
+	entryPointDetails, _ := GetEntryPointDetails(db, repoRoot) //nolint:errcheck // each context section is optional; a failed section is omitted
 
 	// Compress into command table
 	var commands *CommandTable
@@ -282,13 +282,13 @@ func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 	}
 
 	// Get primary flows — deeper traces (6 levels) to reach meaningful terminals
-	primaryFlows, _ := ExtractPrimaryFlows(db, repoRoot, 6)
+	primaryFlows, _ := ExtractPrimaryFlows(db, repoRoot, 6) //nolint:errcheck // each context section is optional; a failed section is omitted
 
 	// Get change boundaries using batch query
-	changeBoundaries, _ := GetChangeBoundaries(db, repoRoot)
+	changeBoundaries, _ := GetChangeBoundaries(db, repoRoot) //nolint:errcheck // each context section is optional; a failed section is omitted
 
 	// Get interface satisfaction map
-	interfaceMap, _ := GetInterfaceMap(db, repoRoot)
+	interfaceMap, _ := GetInterfaceMap(db, repoRoot) //nolint:errcheck // each context section is optional; a failed section is omitted
 
 	// Only return BootViews if we have meaningful content
 	if commands == nil && len(primaryFlows) == 0 && len(changeBoundaries) == 0 && len(interfaceMap) == 0 {

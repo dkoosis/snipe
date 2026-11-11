@@ -247,13 +247,15 @@ func TestLiveProbe(t *testing.T) {
 		{
 			name: "valid key returns nil",
 			handler: func(w http.ResponseWriter, _ *http.Request) {
-				_ = json.NewEncoder(w).Encode(EmbeddingResponse{
+				if err := json.NewEncoder(w).Encode(EmbeddingResponse{
 					Data: []struct {
 						Object    string    `json:"object"`
 						Embedding []float32 `json:"embedding"`
 						Index     int       `json:"index"`
 					}{{Embedding: []float32{0.1}, Index: 0}},
-				})
+				}); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
 			},
 			wantErr: false,
 		},

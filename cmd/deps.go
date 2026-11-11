@@ -45,7 +45,7 @@ func runDeps(args []string) error {
 	}
 
 	// Resolve package argument
-	repoRoot, _ := s.GetMeta("repo_root")
+	repoRoot := s.MetaOrEmpty("repo_root")
 	arg := args[0]
 	pkgPath := query.ResolvePkgPattern(s.DB(), arg, dir, repoRoot)
 

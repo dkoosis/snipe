@@ -86,7 +86,7 @@ func runWatch() error {
 			// dirs registered at Add() time on macOS/Linux).
 			if event.Op&fsnotify.Create != 0 {
 				if fi, statErr := os.Stat(event.Name); statErr == nil && fi.IsDir() {
-					_ = addWatchDirs(watcher, event.Name)
+					_ = addWatchDirs(watcher, event.Name) //nolint:errcheck // a failed addition leaves that directory unwatched; the event loop continues
 				}
 			}
 
@@ -101,7 +101,7 @@ func runWatch() error {
 			}
 
 			// Track changed file
-			relPath, _ := filepath.Rel(dir, event.Name)
+			relPath, _ := filepath.Rel(dir, event.Name) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root
 			if relPath == "" {
 				relPath = event.Name
 			}
@@ -320,6 +320,10 @@ func runReindex(ctx context.Context, dir string) error {
 
 // emitEvent outputs a JSON event to stdout.
 func emitEvent(event WatchEvent) {
-	data, _ := json.Marshal(event)
+	data, err := json.Marshal(event)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "snipe watch: encode event: %v\n", err)
+		return
+	}
 	fmt.Println(string(data))
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -48,7 +49,10 @@ func runHistory() error {
 
 	entries := metrics.ToHistoryEntries(baselines)
 
-	jsonData, _ := json.MarshalIndent(entries, "", "  ")
+	jsonData, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode history: %w", err)
+	}
 	_, _ = os.Stdout.Write(jsonData)   // G104: stdout write for output
 	_, _ = os.Stdout.WriteString("\n") // G104: stdout write for output
 

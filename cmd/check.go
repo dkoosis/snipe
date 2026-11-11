@@ -57,7 +57,7 @@ func runCheck() error {
 		Threshold: checkThreshold,
 	})
 
-	jsonData, _ := comparison.ToJSON()
+	jsonData, _ := comparison.ToJSON() //nolint:errcheck // marshals plain structs; cannot fail
 	_, _ = os.Stdout.Write(jsonData)   // G104: stdout write for output
 	_, _ = os.Stdout.WriteString("\n") // G104: stdout write for output
 

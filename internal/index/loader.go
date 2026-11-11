@@ -67,7 +67,7 @@ func Load(cfg LoadConfig) (*LoadResult, error) {
 		cfg.Dir = "."
 	}
 	if len(cfg.Patterns) == 0 {
-		cfg.Patterns, _ = WorkspacePatterns(cfg.Dir)
+		cfg.Patterns, _ = WorkspacePatterns(cfg.Dir) //nolint:errcheck // no workspace file means the default patterns apply
 		if len(cfg.Patterns) == 0 {
 			cfg.Patterns = []string{patternAllPkgs}
 		}

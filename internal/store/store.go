@@ -219,7 +219,7 @@ func lockHeldByDeadProcess(lockPath string) (stale bool, observed string) {
 		}
 		return true, observed
 	}
-	defer func() { _ = proc.Release() }() // release the Windows handle FindProcess opened; no-op on Unix
+	defer func() { _ = proc.Release() }() //nolint:errcheck // releases the Windows handle; no-op on Unix
 
 	sigErr := proc.Signal(syscall.Signal(0)) //nolint:gocritic // TODO(sn): true positive — the lock file stores only a PID, so a reused PID reads as alive and wedges the stale lock; witnessing proc start-time is a lock-format change tracked outside this pack adoption
 	switch {

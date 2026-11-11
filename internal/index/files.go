@@ -82,7 +82,7 @@ func computeFileInfo(path string) (FileInfo, error) {
 		return FileInfo{}, err // hashAndCountLines already includes path context
 	}
 
-	header, pkgName, _ := extractFileHeader(path) // best-effort; empty on error
+	header, pkgName, _ := extractFileHeader(path) //nolint:errcheck // empty header and package name on error
 
 	return FileInfo{
 		Path:        path,

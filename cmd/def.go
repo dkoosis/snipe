@@ -316,7 +316,7 @@ func runDefInPkg(w *output.Writer, start time.Time, name string, withBody bool, 
 	}
 
 	if len(symbols) == 0 {
-		pkgSyms, _ := query.FindPackageSymbols(s.DB(), defPkg, 10, 0)
+		pkgSyms, _ := query.FindPackageSymbols(s.DB(), defPkg, 10, 0) //nolint:errcheck // timing probe; the result is unused
 		names := make([]string, len(pkgSyms))
 		for i := range pkgSyms {
 			sym := &pkgSyms[i]

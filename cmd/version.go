@@ -33,7 +33,9 @@ func runVersion() {
 			Commit:   GitCommit,
 		}
 		enc := json.NewEncoder(os.Stdout)
-		_ = enc.Encode(info)
+		if err := enc.Encode(info); err != nil {
+			fmt.Fprintf(os.Stderr, "snipe version: write: %v\n", err)
+		}
 	} else {
 		fmt.Printf("snipe version %s (commit: %s)\n", Version, GitCommit)
 	}

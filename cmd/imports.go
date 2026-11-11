@@ -60,7 +60,7 @@ func runImports(args []string) error {
 			End:   protocol.Position{Line: imp.Line, Col: imp.Col + len(imp.PkgPath)},
 		}
 		// Compute relative path for output
-		filePathRel, _ := filepath.Rel(dir, imp.FilePath)
+		filePathRel, _ := filepath.Rel(dir, imp.FilePath) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root
 		if filePathRel == "" {
 			filePathRel = imp.FilePath
 		}

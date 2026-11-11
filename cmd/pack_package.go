@@ -51,7 +51,7 @@ func looksLikePackagePath(repoRoot, arg string) bool {
 // input (e.g. "internal/mcp", "./internal/mcp", "store").
 func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start time.Time) error {
 	db := s.DB()
-	repoRoot, _ := s.GetMeta("repo_root")
+	repoRoot := s.MetaOrEmpty("repo_root")
 	if repoRoot == "" {
 		repoRoot = dir
 	}
@@ -66,9 +66,9 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 
 	// Verify the package exists in the index (have symbols OR is importer in imports).
 	var exists int
-	_ = db.QueryRow(`SELECT 1 FROM symbols WHERE pkg_path = ? LIMIT 1`, fullPkgPath).Scan(&exists)
+	_ = db.QueryRow(`SELECT 1 FROM symbols WHERE pkg_path = ? LIMIT 1`, fullPkgPath).Scan(&exists) //nolint:errcheck // a missing or unreadable row reads as the zero value
 	if exists == 0 {
-		_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? LIMIT 1`, fullPkgPath).Scan(&exists)
+		_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? LIMIT 1`, fullPkgPath).Scan(&exists) //nolint:errcheck // a missing or unreadable row reads as the zero value
 	}
 	if exists == 0 {
 		return w.WriteError(cmdNamePack, &protocol.Error{
@@ -99,8 +99,8 @@ func runPackPackage(w *output.Writer, s *store.Store, dir, arg string, start tim
 	}
 
 	// Rank key types and key funcs by actual usage (ref count / call count).
-	rankedTypes, _ := query.TopTypesByRefs(db, fullPkgPath, 8)
-	rankedFuncs, _ := query.TopFuncsByCallCount(db, fullPkgPath, 8)
+	rankedTypes, _ := query.TopTypesByRefs(db, fullPkgPath, 8)      //nolint:errcheck // timing probe; the result is unused
+	rankedFuncs, _ := query.TopFuncsByCallCount(db, fullPkgPath, 8) //nolint:errcheck // timing probe; the result is unused
 
 	keyTypes := make([]protocol.PackageExport, 0, len(rankedTypes))
 	for _, r := range rankedTypes {
@@ -219,6 +219,7 @@ func computePackageStats(db *sql.DB, pkgPath, pkgDir string) (int, int, int) {
 	}
 
 	testCount := 0
+	//nolint:errcheck // a missing or unreadable row reads as the zero value
 	_ = db.QueryRow(`
 		SELECT COUNT(*) FROM symbols
 		WHERE pkg_path = ?

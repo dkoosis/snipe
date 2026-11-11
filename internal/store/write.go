@@ -34,7 +34,7 @@ func toRelPath(absPath, repoRoot string) string {
 // The repo_root meta value (if set) is used to compute relative file paths.
 func (s *Store) WriteIndex(symbols []index.Symbol, refs []index.Ref, edges []index.CallEdge) (err error) {
 	// Get repo root from meta if available (for computing relative paths)
-	repoRoot, _ := s.GetMeta("repo_root")
+	repoRoot := s.MetaOrEmpty("repo_root")
 
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -536,10 +536,10 @@ func (s *Store) WriteIndexIncremental(
 	changedFiles []string,
 	deletedFiles []string,
 ) (res *IncrementalResult, err error) {
-	repoRoot, _ := s.GetMeta("repo_root")
+	repoRoot := s.MetaOrEmpty("repo_root")
 
 	// Read current incremental count
-	countStr, _ := s.GetMeta("incremental_count")
+	countStr := s.MetaOrEmpty("incremental_count")
 	incCount := 0
 	if countStr != "" {
 		fmt.Sscanf(countStr, "%d", &incCount) //nolint:errcheck // best-effort parse

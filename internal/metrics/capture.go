@@ -198,7 +198,7 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 
 	start := time.Now()
 	for range runs {
-		_, _ = query.LookupByName(s.DB(), testSymbol)
+		_, _ = query.LookupByName(s.DB(), testSymbol) //nolint:errcheck // timing probe; the result is unused
 	}
 	baseline.Query.DefByNameMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
 
@@ -211,18 +211,18 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 		}
 		start = time.Now()
 		for range runs {
-			_, _ = query.ResolvePosition(s.DB(), pos)
+			_, _ = query.ResolvePosition(s.DB(), pos) //nolint:errcheck // timing probe; the result is unused
 		}
 		baseline.Query.DefByPosMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
 	}
 
 	// refs by ID
-	foundSyms, _ := query.LookupByName(s.DB(), testSymbol)
+	foundSyms, _ := query.LookupByName(s.DB(), testSymbol) //nolint:errcheck // timing probe; the result is unused
 	if len(foundSyms) > 0 {
 		symbolID := foundSyms[0].ID
 		start = time.Now()
 		for range runs {
-			_, _ = query.FindRefs(s.DB(), symbolID, 100, 0)
+			_, _ = query.FindRefs(s.DB(), symbolID, 100, 0) //nolint:errcheck // timing probe; the result is unused
 		}
 		baseline.Query.RefsByIDMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
 	}
@@ -230,13 +230,13 @@ func Capture(cfg CaptureConfig) (*Baseline, error) {
 	// Search metrics
 	start = time.Now()
 	for range runs {
-		_, _ = search.Search(context.Background(), cfg.Dir, "func", 50, 0) //nolint:forbidigo // one-shot baseline capture; no caller ctx and not a cancellable request path
+		_, _ = search.Search(context.Background(), cfg.Dir, "func", 50, 0) //nolint:forbidigo,errcheck // one-shot baseline capture; no caller ctx and not a cancellable request path; the result is unused
 	}
 	baseline.Search.SimplePatternMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
 
 	start = time.Now()
 	for range runs {
-		_, _ = search.Search(context.Background(), cfg.Dir, "func.*Error", 50, 0) //nolint:forbidigo // one-shot baseline capture; no caller ctx and not a cancellable request path
+		_, _ = search.Search(context.Background(), cfg.Dir, "func.*Error", 50, 0) //nolint:forbidigo,errcheck // one-shot baseline capture; no caller ctx and not a cancellable request path; the result is unused
 	}
 	baseline.Search.RegexPatternMs = float64(time.Since(start).Microseconds()) / float64(runs) / 1000.0
 

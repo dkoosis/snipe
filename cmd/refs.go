@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -373,17 +374,23 @@ func runRefsBatch(w *output.Writer, _ time.Time) error {
 		syms, err := query.LookupByName(s.DB(), name)
 		if err != nil {
 			row.Error = err.Error()
-			_ = enc.Encode(row)
+			if err := enc.Encode(row); err != nil {
+				return fmt.Errorf("write batch row: %w", err)
+			}
 			continue
 		}
 		if len(syms) == 0 {
 			row.Error = "not_found"
-			_ = enc.Encode(row)
+			if err := enc.Encode(row); err != nil {
+				return fmt.Errorf("write batch row: %w", err)
+			}
 			continue
 		}
 		if len(syms) > 1 {
 			row.Error = "ambiguous"
-			_ = enc.Encode(row)
+			if err := enc.Encode(row); err != nil {
+				return fmt.Errorf("write batch row: %w", err)
+			}
 			continue
 		}
 		row.ID = syms[0].ID
@@ -391,7 +398,9 @@ func runRefsBatch(w *output.Writer, _ time.Time) error {
 		refs, err := query.FindRefs(s.DB(), syms[0].ID, lim, off)
 		if err != nil {
 			row.Error = err.Error()
-			_ = enc.Encode(row)
+			if err := enc.Encode(row); err != nil {
+				return fmt.Errorf("write batch row: %w", err)
+			}
 			continue
 		}
 		for i := range refs {

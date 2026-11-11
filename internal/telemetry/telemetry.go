@@ -225,7 +225,7 @@ func Emit(f Fields) {
 		return
 	}
 	defer fh.Close()
-	_, _ = fh.Write(append(line, '\n'))
+	_, _ = fh.Write(append(line, '\n')) //nolint:errcheck // best-effort append; a lost line is acceptable
 }
 
 // ReadAll loads every record from <root>/.snipe/usage.jsonl, skipping

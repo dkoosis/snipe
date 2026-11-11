@@ -1177,5 +1177,5 @@ func (w *Writer) WriteClaudePkgGrouped(results []protocol.Result, meta protocol.
 	}
 
 	w.writeClaudeMeta(&b, meta)
-	_, _ = io.WriteString(w.out, b.String())
+	_, _ = io.WriteString(w.out, b.String()) //nolint:errcheck // best-effort append; a lost line is acceptable
 }

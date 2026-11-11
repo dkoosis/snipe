@@ -45,7 +45,7 @@ func EnrichTraceRefs(db *sql.DB, refs []LiteralRef) []TraceRef {
 			info.sym = sym
 		}
 		if info.sym != nil {
-			info.callers, _ = GetCallersPreview(db, id, 5)
+			info.callers, _ = GetCallersPreview(db, id, 5) //nolint:errcheck // the callers preview is optional
 		}
 		cache[id] = info
 		return info

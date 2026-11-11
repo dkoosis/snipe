@@ -28,7 +28,7 @@ const defaultGuardSpec = ".snipe/boundaries.yml"
 // guardFail writes a structured operator error and returns the sentinel so the
 // process exits non-zero (a gate must fail closed on spec/index problems).
 func guardFail(w *output.Writer, msg string) error {
-	_ = w.WriteError("guard", &protocol.Error{Code: protocol.ErrInternal, Message: msg})
+	_ = w.WriteError("guard", &protocol.Error{Code: protocol.ErrInternal, Message: msg}) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 	return errGuardFailed
 }
 

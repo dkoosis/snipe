@@ -254,7 +254,7 @@ func (c *BatchClient) UploadFile(ctx context.Context, jsonlPath string) (*FileUp
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -295,7 +295,7 @@ func (c *BatchClient) CreateBatch(ctx context.Context, inputFileID string) (*Bat
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -323,7 +323,7 @@ func (c *BatchClient) GetBatchStatus(ctx context.Context, batchID string) (*Batc
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -361,7 +361,7 @@ func (c *BatchClient) DownloadFile(ctx context.Context, fileID string) (io.ReadC
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
 		resp.Body.Close()
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}

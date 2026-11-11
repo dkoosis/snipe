@@ -72,7 +72,7 @@ func runPack(args []string) error {
 	// is an unambiguous signal. The on-disk fallback handles single-segment
 	// names that happen to be directories.
 	if packAt == "" && len(args) == 1 {
-		repoRoot, _ := s.GetMeta("repo_root")
+		repoRoot := s.MetaOrEmpty("repo_root")
 		if repoRoot == "" {
 			repoRoot = dir
 		}
@@ -200,7 +200,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir, cmdName string, ar
 	if at != "" {
 		pos, err := query.ParsePosition(at)
 		if err != nil {
-			w.WriteErrorWithMeta(cmdName, at, nil, idxState, 0, &protocol.Error{
+			w.WriteErrorWithMeta(cmdName, at, nil, idxState, 0, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 				Code:    protocol.ErrInternal,
 				Message: err.Error(),
 			})
@@ -211,7 +211,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir, cmdName string, ar
 		}
 		symbolID, err := query.ResolvePosition(s.DB(), pos)
 		if err != nil {
-			w.WriteErrorWithMeta(cmdName, at, nil, idxState, 0, &protocol.Error{
+			w.WriteErrorWithMeta(cmdName, at, nil, idxState, 0, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 				Code:    protocol.ErrNotFound,
 				Message: err.Error(),
 			})
@@ -236,7 +236,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir, cmdName string, ar
 		if symbolPart != "" && !strings.Contains(symbolPart, ":") {
 			symbols, err := query.LookupByNameInFile(s.DB(), symbolPart, filePart)
 			if err != nil {
-				w.WriteErrorWithMeta(cmdName, name, nil, idxState, 0, &protocol.Error{
+				w.WriteErrorWithMeta(cmdName, name, nil, idxState, 0, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 					Code:    protocol.ErrInternal,
 					Message: err.Error(),
 				})
@@ -251,7 +251,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir, cmdName string, ar
 					sym := &symbols[i]
 					candidates[i] = sym.ToCandidate()
 				}
-				w.WriteErrorWithMeta(cmdName, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
+				w.WriteErrorWithMeta(cmdName, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates)) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 				return "", nil, errPackResolveFailed
 			}
 		}
@@ -260,7 +260,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir, cmdName string, ar
 	// Look up by name
 	symbols, err := query.LookupByName(s.DB(), name)
 	if err != nil {
-		w.WriteErrorWithMeta(cmdName, name, nil, idxState, 0, &protocol.Error{
+		w.WriteErrorWithMeta(cmdName, name, nil, idxState, 0, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 			Code:    protocol.ErrInternal,
 			Message: err.Error(),
 		})
@@ -271,10 +271,10 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir, cmdName string, ar
 		maxDist := query.DefaultMaxDistance(name)
 		suggestions, sErr := query.FindSimilarSymbols(s.DB(), name, maxDist, 3)
 		if sErr != nil {
-			w.WriteErrorWithMeta(cmdName, name, nil, idxState, 0, protocol.NewNotFoundError(name))
+			w.WriteErrorWithMeta(cmdName, name, nil, idxState, 0, protocol.NewNotFoundError(name)) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 			return "", nil, errPackResolveFailed
 		}
-		w.WriteErrorWithMeta(cmdName, name, nil, idxState, len(suggestions), protocol.NewNotFoundError(name, suggestions...))
+		w.WriteErrorWithMeta(cmdName, name, nil, idxState, len(suggestions), protocol.NewNotFoundError(name, suggestions...)) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 		return "", nil, errPackResolveFailed
 	}
 
@@ -284,7 +284,7 @@ func resolvePackSymbol(w *output.Writer, s *store.Store, dir, cmdName string, ar
 			sym := &symbols[i]
 			candidates[i] = sym.ToCandidate()
 		}
-		w.WriteErrorWithMeta(cmdName, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates))
+		w.WriteErrorWithMeta(cmdName, name, nil, idxState, len(candidates), protocol.NewAmbiguousError(name, candidates)) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 		return "", nil, errPackResolveFailed
 	}
 
@@ -334,7 +334,7 @@ func buildPackForSymbol(s *store.Store, symbolID string, opts packOpts) (protoco
 		sym.Signature.String, sym.PkgPath, sym.FilePath)
 
 	// Get purpose
-	purpose, _ := s.GetPurpose(sym.ID)
+	purpose, _ := s.GetPurpose(sym.ID) //nolint:errcheck // the purpose text is optional enrichment
 	if purpose == "" && sym.Doc.Valid && sym.Doc.String != "" {
 		purpose = ctxpkg.ExtractFirstSentence(sym.Doc.String)
 	}

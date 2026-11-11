@@ -159,7 +159,7 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 	// Check for scanner errors (e.g., line too long even with increased buffer)
 	if err := scanner.Err(); err != nil {
 		_ = stdout.Close() // G104: cleanup on error path
-		_ = cmd.Wait()     // G104: cleanup on error path
+		_ = cmd.Wait()     //nolint:errcheck // cleanup on the error path
 		return results, fmt.Errorf("scan rg output: %w", err)
 	}
 

@@ -251,7 +251,7 @@ func TestAcquireLockTwiceFails(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("First AcquireLock failed: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	defer func() { _ = ReleaseLock(dbPath) }()
 
 	if err := AcquireLock(dbPath); err == nil {
 		t.Fatal("Second AcquireLock should fail, but got nil error")
@@ -265,7 +265,7 @@ func TestAcquireLockWritesPID(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock failed: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	defer func() { _ = ReleaseLock(dbPath) }()
 
 	data, err := os.ReadFile(LockPath(dbPath))
 	if err != nil {
@@ -295,7 +295,7 @@ func TestAcquireLockRecoversStaleLock(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock should recover stale lock, got: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	defer func() { _ = ReleaseLock(dbPath) }()
 }
 
 func TestAcquireLockRecoversEmptyLockFile(t *testing.T) {
@@ -315,7 +315,7 @@ func TestAcquireLockRecoversEmptyLockFile(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock should recover empty lock file, got: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	defer func() { _ = ReleaseLock(dbPath) }()
 }
 
 // TestIsIndexingFalseWhenNoLock confirms a missing lock file reports not-indexing.
@@ -334,7 +334,7 @@ func TestIsIndexingTrueWhenLockAlive(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock failed: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	defer func() { _ = ReleaseLock(dbPath) }()
 	if !IsIndexing(dbPath) {
 		t.Fatal("IsIndexing should be true while this process holds the lock")
 	}

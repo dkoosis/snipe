@@ -1393,7 +1393,7 @@ func FindPackageSymbolsByUsage(db *sql.DB, pkgPattern string, limit, offset int)
 // Returns empty string when no doc is indexed.
 func GetPackageDoc(db *sql.DB, pkgPath string) string {
 	var doc sql.NullString
-	_ = db.QueryRow(`SELECT doc FROM package_docs WHERE pkg_path = ?`, pkgPath).Scan(&doc)
+	_ = db.QueryRow(`SELECT doc FROM package_docs WHERE pkg_path = ?`, pkgPath).Scan(&doc) //nolint:errcheck // a missing or unreadable row reads as the zero value
 	return doc.String
 }
 
