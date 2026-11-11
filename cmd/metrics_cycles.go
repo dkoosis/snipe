@@ -17,7 +17,7 @@ type sccGroup struct {
 	ID       int      `json:"id"`
 	Size     int      `json:"size"`
 	Nodes    []string `json:"nodes"`
-	SelfLoop bool     `json:"self_loop,omitempty"`
+	SelfLoop bool     `json:"self_loop,omitempty"` //nolint:omitemptyscalar // a flag present only when true; consumers read absent as false
 }
 
 // cyclesPayload is the top-level results object for --kind=cycles JSON.

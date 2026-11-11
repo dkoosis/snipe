@@ -244,7 +244,7 @@ type BuildInfo struct {
 	Test       string   `json:"test" yaml:"test"`                                   // Primary test command
 	Targets    []string `json:"targets,omitempty" yaml:"targets,omitempty"`         // Available targets
 	CI         []CIInfo `json:"ci,omitempty" yaml:"ci,omitempty"`                   // CI configs found
-	GoGenerate bool     `json:"go_generate,omitempty" yaml:"go_generate,omitempty"` // true if //go:generate found
+	GoGenerate bool     `json:"go_generate,omitempty" yaml:"go_generate,omitempty"` // true if //go:generate found; absent means false //nolint:omitemptyscalar // a flag present only when true; consumers read absent as false
 }
 
 // CIInfo describes a detected CI configuration file.

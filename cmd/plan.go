@@ -65,8 +65,8 @@ type PlanResult struct {
 	TestCallSites          []PlanPkgGroup `json:"test_call_sites,omitempty"`
 	TestCallSitesTruncated int            `json:"test_call_sites_truncated,omitempty"`
 
-	MustRemove     bool      `json:"must_remove,omitempty"`
-	SafeToDelete   bool      `json:"safe_to_delete,omitempty"`
+	MustRemove     bool      `json:"must_remove,omitempty"`    //nolint:omitemptyscalar // a flag present only when true; absent means false
+	SafeToDelete   bool      `json:"safe_to_delete,omitempty"` //nolint:omitemptyscalar // a flag present only when true; absent means false
 	TestOnlyRefs   int       `json:"test_only_refs,omitempty"`
 	Tests          PlanTests `json:"tests"`
 	Churn          []string  `json:"churn,omitempty"`
