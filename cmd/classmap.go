@@ -29,6 +29,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/diagram"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/query"
@@ -82,7 +84,7 @@ func findClassCandidates(db *sql.DB) ([]query.SymbolRow, error) {
 		}
 		out = append(out, s)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // parseClassMembers fills Fields/Methods/Embeds for every candidate,

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -153,13 +154,10 @@ func ClassifyRung(decisionPath, degraded []string, outcome string) string {
 	default:
 		return ""
 	}
-	for _, d := range degraded {
-		if d == ciMatchDegradedMarker {
-			return RungCaseInsensitive
-		}
+	if slices.Contains(degraded, ciMatchDegradedMarker) {
+		return RungCaseInsensitive
 	}
-	for i := len(decisionPath) - 1; i >= 0; i-- {
-		tok := decisionPath[i]
+	for _, tok := range slices.Backward(decisionPath) {
 		switch {
 		case strings.HasPrefix(tok, "sim:"), strings.HasPrefix(tok, "sim_augment:"):
 			return RungSemantic
@@ -216,6 +214,7 @@ func Emit(f Fields) {
 		CandidateKinds: f.CandidateKinds,
 		Error:          TruncateError(f.Error),
 	}
+	//nolint:gosec // session_key is a local join id for telemetry, not a credential
 	line, err := json.Marshal(rec)
 	if err != nil {
 		return
@@ -226,7 +225,7 @@ func Emit(f Fields) {
 		return
 	}
 	defer fh.Close()
-	_, _ = fh.Write(append(line, '\n'))
+	_, _ = fh.Write(append(line, '\n')) //nolint:errcheck // best-effort append; a lost line is acceptable
 }
 
 // ReadAll loads every record from <root>/.snipe/usage.jsonl, skipping
@@ -234,7 +233,7 @@ func Emit(f Fields) {
 func ReadAll(root string) ([]Record, error) {
 	data, err := os.ReadFile(filepath.Join(root, ".snipe", "usage.jsonl")) // #nosec G304 -- path derived from project root
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("os read file: %w", err)
 	}
 	var out []Record
 	start := 0

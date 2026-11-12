@@ -4,6 +4,7 @@ package blackbox
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -267,7 +268,7 @@ func TestRiskJSONContract(t *testing.T) {
 func riskRecords(t *testing.T, path string) []map[string]any {
 	t.Helper()
 	data, err := os.ReadFile(path) // #nosec G304 -- test fixture path
-	if os.IsNotExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {

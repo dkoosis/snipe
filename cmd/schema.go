@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/invopop/jsonschema"
 
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -47,10 +49,10 @@ func runSchema(args []string) error {
 		schema.Title = "SnipeError"
 		schema.Description = "Error response structure"
 	default:
-		return fmt.Errorf("unknown type: %s (valid: response, result, meta, error)", typeName)
+		return fmt.Errorf("unknown type: %s (valid: response, result, meta, error): %w", typeName, errInvalidArgument)
 	}
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(schema)
+	return errwrap.Wrap(enc.Encode(schema), "encoder encode")
 }

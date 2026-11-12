@@ -9,7 +9,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // FileInfo represents file metadata for change detection
@@ -48,7 +51,7 @@ func ExtractFileInfo(repoRoot string) ([]FileInfo, error) {
 // walkGoFiles walks a directory tree visiting each .go file, skipping hidden
 // directories and excluded directory names. Shared by WalkFileInfo and DetectChanges.
 func walkGoFiles(dir string, exclude []string, fn func(path string, d os.DirEntry) error) error {
-	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	return errwrap.Wrap(filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil //nolint:nilerr // Skip unreadable entries
 		}
@@ -57,10 +60,8 @@ func walkGoFiles(dir string, exclude []string, fn func(path string, d os.DirEntr
 			if strings.HasPrefix(base, ".") && base != "." {
 				return filepath.SkipDir
 			}
-			for _, pat := range exclude {
-				if base == pat {
-					return filepath.SkipDir
-				}
+			if slices.Contains(exclude, base) {
+				return filepath.SkipDir
 			}
 			return nil
 		}
@@ -68,7 +69,7 @@ func walkGoFiles(dir string, exclude []string, fn func(path string, d os.DirEntr
 			return nil
 		}
 		return fn(path, d)
-	})
+	}), "walk go files")
 }
 
 // computeFileInfo computes the hash and mtime for a file
@@ -83,7 +84,7 @@ func computeFileInfo(path string) (FileInfo, error) {
 		return FileInfo{}, err // hashAndCountLines already includes path context
 	}
 
-	header, pkgName, _ := extractFileHeader(path) // best-effort; empty on error
+	header, pkgName, _ := extractFileHeader(path) //nolint:errcheck // empty header and package name on error
 
 	return FileInfo{
 		Path:        path,
@@ -103,7 +104,7 @@ func computeFileInfo(path string) (FileInfo, error) {
 func extractFileHeader(path string) (header, pkgName string, err error) {
 	f, err := os.Open(path) // #nosec G304 -- path from indexer walk
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("os open: %w", err)
 	}
 	defer f.Close()
 
@@ -113,8 +114,8 @@ func extractFileHeader(path string) (header, pkgName string, err error) {
 	for sc.Scan() {
 		line := strings.TrimRight(sc.Text(), " \t")
 		trim := strings.TrimSpace(line)
-		if strings.HasPrefix(trim, "package ") {
-			pkgName = strings.TrimSpace(strings.TrimPrefix(trim, "package "))
+		if after, ok := strings.CutPrefix(trim, "package "); ok {
+			pkgName = strings.TrimSpace(after)
 			break
 		}
 		if trim == "" {
@@ -123,8 +124,8 @@ func extractFileHeader(path string) (header, pkgName string, err error) {
 		if strings.HasPrefix(trim, "//go:build") || strings.HasPrefix(trim, "// +build") {
 			continue
 		}
-		if strings.HasPrefix(trim, "//") {
-			parts = append(parts, strings.TrimSpace(strings.TrimPrefix(trim, "//")))
+		if after, ok := strings.CutPrefix(trim, "//"); ok {
+			parts = append(parts, strings.TrimSpace(after))
 			continue
 		}
 		// Non-comment, non-blank line before `package` — bail (e.g. /* */ block).

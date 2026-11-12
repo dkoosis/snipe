@@ -7,7 +7,7 @@ import "github.com/dkoosis/snipe/internal/dbschema"
 type ProjectContext struct {
 	Project      Project             `json:"project" yaml:"project"`
 	Architecture Architecture        `json:"architecture" yaml:"architecture"`
-	Files        Files               `json:"files,omitempty" yaml:"files,omitempty"`
+	Files        Files               `json:"files" yaml:"files,omitempty"`
 	Symbols      Symbols             `json:"symbols" yaml:"symbols"`
 	DBSchemas    []dbschema.DBSchema `json:"db_schemas,omitempty" yaml:"db_schemas,omitempty"`
 	Meta         Meta                `json:"meta" yaml:"meta"`
@@ -244,7 +244,7 @@ type BuildInfo struct {
 	Test       string   `json:"test" yaml:"test"`                                   // Primary test command
 	Targets    []string `json:"targets,omitempty" yaml:"targets,omitempty"`         // Available targets
 	CI         []CIInfo `json:"ci,omitempty" yaml:"ci,omitempty"`                   // CI configs found
-	GoGenerate bool     `json:"go_generate,omitempty" yaml:"go_generate,omitempty"` // true if //go:generate found
+	GoGenerate bool     `json:"go_generate,omitempty" yaml:"go_generate,omitempty"` // true if //go:generate found; absent means false //omitemptyscalar:ignore a flag present only when true; consumers read absent as false
 }
 
 // CIInfo describes a detected CI configuration file.

@@ -85,7 +85,7 @@ const (
 // which carry no type) is untyped: never guessed into a named bucket.
 func classifyBeadTypes(values string) beadType {
 	best := typeUntyped
-	for _, v := range strings.Split(values, trailerSeparator) {
+	for v := range strings.SplitSeq(values, trailerSeparator) {
 		var t beadType
 		switch strings.TrimSpace(v) {
 		case "bug":
@@ -165,6 +165,7 @@ func trackedGoFiles(repoRoot string) map[string]struct{} {
 	}
 	set := make(map[string]struct{})
 	sc := bufio.NewScanner(strings.NewReader(string(out)))
+	sc.Buffer(make([]byte, 0, 64*1024), 1<<20) // one path per line; 1 MiB cap
 	for sc.Scan() {
 		if p := sc.Text(); p != "" {
 			set[p] = struct{}{}

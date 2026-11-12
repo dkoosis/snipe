@@ -112,8 +112,8 @@ func (a *Analyzer) detectIgnoredError(body *ast.BlockStmt) []protocol.Warning {
 		}
 
 		// Check if last LHS is blank identifier (common error position)
-		lastLhs := assign.Lhs[len(assign.Lhs)-1]
-		ident, ok := lastLhs.(*ast.Ident)
+		lastLHS := assign.Lhs[len(assign.Lhs)-1]
+		ident, ok := lastLHS.(*ast.Ident)
 		if !ok || ident.Name != "_" {
 			return true
 		}
@@ -207,18 +207,18 @@ func (a *Analyzer) detectLostCancel(body *ast.BlockStmt) []protocol.Warning {
 	cancelCalled := make(map[string]bool)
 
 	ast.Inspect(body, func(n ast.Node) bool {
-		defer_, ok := n.(*ast.DeferStmt)
+		deferStmt, ok := n.(*ast.DeferStmt)
 		if !ok {
 			return true
 		}
 
-		call, ok := defer_.Call.Fun.(*ast.Ident)
+		call, ok := deferStmt.Call.Fun.(*ast.Ident)
 		if ok {
 			cancelCalled[call.Name] = true
 		}
 
 		// Also check for defer func() { cancel() }() pattern
-		if funcLit, ok := defer_.Call.Fun.(*ast.FuncLit); ok {
+		if funcLit, ok := deferStmt.Call.Fun.(*ast.FuncLit); ok {
 			ast.Inspect(funcLit.Body, func(inner ast.Node) bool {
 				if innerCall, ok := inner.(*ast.CallExpr); ok {
 					if ident, ok := innerCall.Fun.(*ast.Ident); ok {

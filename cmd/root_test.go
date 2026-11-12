@@ -126,7 +126,6 @@ func TestRoot_IsKnownSubcommandOrFlag_ReturnsExpectedValue_When_InputVaries(t *t
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := isKnownSubcommandOrFlag(tc.arg)
 			if got != tc.want {
@@ -202,7 +201,6 @@ func TestRoot_ApplyFormatOverrides_ReturnsExpectedConfig_When_FormatModeChanges(
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -240,7 +238,6 @@ func TestRoot_UniqueStrings_PreservesOrderAndUniqueness_When_InputContainsDuplic
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -305,7 +302,6 @@ func TestRoot_ApplySelection_ReturnsExpectedWindow_When_SelectModeVaries(t *test
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			selectMode = tc.mode
 			got := ApplySelection(tc.input)
@@ -372,7 +368,6 @@ func TestRoot_GetOutputConfig_DisablesBodyAndContext_When_SignatureOnlyEnabled(t
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			signatureOnly = tc.signatureOnly
 
@@ -396,7 +391,7 @@ func TestRoot_GetContext_ReturnsCommandContext_When_Configured(t *testing.T) {
 	})
 
 	t.Run("error path returns background when command context is unset", func(t *testing.T) {
-		cmdCtx = nil
+		cmdCtx = nil //nolint:fatcontext // test resets the package-level command context
 		got := GetContext()
 		if got == nil {
 			t.Fatal("GetContext() returned nil, want non-nil background context")
@@ -409,7 +404,7 @@ func TestRoot_GetContext_ReturnsCommandContext_When_Configured(t *testing.T) {
 	t.Run("configured context is returned unchanged", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		t.Cleanup(cancel)
-		cmdCtx = ctx
+		cmdCtx = ctx //nolint:fatcontext // test sets the package-level command context
 		got := GetContext()
 		if got != ctx {
 			t.Fatal("GetContext() did not return the configured command context")

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/embed"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -79,7 +81,7 @@ func runDoctor(probe bool) error {
 	}
 
 	// Find repo root for meta (best-effort)
-	cwd, _ := os.Getwd()
+	cwd, _ := os.Getwd() //nolint:errcheck // an empty cwd falls back to the default root
 	repoRoot := util.FindProjectRoot(cwd)
 
 	resp := protocol.Response[DoctorCheck]{
@@ -134,7 +136,7 @@ func writeDoctorText(checks []DoctorCheck, allOK bool) error {
 		}
 	}
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func checkRipgrep() DoctorCheck {
@@ -166,7 +168,7 @@ func checkRipgrep() DoctorCheck {
 	version := strings.TrimSpace(strings.Split(string(out), "\n")[0])
 	check.OK = true
 	check.Message = version
-	check.Details = fmt.Sprintf("Path: %s", path)
+	check.Details = "Path: " + path
 
 	return check
 }
@@ -198,7 +200,7 @@ func checkIndex() DoctorCheck {
 		check.Code = DoctorIndexMissing
 		check.Message = "index not found"
 		check.Remediation = remediationReindex
-		check.Details = fmt.Sprintf("Expected at: %s", indexPath)
+		check.Details = "Expected at: " + indexPath
 		return check
 	}
 
@@ -281,7 +283,7 @@ func checkGoToolchain() DoctorCheck {
 	version := strings.TrimSpace(string(out))
 	check.OK = true
 	check.Message = version
-	check.Details = fmt.Sprintf("Path: %s", goPath)
+	check.Details = "Path: " + goPath
 	return check
 }
 
@@ -537,6 +539,6 @@ func indexBuiltElsewhere(root string) (bool, string) {
 		return false, ""
 	}
 	defer s.Close()
-	stored, _ := s.GetMeta("repo_root")
+	stored := s.MetaOrEmpty("repo_root")
 	return util.RootMoved(stored, root), stored
 }

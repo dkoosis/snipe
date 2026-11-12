@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/query"
 )
 
@@ -82,7 +84,7 @@ func queryRepoInterfaces(db *sql.DB, repoRoot string) ([]ifaceInfo, error) {
 		LIMIT 50
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -94,7 +96,7 @@ func queryRepoInterfaces(db *sql.DB, repoRoot string) ([]ifaceInfo, error) {
 		}
 		ifaces = append(ifaces, iface)
 	}
-	return ifaces, rows.Err()
+	return ifaces, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 func queryImplementorsBatch(db *sql.DB, repoRoot string, ifaces []ifaceInfo) map[string][]ImplementorRef {
@@ -119,7 +121,7 @@ func queryImplementorsBatch(db *sql.DB, repoRoot string, ifaces []ifaceInfo) map
 
 func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo) ([]ImplementorRef, error) {
 	placeholders := make([]string, len(iface.methods))
-	args := make([]interface{}, 0, len(iface.methods)+3)
+	args := make([]any, 0, len(iface.methods)+3)
 	for i, name := range iface.methods {
 		placeholders[i] = "?"
 		args = append(args, name)
@@ -146,7 +148,7 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 
 	candRows, err := db.Query(candidateQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer candRows.Close()
 
@@ -162,13 +164,16 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 		}
 		candidates = append(candidates, c)
 	}
+	if err := candRows.Err(); err != nil {
+		return nil, fmt.Errorf("rows err: %w", err)
+	}
 
 	if len(candidates) == 0 {
 		return nil, nil
 	}
 
 	var conditions []string
-	typeArgs := make([]interface{}, 0, len(candidates)*2+1)
+	typeArgs := make([]any, 0, len(candidates)*2+1)
 	for _, c := range candidates {
 		conditions = append(conditions, "(s.name = ? AND s.pkg_path = ?)")
 		typeArgs = append(typeArgs, c.name, c.pkgPath)
@@ -187,7 +192,7 @@ func queryImplementorsForInterface(db *sql.DB, repoRoot string, iface ifaceInfo)
 		LIMIT 20
 	`, strings.Join(conditions, " OR ")), typeArgs...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -206,5 +211,5 @@ func scanImplementorRefs(rows *sql.Rows, repoRoot string) ([]ImplementorRef, err
 		ref.File = strings.TrimPrefix(filePath, repoRoot+"/")
 		refs = append(refs, ref)
 	}
-	return refs, rows.Err()
+	return refs, errwrap.Wrap(rows.Err(), "rows err")
 }

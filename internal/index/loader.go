@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/token"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -23,7 +24,7 @@ const excludeVendor = "vendor"
 // LoadConfig configures how packages are loaded
 type LoadConfig struct {
 	// Context for cancellation support (optional, defaults to context.Background)
-	Context context.Context
+	Context context.Context //nolint:containedctx // optional cancellation handle on a load-config value, consumed once in Load; callers pass it per call
 	// Dir is the directory to load packages from
 	Dir string
 	// Patterns are the package patterns to load (e.g., "./...")
@@ -67,7 +68,7 @@ func Load(cfg LoadConfig) (*LoadResult, error) {
 		cfg.Dir = "."
 	}
 	if len(cfg.Patterns) == 0 {
-		cfg.Patterns, _ = WorkspacePatterns(cfg.Dir)
+		cfg.Patterns, _ = WorkspacePatterns(cfg.Dir) //nolint:errcheck // no workspace file means the default patterns apply
 		if len(cfg.Patterns) == 0 {
 			cfg.Patterns = []string{patternAllPkgs}
 		}
@@ -179,10 +180,7 @@ func loadPackagesChunked(ctx context.Context, dir string, fset *token.FileSet, p
 			return nil, fmt.Errorf("cancelled after %d/%d packages: %w", i, total, err)
 		}
 
-		end := i + chunkSize
-		if end > len(pkgPaths) {
-			end = len(pkgPaths)
-		}
+		end := min(i+chunkSize, len(pkgPaths))
 		chunk := pkgPaths[i:end]
 
 		loadCfg := &packages.Config{
@@ -321,10 +319,5 @@ func matchesExclude(pkgPath, pattern string) bool {
 	}
 
 	// Single component pattern: split by "/" and match exactly
-	for _, component := range strings.Split(pkgPath, "/") {
-		if component == pattern {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(strings.Split(pkgPath, "/"), pattern)
 }

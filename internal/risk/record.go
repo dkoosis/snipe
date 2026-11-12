@@ -52,7 +52,7 @@ func Append(root string, rec Record) {
 		return
 	}
 	defer fh.Close()
-	_, _ = fh.Write(append(line, '\n'))
+	_, _ = fh.Write(append(line, '\n')) //nolint:errcheck // best-effort append; a lost line is acceptable
 }
 
 // Commit names the commit ref points at, or "" when it does not resolve.

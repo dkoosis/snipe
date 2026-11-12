@@ -140,9 +140,11 @@ func TestInferProjectPurpose_Fallback(t *testing.T) {
 
 func TestInferProjectPurpose_FromReadme(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "README.md"), []byte(
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(
 		"# myproject\n\nA fast CLI tool for indexing Go code.\n\nMore stuff here.\n",
-	), 0644)
+	), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	purpose := inferProjectPurpose(nil, dir, "myproject")
 	if purpose == "" {

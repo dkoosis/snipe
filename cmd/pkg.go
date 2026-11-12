@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
@@ -37,7 +39,7 @@ func runPkg(args []string) error {
 	}
 	defer s.Close()
 
-	repoRoot, _ := s.GetMeta("repo_root")
+	repoRoot := s.MetaOrEmpty("repo_root")
 	pkgPattern = query.ResolvePkgPattern(s.DB(), pkgPattern, dir, repoRoot)
 
 	if pkgDigest {
@@ -140,7 +142,7 @@ func runPkg(args []string) error {
 		fileCount, loc, _ := computePackageStats(s.DB(), fullPkgPath, pkgDir)
 		displayPkg := pkgPattern
 		if mod := query.DetectModulePath(s.DB()); mod != "" {
-			if trim := strings.TrimPrefix(pkgPattern, mod); trim != pkgPattern {
+			if trim, ok := strings.CutPrefix(pkgPattern, mod); ok {
 				displayPkg = strings.TrimPrefix(trim, "/")
 			}
 		}
@@ -253,7 +255,7 @@ func runPkgDigest(s *store.Store, dir, pkgPattern string, startedAt time.Time) e
 	if GetOutputFormat() == output.OutputJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 	// Default text rendering: short single-line digest for grep-friendly use.
 	_, _ = fmt.Fprintf(os.Stdout,

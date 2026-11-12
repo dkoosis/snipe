@@ -1,8 +1,8 @@
-// Package context provides role-weighted symbol ranking for boot context generation.
 package context
 
 import (
 	"database/sql"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -41,12 +41,6 @@ type RankedSymbol struct {
 	RiskFlags []string `json:"risk_flags,omitempty"`
 	Priority  float64  `json:"priority"`
 	Doc       string   `json:"doc,omitempty"`
-}
-
-// CalculatePriority computes the priority score for a symbol from its structural
-// role alone. Formula: priority = (log(ref_count) + 1) * role_weight.
-func CalculatePriority(refCount int, role Role) float64 {
-	return calcPriority(refCount, effectiveWeight(role, nil))
 }
 
 // calcPriority balances reference count with a supplied architectural weight.
@@ -119,7 +113,7 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 		GROUP BY s.id
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -147,7 +141,7 @@ func RankSymbols(db *sql.DB, repoRoot string, limit int) ([]RankedSymbol, error)
 		results = append(results, rs)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	// Step 4: Sort by priority descending

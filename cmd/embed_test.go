@@ -52,7 +52,7 @@ type failingSaver struct {
 
 func (f *failingSaver) SaveEmbedding(symbolID string, embedding []float32, model string) error {
 	f.calls++
-	return errors.New("database is locked")
+	return errFixture1embed
 }
 
 // countingSaver records every successful save. Used for the happy path.
@@ -166,7 +166,7 @@ func TestRecoveryGuard_ClearsBatchStateOnSuccess(t *testing.T) {
 		}
 	}
 
-	if _, statErr := os.Stat(statePath); !os.IsNotExist(statErr) {
+	if _, statErr := os.Stat(statePath); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("batch_state.json should be cleared on full success, stat err = %v", statErr)
 	}
 }
@@ -191,3 +191,8 @@ func TestBatchFailureMessage(t *testing.T) {
 		}
 	}
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixture1embed = errors.New("database is locked")
+)

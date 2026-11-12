@@ -16,7 +16,7 @@ import (
 // optional single positional value (empty string => no args).
 func argsOf(pos string) []string {
 	if pos == "" {
-		return nil
+		return []string{}
 	}
 	return []string{pos}
 }
@@ -438,10 +438,7 @@ func (c *PlanCmd) Run() error {
 	// Clamp negatives to 0 (most restrictive cap). A negative value must never
 	// reach planBuildCallSites, where <0 is the internal unlimited sentinel —
 	// a --max-callers=-1 typo would otherwise dump every site.
-	planMaxCallers = c.MaxCallers
-	if planMaxCallers < 0 {
-		planMaxCallers = 0
-	}
+	planMaxCallers = max(c.MaxCallers, 0)
 	return runPlan(c.Change, argsOf(c.Symbol))
 }
 
@@ -545,7 +542,7 @@ type DiagramClassMapCmd struct {
 
 func (c *DiagramClassMapCmd) Run() error {
 	if c.Top < 0 {
-		return fmt.Errorf("--top must be >= 0 (0 = no cap), got %d", c.Top)
+		return fmt.Errorf("--top must be >= 0 (0 = no cap), got %d: %w", c.Top, errInvalidArgument)
 	}
 	diagramClassMapTopN = c.Top
 	return runDiagramClassMap()

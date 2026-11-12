@@ -3,6 +3,8 @@ package query
 import (
 	"database/sql"
 	"fmt"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // FindCallSites returns every non-def, non-concurrency reference to symbolID
@@ -52,24 +54,5 @@ func FindCallSites(db *sql.DB, symbolID string) ([]RefRow, error) {
 		refs = append(refs, r)
 	}
 
-	return refs, rows.Err()
-}
-
-// CountCallSites returns (nonTest, testOnly) reference counts, splitting on
-// whether the ref's file is *_test.go. Drives the delete zero-caller fast path.
-// Applies the same go/chan concurrency filter as FindCallSites so the counts
-// match what FindCallSites would render.
-func CountCallSites(db *sql.DB, symbolID string) (nonTest, testOnly int, err error) {
-	err = db.QueryRow(`
-		SELECT
-		  COALESCE(SUM(CASE WHEN r.file_path LIKE '%_test.go' THEN 0 ELSE 1 END), 0) AS non_test,
-		  COALESCE(SUM(CASE WHEN r.file_path LIKE '%_test.go' THEN 1 ELSE 0 END), 0) AS test_only
-		FROM refs r
-		WHERE r.symbol_id = ?
-		  AND (r.ast_ctx IS NULL OR r.ast_ctx NOT IN ('go','chan'))
-	`, symbolID).Scan(&nonTest, &testOnly)
-	if err != nil {
-		return 0, 0, fmt.Errorf("count call sites: %w", err)
-	}
-	return nonTest, testOnly, nil
+	return refs, errwrap.Wrap(rows.Err(), "rows err")
 }

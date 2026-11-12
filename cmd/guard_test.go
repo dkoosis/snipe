@@ -7,7 +7,7 @@ import (
 )
 
 func TestGuardAllowed(t *testing.T) {
-	allow := []string{"agent/cost_budget.go", "supervisor/reload.go"}
+	allow := []string{"agent/cost_budget.go", "supervisor/reload.go", "db.go"}
 	cases := map[string]bool{
 		"modules/agent/cost_budget.go":       true,
 		"modules/agent/supervisor/reload.go": true,
@@ -16,7 +16,6 @@ func TestGuardAllowed(t *testing.T) {
 		"modules/agent/validb.go":            false, // must not match a "db.go" suffix mid-name
 		"":                                   false,
 	}
-	allow = append(allow, "db.go")
 	for file, want := range cases {
 		if got := allowed(allow, file); got != want {
 			t.Errorf("allowed(%q) = %v, want %v", file, got, want)

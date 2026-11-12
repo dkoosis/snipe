@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/protocol"
 )
 
@@ -54,7 +56,7 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 	}
 
 	if _, err := exec.LookPath("rg"); err != nil {
-		return nil, fmt.Errorf("ripgrep (rg) not found: install from https://github.com/BurntSushi/ripgrep")
+		return nil, ErrRgMissing
 	}
 
 	if limit <= 0 {
@@ -159,8 +161,8 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 	// Check for scanner errors (e.g., line too long even with increased buffer)
 	if err := scanner.Err(); err != nil {
 		_ = stdout.Close() // G104: cleanup on error path
-		_ = cmd.Wait()     // G104: cleanup on error path
-		return results, fmt.Errorf("scan rg output: %w", err)
+		_ = cmd.Wait()     //nolint:errcheck // cleanup on the error path
+		return results, errwrap.Wrap(err, "scan rg output")
 	}
 
 	// Close pipe to signal rg we're done reading. This causes SIGPIPE on rg's
@@ -178,10 +180,9 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 		// fired, any results are a truncated search, so report cancellation
 		// instead of passing partial results off as a clean early stop.
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return results, ctxErr
+			return results, fmt.Errorf("context err: %w", ctxErr)
 		}
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			switch code := exitErr.ExitCode(); {
 			case code == 1:
 				return results, nil
@@ -191,12 +192,12 @@ func Search(ctx context.Context, dir, pattern string, limit, contextLines int, g
 			default:
 				stderr := strings.TrimSpace(stderrBuf.String())
 				if stderr != "" {
-					return results, fmt.Errorf("rg error (exit %d): %s", code, stderr)
+					return results, fmt.Errorf("rg error (exit %d): %s: %w", code, stderr, ErrRgFailed)
 				}
-				return results, fmt.Errorf("rg failed with exit code %d", code)
+				return results, fmt.Errorf("rg failed with exit code %d: %w", code, ErrRgFailed)
 			}
 		}
-		return results, fmt.Errorf("wait for rg: %w", err)
+		return results, errwrap.Wrap(err, "wait for rg")
 	}
 
 	return results, nil

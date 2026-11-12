@@ -155,6 +155,9 @@ func compilePatterns(typeName string) *patterns {
 // share an enclosing function. Returns the primary role plus any secondary
 // rule matches as Mixed.
 func classifyFunction(p *patterns, encID string, refs []Ref) Classification {
+	if len(refs) == 0 {
+		return Classification{EnclosingID: encID}
+	}
 	head := refs[0]
 	c := Classification{
 		EnclosingID:   encID,

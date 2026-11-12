@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/index"
 	"github.com/dkoosis/snipe/internal/vector"
 )
@@ -214,7 +216,7 @@ func (s *Store) GetCalleesForSymbols(symbolIDs []string) (map[string]map[string]
 		return map[string]map[string]struct{}{}, nil
 	}
 	placeholders := make([]byte, 0, len(symbolIDs)*2)
-	args := make([]interface{}, 0, len(symbolIDs))
+	args := make([]any, 0, len(symbolIDs))
 	for i, id := range symbolIDs {
 		if i > 0 {
 			placeholders = append(placeholders, ',')
@@ -222,6 +224,7 @@ func (s *Store) GetCalleesForSymbols(symbolIDs []string) (map[string]map[string]
 		placeholders = append(placeholders, '?')
 		args = append(args, id)
 	}
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := `SELECT caller_id, callee_id FROM call_graph WHERE caller_id IN (` + string(placeholders) + `)`
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
@@ -242,7 +245,7 @@ func (s *Store) GetCalleesForSymbols(symbolIDs []string) (map[string]map[string]
 		}
 		set[callee] = struct{}{}
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // CountEmbeddings returns the number of stored embeddings.

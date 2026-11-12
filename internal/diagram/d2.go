@@ -140,6 +140,9 @@ func (b *Builder) Render() string {
 	sort.Strings(paths)
 	for _, p := range paths {
 		c := b.containers[p]
+		if c == nil {
+			continue
+		}
 		writeContainer(&w, c)
 	}
 

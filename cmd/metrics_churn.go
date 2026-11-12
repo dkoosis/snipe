@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/store"
@@ -62,14 +64,14 @@ func runChurnMetrics(s *store.Store, dir string, startedAt time.Time) error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
 	if len(rows) == 0 {
 		b.WriteString("git history · churn · (no rows — not a git repo, or run `snipe index` to populate)\n")
 		_, err = os.Stdout.WriteString(b.String())
-		return err
+		return errwrap.Wrap(err, "file write string")
 	}
 	fmt.Fprintf(&b, "git history · churn · %d files by %s "+
 		"(commits = revisions; bug/feat/chore from Bead-Type trailers, untyped = no trailer)\n", len(rows), by)
@@ -81,5 +83,5 @@ func runChurnMetrics(s *store.Store, dir string, startedAt time.Time) error {
 			r.UntypedCommits, r.LastChanged, r.Path)
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }

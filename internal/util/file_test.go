@@ -1,6 +1,8 @@
 package util_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,7 +27,7 @@ func TestLoadFileLines_ReturnsExpectedLines_When_FileExists(t *testing.T) {
 		{
 			name:       "error: missing file returns not-exist error",
 			wantErr:    true,
-			errMatcher: os.IsNotExist,
+			errMatcher: func(err error) bool { return errors.Is(err, fs.ErrNotExist) },
 		},
 		{
 			name:     "success: multi-line file returns split lines",
@@ -119,42 +121,6 @@ func TestFileCache_EvictsOldestEntry_When_CapacityExceeded(t *testing.T) {
 			got, err := cache.LoadLines(fileA)
 			require.NoError(t, err)
 			assert.Equal(t, "alpha-updated", got[0], "evicted files should be reloaded from disk")
-		})
-	}
-}
-
-func TestFileCache_RemovesEntries_When_ClearIsCalled(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		maxFiles int
-	}{
-		{
-			name:     "success: clear removes all cached entries",
-			maxFiles: 2,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			dir := t.TempDir()
-			fileA := filepath.Join(dir, "a.txt")
-			fileB := filepath.Join(dir, "b.txt")
-			writeTempFile(t, fileA, "alpha")
-			writeTempFile(t, fileB, "bravo")
-
-			cache := util.NewFileCache(tc.maxFiles)
-			_, err := cache.LoadLines(fileA)
-			require.NoError(t, err)
-			_, err = cache.LoadLines(fileB)
-			require.NoError(t, err)
-
-			cache.Clear()
-
-			assert.Zero(t, cache.Size(), "clearing should drop all cached entries")
 		})
 	}
 }

@@ -43,7 +43,7 @@ func seedStore(t *testing.T, repoRoot string) *store.Store {
 	}
 	// A persistence-role symbol: a func in a *store* package (inferRole tags store
 	// packages persistence). file_path is absolute (repoRoot-joined).
-	abs := filepath.Join(repoRoot, "internal/store/store.go")
+	abs := filepath.Join(repoRoot, "internal", "store", "store.go")
 	_, err = s.DB().Exec(`
 		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path,
 			line_start, col_start, line_end, col_end)
@@ -105,7 +105,7 @@ func TestChangedSymbols_ExcludesTestFiles(t *testing.T) {
 	repoRoot := t.TempDir()
 	s := seedStore(t, repoRoot)
 	// Seed a symbol in a _test.go file at the same overlapping range.
-	abs := filepath.Join(repoRoot, "internal/store/store_test.go")
+	abs := filepath.Join(repoRoot, "internal", "store", "store_test.go")
 	if _, err := s.DB().Exec(`
 		INSERT INTO symbols (id, name, kind, file_path, file_path_rel, pkg_path,
 			line_start, col_start, line_end, col_end)

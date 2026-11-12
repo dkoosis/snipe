@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/edit"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -241,11 +243,17 @@ doEdit:
 				Message: err.Error(),
 			})
 		}
-		durabilityWarn = []string{fmt.Sprintf("edit_not_durable:%s", symbolName)}
+		durabilityWarn = []string{"edit_not_durable:" + symbolName}
+	}
+	if result == nil {
+		return w.WriteError(cmdNameEdit, &protocol.Error{
+			Code:    protocol.ErrInternal,
+			Message: "edit returned no result",
+		})
 	}
 
 	// Build response
-	relPath, _ := filepath.Rel(dir, filePath)
+	relPath, _ := filepath.Rel(dir, filePath) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root
 	if relPath == "" {
 		relPath = filePath
 	}
@@ -312,11 +320,11 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 		// Resolve symbol
 		symbols, err := query.LookupByName(s.DB(), req.Symbol)
 		if err != nil || len(symbols) == 0 {
-			degraded = append(degraded, fmt.Sprintf("symbol_not_found:%s", req.Symbol))
+			degraded = append(degraded, "symbol_not_found:"+req.Symbol)
 			continue
 		}
 		if len(symbols) > 1 && req.File == "" {
-			degraded = append(degraded, fmt.Sprintf("ambiguous:%s", req.Symbol))
+			degraded = append(degraded, "ambiguous:"+req.Symbol)
 			continue
 		}
 
@@ -365,10 +373,14 @@ func runBatchEdit(w *output.Writer, start time.Time) error {
 				degraded = append(degraded, fmt.Sprintf("edit_failed:%s:%s", req.Symbol, err.Error()))
 				continue
 			}
-			degraded = append(degraded, fmt.Sprintf("edit_not_durable:%s", req.Symbol))
+			degraded = append(degraded, "edit_not_durable:"+req.Symbol)
+		}
+		if result == nil {
+			degraded = append(degraded, "edit_failed:"+req.Symbol+":no result")
+			continue
 		}
 
-		relPath, _ := filepath.Rel(dir, filePath)
+		relPath, _ := filepath.Rel(dir, filePath) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root
 		if relPath == "" {
 			relPath = filePath
 		}
@@ -435,5 +447,5 @@ func emitEdit(w *output.Writer, resp protocol.Response[EditResponse]) error {
 		}
 	}
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }

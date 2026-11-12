@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/alecthomas/kong"
 
 	"github.com/dkoosis/snipe/internal/config"
@@ -119,7 +121,7 @@ func (g *Globals) AfterApply() error {
 		signal.Stop(sigCh)
 	}()
 
-	cmdCtx = ctx
+	cmdCtx = ctx //nolint:fatcontext // one assignment per process: the command context lives for the whole invocation
 
 	// Load config and apply defaults if flags weren't explicitly set
 	cwd, err := os.Getwd()
@@ -464,12 +466,12 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		if w != nil {
-			_ = w.WriteError(cmdName, &protocol.Error{
+			_ = w.WriteError(cmdName, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 				Code:    protocol.ErrInternal,
 				Message: "failed to get working directory: " + err.Error(),
 			})
 		}
-		return nil, "", err
+		return nil, "", errwrap.Wrap(err, "os getwd")
 	}
 
 	// Resolve to git/go.mod root — index always lives at project root (D3)
@@ -491,35 +493,35 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 		cwdPath := store.DefaultIndexPath(cwd)
 		if store.Exists(cwdPath) {
 			if w != nil {
-				_ = w.WriteError(cmdName, &protocol.Error{
+				_ = w.WriteError(cmdName, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 					Code:    protocol.ErrIndexMismatch,
 					Message: fmt.Sprintf("index found at %s but project root is %s — run: snipe index", cwd, root),
 				})
 			}
-			return nil, root, fmt.Errorf("index root mismatch")
+			return nil, root, errIndexMismatch
 		}
 	}
 
 	// Check if indexing is in progress
 	if store.IsIndexing(dbPath) {
 		if w != nil {
-			_ = w.WriteError(cmdName, protocol.NewIndexInProgressError())
+			_ = w.WriteError(cmdName, protocol.NewIndexInProgressError()) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 		}
-		return nil, root, fmt.Errorf("indexing in progress")
+		return nil, root, errIndexInProgress
 	}
 
 	// Check for missing index
 	if !dbExists {
 		if w != nil {
-			_ = w.WriteError(cmdName, protocol.NewMissingIndexError())
+			_ = w.WriteError(cmdName, protocol.NewMissingIndexError()) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 		}
-		return nil, root, fmt.Errorf("index missing")
+		return nil, root, errIndexMissing
 	}
 
 	s, err := store.Open(dbPath)
 	if err != nil {
 		if w != nil {
-			_ = w.WriteError(cmdName, &protocol.Error{
+			_ = w.WriteError(cmdName, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 				Code:    protocol.ErrInternal,
 				Message: "failed to open index: " + err.Error(),
 			})
@@ -531,15 +533,15 @@ func OpenStore(w *output.Writer, cmdName string) (*store.Store, string, error) {
 	// old directory: every path-based lookup misses, and self-heal (which
 	// works from the stored root) cannot repair it. Refuse it rather than
 	// answer from it.
-	if storedRoot, _ := s.GetMeta("repo_root"); util.RootMoved(storedRoot, root) {
+	if storedRoot := s.MetaOrEmpty("repo_root"); util.RootMoved(storedRoot, root) {
 		_ = s.Close()
 		if w != nil {
-			_ = w.WriteError(cmdName, &protocol.Error{
+			_ = w.WriteError(cmdName, &protocol.Error{ //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 				Code:    protocol.ErrIndexMismatch,
 				Message: fmt.Sprintf("index was built for %s but this repo is at %s — run: snipe index", storedRoot, root),
 			})
 		}
-		return nil, root, fmt.Errorf("index root moved")
+		return nil, root, errIndexMoved
 	}
 
 	// Small drift heals inline so queries answer from current code; the

@@ -91,10 +91,3 @@ func TestCombinedHashInvalidatesPreEmbedInputGenIndexes(t *testing.T) {
 		t.Errorf("combined hash %s equals the pre-embedInputGen hash; existing indexes would not rebuild", got)
 	}
 }
-
-func TestFingerprintString(t *testing.T) {
-	fp := &Fingerprint{Combined: "abc123"}
-	if fp.String() != "abc123" {
-		t.Errorf("String() = %q, want %q", fp.String(), "abc123")
-	}
-}

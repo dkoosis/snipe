@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
@@ -82,9 +84,9 @@ func runStatus() error {
 	}
 
 	// Get meta values
-	indexedAt, _ := s.GetMeta("indexed_at")
-	commit, _ := s.GetMeta("git_commit")
-	fingerprint, _ := s.GetMeta("fingerprint")
+	indexedAt := s.MetaOrEmpty("indexed_at")
+	commit := s.MetaOrEmpty("git_commit")
+	fingerprint := s.MetaOrEmpty("fingerprint")
 
 	// Check index state
 	state := query.CheckIndexState(s.DB(), dir, Version)
@@ -135,5 +137,5 @@ func emitStatus(w *output.Writer, resp protocol.Response[StatusResponse]) error 
 	}
 	b.WriteByte('\n')
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }

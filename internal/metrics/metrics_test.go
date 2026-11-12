@@ -88,7 +88,7 @@ func TestComparison_SetsStatus_When_MetricsCompared(t *testing.T) {
 				assert.Contains(t, check.Message, tt.wantMessagePart)
 			}
 			if tt.wantThreshold != 0 {
-				assert.Equal(t, tt.wantThreshold, check.Threshold)
+				assert.InDelta(t, tt.wantThreshold, check.Threshold, 1e-9)
 			}
 			assert.Equal(t, tt.wantHasFailure, comp.HasFailure)
 		})

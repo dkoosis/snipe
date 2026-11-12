@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 
 	"github.com/dkoosis/snipe/internal/c4"
 	"github.com/dkoosis/snipe/internal/datastoremap"
@@ -209,7 +212,7 @@ func findPackageTypes(db *sql.DB, pkg string) ([]pkgType, error) {
 		}
 		out = append(out, t)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // renderDatastoreSummary renders the Claude-facing plain-text section:
@@ -341,7 +344,7 @@ func addRoleNodes(b *diagram.Builder, container string, entries []datastoremap.E
 		if name == "" {
 			name = "(file scope)"
 		}
-		id := container + "." + diagram.SanitizeID(name+fmt.Sprintf("%d", e.Line))
+		id := container + "." + diagram.SanitizeID(name+strconv.Itoa(e.Line))
 		label := fmt.Sprintf("%s · %s:%d", name, e.File, e.Line)
 		b.AddNode(id, label, "", nil)
 		edge(id)

@@ -76,7 +76,7 @@ func NeedBackfill(s *store.Store) bool {
 	// A missing key returns ("", err); an unreadable DB returns ("", err) too.
 	// Either way the value won't equal the current version, so we backfill —
 	// a one-time full reindex is the safe outcome, never data loss.
-	v, _ := s.GetMeta(metaFileMetricsVersion)
+	v := s.MetaOrEmpty(metaFileMetricsVersion)
 	return v != fileMetricsVersion
 }
 

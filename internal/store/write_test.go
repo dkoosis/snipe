@@ -821,6 +821,9 @@ func TestWritePackageDocsSweepsOrphans(t *testing.T) {
 		}
 		got = append(got, struct{ path, doc string }{p, d})
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
 	if len(got) != 1 {
 		t.Fatalf("want 1 row after sweep, got %d: %+v", len(got), got)
 	}

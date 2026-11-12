@@ -354,7 +354,7 @@ func (s *Store) initSchema() error {
 	// or DB created before meta entry existed), write it now outside any tx — no
 	// crash window matters because there's nothing to be inconsistent with.
 	var have string
-	_ = s.db.QueryRow(`SELECT value FROM meta WHERE key='schema_version'`).Scan(&have)
+	_ = s.db.QueryRow(`SELECT value FROM meta WHERE key='schema_version'`).Scan(&have) //nolint:errcheck // a missing or unreadable row reads as the zero value
 	if have == "" {
 		if _, err := s.db.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)`, schemaVersion); err != nil {
 			return fmt.Errorf("set schema version: %w", err)
@@ -538,6 +538,16 @@ func (s *Store) GetMeta(key string) (string, error) {
 		return "", fmt.Errorf("get meta %q: %w", key, err)
 	}
 	return value, nil
+}
+
+// MetaOrEmpty returns the metadata value for key, or "" when the key is absent
+// or unreadable. Callers that must tell the two apart use GetMeta.
+func (s *Store) MetaOrEmpty(key string) string {
+	v, err := s.GetMeta(key)
+	if err != nil {
+		return ""
+	}
+	return v
 }
 
 // SetMeta sets a metadata value.

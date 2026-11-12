@@ -127,10 +127,10 @@ func matchGlob(glob, path string) bool {
 			strings.HasSuffix(path, "/"+suffix) ||
 			strings.Contains(path, "/"+suffix+"/")
 	}
-	if ok, _ := filepath.Match(glob, path); ok {
+	if ok, _ := filepath.Match(glob, path); ok { //nolint:errcheck // a malformed glob matches nothing
 		return true
 	}
 	// Also try matching against the base name so "*.sql" works at any depth.
-	ok, _ := filepath.Match(glob, filepath.Base(path))
+	ok, _ := filepath.Match(glob, filepath.Base(path)) //nolint:errcheck // a malformed glob matches nothing
 	return ok
 }

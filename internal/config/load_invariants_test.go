@@ -23,6 +23,7 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 		{
 			name: "error: malformed project path as file returns not-a-directory",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				home := t.TempDir()
 				t.Setenv("HOME", home)
 				projectRootFile := filepath.Join(t.TempDir(), "project-root")
@@ -34,6 +35,7 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 		{
 			name: "error: malformed global config surfaces parse failure",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				home := t.TempDir()
 				t.Setenv("HOME", home)
 				globalDir := filepath.Join(home, ".config", "snipe")
@@ -47,6 +49,7 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 		{
 			name: "boundary: empty project root uses defaults when no global config",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				t.Setenv("HOME", t.TempDir())
 				return ""
 			},
@@ -55,6 +58,7 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 		{
 			name: "boundary: zero project values cannot erase defaults",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				t.Setenv("HOME", t.TempDir())
 				project := t.TempDir()
 				require.NoError(t, os.WriteFile(filepath.Join(project, ".snipe.json"), []byte(`{"limit":0,"context_lines":0}`), 0o644))
@@ -65,6 +69,7 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 		{
 			name: "happy path: project overrides global while keeping other global settings",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				home := t.TempDir()
 				t.Setenv("HOME", home)
 				globalDir := filepath.Join(home, ".config", "snipe")
@@ -79,7 +84,6 @@ func TestLoad_ExpectedBehaviour_When_ConfigSourcesChange(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			projectRoot := tc.setup(t)
 			got, err := config.Load(projectRoot)

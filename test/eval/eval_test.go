@@ -4,6 +4,7 @@ package eval
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -514,7 +515,7 @@ func snapshotFile(t *testing.T, path string) string {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return "<absent>"
 		}
 		t.Fatalf("read %s: %v", path, err)

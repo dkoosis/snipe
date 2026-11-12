@@ -189,7 +189,7 @@ func TestWriteDiagramDocTo_D2Available(t *testing.T) {
 	binDir := t.TempDir()
 	fakeD2 := filepath.Join(binDir, "d2")
 	script := "#!/bin/sh\necho '<svg>FAKE-RENDER</svg>'\n"
-	if err := os.WriteFile(fakeD2, []byte(script), 0o755); err != nil { //nolint:gosec // test fixture binary, needs +x
+	if err := os.WriteFile(fakeD2, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake d2: %v", err)
 	}
 	t.Setenv("PATH", binDir)

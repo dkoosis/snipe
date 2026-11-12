@@ -81,8 +81,8 @@ func TestRenderDatastoreSummary_MatchedStoreListsReadsAndWrites(t *testing.T) {
 }
 
 func TestRenderDatastoreSummary_ListCapTruncates(t *testing.T) {
-	var reads []datastoremap.Entry
-	for i := 0; i < datastoreListCap+5; i++ {
+	reads := make([]datastoremap.Entry, 0, datastoreListCap+5)
+	for i := range datastoreListCap + 5 {
 		reads = append(reads, datastoremap.Entry{Func: "Fn", File: "f.go", Line: i + 1, Role: lifecycle.RoleRead})
 	}
 	stores := []datastoremap.Store{

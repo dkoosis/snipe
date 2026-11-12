@@ -14,8 +14,8 @@ import (
 // substring-matching the message — so a runtime error whose text happens to
 // contain "not found" is no longer misclassified as RG_NOT_FOUND (snipe-7rn).
 func TestClassifySearchErr(t *testing.T) {
-	rgMissing := errors.New("ripgrep (rg) not found: install from ...")
-	runtimeErr := errors.New("rg error (exit 2): regex parse error")
+	rgMissing := errFixture1search
+	runtimeErr := errFixture2search
 
 	tests := []struct {
 		name    string
@@ -51,7 +51,7 @@ func TestClassifySearchErr(t *testing.T) {
 			// Regression: message contains "not found" but rg is present —
 			// the old substring match wrongly tagged this RG_NOT_FOUND.
 			name:    "non-rg error containing 'not found' stays INTERNAL_ERROR",
-			err:     errors.New("pattern not found in any tracked file"),
+			err:     errFixture3search,
 			lookErr: nil,
 			want:    protocol.ErrInternal,
 		},
@@ -64,3 +64,10 @@ func TestClassifySearchErr(t *testing.T) {
 		})
 	}
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixture1search = errors.New("ripgrep (rg) not found: install from the project page")
+	errFixture2search = errors.New("rg error (exit 2): regex parse error")
+	errFixture3search = errors.New("pattern not found in any tracked file")
+)

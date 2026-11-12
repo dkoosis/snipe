@@ -78,7 +78,7 @@ func runOrient() error {
 
 	// 2. deps --tree (use the same FindDepGraph path runDepsTree uses)
 	modulePath := query.DetectModulePath(s.DB())
-	depsPayload := map[string]interface{}{}
+	depsPayload := map[string]any{}
 	if modulePath != "" {
 		if graph, err := query.FindDepGraph(s.DB(), modulePath); err == nil {
 			edges := make([]protocol.DepTreeEdge, len(graph.Edges))
@@ -136,7 +136,7 @@ func runOrient() error {
 	return nil
 }
 
-func writeJSONFile(path string, v interface{}) error {
+func writeJSONFile(path string, v any) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("create %s: %w", path, err)
@@ -154,7 +154,7 @@ func hashOrientFiles(dir string) (map[string]string, error) {
 	out := map[string]string{}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("os read dir: %w", err)
 	}
 	for _, e := range entries {
 		if e.IsDir() || e.Name() == "manifest.json" {
@@ -162,7 +162,7 @@ func hashOrientFiles(dir string) (map[string]string, error) {
 		}
 		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("os read file: %w", err)
 		}
 		sum := sha256.Sum256(data)
 		out[e.Name()] = hex.EncodeToString(sum[:])

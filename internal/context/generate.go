@@ -154,6 +154,7 @@ func buildArchWarnings(db *sql.DB) []ArchWarning {
 	rows := make(map[string]*ai)
 
 	scan := func(metric string, set func(*ai, float64)) {
+		//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 		rs, err := db.Query(
 			`SELECT node_id, value FROM graph_metrics
 			 WHERE graph_kind = ? AND metric = ?`,
@@ -247,8 +248,8 @@ func buildDepDAG(db *sql.DB) *DepDAG {
 
 // countSymbolsAndPkgs returns the total symbol count and distinct package count from the index.
 func countSymbolsAndPkgs(db *sql.DB) (symbols, pkgs int) {
-	_ = db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbols)
-	_ = db.QueryRow(`SELECT COUNT(DISTINCT pkg_path) FROM symbols`).Scan(&pkgs)
+	_ = db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbols)              //nolint:errcheck // a missing or unreadable row reads as the zero value
+	_ = db.QueryRow(`SELECT COUNT(DISTINCT pkg_path) FROM symbols`).Scan(&pkgs) //nolint:errcheck // a missing or unreadable row reads as the zero value
 	return
 }
 
@@ -273,7 +274,7 @@ func isTestPkg(pkg string) bool {
 // generateBootViews creates the three orientation views for boot context.
 func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 	// Get entry point details using batch queries
-	entryPointDetails, _ := GetEntryPointDetails(db, repoRoot)
+	entryPointDetails, _ := GetEntryPointDetails(db, repoRoot) //nolint:errcheck // each context section is optional; a failed section is omitted
 
 	// Compress into command table
 	var commands *CommandTable
@@ -282,13 +283,13 @@ func generateBootViews(db *sql.DB, repoRoot string) *BootViews {
 	}
 
 	// Get primary flows — deeper traces (6 levels) to reach meaningful terminals
-	primaryFlows, _ := ExtractPrimaryFlows(db, repoRoot, 6)
+	primaryFlows, _ := ExtractPrimaryFlows(db, repoRoot, 6) //nolint:errcheck // each context section is optional; a failed section is omitted
 
 	// Get change boundaries using batch query
-	changeBoundaries, _ := GetChangeBoundaries(db, repoRoot)
+	changeBoundaries, _ := GetChangeBoundaries(db, repoRoot) //nolint:errcheck // each context section is optional; a failed section is omitted
 
 	// Get interface satisfaction map
-	interfaceMap, _ := GetInterfaceMap(db, repoRoot)
+	interfaceMap, _ := GetInterfaceMap(db, repoRoot) //nolint:errcheck // each context section is optional; a failed section is omitted
 
 	// Only return BootViews if we have meaningful content
 	if commands == nil && len(primaryFlows) == 0 && len(changeBoundaries) == 0 && len(interfaceMap) == 0 {
@@ -327,6 +328,7 @@ func rankedToSymbolRefs(ranked []RankedSymbol, repoRoot string) []SymbolRef {
 func getEntryPoints(db *sql.DB, repoRoot string) []string {
 	var entryPoints []string
 
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT DISTINCT file_path
 		FROM symbols
@@ -359,6 +361,7 @@ func getEntryPoints(db *sql.DB, repoRoot string) []string {
 func getKeySymbolsByRefCount(db *sql.DB, repoRoot string, limit int) []SymbolRef {
 	var symbols []SymbolRef
 
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT s.name, s.file_path, s.line_start,
 			COUNT(DISTINCT r.file_path) as file_spread,
@@ -447,6 +450,7 @@ func generateArchitecture(db *sql.DB, repoRoot string) Architecture {
 // inferDataFlows analyzes imports to determine data flow between packages.
 func inferDataFlows(db *sql.DB, modulePath string) []DataFlow {
 	// Query inter-package imports within the repository
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT
 			importer_pkg,
@@ -525,6 +529,7 @@ func extractPkgShortName(pkgPath, modulePath string) string {
 // inferBoundaries determines what each package owns/exports.
 func inferBoundaries(db *sql.DB, modulePath string) []Boundary {
 	// Get distinct internal packages
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT DISTINCT pkg_path
 		FROM symbols
@@ -556,7 +561,7 @@ func inferBoundaries(db *sql.DB, modulePath string) []Boundary {
 		seen[shortName] = true
 		packages = append(packages, pkgInfo{fullPath: pkgPath, shortName: shortName})
 	}
-	_ = rows.Close() // G104: close after iteration (defer not used to avoid nested query issues)
+	_ = rows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
 
 	// Now build boundaries with exports (safe to query now)
 	var boundaries []Boundary
@@ -576,6 +581,7 @@ func inferBoundaries(db *sql.DB, modulePath string) []Boundary {
 
 // getExportedSymbols returns the top exported symbols for a package.
 func getExportedSymbols(db *sql.DB, pkgPath string, limit int) []string {
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT s.name
 		FROM symbols s
@@ -633,6 +639,7 @@ type packageInfo struct {
 
 func getPackageInfo(db *sql.DB, repoRoot string) []packageInfo {
 	// Query for distinct directories containing Go files
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT DISTINCT
 			SUBSTR(file_path, LENGTH(?) + 2,
@@ -715,6 +722,7 @@ func generateFiles(db *sql.DB, repoRoot string) Files {
 	}
 
 	// Query files with exported symbols (key files only)
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT
 			file_path,
@@ -951,6 +959,7 @@ func buildRoleRiskMaps(db *sql.DB, repoRoot string) (map[string]Role, map[string
 // The kindClause is a SQL IN expression like "('func', 'method')".
 func querySymbolRefsByKind(db *sql.DB, repoRoot, kindClause string, limit int, roleMap map[string]Role, riskMap map[string][]string) []SymbolRef {
 	// #nosec G201 -- kindClause is a hardcoded literal from caller
+	//nolint:gosec,rowserrcheck // SQL text is built only from fixed fragments and '?' placeholders, every value bound as a parameter; best-effort context section, so a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT s.id, s.name, s.file_path, s.line_start, COUNT(r.id) as ref_count
 		FROM symbols s
@@ -1001,6 +1010,7 @@ func getExtensionPoints(db *sql.DB, repoRoot string) []ExtensionPoint {
 	var points []ExtensionPoint
 
 	// Query for interfaces and high-centrality symbols
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT
 			s.name,
@@ -1069,7 +1079,10 @@ func generateMeta(db *sql.DB) Meta {
 
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
+	if err != nil || info == nil {
+		return false
+	}
+	return !info.IsDir()
 }
 
 // inferProjectPurpose extracts a one-line project purpose from the main package doc,
@@ -1123,8 +1136,8 @@ func inferProjectPurpose(db *sql.DB, repoRoot string, projectName string) string
 
 // extractReadmePurpose extracts the first non-heading, non-empty paragraph from README content.
 func extractReadmePurpose(content string) string {
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(content, "\n")
+	for line := range lines {
 		trimmed := strings.TrimSpace(line)
 		// Skip headings, badges, empty lines
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "[!") || strings.HasPrefix(trimmed, "[![") {

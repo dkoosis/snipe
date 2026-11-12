@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // MatchPackagePatterns returns the subset of `universe` matching any pattern.
@@ -34,8 +36,8 @@ func MatchPackagePatterns(universe, patterns []string) []string {
 }
 
 func matches(pkg, pattern string) bool {
-	if strings.HasSuffix(pattern, "/...") {
-		base := strings.TrimSuffix(pattern, "/...")
+	if before, ok := strings.CutSuffix(pattern, "/..."); ok {
+		base := before
 		return strings.HasSuffix(pkg, "/"+base) || pkg == base ||
 			strings.Contains(pkg, "/"+base+"/")
 	}
@@ -93,6 +95,7 @@ func queryDirection(db *sql.DB, srcPkgs, dstPkgs []string) ([]BoundaryRef, error
 	srcPlace := placeholders(len(srcPkgs))
 	dstPlace := placeholders(len(dstPkgs))
 
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := fmt.Sprintf(`
 		SELECT tgt.name, tgt.kind, enc.pkg_path, tgt.pkg_path, COUNT(*) AS n
 		FROM refs r
@@ -115,7 +118,7 @@ func queryDirection(db *sql.DB, srcPkgs, dstPkgs []string) ([]BoundaryRef, error
 
 	rows, err := db.Query(q, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -123,11 +126,11 @@ func queryDirection(db *sql.DB, srcPkgs, dstPkgs []string) ([]BoundaryRef, error
 	for rows.Next() {
 		var b BoundaryRef
 		if err := rows.Scan(&b.Symbol, &b.Kind, &b.SourcePkg, &b.TargetPkg, &b.RefCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		out = append(out, b)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // PopulateBoundaryLocations fills BoundaryRef.Locations for every entry in
@@ -153,6 +156,7 @@ func fillLocations(db *sql.DB, refs []BoundaryRef, srcPkgs, dstPkgs []string) er
 	srcPlace := placeholders(len(srcPkgs))
 	dstPlace := placeholders(len(dstPkgs))
 
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := fmt.Sprintf(`
 		SELECT tgt.name, r.file_path_rel, r.line
 		FROM refs r
@@ -174,7 +178,7 @@ func fillLocations(db *sql.DB, refs []BoundaryRef, srcPkgs, dstPkgs []string) er
 
 	rows, err := db.Query(q, args...)
 	if err != nil {
-		return err
+		return fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -187,13 +191,13 @@ func fillLocations(db *sql.DB, refs []BoundaryRef, srcPkgs, dstPkgs []string) er
 		var name, file string
 		var line int
 		if err := rows.Scan(&name, &file, &line); err != nil {
-			return err
+			return fmt.Errorf("rows scan: %w", err)
 		}
 		if br, ok := bySymbol[name]; ok {
 			br.Locations = append(br.Locations, BoundaryLoc{File: file, Line: line})
 		}
 	}
-	return rows.Err()
+	return errwrap.Wrap(rows.Err(), "rows err")
 }
 
 func placeholders(n int) string {

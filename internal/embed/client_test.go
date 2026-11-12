@@ -84,6 +84,7 @@ func TestEmbed_ErrorBehavior(t *testing.T) {
 				return testClient("http://unused")
 			},
 			assertFn: func(t *testing.T, got [][]float32, err error) {
+				t.Helper()
 				if err != nil {
 					t.Fatalf("Embed error: %v", err)
 				}
@@ -105,6 +106,7 @@ func TestEmbed_ErrorBehavior(t *testing.T) {
 				return testClient(server.URL)
 			},
 			assertFn: func(t *testing.T, _ [][]float32, err error) {
+				t.Helper()
 				if err == nil {
 					t.Fatal("expected error")
 				}
@@ -219,7 +221,7 @@ func TestCredentials_EnvFirst(t *testing.T) {
 	t.Cleanup(func() { credStore = orig })
 	credStore = func() (*keyring.Store, error) {
 		t.Error("credStore opened despite VOYAGE_API_KEY being set — this can exec `security` and hang headless agents")
-		return nil, errors.New("credStore must not be opened when the env key is set")
+		return nil, errFixture1client
 	}
 
 	if !HasCredentials() {
@@ -247,13 +249,15 @@ func TestLiveProbe(t *testing.T) {
 		{
 			name: "valid key returns nil",
 			handler: func(w http.ResponseWriter, _ *http.Request) {
-				_ = json.NewEncoder(w).Encode(EmbeddingResponse{
+				if err := json.NewEncoder(w).Encode(EmbeddingResponse{
 					Data: []struct {
 						Object    string    `json:"object"`
 						Embedding []float32 `json:"embedding"`
 						Index     int       `json:"index"`
 					}{{Embedding: []float32{0.1}, Index: 0}},
-				})
+				}); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
 			},
 			wantErr: false,
 		},
@@ -309,3 +313,8 @@ func TestEmbedOne_ReturnsFirstEmbedding(t *testing.T) {
 		t.Fatalf("embedding length = %d, want 3", len(got))
 	}
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixture1client = errors.New("credStore must not be opened when the env key is set")
+)

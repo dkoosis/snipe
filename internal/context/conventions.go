@@ -175,6 +175,7 @@ func detectTesting(db *sql.DB) *TestConvention {
 
 	// Collect directories containing non-test .go source files (single query).
 	srcDirs := make(map[string]bool)
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	srcRows, err := db.Query(`
 		SELECT DISTINCT file_path FROM symbols
 		WHERE file_path LIKE '%.go'

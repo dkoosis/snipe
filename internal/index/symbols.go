@@ -325,7 +325,7 @@ func formatFuncSignatureTyped(pkg *packages.Package, decl *ast.FuncDecl) string 
 // formatTypedSignature formats a function signature using types.TypeString
 // with a qualifier that shows short package names for external types.
 func formatTypedSignature(fn *types.Func, currentPkg string) string {
-	sig := fn.Type().(*types.Signature)
+	sig := fn.Signature()
 	var b strings.Builder
 	b.WriteString("func ")
 
@@ -345,7 +345,7 @@ func formatTypedSignature(fn *types.Func, currentPkg string) string {
 	// Format type parameters (generics) if present
 	if tp := sig.TypeParams(); tp != nil && tp.Len() > 0 {
 		b.WriteString("[")
-		for i := 0; i < tp.Len(); i++ {
+		for i := range tp.Len() {
 			if i > 0 {
 				b.WriteString(", ")
 			}
@@ -384,8 +384,8 @@ func formatTypedSignature(fn *types.Func, currentPkg string) string {
 
 // formatTuple formats a parameter or result tuple with qualified types.
 func formatTuple(tuple *types.Tuple, currentPkg string, variadic bool) string {
-	var parts []string
-	for i := 0; i < tuple.Len(); i++ {
+	parts := make([]string, 0, tuple.Len())
+	for i := range tuple.Len() {
 		v := tuple.At(i)
 		var part string
 		if v.Name() != "" {

@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/mattn/go-isatty"
 
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -55,7 +57,7 @@ func (w *Writer) writeHuman(resp any) error {
 	}
 
 	_, err := io.WriteString(w.out, b.String())
-	return err
+	return errwrap.Wrap(err, "io write string")
 }
 
 func writeHumanResults(b *strings.Builder, results []protocol.Result, color bool) {

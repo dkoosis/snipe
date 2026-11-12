@@ -37,7 +37,7 @@ func SerializeEmbedding(embedding []float32) []byte {
 
 // DeserializeEmbedding converts bytes back to a float32 slice.
 func DeserializeEmbedding(data []byte) []float32 {
-	if len(data)%4 != 0 {
+	if data == nil || len(data)%4 != 0 {
 		return nil
 	}
 	result := make([]float32, len(data)/4)

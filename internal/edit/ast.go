@@ -229,10 +229,10 @@ func Apply(req Request) (*Result, error) {
 	switch req.Operation {
 	case OpReplaceBody:
 		if info.Kind != "func" && info.Kind != "method" {
-			return nil, fmt.Errorf("replace_body only works on functions/methods, got %s", info.Kind)
+			return nil, fmt.Errorf("replace_body only works on functions/methods, got %s: %w", info.Kind, ErrInvalidRequest)
 		}
 		if info.BodyStart == 0 {
-			return nil, fmt.Errorf("function %s has no body (interface method?)", req.Symbol)
+			return nil, fmt.Errorf("function %s has no body (interface method?): %w", req.Symbol, ErrInvalidRequest)
 		}
 		originalCode = info.BodyCode()
 		newCode = req.NewCode
@@ -283,7 +283,7 @@ func Apply(req Request) (*Result, error) {
 		newContent = append(newContent, info.Source[start:]...)
 
 	default:
-		return nil, fmt.Errorf("unknown operation: %s", req.Operation)
+		return nil, fmt.Errorf("unknown operation: %s: %w", req.Operation, ErrInvalidRequest)
 	}
 
 	// Format the result — a format failure means the edit produced invalid Go,

@@ -133,7 +133,8 @@ func createLitsIndex(t *testing.T, root string, rows []literalRefRow) {
 	}
 	defer s.Close()
 
-	for _, row := range rows {
+	for i := range rows {
+		row := &rows[i]
 		_, err := s.DB().Exec(`
 			INSERT INTO string_refs (id, value, name, kind, file_path, file_path_rel, line, col, enclosing_id, snippet)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

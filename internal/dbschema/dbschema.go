@@ -4,6 +4,7 @@
 package dbschema
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -128,7 +129,7 @@ func detectTopLevelSQL(repoRoot string) (DBSchema, bool) {
 		if err != nil {
 			continue
 		}
-		if !ddlRe.MatchString(string(content)) {
+		if !ddlRe.Match(content) {
 			continue
 		}
 		name := strings.TrimSuffix(filepath.Base(candidate), ".sql")
@@ -145,7 +146,7 @@ func detectTopLevelSQL(repoRoot string) (DBSchema, bool) {
 // Each file containing DDL produces one DBSchema, named after its parent directory.
 func detectEmbeddedGo(repoRoot string) []DBSchema {
 	var out []DBSchema
-	_ = filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error { //nolint:errcheck // the callback never returns an error
 		if err != nil {
 			return err
 		}
@@ -158,9 +159,10 @@ func detectEmbeddedGo(repoRoot string) []DBSchema {
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
+		//nolint:gosec // reads files under the repo root the user asked to index; a symlink swap races only the user's own checkout
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return err
+			return fmt.Errorf("os read file: %w", err)
 		}
 		ddl := extractGoDDL(string(content))
 		if ddl == "" {
@@ -337,11 +339,8 @@ func leadingWhitespace(s string) string {
 }
 
 func commonPrefix(a, b string) string {
-	n := len(a)
-	if len(b) < n {
-		n = len(b)
-	}
-	for i := 0; i < n; i++ {
+	n := min(len(b), len(a))
+	for i := range n {
 		if a[i] != b[i] {
 			return a[:i]
 		}

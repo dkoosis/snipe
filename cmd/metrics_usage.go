@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 
 	"github.com/dkoosis/snipe/internal/telemetry"
@@ -17,7 +18,7 @@ const kindUsage = "usage"
 func runUsageMetrics() error {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return err
+		return fmt.Errorf("os getwd: %w", err)
 	}
 	root := util.FindProjectRoot(cwd)
 	if root == "" {
@@ -62,6 +63,9 @@ func runUsageMetrics() error {
 	fmt.Printf("usage: %d invocations, %d errors (%.0f%%)\n", total, totalErr, pct(totalErr, total))
 	for _, c := range cmds {
 		a := byCmd[c]
+		if a == nil {
+			continue
+		}
 		fmt.Printf("  %-12s %5d calls  %3d err  p50 %dms\n", c, a.calls, a.errors, p50(a.ms))
 	}
 	return nil
@@ -78,6 +82,6 @@ func p50(ms []int64) int64 {
 	if len(ms) == 0 {
 		return 0
 	}
-	sort.Slice(ms, func(i, j int) bool { return ms[i] < ms[j] })
+	slices.Sort(ms)
 	return ms[len(ms)/2]
 }

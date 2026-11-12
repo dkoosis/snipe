@@ -35,7 +35,7 @@ func setupImpactTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func execOrFatal(t *testing.T, db *sql.DB, query string, args ...interface{}) { //nolint:unparam // variadic kept for future use
+func execOrFatal(t *testing.T, db *sql.DB, query string, args ...any) {
 	t.Helper()
 	if _, err := db.Exec(query, args...); err != nil {
 		t.Fatalf("exec %q: %v", query, err)

@@ -12,6 +12,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/query"
@@ -65,8 +67,8 @@ type PlanResult struct {
 	TestCallSites          []PlanPkgGroup `json:"test_call_sites,omitempty"`
 	TestCallSitesTruncated int            `json:"test_call_sites_truncated,omitempty"`
 
-	MustRemove     bool      `json:"must_remove,omitempty"`
-	SafeToDelete   bool      `json:"safe_to_delete,omitempty"`
+	MustRemove     bool      `json:"must_remove,omitempty"`    //omitemptyscalar:ignore a flag present only when true; absent means false
+	SafeToDelete   bool      `json:"safe_to_delete,omitempty"` //omitemptyscalar:ignore a flag present only when true; absent means false
 	TestOnlyRefs   int       `json:"test_only_refs,omitempty"`
 	Tests          PlanTests `json:"tests"`
 	Churn          []string  `json:"churn,omitempty"`
@@ -399,6 +401,7 @@ func planBuildCallSites(refs []query.RefRow, maxSites int) (groups []PlanPkgGrou
 		truncated = len(refs) - maxSites
 		refs = refs[:maxSites]
 	}
+	groups = []PlanPkgGroup{}
 	idx := map[string]int{}
 	for i := range refs {
 		r := &refs[i]
@@ -476,7 +479,7 @@ func writePlanJSON(p PlanResult, root string, start time.Time) error {
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(resp)
+	return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 }
 
 func writePlanText(p PlanResult) error {
@@ -485,7 +488,7 @@ func writePlanText(p PlanResult) error {
 	if p.Message != "" {
 		fmt.Fprintln(&b, p.Message)
 		_, err := os.Stdout.WriteString(b.String())
-		return err
+		return errwrap.Wrap(err, "file write string")
 	}
 
 	writePlanHeader(&b, p)
@@ -512,7 +515,7 @@ func writePlanText(p PlanResult) error {
 	fmt.Fprintln(&b, planClaimNote)
 
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func writePlanHeader(b *strings.Builder, p PlanResult) {

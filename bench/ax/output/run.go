@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // reply is what one model call returns.
@@ -99,12 +101,14 @@ func runBench(ctx context.Context, bench, out string, p plan, dry bool, a ask, s
 			return fmt.Errorf("%w (%s replied: %s)", errLeak, m, strings.TrimSpace(r.Text))
 		}
 	}
+	//nolint:gosec // operator-supplied path in a developer benchmark tool, not served input
 	if err := os.MkdirAll(out, 0o750); err != nil {
-		return err
+		return fmt.Errorf("os mkdir all: %w", err)
 	}
+	//nolint:gosec // operator-supplied path in a developer benchmark tool, not served input
 	f, err := os.Create(filepath.Join(out, "calls.jsonl"))
 	if err != nil {
-		return err
+		return fmt.Errorf("os create: %w", err)
 	}
 	rows := make([]call, len(jobs))
 	next := make(chan int)
@@ -133,11 +137,11 @@ func runBench(ctx context.Context, bench, out string, p plan, dry bool, a ask, s
 	for _, r := range rows {
 		if err := enc.Encode(r); err != nil {
 			f.Close()
-			return err
+			return errwrap.Wrap(err, "encoder encode")
 		}
 	}
 	if err := f.Close(); err != nil {
-		return err
+		return fmt.Errorf("file close: %w", err)
 	}
 	return writeReport(out, stdout)
 }

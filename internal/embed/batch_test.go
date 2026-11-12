@@ -51,7 +51,7 @@ func TestWriteJSONL_WritesExpectedRequests(t *testing.T) {
 		t.Fatalf("line count = %d, want 2", len(lines))
 	}
 
-	var got []BatchRequest
+	got := make([]BatchRequest, 0, len(lines))
 	for i, line := range lines {
 		var req BatchRequest
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
@@ -84,7 +84,7 @@ func TestWriteJSONL_RejectsDuplicateID(t *testing.T) {
 }
 
 func TestParseBatchResults_Behavior(t *testing.T) {
-	embBody, _ := json.Marshal(EmbeddingResponse{
+	embBody := mustMarshal(t, EmbeddingResponse{
 		Data: []struct {
 			Object    string    `json:"object"`
 			Embedding []float32 `json:"embedding"`
@@ -114,7 +114,7 @@ func TestParseBatchResults_Behavior(t *testing.T) {
 
 	var payload bytes.Buffer
 	for _, resp := range lines {
-		line, _ := json.Marshal(resp)
+		line := mustMarshal(t, resp)
 		payload.Write(line)
 		payload.WriteByte('\n')
 	}
@@ -137,20 +137,20 @@ func TestParseBatchResults_Behavior(t *testing.T) {
 }
 
 func TestParseBatchResults_PropagatesCallbackError(t *testing.T) {
-	embBody, _ := json.Marshal(EmbeddingResponse{
+	embBody := mustMarshal(t, EmbeddingResponse{
 		Data: []struct {
 			Object    string    `json:"object"`
 			Embedding []float32 `json:"embedding"`
 			Index     int       `json:"index"`
 		}{{Embedding: []float32{1}, Index: 0}},
 	})
-	line, _ := json.Marshal(BatchResponse{
+	line := mustMarshal(t, BatchResponse{
 		BatchID:  "batch-1",
 		CustomID: "sym1",
 		Response: &BatchRespBody{StatusCode: 200, Body: embBody},
 	})
 
-	wantErr := errors.New("stop")
+	wantErr := errFixture1batch
 	err := testBatchClient("").ParseBatchResults(bytes.NewReader(append(line, '\n')), func(string, []float32) error {
 		return wantErr
 	})
@@ -309,13 +309,13 @@ func TestUploadFile_NoGoroutineLeakOnTransportError(t *testing.T) {
 	}
 
 	c := testBatchClient(dir)
-	c.client = &http.Client{Transport: &failingTransport{err: errors.New("boom")}}
+	c.client = &http.Client{Transport: &failingTransport{err: errFixture2batch}}
 
 	// Settle pre-existing goroutines (test runner spawns some lazily).
 	runtime.GC()
 	before := runtime.NumGoroutine()
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if _, err := c.UploadFile(context.Background(), jsonl); err == nil {
 			t.Fatalf("expected error on iteration %d", i)
 		}
@@ -328,3 +328,19 @@ func TestUploadFile_NoGoroutineLeakOnTransportError(t *testing.T) {
 		return runtime.NumGoroutine() <= before+1
 	}, 2*time.Second, 10*time.Millisecond, "goroutine leak: goroutine count did not settle within 2s (before=%d)", before)
 }
+
+// mustMarshal marshals v or fails the test.
+func mustMarshal(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return b
+}
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixture1batch = errors.New("stop")
+	errFixture2batch = errors.New("boom")
+)

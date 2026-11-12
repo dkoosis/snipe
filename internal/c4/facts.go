@@ -18,6 +18,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"golang.org/x/mod/modfile"
 
 	"github.com/dkoosis/snipe/internal/context"
@@ -256,11 +258,11 @@ func BuildFacts(s *store.Store, dir string, level string) (Facts, error) {
 func goVersionFromMod(dir string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("os read file: %w", err)
 	}
 	mf, err := modfile.Parse("go.mod", data, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("modfile parse: %w", err)
 	}
 	if mf.Go != nil {
 		return mf.Go.Version, nil
@@ -301,7 +303,7 @@ func findContainers(db *sql.DB, modulePath string) ([]Container, error) {
 			Line: line,
 		})
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // containerName names a main-package container after its own package
@@ -383,14 +385,17 @@ func findDatastores(db *sql.DB) ([]Datastore, map[string][]importerEvidence, err
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	sort.Strings(order)
 	out := make([]Datastore, 0, len(order))
 	importerEvidenceByName := make(map[string][]importerEvidence, len(order))
 	for _, name := range order {
-		g := groups[name]
+		g, ok := groups[name]
+		if !ok || g == nil {
+			continue
+		}
 		evidence := make([]string, 0, len(g.importers))
 		perImporter := make([]importerEvidence, 0, len(g.importers))
 		for pkg, ev := range g.importers {
@@ -466,7 +471,10 @@ func externalFromEnv(db *sql.DB, modulePath string) ([]ExternalSystem, error) {
 	sort.Strings(order)
 	out := make([]ExternalSystem, 0, len(order))
 	for _, key := range order {
-		g := groups[key]
+		g, ok := groups[key]
+		if !ok || g == nil {
+			continue
+		}
 		evidence := slices.Clone(g.names)
 		sort.Strings(evidence)
 		out = append(out, ExternalSystem{
@@ -549,7 +557,7 @@ func externalFromImports(db *sql.DB, modulePath string) ([]ExternalSystem, error
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	sort.Strings(order)
@@ -807,7 +815,7 @@ func loadImporterPkgsByRoot(db *sql.DB) (map[string][]importerEvidence, error) {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	out := make(map[string][]importerEvidence, len(best))
@@ -882,7 +890,7 @@ func findComponents(s *store.Store) ([]Component, error) {
 // design field's zero-inference AC rules out).
 func loadPackageDocFirstSentences(db *sql.DB, pkgs []string) (map[string]string, error) {
 	if len(pkgs) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 	placeholders := strings.Repeat("?,", len(pkgs))
 	placeholders = placeholders[:len(placeholders)-1]
@@ -891,6 +899,7 @@ func loadPackageDocFirstSentences(db *sql.DB, pkgs []string) (map[string]string,
 		args[i] = p
 	}
 	// #nosec G201 -- placeholders are positional parameters
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	q := "SELECT pkg_path, doc FROM package_docs WHERE pkg_path IN (" + placeholders + ")"
 	rows, err := db.Query(q, args...)
 	if err != nil {
@@ -906,7 +915,7 @@ func loadPackageDocFirstSentences(db *sql.DB, pkgs []string) (map[string]string,
 		}
 		out[pkgPath] = context.ExtractFirstSentence(doc)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // componentLayer mirrors cmd/diagram.go's layerOf: a coarse grouping label

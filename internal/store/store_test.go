@@ -1,9 +1,11 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -89,7 +91,7 @@ func TestExists(t *testing.T) {
 
 func TestDefaultIndexPath(t *testing.T) {
 	got := DefaultIndexPath("/home/user/project")
-	want := filepath.Join("/home/user/project", ".snipe", "index.db")
+	want := filepath.FromSlash("/home/user/project/.snipe/index.db")
 	if got != want {
 		t.Errorf("DefaultIndexPath() = %q, want %q", got, want)
 	}
@@ -122,7 +124,7 @@ func TestSchemaCreation(t *testing.T) {
 	}
 	// Compare against the constant, not a literal: every migration would
 	// otherwise fail this test for no reason.
-	want := fmt.Sprintf("%d", schemaVersion)
+	want := strconv.Itoa(schemaVersion)
 	if version != want {
 		t.Errorf("schema_version = %q, want %q", version, want)
 	}
@@ -170,7 +172,7 @@ func TestCreateIndexDirectory(t *testing.T) {
 
 	// Verify directory was created
 	parentDir := filepath.Dir(nestedPath)
-	if _, err := os.Stat(parentDir); os.IsNotExist(err) {
+	if _, err := os.Stat(parentDir); errors.Is(err, os.ErrNotExist) {
 		t.Error("Parent directory should have been created")
 	}
 }
@@ -193,11 +195,11 @@ func TestConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	errChan := make(chan error, numGoroutines*opsPerGoroutine)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < opsPerGoroutine; j++ {
+			for j := range opsPerGoroutine {
 				key := fmt.Sprintf("key_%d_%d", id, j)
 				value := fmt.Sprintf("value_%d_%d", id, j)
 
@@ -214,7 +216,7 @@ func TestConcurrentAccess(t *testing.T) {
 					return
 				}
 				if got != value {
-					errChan <- fmt.Errorf("got %q, want %q", got, value)
+					errChan <- fmt.Errorf("got %q, want %q: %w", got, value, errFixtureMismatchstore)
 					return
 				}
 			}
@@ -250,7 +252,7 @@ func TestAcquireLockTwiceFails(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("First AcquireLock failed: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	defer func() { _ = ReleaseLock(dbPath) }()
 
 	if err := AcquireLock(dbPath); err == nil {
 		t.Fatal("Second AcquireLock should fail, but got nil error")
@@ -264,7 +266,7 @@ func TestAcquireLockWritesPID(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock failed: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	defer func() { _ = ReleaseLock(dbPath) }()
 
 	data, err := os.ReadFile(LockPath(dbPath))
 	if err != nil {
@@ -294,7 +296,7 @@ func TestAcquireLockRecoversStaleLock(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock should recover stale lock, got: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	t.Cleanup(func() { _ = ReleaseLock(dbPath) })
 }
 
 func TestAcquireLockRecoversEmptyLockFile(t *testing.T) {
@@ -314,7 +316,7 @@ func TestAcquireLockRecoversEmptyLockFile(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock should recover empty lock file, got: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	t.Cleanup(func() { _ = ReleaseLock(dbPath) })
 }
 
 // TestIsIndexingFalseWhenNoLock confirms a missing lock file reports not-indexing.
@@ -333,7 +335,7 @@ func TestIsIndexingTrueWhenLockAlive(t *testing.T) {
 	if err := AcquireLock(dbPath); err != nil {
 		t.Fatalf("AcquireLock failed: %v", err)
 	}
-	defer ReleaseLock(dbPath)
+	defer func() { _ = ReleaseLock(dbPath) }()
 	if !IsIndexing(dbPath) {
 		t.Fatal("IsIndexing should be true while this process holds the lock")
 	}
@@ -411,7 +413,7 @@ func TestRemoveLockIfContentsMatch_RemovesWhenContentsMatch(t *testing.T) {
 	if !removeLockIfContentsMatch(lockPath, "9999999") {
 		t.Fatal("expected removal when contents match")
 	}
-	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(lockPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("lock should be gone, stat err: %v", err)
 	}
 }
@@ -455,7 +457,7 @@ func TestReleaseLockRemovesOwnLock(t *testing.T) {
 	if err := ReleaseLock(dbPath); err != nil {
 		t.Fatalf("ReleaseLock failed for own lock: %v", err)
 	}
-	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(lockPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("own lock should be gone after ReleaseLock, stat err: %v", err)
 	}
 }
@@ -524,3 +526,8 @@ func TestBusyTimeoutPragma(t *testing.T) {
 		t.Errorf("busy_timeout = %d, want 5000", timeout)
 	}
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixtureMismatchstore = errors.New("fixture mismatch")
+)

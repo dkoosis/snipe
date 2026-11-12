@@ -1,5 +1,7 @@
 package graphmetrics
 
+import "slices"
+
 // Betweenness computes Brandes (2001) unweighted betweenness centrality on the
 // directed graph g. Returns a map of node -> score, normalized by (N-1)(N-2).
 //
@@ -53,8 +55,7 @@ func Betweenness(g *Graph) map[string]float64 {
 
 		// Accumulation — reverse BFS order.
 		delta := make(map[string]float64, n)
-		for i := len(stack) - 1; i >= 0; i-- {
-			w := stack[i]
+		for _, w := range slices.Backward(stack) {
 			for _, v := range pred[w] {
 				delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w])
 			}

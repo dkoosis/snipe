@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/protocol"
 )
 
@@ -62,7 +64,7 @@ func LookupByID(db *sql.DB, id string) (*SymbolRow, error) {
 		&s.Signature, &s.Doc, &s.Receiver, &fileHash)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query symbol by id: %w", err)
@@ -120,7 +122,7 @@ func BatchLookupByID(db *sql.DB, ids []string) (map[string]*SymbolRow, error) {
 		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.FilePath, &filePathRel, &pkgPath,
 			&s.LineStart, &s.ColStart, &s.LineEnd, &s.ColEnd,
 			&s.Signature, &s.Doc, &s.Receiver, &fileHash); err != nil {
-			return nil, fmt.Errorf("scan symbol row: %w", err)
+			return nil, errwrap.Wrap(err, "scan symbol row")
 		}
 		s.FileHash = fileHash.String
 		s.FilePathRel = filePathRel.String
@@ -238,6 +240,7 @@ func LookupByNameInFile(db *sql.DB, name, filePattern string) ([]SymbolRow, erro
 // The pkgPattern can be a full path or suffix (e.g. "query" matches "github.com/foo/internal/query").
 func LookupByNameInPkg(db *sql.DB, name, pkgPattern string) ([]SymbolRow, error) {
 	tryQuery := func(whereClause string, args ...any) ([]SymbolRow, error) {
+		//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 		rows, err := db.Query(`
 			SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel, s.pkg_path, s.line_start, s.col_start, s.line_end, s.col_end,
 			       s.signature, s.doc, s.receiver, f.hash
@@ -448,7 +451,7 @@ func scanSymbolRows(rows *sql.Rows) ([]SymbolRow, error) {
 		s.PkgPath = pkgPath.String
 		symbols = append(symbols, s)
 	}
-	return symbols, rows.Err()
+	return symbols, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // FindRefs finds all references to a symbol
@@ -493,7 +496,7 @@ func FindRefs(db *sql.DB, symbolID string, limit, offset int) ([]RefRow, error) 
 		refs = append(refs, r)
 	}
 
-	return refs, rows.Err()
+	return refs, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // RefRow represents a reference with enclosing context
@@ -566,7 +569,7 @@ func docFirstSentence(doc string) string {
 		return ""
 	}
 	// Find end of first sentence (period followed by space or end)
-	for i := 0; i < len(doc); i++ {
+	for i := range len(doc) {
 		if doc[i] == '.' && (i+1 == len(doc) || doc[i+1] == ' ' || doc[i+1] == '\n') {
 			return strings.TrimSpace(doc[:i+1])
 		}
@@ -768,7 +771,7 @@ func GetRefCount(db *sql.DB, symbolID string) (int, error) {
 		`SELECT COUNT(*) FROM refs WHERE symbol_id = ? AND (ast_ctx IS NULL OR ast_ctx NOT IN ('go','chan'))`,
 		symbolID,
 	).Scan(&count)
-	return count, err
+	return count, errwrap.Wrap(err, "row scan")
 }
 
 // isExported returns true if a Go identifier is exported (starts with uppercase).
@@ -830,11 +833,11 @@ func FindSiblings(db *sql.DB, filePath, kind, excludeID string, limit int) ([]pr
 	for rows.Next() {
 		var s protocol.Sibling
 		if err := rows.Scan(&s.ID, &s.Name, &s.Kind, &s.Line); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		siblings = append(siblings, s)
 	}
-	return siblings, rows.Err()
+	return siblings, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // CallRow represents a call graph edge with caller/callee details
@@ -991,7 +994,7 @@ func CountCallersForType(db *sql.DB, typeName string) (int, error) {
 			AND (receiver = ? OR receiver = ?)
 		)
 	`, valueRecv, ptrRecv).Scan(&count)
-	return count, err
+	return count, errwrap.Wrap(err, "row scan")
 }
 
 // CountCalleesForType returns total callee count across all methods of a type.
@@ -1007,21 +1010,21 @@ func CountCalleesForType(db *sql.DB, typeName string) (int, error) {
 			AND (receiver = ? OR receiver = ?)
 		)
 	`, valueRecv, ptrRecv).Scan(&count)
-	return count, err
+	return count, errwrap.Wrap(err, "row scan")
 }
 
 // CountCallers returns the number of call_graph edges into symbolID.
 func CountCallers(db *sql.DB, symbolID string) (int, error) {
 	var count int
 	err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE callee_id = ?`, symbolID).Scan(&count)
-	return count, err
+	return count, errwrap.Wrap(err, "row scan")
 }
 
 // CountCallees returns the number of call_graph edges out of symbolID.
 func CountCallees(db *sql.DB, symbolID string) (int, error) {
 	var count int
 	err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE caller_id = ?`, symbolID).Scan(&count)
-	return count, err
+	return count, errwrap.Wrap(err, "row scan")
 }
 
 // ToCalleeResult converts a CallRow to an output.Result describing the callee's definition.
@@ -1089,7 +1092,7 @@ func scanCallRows(rows *sql.Rows) ([]CallRow, error) {
 			&r.CallLine, &r.CallCol,
 		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		r.CallerFileRel = callerFileRel.String
 		r.CalleeFileRel = calleeFileRel.String
@@ -1099,7 +1102,7 @@ func scanCallRows(rows *sql.Rows) ([]CallRow, error) {
 		r.CalleeFileHash = calleeHash.String
 		results = append(results, r)
 	}
-	return results, rows.Err()
+	return results, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // FindImplementers finds types that potentially implement an interface.
@@ -1144,6 +1147,7 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 	// Group by (type_name, pkg_path) to avoid merging same-named types from different packages.
 	// Exclude the interface itself by matching BOTH name and package (not just name,
 	// since a struct in another package may share the interface's name).
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	candidateQuery := fmt.Sprintf(`
 		SELECT
 		  CASE
@@ -1172,8 +1176,8 @@ func FindImplementers(db *sql.DB, interfaceID string, limit, offset int) ([]Symb
 	for candRows.Next() {
 		var c candidate
 		if err := candRows.Scan(&c.name, &c.pkgPath); err != nil {
-			candRows.Close()
-			return nil, fmt.Errorf("scan candidate type: %w", err)
+			candRows.Close() //nolint:sqlclosecheck // closed explicitly each pass; a defer would hold the rows open until the function returns
+			return nil, errwrap.Wrap(err, "scan candidate type")
 		}
 		candidates = append(candidates, c)
 	}
@@ -1280,7 +1284,7 @@ func ExtractInterfaceMethodNames(filePath string, lineStart, lineEnd int) []stri
 func querySymbols(db *sql.DB, query string, args ...any) ([]SymbolRow, error) {
 	rows, err := db.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 	return scanSymbolRows(rows)
@@ -1393,7 +1397,7 @@ func FindPackageSymbolsByUsage(db *sql.DB, pkgPattern string, limit, offset int)
 // Returns empty string when no doc is indexed.
 func GetPackageDoc(db *sql.DB, pkgPath string) string {
 	var doc sql.NullString
-	_ = db.QueryRow(`SELECT doc FROM package_docs WHERE pkg_path = ?`, pkgPath).Scan(&doc)
+	_ = db.QueryRow(`SELECT doc FROM package_docs WHERE pkg_path = ?`, pkgPath).Scan(&doc) //nolint:errcheck // a missing or unreadable row reads as the zero value
 	return doc.String
 }
 
@@ -1530,7 +1534,7 @@ func GetCallersPreview(db *sql.DB, symbolID string, limit int) ([]protocol.Calle
 		c.File = fileRel.String
 		callers = append(callers, c)
 	}
-	return callers, rows.Err()
+	return callers, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // RankedPackageSymbol holds a symbol name and signature ranked by usage.
@@ -1595,5 +1599,5 @@ func scanRanked(rows *sql.Rows) ([]RankedPackageSymbol, error) {
 		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }

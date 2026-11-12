@@ -2,6 +2,7 @@ package query
 
 import (
 	"database/sql"
+	"fmt"
 )
 
 // DeadExport is an exported symbol with zero references.
@@ -49,7 +50,7 @@ func FindDeadExports(db *sql.DB, pkg string, includeTests bool) ([]DeadExport, e
 
 	rows, err := db.Query(q, args...)
 	if err != nil {
-		return nil, err // unwrapped: snipe deadcode prints it as the error message
+		return nil, fmt.Errorf("db query: %w", err) // unwrapped: snipe deadcode prints it as the error message
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -62,6 +63,9 @@ func FindDeadExports(db *sql.DB, pkg string, includeTests bool) ([]DeadExport, e
 		}
 		r.File = fileRel.String
 		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 	return out, nil
 }

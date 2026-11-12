@@ -120,6 +120,7 @@ func (s *Store) ReadFileChurnTopN(n int) ([]FileChurn, error) {
 // ties broken by path ascending so the order is deterministic. An unknown
 // key ranks by commits. n <= 0 returns all rows.
 func (s *Store) ReadFileChurnRanked(by ChurnRankBy, n int) ([]FileChurn, error) {
+	//nolint:gosec // the ORDER BY clause comes from churnOrderBy's closed switch; no caller text reaches the query
 	base := `SELECT ` + churnColumns + ` FROM file_churn ` + churnOrderBy(by)
 	var (
 		rs  *sql.Rows

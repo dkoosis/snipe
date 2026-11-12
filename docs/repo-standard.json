@@ -1,0 +1,21 @@
+{
+  "profile": "tool",
+  "exceptions": [
+    {
+      "rule": "lint-floor",
+      "reason": "noctx is on the floor but snipe's store and query APIs take no context: 280 database/sql and exec.Command calls would each need ctx threaded through the API; burn-down is bead sn-hdkm, and the exception retires when it merges"
+    },
+    {
+      "rule": "lint-set",
+      "drop": {
+        "noctx": "280 database/sql and exec.Command calls lack a context because the store and query APIs take none; threading ctx is a repo-wide API change (bead sn-hdkm)",
+        "cyclop": "65 functions over cyclomatic complexity 15; refactor burn-down (bead sn-w0c3, shared with gocyclo)",
+        "gocyclo": "63 functions over cyclomatic complexity 15; refactor burn-down (bead sn-w0c3, shared with cyclop)",
+        "gocognit": "120 functions over cognitive complexity 15 in production code; refactor burn-down (bead sn-45q0)",
+        "nestif": "26 deeply nested if blocks; refactor burn-down (bead sn-4cw8)",
+        "funlen": "73 functions over 80 lines or 40 statements; refactor burn-down (bead sn-1vlh)",
+        "dupl": "6 duplicated command and query bodies; extraction burn-down (bead sn-yzkf)"
+      }
+    }
+  ]
+}

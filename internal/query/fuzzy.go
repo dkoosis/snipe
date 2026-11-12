@@ -2,6 +2,7 @@ package query
 
 import (
 	"database/sql"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -67,7 +68,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 		LIMIT 1000
 	`, name+"%", "%"+name+"%", strings.ToLower(name)+"%")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -75,7 +76,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 	for rows.Next() {
 		var symName string
 		if err := rows.Scan(&symName); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 
 		dist := LevenshteinDistance(name, symName)
@@ -85,7 +86,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	// If we didn't find enough matches with the prefix/substring approach,
@@ -96,7 +97,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 			LIMIT 5000
 		`)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("db query: %w", err)
 		}
 		defer rows2.Close()
 
@@ -108,7 +109,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 		for rows2.Next() {
 			var symName string
 			if err := rows2.Scan(&symName); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("rows scan: %w", err)
 			}
 
 			if _, ok := seen[symName]; ok {
@@ -123,7 +124,7 @@ func FindSimilarSymbols(db *sql.DB, name string, maxDistance, maxResults int) ([
 		}
 
 		if err := rows2.Err(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows err: %w", err)
 		}
 	}
 

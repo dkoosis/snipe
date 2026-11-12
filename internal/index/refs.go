@@ -287,7 +287,7 @@ type ctxRange struct {
 // buildCtxRanges collects syntactic context ranges for a file in one pass.
 // Ranges nest (a literal inside a call); findCtx resolves to the innermost.
 func buildCtxRanges(file *ast.File) []ctxRange {
-	var ranges []ctxRange
+	ranges := []ctxRange{}
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.CompositeLit:

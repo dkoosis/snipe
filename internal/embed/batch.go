@@ -5,14 +5,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 
 	"github.com/dkoosis/atomicfile"
 )
@@ -155,7 +160,7 @@ func (r *BatchCreateResponse) FailureReason() string {
 		}
 		n++
 		if len(lines) < failureReasonLines {
-			lines = append(lines, fmt.Sprint(e.Line))
+			lines = append(lines, strconv.Itoa(e.Line))
 		}
 	}
 	if n > failureReasonLines {
@@ -207,7 +212,7 @@ func writeMultipartBody(writer *multipart.Writer, file *os.File, jsonlPath strin
 	if err := writer.WriteField("purpose", "batch"); err != nil {
 		return fmt.Errorf("write purpose field: %w", err)
 	}
-	return writer.Close()
+	return errwrap.Wrap(writer.Close(), "close multipart writer")
 }
 
 // UploadFile uploads a JSONL file for batch processing.
@@ -238,7 +243,7 @@ func (c *BatchClient) UploadFile(ctx context.Context, jsonlPath string) (*FileUp
 		<-done
 	}()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/files", pr)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/files", pr)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -253,8 +258,8 @@ func (c *BatchClient) UploadFile(ctx context.Context, jsonlPath string) (*FileUp
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
+		return nil, fmt.Errorf("API error %d: %s: %w", resp.StatusCode, string(body), ErrAPI)
 	}
 
 	var result FileUploadResponse
@@ -279,7 +284,7 @@ func (c *BatchClient) CreateBatch(ctx context.Context, inputFileID string) (*Bat
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/batches", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/batches", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -294,8 +299,8 @@ func (c *BatchClient) CreateBatch(ctx context.Context, inputFileID string) (*Bat
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
+		return nil, fmt.Errorf("API error %d: %s: %w", resp.StatusCode, string(body), ErrAPI)
 	}
 
 	var result BatchCreateResponse
@@ -308,7 +313,7 @@ func (c *BatchClient) CreateBatch(ctx context.Context, inputFileID string) (*Bat
 
 // GetBatchStatus retrieves the current status of a batch.
 func (c *BatchClient) GetBatchStatus(ctx context.Context, batchID string) (*BatchCreateResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/batches/"+batchID, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/batches/"+batchID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -322,8 +327,8 @@ func (c *BatchClient) GetBatchStatus(ctx context.Context, batchID string) (*Batc
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
+		return nil, fmt.Errorf("API error %d: %s: %w", resp.StatusCode, string(body), ErrAPI)
 	}
 
 	var result BatchCreateResponse
@@ -338,7 +343,7 @@ func (c *BatchClient) GetBatchStatus(ctx context.Context, batchID string) (*Batc
 // Caller must close the returned ReadCloser.
 // Uses a separate client that follows redirects (Voyage API returns redirect to S3).
 func (c *BatchClient) DownloadFile(ctx context.Context, fileID string) (io.ReadCloser, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/files/"+fileID+"/content", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/files/"+fileID+"/content", nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -360,9 +365,9 @@ func (c *BatchClient) DownloadFile(ctx context.Context, fileID string) (io.ReadC
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // the body only enriches the error text
 		resp.Body.Close()
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API error %d: %s: %w", resp.StatusCode, string(body), ErrAPI)
 	}
 
 	return resp.Body, nil
@@ -397,7 +402,7 @@ func (c *BatchClient) ParseBatchResults(r io.Reader, fn EmbeddingHandler) error 
 			continue // Skip errors, they'll be in error file
 		}
 
-		if resp.Response == nil || resp.Response.StatusCode != 200 {
+		if resp.Response == nil || resp.Response.StatusCode != http.StatusOK {
 			continue // Skip non-200 responses
 		}
 
@@ -415,7 +420,7 @@ func (c *BatchClient) ParseBatchResults(r io.Reader, fn EmbeddingHandler) error 
 		// (sn-7xp) — error instead of forwarding an empty vector to fn, which
 		// would otherwise be saved as a zero embedding.
 		if len(embResult.Data) == 0 || len(embResult.Data[0].Embedding) == 0 {
-			return fmt.Errorf("embed: empty or missing embedding for %s in batch response", resp.CustomID)
+			return fmt.Errorf("embed: empty or missing embedding for %s in batch response: %w", resp.CustomID, ErrNoEmbedding)
 		}
 
 		if err := fn(resp.CustomID, embResult.Data[0].Embedding); err != nil {
@@ -423,7 +428,7 @@ func (c *BatchClient) ParseBatchResults(r io.Reader, fn EmbeddingHandler) error 
 		}
 	}
 
-	return scanner.Err()
+	return errwrap.Wrap(scanner.Err(), "scanner err")
 }
 
 // SaveState persists the batch state to disk.
@@ -444,7 +449,7 @@ func (c *BatchClient) SaveState(state *BatchState) error {
 
 	// Atomic write: a SIGKILL mid-write would otherwise leave a truncated
 	// batch_state.json that wedges every subsequent command on unmarshal error.
-	return atomicfile.WriteFile(path, data, 0600)
+	return errwrap.Wrap(atomicfile.WriteFile(path, data, 0600), "atomicfile write file")
 }
 
 // LoadState loads the batch state from disk.
@@ -453,23 +458,23 @@ func (c *BatchClient) SaveState(state *BatchState) error {
 // recover by simply re-running instead of manually deleting .snipe/batch_state.json.
 func (c *BatchClient) LoadState() (*BatchState, error) {
 	if c.stateDir == "" {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 
 	path := filepath.Join(c.stateDir, "batch_state.json")
 	data, err := os.ReadFile(path) // #nosec G304 -- path derived from stateDir (batch state)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 		}
-		return nil, fmt.Errorf("read state: %w", err)
+		return nil, errwrap.Wrap(err, "read state")
 	}
 
 	var state BatchState
 	if err := json.Unmarshal(data, &state); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: batch_state.json is corrupt (%v); discarding and starting fresh.\n", err)
 		_ = os.Remove(path)
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 
 	return &state, nil
@@ -482,7 +487,7 @@ func (c *BatchClient) ClearState() error {
 	}
 
 	path := filepath.Join(c.stateDir, "batch_state.json")
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("remove state: %w", err)
 	}
 	return nil
@@ -507,7 +512,7 @@ func (c *BatchClient) WriteJSONL(symbols []SymbolText, outputDir string) (string
 	encoder := json.NewEncoder(&buf)
 	for _, sym := range symbols {
 		if seen[sym.ID] {
-			return "", fmt.Errorf("duplicate symbol ID %s: Voyage would fail the batch", sym.ID)
+			return "", fmt.Errorf("duplicate symbol ID %s: Voyage would fail the batch: %w", sym.ID, ErrDuplicateID)
 		}
 		seen[sym.ID] = true
 		req := BatchRequest{

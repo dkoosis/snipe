@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 )
 
@@ -78,10 +79,7 @@ func frontierCallers(db *sql.DB, ids []string) ([]callerEdge, error) {
 	const maxVars = 999
 	var edges []callerEdge
 	for start := 0; start < len(ids); start += maxVars {
-		end := start + maxVars
-		if end > len(ids) {
-			end = len(ids)
-		}
+		end := min(start+maxVars, len(ids))
 		chunk := ids[start:end]
 		if err := func() error {
 			placeholders := make([]string, len(chunk))
@@ -91,6 +89,7 @@ func frontierCallers(db *sql.DB, ids []string) ([]callerEdge, error) {
 				args[i] = id
 			}
 			// #nosec G201 -- placeholders are "?" literals; args carry the values (parameterized).
+			//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 			q := `
 				SELECT DISTINCT cg.caller_id, caller.name, caller.file_path_rel
 				FROM call_graph cg
@@ -100,14 +99,14 @@ func frontierCallers(db *sql.DB, ids []string) ([]callerEdge, error) {
 
 			rows, err := db.Query(q, args...)
 			if err != nil {
-				return err
+				return fmt.Errorf("db query: %w", err)
 			}
 			defer rows.Close()
 
 			for rows.Next() {
 				var e callerEdge
 				if err := rows.Scan(&e.callerID, &e.callerName, &e.callerFileRel); err != nil {
-					return err
+					return fmt.Errorf("rows scan: %w", err)
 				}
 				edges = append(edges, e)
 			}

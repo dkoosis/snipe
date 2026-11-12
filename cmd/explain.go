@@ -62,7 +62,7 @@ func runExplain(args []string) error {
 	// A package path gets the package pack, as at --depth pack: explain
 	// walks funcs, so it has nothing to add to a package.
 	if explainAt == "" && len(args) == 1 {
-		repoRoot, _ := s.GetMeta("repo_root")
+		repoRoot := s.MetaOrEmpty("repo_root")
 		if looksLikePackagePath(cmp.Or(repoRoot, dir), args[0]) {
 			return runPackPackage(w, s, dir, args[0], start)
 		}

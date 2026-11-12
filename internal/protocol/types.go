@@ -36,7 +36,11 @@ func (r Response[T]) MarshalJSON() ([]byte, error) {
 	if r.Results == nil {
 		r.Results = []T{}
 	}
-	return json.Marshal(responseJSON[T](r))
+	data, err := json.Marshal(responseJSON[T](r))
+	if err != nil {
+		return nil, fmt.Errorf("encode response: %w", err)
+	}
+	return data, nil
 }
 
 // TelemetryCommand exposes the command name for the usage sink without

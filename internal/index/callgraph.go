@@ -168,6 +168,22 @@ func extractCallEdgesWithStack(pkg *packages.Package, file *ast.File, filePath s
 	return edges
 }
 
+// calleeIdentOf returns the identifier a call expression names, or nil when the
+// callee is not a plain or qualified name.
+func calleeIdentOf(call *ast.CallExpr) *ast.Ident {
+	switch fn := call.Fun.(type) {
+	case *ast.Ident:
+		// Direct function call: foo()
+		return fn
+	case *ast.SelectorExpr:
+		// Method call or qualified call: x.Method() or pkg.Func()
+		return fn.Sel
+	default:
+		// Function literal or other expression - can't track statically
+		return nil
+	}
+}
+
 // extractCallEdgeFromExpr extracts call edges from a call expression.
 // Returns multiple edges when an interface method call resolves to concrete implementations.
 // Uses the function stack for O(1) enclosing function lookup.
@@ -178,23 +194,7 @@ func extractCallEdgeFromExpr(pkg *packages.Package, call *ast.CallExpr, filePath
 	}
 	callerID := funcStack[len(funcStack)-1]
 
-	// Get the callee identifier
-	var calleeIdent *ast.Ident
-
-	switch fn := call.Fun.(type) {
-	case *ast.Ident:
-		// Direct function call: foo()
-		calleeIdent = fn
-
-	case *ast.SelectorExpr:
-		// Method call or qualified call: x.Method() or pkg.Func()
-		calleeIdent = fn.Sel
-
-	default:
-		// Function literal or other expression - can't track statically
-		return nil
-	}
-
+	calleeIdent := calleeIdentOf(call)
 	if calleeIdent == nil {
 		return nil
 	}
@@ -234,7 +234,7 @@ func extractCallEdgeFromExpr(pkg *packages.Package, call *ast.CallExpr, filePath
 	if !ok {
 		return nil
 	}
-	sig := fn.Type().(*types.Signature)
+	sig := fn.Signature()
 	recv := sig.Recv()
 	if recv == nil {
 		return nil

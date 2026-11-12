@@ -41,7 +41,7 @@ func newC4TestRepo(t *testing.T) (*store.Store, string) {
 	return s, dir
 }
 
-func addSymbol(t *testing.T, db *sql.DB, id, name, kind, pkgPath, filePath string, lineStart int) { //nolint:unparam // general-purpose test fixture helper; every call site happens to pass "main" today
+func addSymbol(t *testing.T, db *sql.DB, id, name, kind, pkgPath, filePath string, lineStart int) {
 	t.Helper()
 	_, err := db.Exec(`
 		INSERT INTO symbols (id, name, kind, pkg_path, file_path, line_start, col_start, line_end, col_end)
@@ -91,8 +91,8 @@ func TestBuildFacts_Container_MultiMainDistinctNames(t *testing.T) {
 	// containers with distinct names derived from their own package (foo,
 	// bar), not two rows both named after the module.
 	s, dir := newC4TestRepo(t)
-	addSymbol(t, s.DB(), "m1", "main", "func", testModule+"/cmd/foo", filepath.Join(dir, "cmd/foo/main.go"), 5)
-	addSymbol(t, s.DB(), "m2", "main", "func", testModule+"/cmd/bar", filepath.Join(dir, "cmd/bar/main.go"), 7)
+	addSymbol(t, s.DB(), "m1", "main", "func", testModule+"/cmd/foo", filepath.Join(dir, "cmd", "foo", "main.go"), 5)
+	addSymbol(t, s.DB(), "m2", "main", "func", testModule+"/cmd/bar", filepath.Join(dir, "cmd", "bar", "main.go"), 7)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
 	if err != nil {
@@ -115,7 +115,7 @@ func TestBuildFacts_Container_MultiMainDistinctNames(t *testing.T) {
 
 func TestBuildFacts_Datastore(t *testing.T) {
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "internal/store/db.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
+	addImport(t, s.DB(), filepath.Join(dir, "internal", "store", "db.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
 	if err != nil {
@@ -139,10 +139,10 @@ func TestBuildFacts_Datastore(t *testing.T) {
 // importer.
 func TestBuildFacts_Datastore_GroupsByTechnology(t *testing.T) {
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "internal/store/db.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "modernc.org/sqlite", testModule+"/cmd", 7)
-	addImport(t, s.DB(), filepath.Join(dir, "internal/query/q.go"), "database/sql", testModule+"/internal/query", 1)
-	addImport(t, s.DB(), filepath.Join(dir, "internal/query/q_test.go"), "database/sql", testModule+"/internal/query_test", 2)
+	addImport(t, s.DB(), filepath.Join(dir, "internal", "store", "db.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd", "root.go"), "modernc.org/sqlite", testModule+"/cmd", 7)
+	addImport(t, s.DB(), filepath.Join(dir, "internal", "query", "q.go"), "database/sql", testModule+"/internal/query", 1)
+	addImport(t, s.DB(), filepath.Join(dir, "internal", "query", "q_test.go"), "database/sql", testModule+"/internal/query_test", 2)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
 	if err != nil {
@@ -183,8 +183,8 @@ func TestBuildFacts_Datastore_GroupsByTechnology(t *testing.T) {
 // File/Line must match its own importer, not the group's earliest.
 func TestBuildFacts_Datastore_FlowPerImporterEvidence(t *testing.T) {
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "internal/store/db.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "modernc.org/sqlite", testModule+"/cmd", 42)
+	addImport(t, s.DB(), filepath.Join(dir, "internal", "store", "db.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd", "root.go"), "modernc.org/sqlite", testModule+"/cmd", 42)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
 	if err != nil {
@@ -202,11 +202,11 @@ func TestBuildFacts_Datastore_FlowPerImporterEvidence(t *testing.T) {
 	}
 
 	storeFlow := byFrom[testModule+"/internal/store"]
-	if storeFlow.File != filepath.Join(dir, "internal/store/db.go") || storeFlow.Line != 3 {
+	if storeFlow.File != filepath.Join(dir, "internal", "store", "db.go") || storeFlow.Line != 3 {
 		t.Errorf("want store's own import site db.go:3, got %s:%d", storeFlow.File, storeFlow.Line)
 	}
 	cmdFlow := byFrom[testModule+"/cmd"]
-	if cmdFlow.File != filepath.Join(dir, "cmd/root.go") || cmdFlow.Line != 42 {
+	if cmdFlow.File != filepath.Join(dir, "cmd", "root.go") || cmdFlow.Line != 42 {
 		t.Errorf("want cmd's own import site root.go:42, got %s:%d", cmdFlow.File, cmdFlow.Line)
 	}
 }
@@ -218,7 +218,7 @@ func TestBuildFacts_Datastore_FlowPerImporterEvidence(t *testing.T) {
 // Badger driver. matchesDriverPath anchors to full path segments instead.
 func TestBuildFacts_Datastore_AnchoredMatchExcludesLookalike(t *testing.T) {
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "internal/lint/l.go"), "github.com/acme/badgerlint", testModule+"/internal/lint", 1)
+	addImport(t, s.DB(), filepath.Join(dir, "internal", "lint", "l.go"), "github.com/acme/badgerlint", testModule+"/internal/lint", 1)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
 	if err != nil {
@@ -234,7 +234,7 @@ func TestBuildFacts_Datastore_AnchoredMatchExcludesLookalike(t *testing.T) {
 // versioned subpackage (e.g. pgx/v5) must still match.
 func TestBuildFacts_Datastore_AnchoredMatchIncludesVersionedSubpackage(t *testing.T) {
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "internal/store/pg.go"), "github.com/jackc/pgx/v5", testModule+"/internal/store", 1)
+	addImport(t, s.DB(), filepath.Join(dir, "internal", "store", "pg.go"), "github.com/jackc/pgx/v5", testModule+"/internal/store", 1)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
 	if err != nil {
@@ -299,8 +299,8 @@ func TestBuildFacts_ExternalEnv_IgnoresNonMatchingSuffix(t *testing.T) {
 
 func TestBuildFacts_ExternalImport_TestifyExcluded(t *testing.T) {
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/foo_test.go"), "github.com/stretchr/testify/assert", testModule+"/cmd", 4)
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/foo_test.go"), "github.com/google/go-cmp/cmp", testModule+"/cmd", 5)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd", "foo_test.go"), "github.com/stretchr/testify/assert", testModule+"/cmd", 4)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd", "foo_test.go"), "github.com/google/go-cmp/cmp", testModule+"/cmd", 5)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContext)
 	if err != nil {
@@ -318,7 +318,7 @@ func TestBuildFacts_ExternalImport_TestOnlyExcluded(t *testing.T) {
 	// A non-allowlisted third-party import used only from a _test.go file must
 	// be excluded (design field: "excluding test-only ... every importing file
 	// is *_test.go").
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/foo_test.go"), "github.com/some/testonlylib", testModule+"/cmd", 4)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd", "foo_test.go"), "github.com/some/testonlylib", testModule+"/cmd", 4)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContext)
 	if err != nil {
@@ -331,8 +331,8 @@ func TestBuildFacts_ExternalImport_TestOnlyExcluded(t *testing.T) {
 
 func TestBuildFacts_ExternalImport_ExcludesOwnModuleAndGolangX(t *testing.T) {
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), testModule+"/internal/query", testModule+"/cmd", 1)
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "golang.org/x/tools/go/packages", testModule+"/cmd", 2)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd", "root.go"), testModule+"/internal/query", testModule+"/cmd", 1)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd", "root.go"), "golang.org/x/tools/go/packages", testModule+"/cmd", 2)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContext)
 	if err != nil {
@@ -346,12 +346,12 @@ func TestBuildFacts_ExternalImport_ExcludesOwnModuleAndGolangX(t *testing.T) {
 func TestBuildFacts_MergesEnvAndImportForSameService(t *testing.T) {
 	s, dir := newC4TestRepo(t)
 	refs := []index.StringRef{
-		{ID: "5555555555555555", Value: "STRIPE_API_KEY", Kind: "env", FilePath: filepath.Join(dir, "billing/pay.go"), Line: 20},
+		{ID: "5555555555555555", Value: "STRIPE_API_KEY", Kind: "env", FilePath: filepath.Join(dir, "billing", "pay.go"), Line: 20},
 	}
 	if err := s.WriteLiterals(refs, ""); err != nil {
 		t.Fatal(err)
 	}
-	addImport(t, s.DB(), filepath.Join(dir, "billing/pay.go"), "github.com/stripe/stripe-go/v72", testModule+"/billing", 5)
+	addImport(t, s.DB(), filepath.Join(dir, "billing", "pay.go"), "github.com/stripe/stripe-go/v72", testModule+"/billing", 5)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContext)
 	if err != nil {
@@ -370,7 +370,7 @@ func TestBuildFacts_MergesEnvAndImportForSameService(t *testing.T) {
 	// Regression: the import side's evidence must carry its real import
 	// line (5), not a fabricated Line:1 that happens to look "earlier" than
 	// the env hit's line (20) and silently wins the merge's evidence pick.
-	if got.File != filepath.Join(dir, "billing/pay.go") || got.Line != 5 {
+	if got.File != filepath.Join(dir, "billing", "pay.go") || got.Line != 5 {
 		t.Errorf("want import evidence pay.go:5, got %s:%d", got.File, got.Line)
 	}
 }
@@ -411,7 +411,7 @@ func TestBuildFacts_ExternalImport_RealLineEvidence(t *testing.T) {
 	// known-service import (no env correlation needed) so the case survives
 	// the sn-04xb narrowing below.
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "github.com/twilio/twilio-go", testModule+"/cmd", 42)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd", "root.go"), "github.com/twilio/twilio-go", testModule+"/cmd", 42)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContext)
 	if err != nil {
@@ -421,7 +421,7 @@ func TestBuildFacts_ExternalImport_RealLineEvidence(t *testing.T) {
 		t.Fatalf("want 1 external system, got %d: %+v", len(f.External), f.External)
 	}
 	got := f.External[0]
-	if got.File != filepath.Join(dir, "cmd/root.go") || got.Line != 42 {
+	if got.File != filepath.Join(dir, "cmd", "root.go") || got.Line != 42 {
 		t.Errorf("want root.go:42 (real import line), got %s:%d", got.File, got.Line)
 	}
 }
@@ -432,7 +432,7 @@ func TestBuildFacts_ExternalImport_OrdinaryLibraryExcluded(t *testing.T) {
 	// dependency (a CLI framework here), not a runtime external system — it
 	// must not be reported as one.
 	s, dir := newC4TestRepo(t)
-	addImport(t, s.DB(), filepath.Join(dir, "cmd/root.go"), "github.com/alecthomas/kong", testModule+"/cmd", 3)
+	addImport(t, s.DB(), filepath.Join(dir, "cmd", "root.go"), "github.com/alecthomas/kong", testModule+"/cmd", 3)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContext)
 	if err != nil {
@@ -446,12 +446,12 @@ func TestBuildFacts_ExternalImport_OrdinaryLibraryExcluded(t *testing.T) {
 func TestBuildFacts_MergedExternalSystem_FlowKeepsImporterPackage(t *testing.T) {
 	s, dir := newC4TestRepo(t)
 	refs := []index.StringRef{
-		{ID: "6666666666666666", Value: "STRIPE_API_KEY", Kind: "env", FilePath: filepath.Join(dir, "billing/pay.go"), Line: 20},
+		{ID: "6666666666666666", Value: "STRIPE_API_KEY", Kind: "env", FilePath: filepath.Join(dir, "billing", "pay.go"), Line: 20},
 	}
 	if err := s.WriteLiterals(refs, ""); err != nil {
 		t.Fatal(err)
 	}
-	addImport(t, s.DB(), filepath.Join(dir, "billing/pay.go"), "github.com/stripe/stripe-go/v72", testModule+"/billing", 5)
+	addImport(t, s.DB(), filepath.Join(dir, "billing", "pay.go"), "github.com/stripe/stripe-go/v72", testModule+"/billing", 5)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
 	if err != nil {
@@ -480,8 +480,8 @@ func TestBuildFacts_FlowDeterminism(t *testing.T) {
 	// Two occurrences of the same driver import from the same package, at
 	// different files/lines — the flow must pick the lowest-sorted file, then
 	// lowest line, not an arbitrary first match.
-	addImport(t, s.DB(), filepath.Join(dir, "internal/store/z.go"), "modernc.org/sqlite", testModule+"/internal/store", 9)
-	addImport(t, s.DB(), filepath.Join(dir, "internal/store/a.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
+	addImport(t, s.DB(), filepath.Join(dir, "internal", "store", "z.go"), "modernc.org/sqlite", testModule+"/internal/store", 9)
+	addImport(t, s.DB(), filepath.Join(dir, "internal", "store", "a.go"), "modernc.org/sqlite", testModule+"/internal/store", 3)
 
 	f, err := c4.BuildFacts(s, dir, c4.LevelContainer)
 	if err != nil {
@@ -497,7 +497,7 @@ func TestBuildFacts_FlowDeterminism(t *testing.T) {
 	if flow == nil {
 		t.Fatal("want a datastore flow, found none")
 	}
-	if flow.File != filepath.Join(dir, "internal/store/a.go") || flow.Line != 3 {
+	if flow.File != filepath.Join(dir, "internal", "store", "a.go") || flow.Line != 3 {
 		t.Errorf("want a.go:3 (lowest file, then line), got %s:%d", flow.File, flow.Line)
 	}
 }

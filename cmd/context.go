@@ -42,13 +42,13 @@ func runContext(args []string) error {
 	// Find project root
 	projectRoot := util.FindProjectRoot(absDir)
 	if projectRoot == "" {
-		return fmt.Errorf("not in a git repository")
+		return errNotGitRepo
 	}
 
 	// Open index
 	indexPath := store.DefaultIndexPath(projectRoot)
 	if !store.Exists(indexPath) {
-		return fmt.Errorf("index not found at %s\nRun 'snipe index' first", indexPath)
+		return fmt.Errorf("index not found at %s\nRun 'snipe index' first: %w", indexPath, errIndexMissing)
 	}
 
 	s, err := store.Open(indexPath)
@@ -110,7 +110,7 @@ func runContext(args []string) error {
 	return outputContext(orientCtx, contextFormat)
 }
 
-func outputContext(output interface{}, format string) error {
+func outputContext(output any, format string) error {
 	switch format {
 	case "yaml":
 		enc := yaml.NewEncoder(os.Stdout)
@@ -125,7 +125,7 @@ func outputContext(output interface{}, format string) error {
 			return fmt.Errorf("encode json: %w", err)
 		}
 	default:
-		return fmt.Errorf("unsupported format: %s (use json or yaml)", format)
+		return fmt.Errorf("unsupported format: %s (use json or yaml): %w", format, errInvalidArgument)
 	}
 	return nil
 }

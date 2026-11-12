@@ -82,7 +82,7 @@ func checkOrderByClauses(src string) []string {
 // semicolon, or a ')' that closes an enclosing paren (e.g. a window spec).
 func extractClause(s string) string {
 	depth := 0
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		switch s[i] {
 		case '`', '"', ';':
 			return s[:i]
@@ -119,7 +119,7 @@ func isWordSep(b byte) bool {
 func splitTopLevel(s string) []string {
 	var parts []string
 	depth, start := 0, 0
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		switch s[i] {
 		case '(':
 			depth++

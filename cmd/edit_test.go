@@ -30,7 +30,7 @@ func TestEditErrCode(t *testing.T) {
 		},
 		{
 			name: "generic failure routes to INTERNAL_ERROR",
-			err:  errors.New("write: disk full"),
+			err:  errFixture1edit,
 			want: protocol.ErrInternal,
 		},
 	}
@@ -42,3 +42,8 @@ func TestEditErrCode(t *testing.T) {
 		})
 	}
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixture1edit = errors.New("write: disk full")
+)

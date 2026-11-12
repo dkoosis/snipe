@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/telemetry"
 )
@@ -38,10 +40,6 @@ var processErrored = false
 
 // ProcessErrored reports whether an error envelope was emitted this run.
 func ProcessErrored() bool { return processErrored }
-
-// ResetProcessErrored clears the error flag; for in-process tests that reuse
-// the package across cases.
-func ResetProcessErrored() { processErrored = false }
 
 // Writer handles output formatting for LLM consumers.
 type Writer struct {
@@ -106,7 +104,7 @@ func (w *Writer) WriteResponse(resp any) error {
 // writeJSON writes the full JSON envelope (legacy format) as compact,
 // single-line JSON — the shape toolchain subprocesses already consume.
 func (w *Writer) writeJSON(resp any) error {
-	return json.NewEncoder(w.out).Encode(resp)
+	return errwrap.Wrap(json.NewEncoder(w.out).Encode(resp), "encoder encode")
 }
 
 // writeClaude renders a response as terse structured text optimized for Claude.
@@ -144,7 +142,7 @@ func (w *Writer) writeClaude(resp any) error {
 	}
 
 	_, err := io.WriteString(w.out, b.String())
-	return err
+	return errwrap.Wrap(err, "io write string")
 }
 
 func (w *Writer) writeClaudeResults(b *strings.Builder, results []protocol.Result, meta protocol.Meta, suggestions []protocol.Suggestion, respErr *protocol.Error) {
@@ -233,6 +231,8 @@ func writeClaudeResult(b *strings.Builder, r *protocol.Result) {
 // splitTestResults returns the results from code files and from _test.go
 // files, each in its original order.
 func splitTestResults(results []protocol.Result) (code, tests []protocol.Result) {
+	code = make([]protocol.Result, 0, len(results))
+	tests = make([]protocol.Result, 0, len(results))
 	for i := range results {
 		if strings.HasSuffix(results[i].File, "_test.go") {
 			tests = append(tests, results[i])
@@ -1023,13 +1023,13 @@ func (w *Writer) WriteErrorWithMeta(command, arg string, decisionPath []string, 
 		var b strings.Builder
 		writeHumanError(&b, err)
 		_, writeErr := io.WriteString(w.out, b.String())
-		return writeErr
+		return errwrap.Wrap(writeErr, "io write string")
 	}
 	if w.format != OutputJSON {
 		var b strings.Builder
 		w.writeClaudeError(&b, err)
 		_, writeErr := io.WriteString(w.out, b.String())
-		return writeErr
+		return errwrap.Wrap(writeErr, "io write string")
 	}
 	resp := protocol.Response[any]{
 		Protocol: protocol.ProtocolVersion,
@@ -1095,8 +1095,8 @@ func (w *Writer) WriteClaudePkgGrouped(results []protocol.Result, meta protocol.
 	var standaloneFuncs []protocol.Result
 	for i := range funcs {
 		f := &funcs[i]
-		if strings.HasPrefix(f.Name, "New") {
-			typeName := strings.TrimPrefix(f.Name, "New")
+		if after, ok := strings.CutPrefix(f.Name, "New"); ok {
+			typeName := after
 			if _, ok := typesByName[typeName]; ok {
 				constructorsByType[typeName] = append(constructorsByType[typeName], *f)
 				continue
@@ -1177,5 +1177,5 @@ func (w *Writer) WriteClaudePkgGrouped(results []protocol.Result, meta protocol.
 	}
 
 	w.writeClaudeMeta(&b, meta)
-	_, _ = io.WriteString(w.out, b.String())
+	_, _ = io.WriteString(w.out, b.String()) //nolint:errcheck // best-effort append; a lost line is acceptable
 }

@@ -2,6 +2,8 @@ package context
 
 import (
 	"database/sql"
+	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -19,7 +21,7 @@ func getPackagePurposes(db *sql.DB, repoRoot string) ([]PackagePurpose, error) {
 		ORDER BY pkg_path
 	`, repoRoot)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -32,7 +34,7 @@ func getPackagePurposes(db *sql.DB, repoRoot string) ([]PackagePurpose, error) {
 		pkgPaths = append(pkgPaths, pkgPath)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rows err: %w", err)
 	}
 
 	// Batch load package docs
@@ -73,16 +75,18 @@ func loadPackageDocs(db *sql.DB, pkgPaths []string) map[string]string {
 	}
 
 	placeholders := make([]string, len(pkgPaths))
-	args := make([]interface{}, len(pkgPaths))
+	args := make([]any, len(pkgPaths))
 	for i, p := range pkgPaths {
 		placeholders[i] = "?"
 		args[i] = p
 	}
 
 	// #nosec G201 -- placeholders are positional parameters
+	//nolint:gosec // SQL text is built only from fixed fragments and '?' placeholders; every value is bound as a parameter
 	query := "SELECT pkg_path, doc FROM package_docs WHERE pkg_path IN (" +
 		strings.Join(placeholders, ",") + ")"
 
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil
@@ -113,11 +117,11 @@ func tersePurpose(s string) string {
 	}
 	// Find the verb after "Package <name> "
 	rest := strings.TrimPrefix(s, "Package ")
-	spaceIdx := strings.IndexByte(rest, ' ')
-	if spaceIdx < 0 {
+	_, after, ok := strings.Cut(rest, " ")
+	if !ok {
 		return s
 	}
-	afterName := rest[spaceIdx+1:]
+	afterName := after
 	// Common godoc verbs — strip and capitalize the remainder
 	for _, verb := range []string{"provides ", "handles ", "implements ", "contains ", "defines ", "manages ", "offers ", "exposes "} {
 		if strings.HasPrefix(afterName, verb) {
@@ -155,12 +159,7 @@ func isPlaceholderPurpose(purpose string) bool {
 		"implementation",
 		"package",
 	}
-	for _, p := range placeholders {
-		if lower == p {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(placeholders, lower)
 }
 
 // normalizePackageName cleans up package names for display.

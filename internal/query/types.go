@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // TypeInfo contains type relationship information.
@@ -64,7 +66,7 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 		return nil, err
 	}
 	if sym == nil {
-		return nil, fmt.Errorf("symbol not found: %s", symbolID)
+		return nil, fmt.Errorf("symbol not found: %s: %w", symbolID, ErrSymbolNotFound)
 	}
 
 	return GetTypeInfoFromSymbol(db, sym)
@@ -76,12 +78,12 @@ func GetTypeInfo(db *sql.DB, symbolID string) (*TypeInfo, error) {
 // LookupByName) to avoid an N+1 lookup pattern.
 func GetTypeInfoFromSymbol(db *sql.DB, sym *SymbolRow) (*TypeInfo, error) {
 	if sym == nil {
-		return nil, fmt.Errorf("symbol is nil")
+		return nil, ErrNilSymbol
 	}
 
 	// Only struct, interface, type alias kinds are valid
 	if sym.Kind != kindStruct && sym.Kind != "interface" && sym.Kind != "type" {
-		return nil, fmt.Errorf("types command requires struct/interface/type, got %s", sym.Kind)
+		return nil, fmt.Errorf("types command requires struct/interface/type, got %s: %w", sym.Kind, ErrUnsupportedKind)
 	}
 
 	info := &TypeInfo{
@@ -131,7 +133,7 @@ func GetMethodsForType(db *sql.DB, typeName, _ string) ([]MethodInfo, error) {
 		ORDER BY name
 	`, valueRecv, ptrRecv)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -140,14 +142,14 @@ func GetMethodsForType(db *sql.DB, typeName, _ string) ([]MethodInfo, error) {
 		var m MethodInfo
 		var sig, recv, doc sql.NullString
 		if err := rows.Scan(&m.ID, &m.Name, &sig, &recv, &m.File, &m.Line, &doc); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		m.Signature = sig.String
 		m.Receiver = recv.String
 		m.Doc = doc.String
 		methods = append(methods, m)
 	}
-	return methods, rows.Err()
+	return methods, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // getEmbedsForType finds embedded types within a struct definition.
@@ -165,7 +167,7 @@ func getEmbedsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([
 		ORDER BY r.line
 	`, filePath, lineStart, lineEnd)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -175,7 +177,7 @@ func getEmbedsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([
 		var e EmbedInfo
 		var kind, snippet string
 		if err := rows.Scan(&e.ID, &e.TypeName, &kind, &e.File, &e.Line, &snippet); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		if !isEmbedSnippet(snippet, e.TypeName) {
 			continue
@@ -186,7 +188,7 @@ func getEmbedsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([
 		seen[e.TypeName] = true
 		embeds = append(embeds, e)
 	}
-	return embeds, rows.Err()
+	return embeds, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // isEmbedSnippet reports whether a ref snippet looks like an embedded field
@@ -228,7 +230,7 @@ func getFieldsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([
 		ORDER BY line_start
 	`, filePath, lineStart, lineEnd)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -237,10 +239,10 @@ func getFieldsForType(db *sql.DB, _, filePath string, lineStart, lineEnd int) ([
 		var f FieldInfo
 		var sig sql.NullString
 		if err := rows.Scan(&f.Name, &sig, &f.Line); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		f.TypeExpr = sig.String
 		fields = append(fields, f)
 	}
-	return fields, rows.Err()
+	return fields, errwrap.Wrap(rows.Err(), "rows err")
 }

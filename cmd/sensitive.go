@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/sensitive"
@@ -69,7 +71,7 @@ func runSensitive() error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -81,7 +83,7 @@ func runSensitive() error {
 		fmt.Fprintf(&b, "  %-28s  %s\n", zonesString(r.Zones), r.Path)
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func zonesString(zones []sensitive.Zone) string {

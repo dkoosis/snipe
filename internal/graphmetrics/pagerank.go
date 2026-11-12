@@ -1,4 +1,3 @@
-// Package graphmetrics computes graph centrality metrics over the symbol graph.
 package graphmetrics
 
 import "math"
@@ -25,7 +24,7 @@ func PageRank(g *Graph, damping float64, maxIter int) map[string]float64 {
 	teleport := (1.0 - damping) / nf
 	next := make(map[string]float64, n)
 
-	for iter := 0; iter < maxIter; iter++ {
+	for range maxIter {
 		// Sum mass held by dangling nodes (outdegree 0).
 		var dangling float64
 		for _, v := range nodes {

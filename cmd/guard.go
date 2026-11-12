@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"gopkg.in/yaml.v3"
 
 	"github.com/dkoosis/snipe/internal/output"
@@ -28,7 +30,7 @@ const defaultGuardSpec = ".snipe/boundaries.yml"
 // guardFail writes a structured operator error and returns the sentinel so the
 // process exits non-zero (a gate must fail closed on spec/index problems).
 func guardFail(w *output.Writer, msg string) error {
-	_ = w.WriteError("guard", &protocol.Error{Code: protocol.ErrInternal, Message: msg})
+	_ = w.WriteError("guard", &protocol.Error{Code: protocol.ErrInternal, Message: msg}) //nolint:errcheck // a failed error report has no other channel; the command still returns its error
 	return errGuardFailed
 }
 
@@ -116,7 +118,7 @@ func runGuard(args []string) error {
 	}
 	if len(violations) > 0 {
 		// Non-zero exit for CI gating. Message is short; detail is in the report.
-		return fmt.Errorf("guard: %d boundary violation(s)", len(violations))
+		return fmt.Errorf("guard: %d boundary violation(s): %w", len(violations), errGuardViolation)
 	}
 	return nil
 }
@@ -127,15 +129,15 @@ func evalGuard(db *sql.DB, universe []string, rules []guardRule) ([]guardViolati
 	var out []guardViolation
 	for _, r := range rules {
 		if r.From == "" || r.To == "" {
-			return nil, fmt.Errorf("rule %q: from and to are required", r.Name)
+			return nil, fmt.Errorf("rule %q: from and to are required: %w", r.Name, errInvalidArgument)
 		}
 		setFrom := query.MatchPackagePatterns(universe, []string{r.From})
 		setTo := query.MatchPackagePatterns(universe, []string{r.To})
 		if len(setFrom) == 0 {
-			return nil, fmt.Errorf("rule %q: from pattern matched no packages: %q", r.Name, r.From)
+			return nil, fmt.Errorf("rule %q: from pattern matched no packages: %q: %w", r.Name, r.From, errInvalidArgument)
 		}
 		if len(setTo) == 0 {
-			return nil, fmt.Errorf("rule %q: to pattern matched no packages: %q", r.Name, r.To)
+			return nil, fmt.Errorf("rule %q: to pattern matched no packages: %q: %w", r.Name, r.To, errInvalidArgument)
 		}
 
 		report, err := query.FindBoundaryCrossings(db, setFrom, setTo)
@@ -224,14 +226,14 @@ func writeGuard(dir, specPath string, rules []guardRule, v []guardViolation, sta
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
 	if len(v) == 0 {
 		fmt.Fprintf(&b, "guard · %d rule(s) · ✓ no violations\n", len(rules))
 		_, err := os.Stdout.WriteString(b.String())
-		return err
+		return errwrap.Wrap(err, "file write string")
 	}
 	fmt.Fprintf(&b, "guard · %d rule(s) · ✗ %d violation(s)\n", len(rules), len(v))
 	var lastRule string
@@ -250,5 +252,5 @@ func writeGuard(dir, specPath string, rules []guardRule, v []guardViolation, sta
 		fmt.Fprintf(&b, "    %s -> %s.%s [%s]\n      %s\n", x.FromPkg, x.ToPkg, x.Symbol, x.Kind, loc)
 	}
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }

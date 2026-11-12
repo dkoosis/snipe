@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // ImpactRow represents a symbol in the impact blast radius.
@@ -27,11 +29,11 @@ func FindMethodIDs(db *sql.DB, typeName string) ([]string, error) {
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		ids = append(ids, id)
 	}
-	return ids, rows.Err()
+	return ids, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // FindImpactCallersMulti returns non-test callers for multiple symbol IDs (a type + its methods).
@@ -72,6 +74,7 @@ func FindImpactCallersMulti(db *sql.DB, symbolIDs []string, direct bool, limit, 
 		for _, id := range symbolIDs {
 			args = append(args, id)
 		}
+		//nolint:unqueryvet // SELECT * reads the CTEs above, whose column lists are fixed in this query
 		q = fmt.Sprintf(`
 			WITH direct_callers AS (
 				SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
@@ -107,7 +110,7 @@ func FindImpactCallersMulti(db *sql.DB, symbolIDs []string, direct bool, limit, 
 
 	rows, err := db.Query(q, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -168,6 +171,7 @@ func FindImpactCallers(db *sql.DB, symbolID string, direct bool, limit, offset i
 			ORDER BY s.file_path, s.name
 			LIMIT ? OFFSET ?`
 	} else {
+		//nolint:unqueryvet // SELECT * reads the CTEs above, whose column lists are fixed in this query
 		q = `
 			WITH direct_callers AS (
 				SELECT s.id, s.name, s.kind, s.file_path, s.file_path_rel,
@@ -208,7 +212,7 @@ func FindImpactCallers(db *sql.DB, symbolID string, direct bool, limit, offset i
 		rows, err = db.Query(q, symbolID, symbolID, limit, offset)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 

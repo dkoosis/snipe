@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/atomicfile"
 
 	"github.com/dkoosis/snipe/internal/output"
@@ -162,7 +164,7 @@ func runReport() error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	fmt.Printf("report · %s + %s · %d files · %d D2 slots pending external render\n",
@@ -189,6 +191,9 @@ func groupSCCs(rows []store.SCCRow) []sccGroup {
 	groups := make([]sccGroup, 0, len(order))
 	for _, id := range order {
 		g := groupMap[id]
+		if g == nil {
+			continue
+		}
 		if g.Size == 1 && len(g.Nodes) == 1 {
 			g.SelfLoop = true
 		}

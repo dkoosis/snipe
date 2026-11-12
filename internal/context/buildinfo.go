@@ -25,7 +25,7 @@ func DetectBuildInfo(repoRoot string, db *sql.DB) BuildInfo {
 			GoGenerate: goGen,
 		}
 	case fileExists(filepath.Join(repoRoot, "Makefile")):
-		content, _ := os.ReadFile(filepath.Join(repoRoot, "Makefile"))
+		content, _ := os.ReadFile(filepath.Join(repoRoot, "Makefile")) //nolint:errcheck // an unreadable build file means no build info
 		return BuildInfo{
 			System:     "make",
 			Build:      "make",
@@ -39,7 +39,7 @@ func DetectBuildInfo(repoRoot string, db *sql.DB) BuildInfo {
 		if !fileExists(taskfile) {
 			taskfile = filepath.Join(repoRoot, "Taskfile.yaml")
 		}
-		content, _ := os.ReadFile(taskfile)
+		content, _ := os.ReadFile(taskfile) //nolint:errcheck // an unreadable build file means no build info
 		return BuildInfo{
 			System:     "task",
 			Build:      "task build",
@@ -53,7 +53,7 @@ func DetectBuildInfo(repoRoot string, db *sql.DB) BuildInfo {
 		if !fileExists(justfile) {
 			justfile = filepath.Join(repoRoot, "Justfile")
 		}
-		content, _ := os.ReadFile(justfile)
+		content, _ := os.ReadFile(justfile) //nolint:errcheck // an unreadable build file means no build info
 		return BuildInfo{
 			System:     "just",
 			Build:      "just build",
@@ -79,6 +79,7 @@ func mageTargetsFromIndex(db *sql.DB, repoRoot string) []string {
 		return nil
 	}
 	magefilePath := filepath.Join(repoRoot, "magefile.go")
+	//nolint:rowserrcheck // best-effort context section: a mid-iteration error leaves the rows read so far, as a failed Scan does
 	rows, err := db.Query(`
 		SELECT name FROM symbols
 		WHERE file_path = ?
@@ -112,12 +113,13 @@ func parseMakefileTargets(content string) []string {
 	seen := make(map[string]bool)
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
+	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLine)
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if strings.HasPrefix(line, ".PHONY:") {
-			rest := strings.TrimPrefix(line, ".PHONY:")
-			for _, t := range strings.Fields(rest) {
+		if after, ok := strings.CutPrefix(line, ".PHONY:"); ok {
+			rest := after
+			for t := range strings.FieldsSeq(rest) {
 				if isValidMakeTarget(t) && !seen[t] {
 					seen[t] = true
 					phony = append(phony, t)
@@ -151,6 +153,7 @@ func parseTaskfileTargets(content string) []string {
 	inTasks := false
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
+	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLine)
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
@@ -179,6 +182,7 @@ func parseJustfileRecipes(content string) []string {
 	seen := make(map[string]bool)
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
+	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLine)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
@@ -288,3 +292,6 @@ func fileHasGoGenerate(path string) bool {
 	}
 	return false
 }
+
+// maxScanLine caps one scanned line of a build file at 1 MiB.
+const maxScanLine = 1 << 20

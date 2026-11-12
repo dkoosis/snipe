@@ -33,7 +33,7 @@ func HITS(g *Graph, maxIter int) (hubs, authorities map[string]float64) {
 	nextAuth := make(map[string]float64, n)
 	nextHub := make(map[string]float64, n)
 
-	for iter := 0; iter < maxIter; iter++ {
+	for range maxIter {
 		// Authority update: auth[v] = sum of hub[u] for u -> v.
 		var asum float64
 		for _, v := range nodes {

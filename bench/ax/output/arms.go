@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 )
 
 // listing is one captured snipe result list, parsed from today's text. Every
@@ -45,12 +47,15 @@ func parseText(s string) (listing, error) {
 		switch m := itemHead.FindStringSubmatch(line); {
 		case m != nil:
 			l.Items = append(l.Items, item{Section: pending, Name: m[1], ID: m[2]})
-			pending = nil
+			pending = nil //nolint:prealloc // pending collects lines until the next item head; its length is unknown
 			cur, wantLoc = &l.Items[len(l.Items)-1], true
 		case wantLoc:
 			lm := locLine.FindStringSubmatch(line)
+			if cur == nil {
+				return listing{}, fmt.Errorf("location line %q has no item: %w", line, errListing)
+			}
 			if lm == nil {
-				return listing{}, fmt.Errorf("item %s: want a file:line | kind line, got %q", cur.Name, line)
+				return listing{}, fmt.Errorf("item %s: want a file:line | kind line, got %q: %w", cur.Name, line, errListing)
 			}
 			fields := strings.Split(lm[2], " | ")
 			cur.Loc, cur.Kind, cur.Extra, wantLoc = lm[1], fields[0], fields[1:], false
@@ -68,10 +73,14 @@ func parseText(s string) (listing, error) {
 	}
 	l.Tail = pending
 	if wantLoc {
-		return listing{}, fmt.Errorf("item %s has no location line", cur.Name)
+		name := ""
+		if cur != nil {
+			name = cur.Name
+		}
+		return listing{}, fmt.Errorf("item %s has no location line: %w", name, errListing)
 	}
 	if len(l.Items) == 0 {
-		return listing{}, fmt.Errorf("no items in %q", s)
+		return listing{}, fmt.Errorf("no items in %q: %w", s, errListing)
 	}
 	return l, nil
 }
@@ -98,9 +107,9 @@ func render(arm string, l listing) (string, error) {
 		return renderTOON(l), nil
 	case armJSON:
 		b, err := json.Marshal(l)
-		return string(b) + "\n", err
+		return string(b) + "\n", errwrap.Wrap(err, "json marshal")
 	}
-	return "", fmt.Errorf("unknown arm %q (want one of %s)", arm, strings.Join(arms, ", "))
+	return "", fmt.Errorf("unknown arm %q (want one of %s): %w", arm, strings.Join(arms, ", "), errUsage)
 }
 
 func renderText(l listing) string {
@@ -150,9 +159,11 @@ func renderOneLine(l listing) string {
 			parts = append(parts, strings.Join(it.Sig, " "))
 		}
 		line := strings.Join(parts, " ")
+		var lineSb153 strings.Builder
 		for _, e := range it.Extra {
-			line += " · " + e
+			lineSb153.WriteString(" · " + e)
 		}
+		line += lineSb153.String()
 		if it.Hints != "" {
 			line += " · hints: " + it.Hints
 		}

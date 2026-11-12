@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -48,11 +49,8 @@ func (g *Graph) InEdges(n string) []string {
 	}
 	sort.Strings(srcs)
 	for _, s := range srcs {
-		for _, dst := range g.Adj[s] {
-			if dst == n {
-				in = append(in, s)
-				break
-			}
+		if slices.Contains(g.Adj[s], n) {
+			in = append(in, s)
 		}
 	}
 	return in
@@ -74,7 +72,7 @@ func LoadImportsGraphOpts(s *store.Store, includeTests bool) (*Graph, error) {
 		return nil, err
 	}
 	if modPath == "" {
-		return nil, fmt.Errorf("could not determine module path for intra-repo filter")
+		return nil, ErrNoModulePath
 	}
 	prefix := modPath + "/"
 
@@ -218,5 +216,5 @@ func moduleImportPath(s *store.Store) (string, error) {
 	if err := scanner.Err(); err != nil {
 		return "", fmt.Errorf("scan go.mod: %w", err)
 	}
-	return "", fmt.Errorf("module directive not found in %s", goModPath)
+	return "", fmt.Errorf("module directive not found in %s: %w", goModPath, ErrNoModuleDirective)
 }

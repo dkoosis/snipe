@@ -144,7 +144,7 @@ func TestSearch_ContextCancelled(t *testing.T) {
 	// With a cancelled context, exec.CommandContext kills rg immediately, so
 	// Search must return well under the deadline below.
 	body := strings.Repeat("aaaaaaaaaaaaaaaaaaaaaaaa\n", 2000)
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		f := filepath.Join(dir, "file"+strconv.Itoa(i)+".txt")
 		if err := os.WriteFile(f, []byte(body), 0644); err != nil {
 			t.Fatalf("write file: %v", err)
@@ -184,7 +184,7 @@ func TestSearch_ContextCancelled(t *testing.T) {
 func TestSearch_ContextDeadline(t *testing.T) {
 	dir := t.TempDir()
 	body := strings.Repeat("aaaaaaaaaaaaaaaaaaaaaaaa\n", 2000)
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		f := filepath.Join(dir, "file"+strconv.Itoa(i)+".txt")
 		if err := os.WriteFile(f, []byte(body), 0644); err != nil {
 			t.Fatalf("write file: %v", err)
@@ -221,7 +221,7 @@ func TestWithinRoot(t *testing.T) {
 		{"root itself", ".", nil, true},
 		{"parent", "..", nil, false},
 		{"escapes to cache", ".." + sep + ".." + sep + "Library" + sep + "Caches" + sep + "go-build" + sep + "x", nil, false},
-		{"rel error", "anything", errors.New("Rel failed"), false},
+		{"rel error", "anything", errFixture1rg, false},
 		// A dir named "..foo" must NOT be treated as an escape.
 		{"dotdot prefix not separator", "..foo" + sep + "x.go", nil, true},
 	}
@@ -233,3 +233,8 @@ func TestWithinRoot(t *testing.T) {
 		})
 	}
 }
+
+// Fixture errors: sentinels so the tests stay clear of dynamic errors.
+var (
+	errFixture1rg = errors.New("rel failed")
+)

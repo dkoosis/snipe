@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
 	"github.com/dkoosis/snipe/internal/store"
@@ -17,7 +19,7 @@ type sccGroup struct {
 	ID       int      `json:"id"`
 	Size     int      `json:"size"`
 	Nodes    []string `json:"nodes"`
-	SelfLoop bool     `json:"self_loop,omitempty"`
+	SelfLoop bool     `json:"self_loop,omitempty"` //omitemptyscalar:ignore a flag present only when true; consumers read absent as false
 }
 
 // cyclesPayload is the top-level results object for --kind=cycles JSON.
@@ -46,6 +48,9 @@ func runCyclesMetrics(s *store.Store, dir string, start time.Time) error {
 	groups := make([]sccGroup, 0, len(order))
 	for _, id := range order {
 		g := groupMap[id]
+		if g == nil {
+			continue
+		}
 		if g.Size == 1 && len(g.Nodes) == 1 {
 			g.SelfLoop = true
 		}
@@ -67,7 +72,7 @@ func runCyclesMetrics(s *store.Store, dir string, start time.Time) error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -86,5 +91,5 @@ func runCyclesMetrics(s *store.Store, dir string, start time.Time) error {
 		}
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }

@@ -188,26 +188,3 @@ func TestFindCallSites_FiltersGoChan(t *testing.T) {
 		t.Fatalf("wrong row survived: %q", rows[0].ID)
 	}
 }
-
-func TestCountCallSites_NonTestVsTestSplit(t *testing.T) {
-	db := setupCallSitesDB(t)
-	defer db.Close()
-
-	insertCSSym(t, db, "tgt", "Orphan", "foo/foo.go", "example.com/p/foo")
-	// Two test-file refs, zero production refs — the delete fast path shape.
-	insertCSRef(t, db, "r1", "foo/foo_test.go", 9, 3, "t1", "Orphan()", "")
-	insertCSRef(t, db, "r2", "foo/foo_test.go", 31, 3, "t2", "Orphan()", "")
-	// A go-self-ref must not be counted.
-	insertCSRef(t, db, "r3", "foo/foo.go", 40, 3, "", "go Orphan()", "go")
-
-	nonTest, testOnly, err := CountCallSites(db, "tgt")
-	if err != nil {
-		t.Fatalf("CountCallSites: %v", err)
-	}
-	if nonTest != 0 {
-		t.Fatalf("want 0 non-test refs, got %d", nonTest)
-	}
-	if testOnly != 2 {
-		t.Fatalf("want 2 test-only refs, got %d", testOnly)
-	}
-}

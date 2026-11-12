@@ -159,6 +159,7 @@ func TestParseBatchResults_WireContract(t *testing.T) {
 		{
 			name: "zero data items",
 			line: func(t *testing.T) string {
+				t.Helper()
 				return batchLine(t, "sym1", []byte(`{"object":"list","data":[],"model":"voyage-code-3","usage":{"total_tokens":0}}`))
 			},
 			why: "a 200 row carrying no data item must error rather than silently skip the symbol",
@@ -166,6 +167,7 @@ func TestParseBatchResults_WireContract(t *testing.T) {
 		{
 			name: "present but zero-length embedding",
 			line: func(t *testing.T) string {
+				t.Helper()
 				return batchLine(t, "sym1", wireFixture(t, "voyage_zero_vec.json"))
 			},
 			why: "an empty vector must never reach the handler, which would save it",
@@ -173,6 +175,7 @@ func TestParseBatchResults_WireContract(t *testing.T) {
 		{
 			name: "truncated body",
 			line: func(t *testing.T) string {
+				t.Helper()
 				return `{"batch_id":"batch-1","custom_id":"sym1","response":{"status_code":200,"body":` +
 					string(wireFixture(t, "voyage_truncated.json")) + `}}` + "\n"
 			},
@@ -181,6 +184,7 @@ func TestParseBatchResults_WireContract(t *testing.T) {
 		{
 			name: "unknown field is tolerated",
 			line: func(t *testing.T) string {
+				t.Helper()
 				return batchLine(t, "sym1", wireFixture(t, "voyage_unknown_field.json"))
 			},
 			wantHandled: []float32{0.1, 0.2},

@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 
 	"golang.org/x/mod/modfile"
 
@@ -70,13 +73,13 @@ func DetectModulePath(db *sql.DB) string {
 // Otherwise tries modulePath + "/" + pkgPath.
 func ResolveFullPkgPath(db *sql.DB, pkgPath, modulePath string) string {
 	var exists int
-	_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? OR pkg_path = ? LIMIT 1`,
+	_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? OR pkg_path = ? LIMIT 1`, //nolint:errcheck // a missing or unreadable row reads as the zero value
 		pkgPath, pkgPath).Scan(&exists)
 	if exists == 1 {
 		return pkgPath
 	}
 	candidate := modulePath + "/" + pkgPath
-	_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? OR pkg_path = ? LIMIT 1`,
+	_ = db.QueryRow(`SELECT 1 FROM imports WHERE importer_pkg = ? OR pkg_path = ? LIMIT 1`, //nolint:errcheck // a missing or unreadable row reads as the zero value
 		candidate, candidate).Scan(&exists)
 	if exists == 1 {
 		return candidate
@@ -118,7 +121,7 @@ func FindPackageDeps(db *sql.DB, pkgPath, modulePath string) (*PackageDeps, erro
 func scanDepEdges(db *sql.DB, query, modulePath string, args ...any) ([]protocol.DepRef, error) {
 	rows, err := db.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 
@@ -127,12 +130,12 @@ func scanDepEdges(db *sql.DB, query, modulePath string, args ...any) ([]protocol
 		var fullPath string
 		var e protocol.DepRef
 		if err := rows.Scan(&fullPath, &e.FileCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		e.Package = trimModulePath(fullPath, modulePath)
 		result = append(result, e)
 	}
-	return result, rows.Err()
+	return result, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 // FindDepGraph builds the full internal dependency graph for a module.
@@ -219,9 +222,9 @@ func detectCycles(edges []DepGraphEdge) [][]string {
 				// Found a cycle — extract from path stack
 				// Find where `next` appears in the current path
 				var cycle []string
-				for i := len(path) - 1; i >= 0; i-- {
-					cycle = append(cycle, path[i])
-					if path[i] == next {
+				for _, p := range slices.Backward(path) {
+					cycle = append(cycle, p)
+					if p == next {
 						break
 					}
 				}

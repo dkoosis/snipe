@@ -111,7 +111,7 @@ func TestWriteClaudeLifecycle_SummaryFormat(t *testing.T) {
 	w := NewWriter(&strings.Builder{}, OutputClaude)
 	var b strings.Builder
 	funcs := make([]protocol.LifecycleFunction, 0, 15)
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		funcs = append(funcs, protocol.LifecycleFunction{
 			Name:   fmt.Sprintf("fn%d", i),
 			File:   "x.go",

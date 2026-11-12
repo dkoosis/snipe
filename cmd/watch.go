@@ -7,8 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -85,7 +88,7 @@ func runWatch() error {
 			// dirs registered at Add() time on macOS/Linux).
 			if event.Op&fsnotify.Create != 0 {
 				if fi, statErr := os.Stat(event.Name); statErr == nil && fi.IsDir() {
-					_ = addWatchDirs(watcher, event.Name)
+					_ = addWatchDirs(watcher, event.Name) //nolint:errcheck // a failed addition leaves that directory unwatched; the event loop continues
 				}
 			}
 
@@ -100,19 +103,13 @@ func runWatch() error {
 			}
 
 			// Track changed file
-			relPath, _ := filepath.Rel(dir, event.Name)
+			relPath, _ := filepath.Rel(dir, event.Name) //nolint:errcheck // Rel fails only across volumes; both paths sit under the same root
 			if relPath == "" {
 				relPath = event.Name
 			}
 
 			// Avoid duplicates
-			found := false
-			for _, f := range pendingFiles {
-				if f == relPath {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(pendingFiles, relPath)
 			if !found {
 				pendingFiles = append(pendingFiles, relPath)
 			}
@@ -194,7 +191,7 @@ func runWatch() error {
 				Event:     "stopped",
 				Timestamp: time.Now().Format(time.RFC3339),
 			})
-			return GetContext().Err()
+			return errwrap.Wrap(GetContext().Err(), "context err")
 		}
 	}
 }
@@ -279,7 +276,7 @@ func drainOnCancelWith(
 
 // addWatchDirs recursively adds directories to the watcher.
 func addWatchDirs(watcher *fsnotify.Watcher, root string) error {
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	return errwrap.Wrap(filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil //nolint:nilerr // Skip inaccessible directories gracefully
 		}
@@ -303,7 +300,7 @@ func addWatchDirs(watcher *fsnotify.Watcher, root string) error {
 		}
 
 		return nil
-	})
+	}), "walk watch dirs")
 }
 
 // runReindex runs 'snipe index' as a subprocess, bound to ctx.
@@ -319,12 +316,15 @@ func runReindex(ctx context.Context, dir string) error {
 	cmd.Dir = dir
 	cmd.Stdout = os.Stderr // Redirect index output to stderr
 	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+	return errwrap.Wrap(cmd.Run(), "run index")
 }
 
 // emitEvent outputs a JSON event to stdout.
 func emitEvent(event WatchEvent) {
-	data, _ := json.Marshal(event)
+	data, err := json.Marshal(event)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "snipe watch: encode event: %v\n", err)
+		return
+	}
 	fmt.Println(string(data))
 }

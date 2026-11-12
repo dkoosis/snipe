@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dkoosis/snipe/internal/errwrap"
 
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -45,7 +48,7 @@ func runDeadcode() error {
 			Results:  out,
 			Meta: protocol.Meta{
 				Command:  "deadcode",
-				Query:    map[string]string{"include_tests": fmt.Sprintf("%t", deadIncludeTests), flagPkg: deadPkg},
+				Query:    map[string]string{"include_tests": strconv.FormatBool(deadIncludeTests), flagPkg: deadPkg},
 				RepoRoot: dir,
 				Ms:       time.Since(start).Milliseconds(),
 				Total:    len(out),
@@ -53,7 +56,7 @@ func runDeadcode() error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -66,7 +69,7 @@ func runDeadcode() error {
 		fmt.Fprintf(&b, "  %s\t%s\t%s:%d\t%s\n", r.Kind, r.Pkg+"."+r.Name, r.File, r.Line, refsHint(r.RefsAll, deadIncludeTests))
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func refsHint(refsAll int, includeTests bool) string {

@@ -3,6 +3,7 @@ package query
 import (
 	"database/sql"
 	"os"
+	"slices"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -199,13 +200,7 @@ func TestFindSimilarSymbols(t *testing.T) {
 
 			// Check that expected symbols are present
 			for _, want := range tt.wantContain {
-				found := false
-				for _, g := range got {
-					if g == want {
-						found = true
-						break
-					}
-				}
+				found := slices.Contains(got, want)
 				if !found {
 					t.Errorf("FindSimilarSymbols() missing expected %q, got %v", want, got)
 				}

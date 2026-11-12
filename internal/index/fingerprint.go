@@ -88,8 +88,3 @@ func computeCombinedHash(fp *Fingerprint) string {
 	h := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(h[:8])
 }
-
-// String returns a string representation of the fingerprint
-func (fp *Fingerprint) String() string {
-	return fp.Combined
-}

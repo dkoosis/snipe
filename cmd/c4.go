@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"github.com/dkoosis/snipe/internal/c4"
 	"github.com/dkoosis/snipe/internal/output"
 	"github.com/dkoosis/snipe/internal/protocol"
@@ -55,7 +57,7 @@ func runC4(level string) error {
 	if GetOutputFormat() == output.OutputJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 	return writeC4Text(resp.Results)
 }
@@ -144,7 +146,7 @@ const c4TextCap = 20
 func writeC4Text(results []protocol.C4Result) error {
 	if len(results) == 0 {
 		_, err := os.Stdout.WriteString("c4 · no facts\n")
-		return err
+		return errwrap.Wrap(err, "file write string")
 	}
 	r := results[0]
 
@@ -210,17 +212,14 @@ func writeC4Text(results []protocol.C4Result) error {
 	}
 
 	_, err := os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 // writeC4Capped writes at most c4TextCap lines from render(i), i in [0,n),
 // appending a "+N more" marker when truncated.
 func writeC4Capped(b *strings.Builder, n int, render func(i int) string) {
-	limit := n
-	if limit > c4TextCap {
-		limit = c4TextCap
-	}
-	for i := 0; i < limit; i++ {
+	limit := min(n, c4TextCap)
+	for i := range limit {
 		b.WriteString(render(i))
 	}
 	if n > limit {

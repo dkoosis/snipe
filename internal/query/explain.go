@@ -39,12 +39,12 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*protocol.Explai
 		return nil, fmt.Errorf("lookup symbol: %w", err)
 	}
 	if sym == nil {
-		return nil, fmt.Errorf("symbol not found: %s", symbolID)
+		return nil, fmt.Errorf("symbol not found: %s: %w", symbolID, ErrSymbolNotFound)
 	}
 
 	// Only explain funcs and methods for now
 	if sym.Kind != kindFunc && sym.Kind != "method" {
-		return nil, fmt.Errorf("explain only supports func/method, got %s", sym.Kind)
+		return nil, fmt.Errorf("explain only supports func/method, got %s: %w", sym.Kind, ErrUnsupportedKind)
 	}
 
 	result := &protocol.ExplainResult{
@@ -80,7 +80,7 @@ func Explain(db *sql.DB, symbolID string, opts ExplainOptions) (*protocol.Explai
 	})
 
 	if funcDecl == nil {
-		return nil, fmt.Errorf("function not found in AST at line %d", sym.LineStart)
+		return nil, fmt.Errorf("function not found in AST at line %d: %w", sym.LineStart, ErrSymbolNotFound)
 	}
 
 	// Extract purpose from doc or generate template
@@ -322,11 +322,11 @@ func buildCallerContext(db *sql.DB, symbolID string, limit int) (*protocol.Calle
 	var count int
 	err := db.QueryRow(`SELECT COUNT(*) FROM call_graph WHERE callee_id = ?`, symbolID).Scan(&count)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("row scan: %w", err)
 	}
 
 	if count == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: (nil, nil) means nothing to return; callers test the value
 	}
 
 	// Get top callers

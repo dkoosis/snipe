@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkoosis/snipe/internal/errwrap"
+
 	"gopkg.in/yaml.v3"
 
 	"github.com/dkoosis/snipe/internal/output"
@@ -101,18 +103,18 @@ func runBoundary(args []string) error {
 func allPkgPaths(db *sql.DB) ([]string, error) {
 	rows, err := db.Query(`SELECT DISTINCT pkg_path FROM symbols WHERE pkg_path != ''`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db query: %w", err)
 	}
 	defer rows.Close()
 	var out []string
 	for rows.Next() {
 		var p string
 		if err := rows.Scan(&p); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rows scan: %w", err)
 		}
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	return out, errwrap.Wrap(rows.Err(), "rows err")
 }
 
 func buildBoundaryResult(r *query.BoundaryReport) protocol.BoundaryResult {
@@ -169,7 +171,7 @@ func countCrossings(r *query.BoundaryReport) int {
 // interpret deps rules; we only need {layer-name -> []path-pattern}.
 type archManifest struct {
 	Components map[string]struct {
-		In interface{} `yaml:"in"` // string or []string
+		In any `yaml:"in"` // string or []string
 	} `yaml:"components"`
 }
 
@@ -236,7 +238,7 @@ func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
 		switch v := comp.In.(type) {
 		case string:
 			patterns = []string{v}
-		case []interface{}:
+		case []any:
 			for _, x := range v {
 				if str, ok := x.(string); ok {
 					patterns = append(patterns, str)
@@ -260,7 +262,7 @@ func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
 	// One FindBoundaryCrossings per ordered pair (i->j and j->i are both
 	// reported via the directional A→B/B→A split inside FindBoundaryCrossings).
 	rows := make([]layerCrossingRow, 0, len(layers)*(len(layers)-1))
-	for i := 0; i < len(layers); i++ {
+	for i := range layers {
 		for j := i + 1; j < len(layers); j++ {
 			if len(layers[i].pkgs) == 0 || len(layers[j].pkgs) == 0 {
 				continue
@@ -301,7 +303,7 @@ func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(resp)
+		return errwrap.Wrap(enc.Encode(resp), "encoder encode")
 	}
 
 	var b strings.Builder
@@ -314,7 +316,7 @@ func runBoundaryLayers(s *store.Store, dir string, start time.Time) error {
 			r.From, r.To, r.Crossings, r.Symbols, r.FromPackages, r.ToPackages)
 	}
 	_, err = os.Stdout.WriteString(b.String())
-	return err
+	return errwrap.Wrap(err, "file write string")
 }
 
 func sumRefs(refs []query.BoundaryRef) int {
