@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,7 +123,7 @@ func TestEmit_DisabledByEnv(t *testing.T) {
 
 	Emit(Fields{Command: "def", Outcome: "ok", Ms: 1})
 
-	if _, err := os.Stat(filepath.Join(root, ".snipe", "usage.jsonl")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, ".snipe", "usage.jsonl")); !errors.Is(err, os.ErrNotExist) {
 		t.Error("usage.jsonl should not exist when SNIPE_NO_TELEMETRY is set")
 	}
 }

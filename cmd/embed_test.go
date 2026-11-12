@@ -166,7 +166,7 @@ func TestRecoveryGuard_ClearsBatchStateOnSuccess(t *testing.T) {
 		}
 	}
 
-	if _, statErr := os.Stat(statePath); !os.IsNotExist(statErr) {
+	if _, statErr := os.Stat(statePath); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("batch_state.json should be cleared on full success, stat err = %v", statErr)
 	}
 }

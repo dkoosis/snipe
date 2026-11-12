@@ -172,7 +172,7 @@ func TestCreateIndexDirectory(t *testing.T) {
 
 	// Verify directory was created
 	parentDir := filepath.Dir(nestedPath)
-	if _, err := os.Stat(parentDir); os.IsNotExist(err) {
+	if _, err := os.Stat(parentDir); errors.Is(err, os.ErrNotExist) {
 		t.Error("Parent directory should have been created")
 	}
 }
@@ -413,7 +413,7 @@ func TestRemoveLockIfContentsMatch_RemovesWhenContentsMatch(t *testing.T) {
 	if !removeLockIfContentsMatch(lockPath, "9999999") {
 		t.Fatal("expected removal when contents match")
 	}
-	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(lockPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("lock should be gone, stat err: %v", err)
 	}
 }
@@ -457,7 +457,7 @@ func TestReleaseLockRemovesOwnLock(t *testing.T) {
 	if err := ReleaseLock(dbPath); err != nil {
 		t.Fatalf("ReleaseLock failed for own lock: %v", err)
 	}
-	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(lockPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("own lock should be gone after ReleaseLock, stat err: %v", err)
 	}
 }

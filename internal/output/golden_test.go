@@ -3,6 +3,7 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -389,7 +390,7 @@ func testGolden(t *testing.T, filename string, resp any) {
 
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Golden file not found: %s\nRun with -update to create it", goldenPath)
 		}
 		t.Fatalf("Failed to read golden file: %v", err)
