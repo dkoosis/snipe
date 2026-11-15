@@ -2,6 +2,8 @@ module github.com/dkoosis/snipe
 
 go 1.26.11
 
+toolchain go1.27.4
+
 require (
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/tools v0.52.0
