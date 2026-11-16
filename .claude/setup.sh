@@ -69,20 +69,9 @@ echo "Go: $(go version)"
 # Install golangci-lint if not linked
 if ! command -v golangci-lint &>/dev/null; then
     echo "Installing golangci-lint..."
-    GOLANGCI_VERSION="1.64.2"
-    GOLANGCI_TARBALL="golangci-lint-${GOLANGCI_VERSION}-linux-amd64.tar.gz"
-    GOLANGCI_URL="https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_VERSION}/${GOLANGCI_TARBALL}"
-
-    TMPDIR=$(mktemp -d)
-    trap 'rm -rf "$TMPDIR"' EXIT
-
-    echo "  Downloading golangci-lint v${GOLANGCI_VERSION}..."
-    curl -fsSL "$GOLANGCI_URL" -o "$TMPDIR/${GOLANGCI_TARBALL}"
-
-    echo "  Extracting..."
-    tar -C "$TMPDIR" -xzf "$TMPDIR/${GOLANGCI_TARBALL}"
-    cp "$TMPDIR/golangci-lint-${GOLANGCI_VERSION}-linux-amd64/golangci-lint" "$REPO_ROOT/bin/"
-    chmod +x "$REPO_ROOT/bin/golangci-lint"
+    GOLANGCI_URL="https://github.com/golangci/golangci-lint/raw/HEAD/install.sh"
+    # Latest release, unpinned.
+    curl -fsSL "$GOLANGCI_URL" | sh -s -- -b "$REPO_ROOT/bin"
 fi
 echo "golangci-lint: $(golangci-lint --version 2>&1 | head -1)"
 
