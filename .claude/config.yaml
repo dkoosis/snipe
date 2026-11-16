@@ -37,7 +37,7 @@ commands:
 tools:
   required:
     - go         # Go 1.25+
-    - golangci-lint  # v1.64.2
+    - golangci-lint  # latest release, unpinned
     - make       # Build tool
     - rg         # ripgrep for snipe search
   shared_from: .codex/bin/linux-amd64

@@ -128,11 +128,11 @@ func runHealCmd(ctx context.Context, cmd *exec.Cmd) bool {
 		return err == nil
 	case <-ctx.Done():
 		_ = cmd.Process.Kill() //nolint:errcheck // best-effort kill on the abort path; the following receive reaps the child
-		<-done
+		<-done                 //nolint:errcheck // reaps the killed child; its exit error is expected
 		return false
 	case <-time.After(healTimeout):
 		_ = cmd.Process.Kill() //nolint:errcheck // best-effort kill on the abort path; the following receive reaps the child
-		<-done
+		<-done                 //nolint:errcheck // reaps the killed child; its exit error is expected
 		return false
 	}
 }

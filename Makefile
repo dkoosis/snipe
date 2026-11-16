@@ -23,9 +23,8 @@ include .sandbox/lib/Makefile.cross.mk
         install clean \
         baseline bench eval eval-setup
 
-# Tool pins: every gate tool runs as go run <pkg>@$(VER) or npx <pkg>@$(VER).
-REPO_STANDARD_VER := v0.4.0
-OMITEMPTYSCALAR_VER := v0.4.0
+# Tool pins: gate tools run as go run <pkg>@$(VER) or npx <pkg>@$(VER); repo-standard runs unpinned at main.
+OMITEMPTYSCALAR_VER := v0.4.1
 GOVULNCHECK_VER := v1.9.0
 NILAWAY_VER := v0.0.0-20260918162853-acb8859b9031
 DEADCODE_VER := v0.52.0
@@ -65,9 +64,9 @@ check: vet lint test build standard ## Full repo: vet + lint + test + build + re
 build: ## Compile everything
 	go build ./...
 
-# Fleet gate: repo-standard, pinned (REPO_STANDARD_VER); bumping the pin is a deliberate PR.
-standard: ## Run repo-standard (fleet SDLC checker) against this repo
-	go run github.com/dkoosis/repo-standard/cmd/repo-standard@$(REPO_STANDARD_VER)
+# Fleet gate: the current repo-standard main, no version pin.
+standard: ## Run the current repo-standard main (fleet SDLC checker) against this repo
+	GOPRIVATE=github.com/dkoosis/repo-standard go run github.com/dkoosis/repo-standard/cmd/repo-standard@main
 
 audit: check race fuzz dupe nilcheck deadcode omitempty blackbox eval vuln ## Exhaustive: check + race + fuzz + dupe + nilcheck + deadcode + omitempty + blackbox + eval + vuln
 	@echo "=== audit pass ==="
